@@ -62,7 +62,7 @@ browser sessions. Send is available via both the UI and a public API (API keys).
 ## 7. Current Behavior
 
 - `sendEmailSchema` accepts `html` and `text` fields
-- `sendEmail()` validates sender domain is active, creates outbound job, sends via `env.EMAIL.send()`
+- `sendEmail()` validates sender domain is active, creates outbound job, sends via the configured outbound provider (`selectOutboundProvider(env)` — Cloudflare by default, Resend when `MAIL_PROVIDER=resend`). See [F33](F33-outbound-mail-providers.md).
 - Auto-save uses `useEffect` with 900ms debounce
 - Drafts POST/PATCH both accept `html` field
 - On send success, associated draft is deleted

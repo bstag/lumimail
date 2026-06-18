@@ -23,6 +23,10 @@
 	"vars": {
 		"CF_TOKEN": "cf-token",
 		"CF_ACCOUNT_ID": "cf-account-id",
+		// Outbound provider: "cloudflare" (default, verified recipients only) or
+		// "resend" (arbitrary recipients). For "resend", set RESEND_API_KEY via
+		// `wrangler secret put RESEND_API_KEY` and keep the send_email binding below.
+		"MAIL_PROVIDER": "cloudflare",
 	},
 	"observability": {
 		"enabled": true,

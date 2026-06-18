@@ -12,4 +12,10 @@ interface CloudflareEnv {
 	CF_EMAIL?: string;
 	CF_ACCOUNT_ID?: string;
 	CF_EMAIL_WORKER_NAME?: string;
+	/** Outbound mail provider: "cloudflare" (default) or "resend". */
+	MAIL_PROVIDER?: string;
+	/** Resend API key. Required when MAIL_PROVIDER=resend. */
+	RESEND_API_KEY?: string;
+	/** Override the Resend API base URL (defaults to https://api.resend.com). */
+	RESEND_BASE_URL?: string;
 }

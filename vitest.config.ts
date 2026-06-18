@@ -42,6 +42,9 @@ export default defineConfig({
 				"src/lib/email/address.ts",
 				"src/lib/email/reply-content-utils.ts",
 				"src/lib/email/alias-targets.ts",
+				"src/lib/email/providers/index.ts",
+				"src/lib/email/providers/cloudflare.ts",
+				"src/lib/email/providers/resend.ts",
 			],
 			thresholds: {
 				lines: 100,

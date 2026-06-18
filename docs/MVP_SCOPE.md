@@ -42,6 +42,7 @@ Status values: `Shipped`, `In Progress`, `Planned`, `Out of scope`.
 | F30 | Group aliases (fan-out delivery) | Shipped | — | `/aliases` | inbound routing | [group-aliases](implementation/group-aliases.md) |
 | F31 | Inline image/PDF preview | Shipped | — | `/inbox/[id]` | `/api/attachments/[id]?disposition=inline` | [attachments](implementation/attachments.md) |
 | F32 | Mobile-responsive UI | Shipped | — | dashboard + admin layouts | — | — |
+| F33 | Pluggable outbound mail providers (Cloudflare, Resend) | Shipped | [F33](specs/F33-outbound-mail-providers.md) | — | `/api/send`, `/api/v1/send` (via `MAIL_PROVIDER`) | — |
 | F34 | Workers-compatible HTML sanitization (dompurify + linkedom) | Shipped | [F34](specs/F34-workers-html-sanitization.md) | `/inbox/[id]` | inbound parsing | — |
 
 ## What "Google Workspace email replacement" means

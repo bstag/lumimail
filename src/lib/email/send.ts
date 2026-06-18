@@ -5,6 +5,7 @@ import { newId } from "@/lib/ids";
 import { buildSnippet } from "@/lib/email/parse";
 import { dispatchWebhooks } from "@/lib/email/webhooks";
 import { ensureEmailRoutingRuleToWorker } from "@/lib/cloudflare-api";
+import { selectOutboundProvider } from "@/lib/email/providers";
 import { upsertContactFromAddress } from "@/lib/contacts/service";
 import { formatEmailAddress, getEmailAddress } from "@/lib/email/address";
 import { parseAddress } from "@/lib/utils";
@@ -108,7 +109,8 @@ export async function sendEmail(env: CloudflareEnv, input: SendEmailInput): Prom
 	});
 
 	try {
-		const response = await env.EMAIL.send({
+		const provider = selectOutboundProvider(env);
+		const response = await provider.send({
 			from: fromAddr,
 			to: input.to,
 			subject: input.subject,
@@ -118,13 +120,13 @@ export async function sendEmail(env: CloudflareEnv, input: SendEmailInput): Prom
 
 		await db
 			.update(messages)
-			.set({ status: "sent", providerMessageId: response.messageId })
+			.set({ status: "sent", providerMessageId: response.providerMessageId })
 			.where(eq(messages.id, messageId));
 		await db.update(outboundJobs).set({ status: "sent", updatedAt: new Date() }).where(eq(outboundJobs.id, jobId));
 
 		await dispatchWebhooks(env, input.userId, "message.outbound", {
 			messageId,
-			providerMessageId: response.messageId,
+			providerMessageId: response.providerMessageId,
 			to: input.to,
 		});
 

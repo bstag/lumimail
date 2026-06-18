@@ -125,6 +125,23 @@ npm run deploy
 | `CF_TOKEN` | Cloudflare API token with Zone Read, Email Routing Edit, Email Sending Edit, Email Routing Rules Write |
 | `CF_ACCOUNT_ID` | Cloudflare account ID (optional — only if your token spans multiple accounts) |
 | `CF_EMAIL_WORKER_NAME` | Must match `name` in `wrangler.jsonc`. Default: `lumimail` |
+| `RESEND_API_KEY` | Resend API key. Required only when `MAIL_PROVIDER=resend` |
+
+### Outbound provider (optional)
+
+By default Lumimail sends via Cloudflare's `send_email` binding, which only
+delivers to **destination addresses verified in your Cloudflare account**. To
+send to **arbitrary recipients** on a verified sending domain, set
+`MAIL_PROVIDER=resend` and provide `RESEND_API_KEY`:
+
+```bash
+# in wrangler.jsonc vars:  "MAIL_PROVIDER": "resend"
+npx wrangler secret put RESEND_API_KEY
+```
+
+Inbound mail is unaffected — it always uses Cloudflare Email Routing. Leave
+`MAIL_PROVIDER` unset (or `cloudflare`) to keep the default behavior. See
+[`docs/specs/F33-outbound-mail-providers.md`](docs/specs/F33-outbound-mail-providers.md).
 
 ### Post-deploy
 

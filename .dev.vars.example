@@ -8,3 +8,10 @@ CF_EMAIL_WORKER_NAME=lumimail
 # Legacy Global API Key alternative. Use this only instead of CF_TOKEN.
 # CF_EMAIL=you@example.com
 # CF_API_KEY=your_global_api_key
+
+# Outbound mail provider: "cloudflare" (default) or "resend".
+# Cloudflare only delivers to verified destination addresses; use "resend" to
+# deliver to arbitrary recipients on a verified sending domain.
+# MAIL_PROVIDER=resend
+# RESEND_API_KEY=re_your_api_key
+# RESEND_BASE_URL=https://api.resend.com
