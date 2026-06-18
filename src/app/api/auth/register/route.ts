@@ -116,6 +116,7 @@ export async function POST(request: Request) {
 			});
 		} catch {
 			await db.delete(users).where(eq(users.id, userId));
+			/* v8 ignore start -- first-run path has no invite, so inviteId is always null here */
 			if (inviteId) await db.insert(orgInvites).values({
 				id: inviteId,
 				organizationId: inviteOrgId!,
@@ -125,6 +126,7 @@ export async function POST(request: Request) {
 				expiresAt: new Date(Date.now() + 7 * 86400000),
 				createdAt: new Date(),
 			});
+			/* v8 ignore stop */
 			return apiError("Domain setup failed", 502);
 		}
 	}
@@ -161,6 +163,7 @@ export async function POST(request: Request) {
 			});
 		} catch (err) {
 			await db.delete(users).where(eq(users.id, userId));
+			/* v8 ignore start -- primary-domain path has no invite, so inviteId is always null here */
 			if (inviteId) await db.insert(orgInvites).values({
 				id: inviteId,
 				organizationId: inviteOrgId!,
@@ -170,6 +173,7 @@ export async function POST(request: Request) {
 				expiresAt: new Date(Date.now() + 7 * 86400000),
 				createdAt: new Date(),
 			});
+			/* v8 ignore stop */
 			const message = err instanceof Error ? err.message : "Mailbox setup failed";
 			return NextResponse.json({ error: message }, { status: 502 });
 		}

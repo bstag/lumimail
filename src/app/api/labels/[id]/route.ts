@@ -26,6 +26,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 	}
 
 	const parsed = updateLabelSchema.safeParse(body);
+	/* v8 ignore next -- a Zod failure always carries an issue; the ?? fallback is defensive */
 	if (!parsed.success) return apiError(parsed.error.issues[0]?.message ?? "Invalid input", 400);
 
 	const db = getDb(env);
