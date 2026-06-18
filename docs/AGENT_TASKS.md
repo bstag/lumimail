@@ -4,6 +4,14 @@ A curated menu of work sized for a single autonomous PR. Each entry is **self-co
 
 > Before starting any task: read [`AGENTS.md`](../AGENTS.md), skim the relevant spec in [`docs/specs/`](./specs/), and confirm `npm run verify` is green on a clean checkout.
 
+## Live, grabbable issues
+
+The curated tasks below mirror the **real GitHub issues**, which carry acceptance criteria and discussion. Grab one there so work isn't duplicated:
+
+- 🤖 **[`ai-agent-friendly`](https://github.com/cschanhniem/lumimail/issues?q=is%3Aopen+label%3Aai-agent-friendly)** — well-scoped for autonomous PRs.
+- 🟢 **[`good first issue`](https://github.com/cschanhniem/lumimail/issues?q=is%3Aopen+label%3A%22good+first+issue%22)** — best starting points.
+- 🙌 **[`help wanted`](https://github.com/cschanhniem/lumimail/issues?q=is%3Aopen+label%3A%22help+wanted%22)** — open for contribution.
+
 ## How to claim a task
 
 1. Open (or comment on) the matching GitHub issue so work isn't duplicated.

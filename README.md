@@ -221,6 +221,7 @@ Lumimail is designed so autonomous agents can contribute as first-class collabor
 - **[`AGENTS.md`](./AGENTS.md)** — the canonical agent contract: default behavior, rules, codebase map.
 - **[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)** — request/mail data-flow diagrams and where every behavior lives.
 - **[`docs/AGENT_TASKS.md`](./docs/AGENT_TASKS.md)** — a curated, self-contained task surface sized for single PRs.
+- **Grab live work:** issues labeled [`ai-agent-friendly`](https://github.com/cschanhniem/lumimail/issues?q=is%3Aopen+label%3Aai-agent-friendly) and [`good first issue`](https://github.com/cschanhniem/lumimail/issues?q=is%3Aopen+label%3A%22good+first+issue%22).
 - **[`docs/ENGINEERING.md`](./docs/ENGINEERING.md)** — the spec → tests → implement → verify lifecycle every change follows.
 - **One-command verification:** `npm run verify` is the definition of done (typecheck + lint + 100%-coverage tests).
 
