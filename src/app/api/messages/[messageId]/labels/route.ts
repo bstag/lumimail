@@ -49,6 +49,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ mes
 	}
 
 	const parsed = labelIdSchema.safeParse(body);
+	/* v8 ignore next -- a Zod failure always carries an issue; the ?? fallback is defensive */
 	if (!parsed.success) return apiError(parsed.error.issues[0]?.message ?? "Invalid input", 400);
 
 	const { labelId } = parsed.data;
@@ -93,6 +94,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ m
 	}
 
 	const parsed = labelIdSchema.safeParse(body);
+	/* v8 ignore next -- a Zod failure always carries an issue; the ?? fallback is defensive */
 	if (!parsed.success) return apiError(parsed.error.issues[0]?.message ?? "Invalid input", 400);
 
 	const { labelId } = parsed.data;
