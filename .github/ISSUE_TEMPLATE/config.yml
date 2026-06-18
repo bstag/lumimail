@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/cschanhniem/lumimail/security/advisories/new
+    about: Report security issues privately — never in a public issue. See SECURITY.md.
+  - name: Commercial licensing & partnerships
+    url: mailto:vh3969@gmail.com
+    about: Hosting Lumimail as a service without AGPL obligations? Get in touch.
+  - name: Contributing guide (humans & AI agents)
+    url: https://github.com/cschanhniem/lumimail/blob/main/CONTRIBUTING.md
+    about: How to go from clone to merged PR, including the spec-first lifecycle.

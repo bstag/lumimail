@@ -65,3 +65,11 @@ npm run e2e       # for user-visible changes
 | E2E tests | `tests/e2e/` (Playwright) |
 
 Key conventions: DB via `getDb(env)`, IDs via `newId(prefix)`, auth via `requireUser()` (server) / `authFetch` (client), all request bodies Zod-validated, cross-tenant isolation mandatory on all multi-tenant endpoints.
+
+## Where to start
+
+- **Pick work:** [`docs/AGENT_TASKS.md`](./docs/AGENT_TASKS.md) — self-contained tasks sized for one PR.
+- **Full lifecycle:** [`docs/ENGINEERING.md`](./docs/ENGINEERING.md).
+- **Contribution mechanics (commits, PRs, CLA):** [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+- **Security invariants:** [`SECURITY.md`](./SECURITY.md) — cross-tenant isolation is the strongest one.
+- **Specs & registry:** [`docs/specs/`](./docs/specs/) and [`docs/MVP_SCOPE.md`](./docs/MVP_SCOPE.md).

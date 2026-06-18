@@ -197,13 +197,22 @@ Lumimail is **AGPL-3.0** open source: self-host, modify, and redistribute freely
 
 ## Contributing
 
-Lumimail is built in the open and **contributions are genuinely welcome** — bug fixes, features, docs, translations, or just a sharp issue report. Good first steps:
+Lumimail is built in the open and **contributions are genuinely welcome** — bug fixes, features, docs, translations, or just a sharp issue report. The full guide is in [`CONTRIBUTING.md`](./CONTRIBUTING.md). Good first steps:
 
 1. ⭐ Star the repo and open a [GitHub issue](https://github.com/cschanhniem/lumimail/issues) for bugs or ideas.
-2. Fork, branch, and send a PR. Run the test suite (`npm test`) before opening it.
+2. Fork, branch, and send a PR. Run `npm run verify` before opening it.
 3. Sign off on the [Contributor License Agreement](./CLA.md) — it keeps copyright consolidated so the project can stay **both open source and commercially sustainable** (the commercial license is what funds the open one).
 
 Every contribution keeps email a little more open.
+
+### Built for AI coding agents
+
+Lumimail is designed so autonomous agents can contribute as first-class collaborators:
+
+- **[`AGENTS.md`](./AGENTS.md)** — the canonical agent contract: default behavior, rules, codebase map.
+- **[`docs/AGENT_TASKS.md`](./docs/AGENT_TASKS.md)** — a curated, self-contained task surface sized for single PRs.
+- **[`docs/ENGINEERING.md`](./docs/ENGINEERING.md)** — the spec → tests → implement → verify lifecycle every change follows.
+- **One-command verification:** `npm run verify` is the definition of done (typecheck + lint + 100%-coverage tests).
 
 ## Support
 
