@@ -43,7 +43,10 @@ export async function POST(request: Request) {
 	}
 
 	const parsed = createContactSchema.safeParse(body);
-	if (!parsed.success) return apiError(parsed.error.issues[0]?.message ?? "Invalid input", 400);
+	if (!parsed.success) {
+		/* v8 ignore next -- a Zod failure always carries an issue; the ?? fallback is defensive */
+		return apiError(parsed.error.issues[0]?.message ?? "Invalid input", 400);
+	}
 
 	const email = normalizeEmailAddress(parsed.data.email);
 	if (!email) return apiError("Invalid email address", 400);

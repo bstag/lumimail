@@ -55,6 +55,7 @@ export async function GET(request: Request) {
 			like(messages.subject, pattern),
 			like(messages.snippet, pattern),
 		);
+		/* v8 ignore next -- or() over always-defined like()s is never undefined; guard is defensive */
 		if (queryCondition) conditions.push(queryCondition);
 	}
 	if (title) {

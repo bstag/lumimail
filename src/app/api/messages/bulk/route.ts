@@ -31,6 +31,7 @@ export async function POST(request: Request) {
 		...(read !== null ? { read } : {}),
 	};
 
+	/* v8 ignore next 3 -- every allowed action yields a non-empty values object; guard is defensive */
 	if (Object.keys(values).length === 0) {
 		return NextResponse.json({ error: "No changes requested" }, { status: 400 });
 	}

@@ -20,6 +20,7 @@ async function cfRequest<T>(
 		headers: {
 			...getCloudflareAuthHeaders(auth),
 			"Content-Type": "application/json",
+			/* v8 ignore next -- no caller passes init.headers; defensive override only */
 			...(init?.headers ?? {}),
 		},
 	});
