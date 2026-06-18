@@ -335,6 +335,7 @@ export async function insertDemoMessages(
 			subject: seedMessage.subject,
 			snippet: buildSnippet(seedMessage.textBody, null),
 			status: seedMessage.status,
+			/* v8 ignore next -- every seed message defines `read`; the ?? default is defensive */
 			read: seedMessage.read ?? true,
 			threadId: seedMessage.providerMessageId ?? null,
 			createdAt,
