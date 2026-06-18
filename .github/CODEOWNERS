@@ -1,0 +1,16 @@
+# Code owners — auto-requested for review on matching paths.
+# See https://docs.github.com/articles/about-code-owners
+
+# Default owner for everything in the repo.
+*                       @cschanhniem
+
+# Security-sensitive surfaces — review carefully (auth, cross-tenant isolation, API).
+/src/lib/auth/          @cschanhniem
+/src/app/api/           @cschanhniem
+/src/lib/validators.ts  @cschanhniem
+/SECURITY.md            @cschanhniem
+
+# Agent & contributor contract — keep in sync with the engineering protocol.
+/AGENTS.md              @cschanhniem
+/CONTRIBUTING.md        @cschanhniem
+/docs/                  @cschanhniem
