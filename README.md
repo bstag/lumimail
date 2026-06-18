@@ -1,10 +1,29 @@
-# Lumimail — The Self-Hosted Email Platform That Makes Google Workspace Look Like Rent
+# Lumimail — The Open-Source, Self-Hosted Email Platform That Makes Google Workspace Look Like Rent
 
-**Lumimail is an open-source, multi-tenant email platform you run on your own Cloudflare account.** Own your domains, your mailboxes, your data, and your monthly bill. No per-seat tax. No mailbox you don't control. No vendor reading your mail.
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](./LICENSE)
+[![Open Source](https://img.shields.io/badge/Open%20Source-%E2%9D%A4-red.svg)](https://github.com/cschanhniem/lumimail)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
+[![Self-Hosted](https://img.shields.io/badge/Self--Hosted-Cloudflare-orange.svg)](https://workers.cloudflare.com/)
+[![Built with Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
 
-> Gmail without the landlord. Google Workspace without the invoice that grows every time you hire someone.
+**Lumimail is a free and open-source, multi-tenant email platform you run on your own Cloudflare account.** The full source is on GitHub under AGPL-3.0 — read it, fork it, audit it, run it. Own your domains, your mailboxes, your data, and your monthly bill. No per-seat tax. No mailbox you don't control. No vendor reading your mail. No black box.
+
+> Gmail without the landlord. Google Workspace without the invoice that grows every time you hire someone. **Open source, so you can actually trust what's running your mail.**
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cschanhniem/lumimail)
+
+⭐ **If you believe email should be open, [star the repo](https://github.com/cschanhniem/lumimail)** — it's the cheapest way to help the project grow.
+
+---
+
+## Open source, for real
+
+Lumimail isn't "source-available with an asterisk." It's **AGPL-3.0** — the strongest copyleft license there is — because your email infrastructure should be inspectable, forkable, and free of lock-in by design.
+
+- **Read every line.** No proprietary core, no hidden telemetry, no phone-home. What's in the repo is what runs.
+- **Fork it freely.** Self-host, modify, and redistribute. The only obligation: if you run a modified version *as a network service*, publish your changes (that's the AGPL keeping the commons honest).
+- **Own your exit.** Because it's open and runs on your own Cloudflare account, there is no vendor who can raise your price, lock your data, or shut you off.
+- **Built in the open.** Issues, PRs, and roadmap live on GitHub. Contributions are welcome — see [Contributing](#contributing).
 
 ---
 
@@ -26,9 +45,11 @@ Lumimail breaks the treadmill. It runs entirely on **Cloudflare Workers + D1 + R
 | Webmail UI | **Yes — Gmail-class** | Yes | Yes | Usually bolted-on |
 | Desktop/mobile clients (IMAP/SMTP) | **Yes — via bridge** | Yes | Yes | Yes |
 | Server to patch at 3am | **None (serverless)** | None | None | Yours |
-| Vendor lock-in | **None — source-available, self-run** | Total | Total | None |
+| Vendor lock-in | **None — fully open source, self-run** | Total | Total | None |
+| License | **AGPL-3.0 (open source)** | Proprietary | Proprietary | Mixed OSS |
+| Source you can audit | **100% on GitHub** | None | None | Yes |
 
-You don't pick Lumimail because it's cheaper. You pick it because it's *yours*, and it happens to also be cheaper.
+You don't pick Lumimail because it's cheaper. You pick it because it's *yours* and *open* — you can read the code running your mail — and it happens to also be cheaper.
 
 ## What it actually does
 
@@ -176,7 +197,13 @@ Lumimail is **AGPL-3.0** open source: self-host, modify, and redistribute freely
 
 ## Contributing
 
-Contributions are welcome under the [Contributor License Agreement](./CLA.md), which keeps copyright consolidated so the project can stay both open source and commercially sustainable. Open an issue or PR.
+Lumimail is built in the open and **contributions are genuinely welcome** — bug fixes, features, docs, translations, or just a sharp issue report. Good first steps:
+
+1. ⭐ Star the repo and open a [GitHub issue](https://github.com/cschanhniem/lumimail/issues) for bugs or ideas.
+2. Fork, branch, and send a PR. Run the test suite (`npm test`) before opening it.
+3. Sign off on the [Contributor License Agreement](./CLA.md) — it keeps copyright consolidated so the project can stay **both open source and commercially sustainable** (the commercial license is what funds the open one).
+
+Every contribution keeps email a little more open.
 
 ## Support
 
