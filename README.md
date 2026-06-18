@@ -106,6 +106,11 @@ curl -X POST http://localhost:3000/api/seed
 
 ## Deploy
 
+For a complete self-hosting walkthrough including Cloudflare token scopes,
+Wrangler configuration, DNS setup, Email Routing, and troubleshooting, see:
+
+- [Self Hosting Guide](docs/SELF_HOSTING.md)
+
 One-click:
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cschanhniem/lumimail)
