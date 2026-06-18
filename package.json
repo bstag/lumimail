@@ -82,21 +82,21 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260520.1",
+    "@cloudflare/workers-types": "^4.20260617.1",
     "@eslint/eslintrc": "^3",
-    "@playwright/test": "^1.51.1",
+    "@playwright/test": "^1.61.0",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^3.0.0",
-    "@types/node": "^20.19.41",
+    "@types/node": "^25.9.3",
     "@types/react": "^19.1.7",
     "@types/react-dom": "^19.1.7",
-    "@vitest/coverage-v8": "3.2.4",
+    "@vitest/coverage-v8": "4.1.9",
     "drizzle-kit": "^0.31.10",
-    "eslint": "^9",
+    "eslint": "^10",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
     "typescript": "^6.0.3",
-    "vitest": "3.2.4",
-    "wrangler": "^4.93.0"
+    "vitest": "4.1.9",
+    "wrangler": "^4.101.0"
   }
 }
