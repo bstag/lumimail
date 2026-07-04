@@ -1,4 +1,4 @@
-// @ts-expect-error — generated at build time
+// @ts-ignore OpenNext generates this module during build.
 import { default as nextHandler } from "./.open-next/worker.js";
 import {
 	processInboundMessage,

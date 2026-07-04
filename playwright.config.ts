@@ -1,5 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const port = process.env.PLAYWRIGHT_PORT ?? process.env.PORT ?? "3000";
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${port}`;
+const readinessURL = new URL("/manifest.webmanifest", baseURL).toString();
+const devServerCommand = process.env.PLAYWRIGHT_DEV_SERVER_COMMAND ?? `npm run dev -- --port ${port}`;
+
 /**
  * E2E config. Tests boot the Next.js dev server against a local D1/SQLite
  * binding (via `wrangler dev` semantics through `next dev`). See
@@ -13,7 +18,7 @@ export default defineConfig({
 	workers: process.env.CI ? 2 : undefined,
 	reporter: "list",
 	use: {
-		baseURL: "http://127.0.0.1:3000",
+		baseURL,
 		trace: "on-first-retry",
 		screenshot: "only-on-failure",
 	},
@@ -21,8 +26,8 @@ export default defineConfig({
 		{ name: "chromium", use: { ...devices["Desktop Chrome"] } },
 	],
 	webServer: {
-		command: "npm run dev",
-		url: "http://127.0.0.1:3000",
+		command: devServerCommand,
+		url: readinessURL,
 		reuseExistingServer: !process.env.CI,
 		timeout: 120_000,
 	},

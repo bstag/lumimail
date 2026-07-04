@@ -1,14 +1,5 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import createMiddleware from "next-intl/middleware";
-import { locales, defaultLocale } from "@/i18n/config";
-
-const intlMiddleware = createMiddleware({
-  locales,
-  defaultLocale,
-  localeDetection: true,
-  localePrefix: "as-needed",
-});
 
 const MUTATION_METHODS = new Set(["POST", "PATCH", "DELETE", "PUT"]);
 
@@ -16,7 +7,7 @@ export default function middleware(request: NextRequest) {
   const url = request.nextUrl;
 
   if (url.pathname.startsWith("/api/v1/")) {
-    return intlMiddleware(request);
+    return NextResponse.next();
   }
 
   if (url.pathname.startsWith("/api/") && MUTATION_METHODS.has(request.method)) {
@@ -32,7 +23,7 @@ export default function middleware(request: NextRequest) {
     }
   }
 
-  return intlMiddleware(request);
+  return NextResponse.next();
 }
 
 export const config = {

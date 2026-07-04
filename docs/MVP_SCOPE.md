@@ -44,6 +44,7 @@ Status values: `Shipped`, `In Progress`, `Planned`, `Out of scope`.
 | F32 | Mobile-responsive UI | Shipped | — | dashboard + admin layouts | — | — |
 | F33 | Pluggable outbound mail providers (Cloudflare, Resend) | Shipped | [F33](specs/F33-outbound-mail-providers.md) | — | `/api/send`, `/api/v1/send` (via `MAIL_PROVIDER`) | — |
 | F34 | Workers-compatible HTML sanitization (dompurify + linkedom) | Shipped | [F34](specs/F34-workers-html-sanitization.md) | `/inbox/[id]` | inbound parsing | — |
+| F35 | Installable PWA shell | Shipped | [F35](specs/F35-pwa-installability.md) | global app shell | — | — |
 
 ## What "Google Workspace email replacement" means
 
@@ -62,6 +63,8 @@ responder, contacts, attachments (upload + inline preview), bulk actions,
 pagination, group aliases with fan-out delivery, multi-user orgs with
 cross-tenant isolation, IMAP/SMTP bridge for desktop/mobile clients, and a
 mobile-responsive UI.
+The web app is also installable as a PWA with a network-only mailbox model and
+a generic offline shell.
 
 ### Post-parity enhancements (optional, not blocking)
 
