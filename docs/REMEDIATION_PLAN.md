@@ -25,6 +25,18 @@ Status meanings:
 
 Work from top to bottom unless a newly discovered security or data-loss issue takes precedence.
 
+### Priority override — security
+
+- [x] **R-19 Restore Workers-safe inbound HTML sanitization.** Spec: [F34](./specs/F34-workers-html-sanitization.md).
+  - The current Workers fallback must not return untrusted HTML unchanged.
+  - Define safe handling for active elements, event attributes, dangerous URLs, remote resources, forms, embedded content, and malformed markup.
+  - Acceptance: adversarial sanitizer tests run in the Workers-compatible test environment and prove that stored email cannot execute active content when viewed.
+  - Acceptance: the message viewer applies defense in depth without breaking safe plain text and permitted formatting.
+  - Evidence 2026-07-22: regression reproduced; 16 focused tests pass; `npm run verify` passes with 881 tests and 100% configured coverage; all 12 browser tests, OpenNext build, and Wrangler dry run pass.
+  - Evidence 2026-07-22: deployed Worker `722ae8e3-bb50-4031-9b96-dfc590a20739` with 105 ms startup; manifest and login HTTP smoke checks returned 200.
+  - Evidence 2026-07-22: first controlled production message arrived successfully and did not load its remote image. It was a reply with quoted content, so the current display logic selected the plain-text alternative; this did not exercise the final HTML-render path.
+  - Evidence 2026-07-22: a new non-reply production HTML message retained bold formatting and a safe HTTP link in the message view. Together with the remote-image result, the production acceptance path passed.
+
 ### Phase 0 — Completed deployment repairs
 
 - [x] **R-00 Upgrade production dependencies.** Spec: [F36](./specs/F36-production-dependency-upgrade.md). Verified with `npm run verify`, OpenNext build, and Wrangler dry run.
@@ -52,10 +64,22 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Creation forms that currently read nested API errors as top-level strings.
   - Acceptance: unit contract tests cover every corrected client; user-visible flows receive E2E coverage.
 
-- [ ] **R-06 Add automated migration/schema drift detection.** Depends on R-03.
+- [x] **R-06 Add automated migration/schema drift detection.** Depends on R-03. Spec: [F42](./specs/F42-schema-drift-detection.md).
   - Apply the executable SQL migrations to an empty local D1 database in CI/test setup.
   - Compare the resulting tables, columns, indexes, and foreign keys with the expected Drizzle schema.
   - Acceptance: removing a required executable migration statement makes the check fail even when Drizzle snapshots remain valid.
+  - Evidence 2026-07-22: seven focused tests pass; Wrangler applied migrations `0000`–`0008` to isolated empty local D1 state; the resulting tables, columns, indexes, and foreign keys match the live Drizzle schema; mutation regressions detect missing structures without reading snapshots; `npm run verify` passes with 887 tests and 100% configured coverage.
+
+- [x] **R-21 Complete production password recovery.** Depends on R-03 and R-04. Spec: [F43](./specs/F43-password-recovery.md).
+  - Add the missing forgot-password and reset-password pages with non-enumerating responses and safe expired/used-token handling.
+  - Deliver reset links through the configured mail provider in production; never return or log a reset token.
+  - Acceptance: unit and E2E tests cover known and unknown accounts, expiration, reuse, successful reset, and subsequent login.
+  - Evidence 2026-07-22: 28 focused tests, 904-test full verification at 100% configured coverage, all 16 browser tests, Cloudflare sending-domain check, OpenNext build, and Wrangler dry run pass. Worker `e63887e2-a872-4fe9-8eb2-8d2282a05fef` deployed; recovery pages return HTTP 200 and invalid API input returns 400.
+  - Evidence 2026-07-22: controlled production recovery passed email receipt, reset-link handling, password change, and subsequent login. No recovery address, token, link, or password was recorded.
+
+- [ ] **R-28 Add API-key revocation and lifecycle controls.**
+  - Add user-scoped revoke/delete behavior, make the one-time secret display unambiguous, and define audit visibility for last use.
+  - Acceptance: a revoked key immediately fails authentication and cannot read or send through any API-key endpoint.
 
 ### Phase 2 — Sending and routing correctness
 
@@ -83,6 +107,28 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Define retention for unroutable, rejected, failed, and successfully processed messages.
   - Acceptance: every R2 object reaches an intentional retained or deleted state, with retry-safe cleanup and tests.
 
+- [ ] **R-20 Include attachments in outbound message delivery.**
+  - Define the outbound transaction so validated attachments are available before provider delivery and are encoded into the provider request/MIME message.
+  - Specify size/type limits, partial-failure behavior, cleanup, API-key send behavior, reply/forward behavior, and retry/idempotency interaction with R-10.
+  - Acceptance: a controlled recipient receives the attachment with the expected filename, content type, and bytes; a failed send cannot leave a misleading sent message.
+
+- [ ] **R-24 Ingest inbound MIME attachments.** Coordinates with R-20.
+  - Parse attachment parts, store their bytes in R2, create metadata rows, and define cleanup when any step fails.
+  - Acceptance: controlled inbound image, PDF, and binary fixtures can be listed and downloaded with exact bytes and safe content headers.
+
+- [ ] **R-25 Implement RFC-aware conversation grouping.**
+  - Parse Message-ID, In-Reply-To, and References; define stable thread assignment for inbound and outbound messages.
+  - Define how the newest sanitized HTML reply is displayed when a plain-text alternative contains quoted-history markers; the current UI discards HTML whenever quoted text is detected.
+  - Acceptance: a traced multi-message reply chain renders as one thread without merging unrelated messages.
+
+- [ ] **R-26 Complete alias and group provisioning.** Coordinates with R-08 and R-09.
+  - Provision Cloudflare delivery for alias addresses and add organization-admin UI/API behavior for group membership.
+  - Acceptance: internal aliases and multi-member groups created entirely through Lumimail receive a controlled inbound message without manual Cloudflare rule creation.
+
+- [ ] **R-27 Add vacation-responder loop and frequency controls.**
+  - Honor standard automated/bulk headers, prevent responses to mailing systems and Lumimail-generated auto-replies, and limit repeat responses per sender/time window.
+  - Acceptance: loop fixtures cannot create a reply storm and normal senders receive at most the documented response frequency.
+
 ### Phase 3 — Multi-user authorization
 
 - [ ] **R-12 Specify mailbox-level access control.**
@@ -94,6 +140,16 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Enforce access server-side for message lists, individual messages, search, attachments, drafts, sending identities, contacts where scoped, and mutations.
   - Hide unauthorized mailboxes in the client, but never rely on client filtering for security.
   - Acceptance: cross-user and cross-tenant negative tests cover every mailbox-scoped endpoint; shared-support-mailbox E2E flow passes.
+
+- [ ] **R-22 Bind invitations to the intended identity and deliver them safely.**
+  - Registration must not accept an invite token for a different address; define whether invited external addresses become login identities or map to domain mailboxes.
+  - Deliver or securely share invitations without exposing reusable tokens in ordinary member-list responses.
+  - Acceptance: mismatched-address registration is denied and a controlled invited user completes the intended flow end to end.
+
+- [ ] **R-23 Repair and verify the IMAP/SMTP bridge contract.** Depends on R-13 for mailbox authorization.
+  - Use API-key-aware endpoints consistently, align scope names and response envelopes, and correct SMTP recipient/body shapes.
+  - Define TLS requirements and remove capabilities that are advertised but not implemented.
+  - Acceptance: Thunderbird or another controlled client can authenticate, list/fetch/update a permitted mailbox, and send a message without accessing an unauthorized mailbox.
 
 ### Phase 4 — Theme, localization, and interface consistency
 
@@ -138,6 +194,9 @@ Add one entry per completed item. Do not record secrets, email contents, reset t
 | 2026-07-22 | R-03 | Migration contract test, fresh-D1 metadata inspection, 846-test verification, production migration and metadata inspection | Local + production | Passed |
 | 2026-07-22 | R-04 | 15 focused parser tests; 861-test full verification at 100% reported coverage | Local | Passed |
 | 2026-07-22 | R-05 | 14 focused contract tests, 870-test full verification, 11 Playwright tests, OpenNext build, Worker `7b6a11f5-9159-40c4-8415-d447393a39fe`, HTTP 200 smoke check | Local + production | Passed |
+| 2026-07-22 | R-19 | 16 focused sanitizer/parser tests, 881-test full verification, 12 Playwright tests, OpenNext build, Wrangler dry run, Worker `722ae8e3-bb50-4031-9b96-dfc590a20739`, HTTP smoke checks, controlled reply and non-reply HTML messages | Local + production | Passed |
+| 2026-07-22 | R-06 | 7 focused schema tests, fresh local-D1 migration, structural Drizzle comparison, 887-test verification at 100% configured coverage | Local + CI path | Passed |
+| 2026-07-22 | R-21 | 28 focused tests, 904-test verification, 16 Playwright tests, build/dry run, Worker `e63887e2-a872-4fe9-8eb2-8d2282a05fef`, controlled recovery and login | Local + production | Passed |
 
 ## Newly discovered work
 
@@ -146,6 +205,7 @@ Add audit discoveries here before assigning them a priority. Promote each confir
 - Next.js 16 warns that the `middleware` file convention is deprecated in favor of `proxy`; triage as a bounded framework-maintenance item.
 - Wrangler warns that the `CF_ACCOUNT_ID` environment variable name is deprecated in favor of `CLOUDFLARE_ACCOUNT_ID`; update configuration and runtime access together after confirming compatibility.
 - R-14 must include missing `compose.send` and the invalid ICU message in `compose.recipientsPlaceholder`, whose literal angle-bracket address is interpreted as a rich-text tag.
+- Session authentication scans every unexpired session and performs a bcrypt comparison for each row; include this in the R-17 performance pass and redesign lookup without weakening token-at-rest protection.
 
 ## Decisions and scope changes
 
@@ -154,3 +214,6 @@ Record decisions that change ordering, security behavior, external providers, bi
 - 2026-07-22: Data integrity and API contract repairs precede new feature work.
 - 2026-07-22: Mailbox ACL behavior must be specified before inviting restricted users.
 - 2026-07-22: Theme token conversion precedes adding a manual selector so the selector never exposes a knowingly incomplete dark interface.
+- 2026-07-22: The MVP registry now distinguishes shipped, partial, in-progress, and blocked behavior; route existence alone is not completion evidence.
+- 2026-07-22: Workers-safe HTML sanitization is a P0 security prerequisite and takes precedence over the existing phase order.
+- 2026-07-22: F01–F35 were validated against routes, schema, Worker bindings, UI paths, and tests; detailed evidence is recorded in `docs/FEATURE_VALIDATION.md`.

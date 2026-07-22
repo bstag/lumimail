@@ -58,7 +58,12 @@ export function LoginClient() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="password">{t("password")}</Label>
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="password">{t("password")}</Label>
+            <Link href="/forgot-password" className="text-sm font-medium text-blue-700 hover:underline">
+              Forgot password?
+            </Link>
+          </div>
           <Input
             id="password"
             name="password"

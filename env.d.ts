@@ -18,4 +18,8 @@ interface CloudflareEnv {
 	RESEND_API_KEY?: string;
 	/** Override the Resend API base URL (defaults to https://api.resend.com). */
 	RESEND_BASE_URL?: string;
+	/** Canonical HTTPS origin used to create credential-bearing links. */
+	PUBLIC_APP_URL?: string;
+	/** Verified sender address used for password recovery messages. */
+	PASSWORD_RESET_FROM?: string;
 }

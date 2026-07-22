@@ -24,6 +24,46 @@ async function mockAuthenticatedShell(page: Page) {
 }
 
 test.describe("canonical API client contracts", () => {
+	test("sanitizes hostile stored HTML in the single-message render path", async ({ page }) => {
+		await mockAuthenticatedShell(page);
+		await page.route("**/api/messages/msg_hostile", (route) =>
+			route.fulfill({
+				json: {
+					message: {
+						id: "msg_hostile",
+						direction: "inbound",
+						fromAddr: "sender@example.net",
+						toAddr: "owner@example.com",
+						subject: "Sanitizer check",
+						snippet: "Safe body",
+						status: "received",
+						read: true,
+						starred: false,
+						threadId: null,
+						createdAt: "2026-07-22T12:00:00.000Z",
+					},
+					body: {
+						textBody: null,
+						htmlBody:
+							'<p style="color:red" onclick="window.__mailXss=true">Safe body<script>window.__mailXss=true</script><img src="https://track.example/pixel"><a href="javascript:window.__mailXss=true">unsafe</a><a href="https://example.com">safe link</a></p>',
+					},
+				},
+			}),
+		);
+		await page.route("**/api/messages/msg_hostile/attachments", (route) =>
+			route.fulfill({ json: { success: true, data: { attachments: [] } } }),
+		);
+
+		await page.goto("/inbox/msg_hostile");
+
+		const article = page.locator("article");
+		await expect(article.getByText("Safe body", { exact: false })).toBeVisible();
+		await expect(article.locator("script, img, iframe, form, [onclick], [style]")).toHaveCount(0);
+		await expect(article.locator("a", { hasText: "unsafe" })).not.toHaveAttribute("href");
+		await expect(article.locator("a", { hasText: "safe link" })).toHaveAttribute("href", "https://example.com");
+		await expect.poll(() => page.evaluate(() => (window as Window & { __mailXss?: boolean }).__mailXss)).toBeUndefined();
+	});
+
 	test("shows labels returned as the canonical label array on the filters page", async ({ page }) => {
 		await mockAuthenticatedShell(page);
 		await page.route("**/api/filters", (route) =>
@@ -89,7 +129,7 @@ test.describe("canonical API client contracts", () => {
 		});
 
 		await page.goto("/compose");
-		await page.getByLabel("To").fill("recipient@example.net");
+		await page.getByLabel("To", { exact: true }).fill("recipient@example.net");
 		await page.getByLabel("Subject").fill("Contract test");
 		await page.getByLabel("Body").fill("Test body");
 		await page.getByLabel("Attach files").setInputFiles({

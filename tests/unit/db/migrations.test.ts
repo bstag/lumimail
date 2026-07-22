@@ -1,33 +1,84 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { DatabaseSync } from "node:sqlite";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { schema } from "@/db/schema";
+import {
+	buildDrizzleSchemaContract,
+	diffSchemaContracts,
+	readSqliteSchemaContract,
+	type SchemaContract,
+} from "./schema-contract";
 
-const migrationsDirectory = resolve(process.cwd(), "drizzle/migrations");
+const projectRoot = resolve(process.cwd());
+const wranglerCli = resolve(projectRoot, "node_modules/wrangler/bin/wrangler.js");
 
-function executableMigrationSql(): string {
-	return readdirSync(migrationsDirectory)
-		.filter((name) => name.endsWith(".sql"))
-		.sort()
-		.map((name) => readFileSync(resolve(migrationsDirectory, name), "utf8"))
-		.join("\n");
+function findSqliteDatabase(directory: string): string {
+	for (const entry of readdirSync(directory, { recursive: true, withFileTypes: true })) {
+		if (entry.isFile() && entry.name.endsWith(".sqlite")) {
+			return resolve(entry.parentPath, entry.name);
+		}
+	}
+	throw new Error(`Wrangler did not create a local SQLite database under ${directory}`);
 }
 
 describe("executable D1 migrations", () => {
-	it("create the password reset token table declared by the Drizzle schema", () => {
-		const sql = executableMigrationSql();
-		const table = sql.match(
-			/CREATE TABLE [`"]password_reset_tokens[`"]\s*\(([\s\S]*?)\);/i,
-		)?.[1];
+	let persistenceDirectory: string;
+	let actual: SchemaContract;
 
-		expect(table, "password_reset_tokens must exist in executable migration SQL").toBeDefined();
-		expect(table).toMatch(/[`"]id[`"]\s+text\s+PRIMARY KEY\s+NOT NULL/i);
-		expect(table).toMatch(/[`"]user_id[`"]\s+text\s+NOT NULL/i);
-		expect(table).toMatch(/[`"]token_hash[`"]\s+text\s+NOT NULL/i);
-		expect(table).toMatch(/[`"]expires_at[`"]\s+integer\s+NOT NULL/i);
-		expect(table).toMatch(/[`"]used[`"]\s+integer\s+DEFAULT false\s+NOT NULL/i);
-		expect(table).toMatch(/[`"]created_at[`"]\s+integer\s+NOT NULL/i);
-		expect(table).toMatch(
-			/FOREIGN KEY\s*\([`"]user_id[`"]\)\s+REFERENCES\s+[`"]users[`"]\s*\([`"]id[`"]\)\s+ON UPDATE no action\s+ON DELETE cascade/i,
+	beforeAll(() => {
+		persistenceDirectory = mkdtempSync(join(tmpdir(), "lumimail-schema-contract-"));
+		execFileSync(
+			process.execPath,
+			[
+				wranglerCli,
+				"d1",
+				"migrations",
+				"apply",
+				"DB",
+				"--local",
+				"--persist-to",
+				persistenceDirectory,
+			],
+			{
+				cwd: projectRoot,
+				env: { ...process.env, WRANGLER_LOG: "none" },
+				stdio: "pipe",
+			},
+		);
+
+		const database = new DatabaseSync(findSqliteDatabase(persistenceDirectory), {
+			readOnly: true,
+		});
+		try {
+			actual = readSqliteSchemaContract(database);
+		} finally {
+			database.close();
+		}
+	}, 120_000);
+
+	afterAll(() => {
+		if (persistenceDirectory) {
+			rmSync(persistenceDirectory, { recursive: true, force: true });
+		}
+	});
+
+	it("produce the complete Drizzle schema from an empty local D1 database", () => {
+		const expected = buildDrizzleSchemaContract(schema);
+		expect(diffSchemaContracts(expected, actual)).toEqual([]);
+	});
+
+	it("fail when executable SQL omits a required structure even if snapshots are unchanged", () => {
+		const expected = buildDrizzleSchemaContract(schema);
+		const withoutPasswordResetTable = {
+			...actual,
+			tables: actual.tables.filter((table) => table.name !== "password_reset_tokens"),
+		};
+
+		expect(diffSchemaContracts(expected, withoutPasswordResetTable)).toContain(
+			"Missing table: password_reset_tokens",
 		);
 	});
 });

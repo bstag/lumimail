@@ -131,6 +131,8 @@ npm run deploy
 | `CF_ACCOUNT_ID` | Cloudflare account ID (optional — only if your token spans multiple accounts) |
 | `CF_EMAIL_WORKER_NAME` | Must match `name` in `wrangler.jsonc`. Default: `lumimail` |
 | `RESEND_API_KEY` | Resend API key. Required only when `MAIL_PROVIDER=resend` |
+| `PUBLIC_APP_URL` | Canonical HTTPS origin used for password-reset links |
+| `PASSWORD_RESET_FROM` | Verified sender address used for password-reset messages |
 
 ### Outbound provider (optional)
 

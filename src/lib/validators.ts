@@ -43,6 +43,16 @@ export const loginSchema = z.object({
 	password: z.string().min(1),
 });
 
+export const forgotPasswordSchema = z.object({
+	email: z.string().trim().toLowerCase().email(),
+});
+
+export const resetPasswordSchema = z.object({
+	token: z.string().trim().min(1),
+	email: z.string().trim().toLowerCase().email(),
+	newPassword: z.string().min(8),
+});
+
 export const domainSchema = z.object({
 	hostname: z.string().min(3),
 });
