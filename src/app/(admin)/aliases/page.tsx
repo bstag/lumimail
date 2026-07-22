@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Trash2, ArrowRight } from "lucide-react";
 import { authFetch } from "@/lib/auth/client";
+import { parseApiResponse } from "@/lib/api/client-response";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,14 +64,14 @@ export default function AliasesPage() {
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(body),
 		});
-		if (res.ok) {
+		try {
+			await parseApiResponse(res);
 			setLocalPart("");
 			setTargetMailboxId("");
 			setForwardTo("");
 			void load();
-		} else {
-			const json = (await res.json()) as { error?: string };
-			setError(json.error ?? "Failed to create alias");
+		} catch (requestError) {
+			setError(requestError instanceof Error ? requestError.message : "Failed to create alias");
 		}
 		setCreating(false);
 	}

@@ -8,5 +8,7 @@ export type DomainCreateResult = {
 };
 
 export type MailboxCreateResult = {
+	id?: string;
+	address?: string;
 	error?: string;
 };

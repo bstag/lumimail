@@ -34,14 +34,14 @@ describe("getSetupStatus", () => {
 
 describe("submitPrimaryDomain", () => {
 	it("posts the domain from the form (ok=true)", async () => {
-		const body = { redirect: "/onboarding" };
-		fetchMock.mockResolvedValue(jsonResponse(true, body));
+		const domain = { hostname: "example.com" };
+		fetchMock.mockResolvedValue(jsonResponse(true, { success: true, data: { domain } }));
 		const form = new FormData();
 		form.set("domain", "example.com");
 
 		const result = await submitPrimaryDomain(form);
 
-		expect(result).toEqual({ ok: true, data: body });
+		expect(result).toEqual({ ok: true, data: { domain } });
 		expect(fetchMock).toHaveBeenCalledWith("/api/setup/domain", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
@@ -50,10 +50,23 @@ describe("submitPrimaryDomain", () => {
 	});
 
 	it("reports ok=false when the request fails", async () => {
-		fetchMock.mockResolvedValue(jsonResponse(false, { error: "bad" }));
+		fetchMock.mockResolvedValue(jsonResponse(false, { success: false, error: { message: "bad" } }));
 		const result = await submitPrimaryDomain(new FormData());
 		expect(result.ok).toBe(false);
 		expect(result.data).toEqual({ error: "bad" });
+	});
+
+	it("handles a successful response without domain data", async () => {
+		fetchMock.mockResolvedValue(jsonResponse(true, { success: true }));
+		await expect(submitPrimaryDomain(new FormData())).resolves.toEqual({ ok: true, data: {} });
+	});
+
+	it("handles a failed response without an error message", async () => {
+		fetchMock.mockResolvedValue(jsonResponse(false, { success: false }));
+		await expect(submitPrimaryDomain(new FormData())).resolves.toEqual({
+			ok: false,
+			data: { error: undefined },
+		});
 	});
 });
 

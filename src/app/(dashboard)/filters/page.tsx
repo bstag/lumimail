@@ -4,27 +4,13 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Filter } from "lucide-react";
 import { authFetch } from "@/lib/auth/client";
+import { parseApiResponse } from "@/lib/api/client-response";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-type MessageFilter = {
-	id: string;
-	name: string;
-	fromContains: string | null;
-	toContains: string | null;
-	subjectContains: string | null;
-	hasWords: string | null;
-	actionStar: boolean;
-	actionMarkRead: boolean;
-	actionArchive: boolean;
-	actionLabelId: string | null;
-	actionMoveToTrash: boolean;
-	enabled: boolean;
-};
-
-type LabelRow = { id: string; name: string; color: string };
+import { fetchFilterLabels, fetchMessageFilters, type MessageFilter } from "./utils";
 
 export default function FiltersPage() {
 	const qc = useQueryClient();
@@ -39,20 +25,12 @@ export default function FiltersPage() {
 
 	const filters = useQuery({
 		queryKey: ["filters"],
-		queryFn: async () => {
-			const res = await authFetch("/api/filters");
-			const json = (await res.json()) as { success: boolean; data?: { filters: MessageFilter[] } };
-			return json.data?.filters ?? [];
-		},
+		queryFn: fetchMessageFilters,
 	});
 
 	const labels = useQuery({
 		queryKey: ["labels"],
-		queryFn: async () => {
-			const res = await authFetch("/api/labels");
-			const json = (await res.json()) as { success: boolean; data?: { labels: LabelRow[] } };
-			return json.data?.labels ?? [];
-		},
+		queryFn: fetchFilterLabels,
 	});
 
 	const create = useMutation({
@@ -71,7 +49,7 @@ export default function FiltersPage() {
 					actionMoveToTrash,
 				}),
 			});
-			if (!res.ok) throw new Error("Failed");
+			await parseApiResponse<{ id: string }>(res);
 		},
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["filters"] });
@@ -89,7 +67,7 @@ export default function FiltersPage() {
 	const remove = useMutation({
 		mutationFn: async (id: string) => {
 			const res = await authFetch(`/api/filters/${id}`, { method: "DELETE" });
-			if (!res.ok) throw new Error("Failed");
+			await parseApiResponse<{ ok: true }>(res);
 		},
 		onSuccess: () => qc.invalidateQueries({ queryKey: ["filters"] }),
 	});

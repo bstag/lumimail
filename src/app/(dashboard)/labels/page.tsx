@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { Plus, Tag, X } from "lucide-react";
 import { authFetch } from "@/lib/auth/client";
+import { parseApiResponse } from "@/lib/api/client-response";
 import { Button } from "@/components/ui/button";
 
 type Label = {
@@ -49,8 +50,7 @@ export default function LabelsPage() {
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ name: name.trim(), color }),
 			});
-			const json = (await res.json()) as { success: boolean; error?: string };
-			if (!res.ok) throw new Error(json.error ?? "Failed to create label");
+			await parseApiResponse<Label>(res);
 		},
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: ["labels"] });
@@ -65,7 +65,8 @@ export default function LabelsPage() {
 
 	const deleteMutation = useMutation({
 		mutationFn: async (id: string) => {
-			await authFetch(`/api/labels/${id}`, { method: "DELETE" });
+			const res = await authFetch(`/api/labels/${id}`, { method: "DELETE" });
+			await parseApiResponse<{ id: string }>(res);
 		},
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: ["labels"] });

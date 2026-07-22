@@ -12,9 +12,13 @@ export async function submitPrimaryDomain(form: FormData): Promise<{ ok: boolean
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ hostname: form.get("domain") }),
   });
+  const body = (await res.json()) as {
+    data?: DomainSetupResult;
+    error?: { message?: string };
+  };
   return {
     ok: res.ok,
-    data: (await res.json()) as DomainSetupResult,
+    data: res.ok ? (body.data ?? {}) : { error: body.error?.message },
   };
 }
 

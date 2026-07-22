@@ -6,7 +6,7 @@ vi.mock("@/lib/auth/client", () => ({ authFetch: (...a: unknown[]) => authFetch(
 import { createDomain, createMailbox, getDomains } from "@/app/onboarding/utils";
 
 function jsonResponse(ok: boolean, body: unknown) {
-	return { ok, json: async () => body } as unknown as Response;
+	return Response.json(body, { status: ok ? 200 : 400 });
 }
 
 beforeEach(() => {
@@ -21,7 +21,7 @@ describe("getDomains", () => {
 	it("fetches and returns the parsed domain list", async () => {
 		const body = { domains: [] };
 		authFetch.mockResolvedValue(jsonResponse(true, body));
-		await expect(getDomains()).resolves.toBe(body);
+		await expect(getDomains()).resolves.toEqual(body);
 		expect(authFetch).toHaveBeenCalledWith("/api/domains");
 	});
 });
@@ -29,7 +29,7 @@ describe("getDomains", () => {
 describe("createDomain", () => {
 	it("posts the domain with routing and sending enabled (ok=true)", async () => {
 		const body = { domain: { id: "dom_1" } };
-		authFetch.mockResolvedValue(jsonResponse(true, body));
+		authFetch.mockResolvedValue(jsonResponse(true, { success: true, data: body }));
 
 		const result = await createDomain("example.com");
 
@@ -42,7 +42,7 @@ describe("createDomain", () => {
 	});
 
 	it("reports ok=false when the request fails", async () => {
-		authFetch.mockResolvedValue(jsonResponse(false, { error: "no" }));
+		authFetch.mockResolvedValue(jsonResponse(false, { success: false, error: { message: "no" } }));
 		const result = await createDomain("example.com");
 		expect(result.ok).toBe(false);
 		expect(result.data).toEqual({ error: "no" });
@@ -51,8 +51,8 @@ describe("createDomain", () => {
 
 describe("createMailbox", () => {
 	it("posts the mailbox using the local part as the display name (ok=true)", async () => {
-		const body = { mailbox: { id: "mb_1" } };
-		authFetch.mockResolvedValue(jsonResponse(true, body));
+		const body = { id: "mb_1", address: "alice@example.com" };
+		authFetch.mockResolvedValue(jsonResponse(true, { success: true, data: body }));
 
 		const result = await createMailbox("dom_1", "alice");
 
@@ -65,7 +65,7 @@ describe("createMailbox", () => {
 	});
 
 	it("reports ok=false when the request fails", async () => {
-		authFetch.mockResolvedValue(jsonResponse(false, { error: "no" }));
+		authFetch.mockResolvedValue(jsonResponse(false, { success: false, error: { message: "no" } }));
 		const result = await createMailbox("dom_1", "alice");
 		expect(result.ok).toBe(false);
 		expect(result.data).toEqual({ error: "no" });

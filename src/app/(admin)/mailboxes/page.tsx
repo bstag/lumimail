@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authFetch } from "@/lib/auth/client";
+import { parseApiResponse } from "@/lib/api/client-response";
 import type { Domain, Mailbox } from "./types";
 import { getMailboxAddress, getMailboxName } from "./utils";
 
@@ -48,8 +49,7 @@ export default function MailboxesPage() {
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ domainId, localPart, displayName: localPart }),
 			});
-			const json = (await res.json()) as { error?: string };
-			if (!res.ok) throw new Error(json.error ?? "Failed");
+			await parseApiResponse<{ id: string; address: string }>(res);
 			setLocalPart("");
 			setDomainId("");
 		},

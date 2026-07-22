@@ -12,7 +12,7 @@ import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { authFetch } from "@/lib/auth/client";
 import { formatEmailAddress } from "@/lib/email/address";
 import { cn } from "@/lib/utils";
-import { fetchDraft } from "./utils";
+import { fetchDraft, submitMessage, uploadMessageAttachment } from "./utils";
 
 type Toast = { type: "success" | "error"; message: string } | null;
 
@@ -196,44 +196,37 @@ export function ComposeForm({
 
 	async function uploadAttachments(messageId: string) {
 		for (const attached of attachedFiles) {
-			const formData = new FormData();
-			formData.append("file", attached.file);
-			formData.append("messageId", messageId);
-			await authFetch("/api/attachments", { method: "POST", body: formData });
+			await uploadMessageAttachment(messageId, attached.file);
 		}
 	}
 
 	async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		setLoading(true);
-		const res = await authFetch("/api/send", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
+		try {
+			const data = await submitMessage({
 				from: fromAddr,
 				to,
 				subject,
 				text,
 				mailboxId: selectedMailbox?.id,
-			}),
-		});
-		const data = (await res.json()) as { messageId?: string; error?: string };
-		setLoading(false);
+			});
+			setLoading(false);
 
-		if (!res.ok) {
-			setToast({ type: "error", message: data.error ?? t("sendFailed") });
-			return;
-		}
-
-		if (attachedFiles.length > 0 && data.messageId) {
-			setUploadingAttachments(true);
-			try {
-				await uploadAttachments(data.messageId);
-			} catch {
-				setToast({ type: "error", message: "Message sent but some attachments failed to upload." });
-			} finally {
-				setUploadingAttachments(false);
+			if (attachedFiles.length > 0) {
+				setUploadingAttachments(true);
+				try {
+					await uploadAttachments(data.messageId);
+				} catch {
+					setToast({ type: "error", message: "Message sent but some attachments failed to upload." });
+				} finally {
+					setUploadingAttachments(false);
+				}
 			}
+		} catch (error) {
+			setLoading(false);
+			setToast({ type: "error", message: error instanceof Error ? error.message : t("sendFailed") });
+			return;
 		}
 
 		if (draftId) {

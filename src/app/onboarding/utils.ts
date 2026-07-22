@@ -1,4 +1,5 @@
 import { authFetch } from "@/lib/auth/client";
+import { parseApiResponse } from "@/lib/api/client-response";
 import type { DomainCreateResult, DomainListResult, MailboxCreateResult } from "./types";
 
 export async function getDomains(): Promise<DomainListResult> {
@@ -13,10 +14,11 @@ export async function createDomain(hostname: string): Promise<{ ok: boolean; dat
 		body: JSON.stringify({ hostname, enableRouting: true, enableSending: true }),
 	});
 
-	return {
-		ok: res.ok,
-		data: (await res.json()) as DomainCreateResult,
-	};
+	try {
+		return { ok: true, data: await parseApiResponse<DomainCreateResult>(res) };
+	} catch (error) {
+		return { ok: false, data: { error: (error as Error).message } };
+	}
 }
 
 export async function createMailbox(
@@ -29,8 +31,9 @@ export async function createMailbox(
 		body: JSON.stringify({ domainId, localPart, displayName: localPart }),
 	});
 
-	return {
-		ok: res.ok,
-		data: (await res.json()) as MailboxCreateResult,
-	};
+	try {
+		return { ok: true, data: await parseApiResponse<MailboxCreateResult>(res) };
+	} catch (error) {
+		return { ok: false, data: { error: (error as Error).message } };
+	}
 }

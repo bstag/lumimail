@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { authFetch } from "@/lib/auth/client";
 import type { DnsRecord, DnsStatusSummary, Domain } from "./types";
+import { createDomain as requestDomainCreation, fetchDomainDns } from "./utils";
 
 export default function DomainsPage() {
   const qc = useQueryClient();
@@ -49,18 +50,7 @@ export default function DomainsPage() {
 
   const create = useMutation({
     mutationFn: async () => {
-      const res = await authFetch("/api/domains", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          hostname,
-          enableRouting: true,
-          enableSending: true,
-        }),
-      });
-      const json = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(json.error ?? "Failed");
-      return json;
+      return requestDomainCreation(hostname);
     },
     onSuccess: () => {
       setHostname("");
@@ -78,9 +68,7 @@ export default function DomainsPage() {
   });
 
   const loadDns = async (id: string) => {
-    const res = await authFetch(`/api/domains/${id}/dns`);
-    const json = (await res.json()) as { domain: Domain; dns: unknown };
-    if (res.ok) setDnsView(json);
+    setDnsView(await fetchDomainDns(id));
   };
 
   return (
