@@ -5,7 +5,12 @@ async function mockAuthenticatedShell(page: Page) {
 		localStorage.setItem("lumimail-session-token", "e2e-session");
 	});
 	await page.route("**/api/auth/me", (route) =>
-		route.fulfill({ json: { id: "user_owner", hasMailboxes: true } }),
+		route.fulfill({
+			json: {
+				user: { id: "user_owner", role: "owner" },
+				hasMailboxes: true,
+			},
+		}),
 	);
 	await page.route("**/api/mailboxes", (route) =>
 		route.fulfill({
@@ -53,7 +58,12 @@ async function mockRoleShell(
 		localStorage.setItem("lumimail-session-token", "e2e-session");
 	});
 	await page.route("**/api/auth/me", (route) =>
-		route.fulfill({ json: { id: "user_role", hasMailboxes: true } }),
+		route.fulfill({
+			json: {
+				user: { id: "user_role", role: "member" },
+				hasMailboxes: true,
+			},
+		}),
 	);
 	await page.route("**/api/mailboxes", (route) =>
 		route.fulfill({

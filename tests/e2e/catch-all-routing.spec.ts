@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 async function mockAuthenticatedShell(page: Page) {
 	await page.addInitScript(() => localStorage.setItem("lumimail-session-token", "e2e-session"));
 	await page.route("**/api/auth/me", (route) =>
-		route.fulfill({ json: { id: "user_1", hasMailboxes: true } }),
+		route.fulfill({ json: { user: { id: "user_1", role: "owner" }, hasMailboxes: true } }),
 	);
 }
 

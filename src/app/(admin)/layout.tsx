@@ -19,7 +19,7 @@ export default function DashboardLayout({
   const [navOpen, setNavOpen] = useState(false);
 
   return (
-    <AuthGuard requireMailbox>
+    <AuthGuard requireMailbox requireOrgAdmin>
       <MailboxProvider>
         <ComposeProvider>
           <div className="grid min-h-screen grid-cols-1 bg-[#f6f8fc] md:grid-cols-[256px_1fr]">

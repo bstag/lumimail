@@ -1,6 +1,6 @@
 # F51 — Restricted-Member Admin Navigation
 
-> Status: Specified — Implementation Pending
+> Status: Implemented Locally — Deployment Pending
 > Remediation: UI authorization follow-up discovered during F49 production validation
 
 ## 1. Current behavior
@@ -31,7 +31,7 @@
 - While the session/role check is loading, do not flash administrative navigation or page controls.
 - A missing or unknown role is treated as non-admin in the client.
 - A `401` keeps the existing session-expiration behavior.
-- A `403` from an admin query must not be parsed as successful empty data.
+- A direct member visit must be redirected before admin page queries or controls mount.
 - Owner-to-member and member-to-owner browser switches must use the F50 account-state reset path.
 
 ## 5. Test plan
@@ -40,7 +40,7 @@
 
 - `/api/auth/me` returns the organization role without changing its existing identity fields.
 - Admin-role helpers accept only `owner` and `admin`.
-- Admin query clients reject `403` responses instead of treating them as empty success.
+- Unknown, missing, and mailbox-only roles fail closed as non-admin.
 
 ### Browser
 
@@ -79,3 +79,21 @@ Reason:
 Impact:
 
 - Restricted users see only actions they can actually perform, while server guards continue enforcing the security boundary.
+
+## 8. Implementation and verification log
+
+### 2026-07-23 — Local implementation
+
+- Added a single organization-role helper that grants client administration only to `owner` and `admin`.
+- Added the current organization role to `/api/auth/me` without changing the existing identity or mailbox-state fields.
+- Authenticated layouts now provide the current session to descendant navigation.
+- The mailbox selector renders **Admin settings** only for an owner or admin and fails closed when role data is missing or malformed.
+- The entire `(admin)` layout requires an owner/admin role and redirects a member to `/inbox` before admin navigation, queries, or controls render.
+- Existing server-side `guardOrgAdmin` checks were left unchanged.
+- Added unit coverage for accepted/rejected organization roles and the session response contract.
+- Added browser coverage for all eight administration entry routes, member navigation visibility, retained owner access, and an owner-to-member account switch without a hard refresh.
+- `npm run verify` passed with 131 test files, 1,081 tests, 100% statements, branches, functions, and lines, and 37 existing lint warnings with zero errors.
+- All 33 Chromium scenarios reported passing. The Playwright command then remained open until timeout because the known local Wrangler remote-proxy helper could not initialize or stop cleanly in the sandboxed non-interactive process.
+- The escalated OpenNext Cloudflare production build completed successfully and generated `.open-next/worker.js`.
+
+Production deployment and controlled member/admin validation remain pending.

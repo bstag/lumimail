@@ -33,12 +33,19 @@ describe("GET /api/auth/me", () => {
 			email: "a@x.test",
 			name: "Ada",
 			resetEmail: "r@x.test",
+			role: "member",
 		});
 		m.userHasMailboxes.mockResolvedValue(true);
 		const res = await GET(req());
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({
-			user: { id: "u1", email: "a@x.test", name: "Ada", resetEmail: "r@x.test" },
+			user: {
+				id: "u1",
+				email: "a@x.test",
+				name: "Ada",
+				resetEmail: "r@x.test",
+				role: "member",
+			},
 			hasMailboxes: true,
 		});
 	});

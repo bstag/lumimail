@@ -5,7 +5,7 @@ async function mockAuthenticatedShell(page: Page) {
 		localStorage.setItem("lumimail-session-token", "e2e-session");
 	});
 	await page.route("**/api/auth/me", (route) =>
-		route.fulfill({ json: { id: "user_1", hasMailboxes: true } }),
+		route.fulfill({ json: { user: { id: "user_1", role: "owner" }, hasMailboxes: true } }),
 	);
 	await page.route("**/api/mailboxes", (route) => route.fulfill({ json: { mailboxes: [] } }));
 }

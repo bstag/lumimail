@@ -171,7 +171,7 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Hide administration links from members and redirect direct member visits before administrative controls render.
   - Keep every administration API protected by `guardOrgAdmin`; client behavior is defense in depth.
   - Acceptance: member/admin unit and browser contracts, full verification, production build, deployment, and controlled no-hard-refresh role checks pass.
-  - Evidence 2026-07-23: F49 production validation found that a member could see **Admin settings**, open `/mailboxes`, and see **New mailbox**. The administration API correctly returned `403` and exposed no organization inventory, so this is a client authorization-visibility defect rather than a server authorization bypass.
+  - Evidence 2026-07-23: F49 production validation found that a member could see **Admin settings**, open `/mailboxes`, and see **New mailbox**. The administration API correctly returned `403` and exposed no organization inventory, so this is a client authorization-visibility defect rather than a server authorization bypass. F51 is implemented locally with organization role in the session contract, fail-closed selector visibility, and an owner/admin-only layout gate across all eight administration entry routes. Verification passes with 1,081 tests at 100% configured coverage; all 33 Chromium scenarios reported passing before the known local Wrangler helper kept the runner open until timeout; the final escalated OpenNext build passes.
 
 - [ ] **R-23 Repair and verify the IMAP/SMTP bridge contract.** Depends on R-13 for mailbox authorization.
   - Use API-key-aware endpoints consistently, align scope names and response envelopes, and correct SMTP recipient/body shapes.

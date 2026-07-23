@@ -3,12 +3,23 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { authFetch, getClientSessionToken } from "@/lib/auth/client";
+import { isOrganizationAdminRole } from "@/lib/auth/roles";
+import {
+	AuthSessionContext,
+	type AuthSession,
+} from "./auth-session-context";
 import type { AuthGuardProps } from "./auth-guard-types";
 
-export function AuthGuard({ children, mode = "protected", requireMailbox }: AuthGuardProps) {
+export function AuthGuard({
+	children,
+	mode = "protected",
+	requireMailbox,
+	requireOrgAdmin,
+}: AuthGuardProps) {
 	const pathname = usePathname();
 	const router = useRouter();
 	const [authorized, setAuthorized] = useState(mode === "public");
+	const [session, setSession] = useState<AuthSession | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -28,7 +39,7 @@ export function AuthGuard({ children, mode = "protected", requireMailbox }: Auth
 				return;
 			}
 
-			const data = (await response.json()) as { hasMailboxes?: boolean };
+			const data = (await response.json()) as AuthSession;
 			if (mode === "public") {
 				router.replace(data.hasMailboxes === false ? "/onboarding" : "/inbox");
 				return;
@@ -44,6 +55,12 @@ export function AuthGuard({ children, mode = "protected", requireMailbox }: Auth
 				return;
 			}
 
+			if (requireOrgAdmin && !isOrganizationAdminRole(data.user?.role)) {
+				router.replace("/inbox");
+				return;
+			}
+
+			setSession(data);
 			setAuthorized(true);
 		}
 
@@ -52,8 +69,12 @@ export function AuthGuard({ children, mode = "protected", requireMailbox }: Auth
 		return () => {
 			cancelled = true;
 		};
-	}, [mode, pathname, requireMailbox, router]);
+	}, [mode, pathname, requireMailbox, requireOrgAdmin, router]);
 
 	if (!authorized) return null;
-	return <>{children}</>;
+	return (
+		<AuthSessionContext.Provider value={session}>
+			{children}
+		</AuthSessionContext.Provider>
+	);
 }

@@ -17,6 +17,7 @@ export async function GET(request: Request) {
 			email: user.email,
 			name: user.name,
 			resetEmail: user.resetEmail,
+			role: user.role,
 		},
 		hasMailboxes,
 	});

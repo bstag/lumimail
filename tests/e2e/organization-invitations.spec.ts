@@ -5,7 +5,7 @@ async function mockAdminSession(page: Page) {
 		localStorage.setItem("lumimail-session-token", "e2e-session");
 	});
 	await page.route("**/api/auth/me", (route) =>
-		route.fulfill({ json: { id: "owner_1", hasMailboxes: true } }),
+		route.fulfill({ json: { user: { id: "owner_1", role: "owner" }, hasMailboxes: true } }),
 	);
 	await page.route("**/api/mailboxes", (route) =>
 		route.fulfill({ json: { mailboxes: [] } }),

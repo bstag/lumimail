@@ -5,13 +5,17 @@ import { usePathname, useRouter } from "next/navigation";
 import { Check, LogOut, Mail, Settings } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useAuthSession } from "@/components/auth/auth-session-context";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { useMessageCounts } from "@/hooks/use-message-counts";
 import { authFetch, clearClientSessionToken } from "@/lib/auth/client";
+import { isOrganizationAdminRole } from "@/lib/auth/roles";
 import { cn } from "@/lib/utils";
 
 export function MailboxSelector() {
 	const t = useTranslations("nav");
+	const session = useAuthSession();
+	const canAdministerOrganization = isOrganizationAdminRole(session?.user?.role);
 	const { selectedMailbox, setSelectedMailbox, mailboxes, isLoading } =
 		useSelectedMailbox();
 	const pathname = usePathname();
@@ -122,23 +126,25 @@ export function MailboxSelector() {
 						);
 					})}
 					<div className="mt-2 border-t divide-y divide-neutral-100 border-neutral-100 pt-2">
-						<Link
-							href="/admin"
-							onClick={() => setOpen(false)}
-							className={cn(
-								"flex items-center gap-3 px-4 py-3 text-sm font-medium text-neutral-700 hover:bg-[#f2f6fc]",
-								adminActive && "bg-blue-50",
-							)}
-						>
-							<div className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-100 text-neutral-700">
-								<Settings className="h-4 w-4" />
-							</div>
-							<div>
-								<p className="text-sm font-medium text-neutral-900">{t("adminSettings")}</p>
-								<p className="text-xs text-neutral-500">{t("adminSettingsDesc")}</p>
-							</div>
-							{adminActive && <Check className="ml-auto h-4 w-4 text-blue-600" />}
-						</Link>
+						{canAdministerOrganization && (
+							<Link
+								href="/admin"
+								onClick={() => setOpen(false)}
+								className={cn(
+									"flex items-center gap-3 px-4 py-3 text-sm font-medium text-neutral-700 hover:bg-[#f2f6fc]",
+									adminActive && "bg-blue-50",
+								)}
+							>
+								<div className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-100 text-neutral-700">
+									<Settings className="h-4 w-4" />
+								</div>
+								<div>
+									<p className="text-sm font-medium text-neutral-900">{t("adminSettings")}</p>
+									<p className="text-xs text-neutral-500">{t("adminSettingsDesc")}</p>
+								</div>
+								{adminActive && <Check className="ml-auto h-4 w-4 text-blue-600" />}
+							</Link>
+						)}
 						<button
 							type="button"
 							onClick={logout}

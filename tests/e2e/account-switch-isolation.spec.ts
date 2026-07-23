@@ -16,9 +16,18 @@ test("clears account-scoped mailbox and message caches across logout and login",
 		}
 	});
 
-	await page.route("**/api/auth/me", (route) =>
-		route.fulfill({ json: { id: "current-user", hasMailboxes: true } }),
-	);
+	await page.route("**/api/auth/me", (route) => {
+		const accountB = route.request().headers().authorization === "Bearer token-b";
+		return route.fulfill({
+			json: {
+				user: {
+					id: accountB ? "user_b" : "user_a",
+					role: accountB ? "member" : "owner",
+				},
+				hasMailboxes: true,
+			},
+		});
+	});
 	await page.route("**/api/auth/logout", (route) =>
 		route.fulfill({ json: { ok: true } }),
 	);
@@ -89,6 +98,7 @@ test("clears account-scoped mailbox and message caches across logout and login",
 	const accountAButton = page.getByRole("button", { name: /Alpha Mailbox/i });
 	await expectReactHydrated(accountAButton);
 	await accountAButton.click();
+	await expect(page.getByRole("link", { name: /Admin settings/i })).toBeVisible();
 	await page.getByRole("button", { name: /Log out/i }).click();
 	await expect(page).toHaveURL(/\/login$/);
 
@@ -103,4 +113,8 @@ test("clears account-scoped mailbox and message caches across logout and login",
 	await expect(page.getByText("Alpha private subject")).toHaveCount(0);
 	await expect(page.getByText("alpha@a.example")).toHaveCount(0);
 	await expect.poll(() => page.evaluate(() => localStorage.getItem("selected-mailbox-id"))).toBe("mbx_b");
+
+	const accountBButton = page.getByRole("button", { name: /Bravo Mailbox/i });
+	await accountBButton.click();
+	await expect(page.getByRole("link", { name: /Admin settings/i })).toHaveCount(0);
 });
