@@ -1,6 +1,6 @@
 # F47 — Mailbox-Level Access Control
 
-> Status: Deployed — Controlled Multi-User Validation Pending
+> Status: Shipped
 > Remediation: R-12 (specification), R-13 (implementation)
 > Owner area: `src/db/schema/`, `src/lib/auth/`, `src/app/api/mailboxes*`, `src/app/api/messages*`, `src/app/api/drafts*`, `src/app/api/attachments*`, `src/app/api/send`, `src/app/api/v1/*`
 
@@ -269,7 +269,15 @@ Tests:
 - Live smoke checks: `/` returned `200`; unauthenticated `/api/mailboxes` and `/api/admin/mailboxes` returned JSON `401`.
 - The owner subsequently assigned a real user and manually validated the visible behavior of all three mailbox roles: `manager`, `responder`, and `viewer`.
 
-Still pending before R-13 can be marked shipped: explicitly verify unrelated-mailbox isolation and immediate revocation in the live second-user session. The production checks are required because the current browser suite mocks API responses and does not itself prove D1 row isolation between two live users.
+### 2026-07-23 — Controlled multi-user production validation
+
+- A viewer assigned only `admin@henriksen.dev` received only that mailbox from `/api/mailboxes`.
+- The viewer queried an unrelated LucidKith mailbox directly. Production D1 confirmed that mailbox contained 5 messages, while the authenticated API returned an empty list, preserving isolation without revealing mailbox existence.
+- Before revocation, the viewer could read a known message in the assigned Henriksen mailbox.
+- After the owner removed the mailbox assignment, the same live session immediately received `Not found` for that exact message and `/api/mailboxes` returned an empty list. No logout or session rotation was required.
+- The owner then reassigned the mailbox as `responder`; Compose, Drafts, and the two assigned messages returned on refresh.
+
+The explicit unrelated-mailbox and immediate-revocation production gates are complete.
 
 ## 14. Follow-up observations
 

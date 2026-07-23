@@ -1,6 +1,6 @@
 # F48 — Role-Aware Mail Actions and Shared Draft Refresh
 
-> Status: Deployed — Controlled Validation Pending
+> Status: Shipped
 > Remediation: follow-up to R-13
 > Owner area: `src/lib/auth/mailbox-access.ts`, `src/app/api/messages*`, `src/components/compose/`, `src/components/message-actions/`, `src/components/messages/`, `src/components/dashboard-nav.tsx`
 
@@ -134,4 +134,11 @@ Impact:
 - Live smoke checks returned `200` for `/` and JSON `401` for unauthenticated `/api/mailboxes` and `/api/messages?status=draft`.
 - No D1 migration was required for F48.
 
-A real viewer/responder UI and shared-draft refresh smoke test remains pending.
+### 2026-07-23 — Controlled viewer/responder production validation
+
+- Changing the assigned mailbox role to `viewer` immediately removed Compose and Drafts navigation.
+- Direct `/compose` navigation redirected to Inbox, and the Drafts view exposed no shared draft rows to the viewer.
+- Reassigning the same mailbox as `responder` restored Compose and Drafts in the same account.
+- With the responder Drafts page left open, another user created a shared draft. The untouched page changed from 2 rows to 3 and displayed the new `F40 AUTO REFRESH CHECK` draft during the monitoring window.
+
+The controlled viewer/responder and bounded shared-draft refresh production gates are complete.
