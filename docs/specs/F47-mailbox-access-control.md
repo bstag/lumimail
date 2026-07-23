@@ -1,6 +1,6 @@
 # F47 — Mailbox-Level Access Control
 
-> Status: Implemented Locally — Deployment and Production Validation Pending
+> Status: Deployed — Controlled Multi-User Validation Pending
 > Remediation: R-12 (specification), R-13 (implementation)
 > Owner area: `src/db/schema/`, `src/lib/auth/`, `src/app/api/mailboxes*`, `src/app/api/messages*`, `src/app/api/drafts*`, `src/app/api/attachments*`, `src/app/api/send`, `src/app/api/v1/*`
 
@@ -261,4 +261,11 @@ Tests:
 - `npx opennextjs-cloudflare build`: passed and generated `.open-next/worker.js`.
 - The passing browser run still logged pre-existing missing/invalid translation messages for compose and message actions; those are tracked under R-14 rather than F47.
 
-Still pending before R-13 can be marked shipped: apply migration `0010_add_mailbox_memberships.sql`, deploy the Worker, and complete a controlled production invite/share/read/send/revoke flow. The production flow is required because the current browser suite mocks API responses and does not itself prove D1 row isolation between two live users.
+### 2026-07-23 — Production deployment
+
+- Applied D1 migration `0010_add_mailbox_memberships.sql` successfully.
+- Aggregate verification found 2 organization mailboxes, 2 explicit manager memberships, and 0 mailbox messages with a mailbox but no `organizationId`.
+- Deployed Worker version `5d3f3c7a-8682-4ebd-84b8-777f8d8d43be` to `mail.henriksen.dev`.
+- Live smoke checks: `/` returned `200`; unauthenticated `/api/mailboxes` and `/api/admin/mailboxes` returned JSON `401`.
+
+Still pending before R-13 can be marked shipped: complete a controlled production invite/share/read/send/revoke flow. The production flow is required because the current browser suite mocks API responses and does not itself prove D1 row isolation between two live users.
