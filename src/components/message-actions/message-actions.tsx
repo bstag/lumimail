@@ -10,7 +10,16 @@ import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
 import type { MessageActionsProps } from "./types";
 import { getMessageActionRedirect, runSingleMessageAction } from "./utils";
 
-export function MessageActions({ messageId, direction, status, read, fromAddr, toAddr, subject }: MessageActionsProps) {
+export function MessageActions({
+	messageId,
+	direction,
+	status,
+	read,
+	fromAddr,
+	toAddr,
+	subject,
+	canSend = false,
+}: MessageActionsProps) {
 	const t = useTranslations("actions");
 	const router = useRouter();
 
@@ -54,16 +63,20 @@ export function MessageActions({ messageId, direction, status, read, fromAddr, t
 		<div className="flex items-center gap-3 text-neutral-600">
 			{error && <span className="text-xs text-red-600">{error}</span>}
 			<div className="flex items-center gap-2">
-				<Tooltip label={t("reply")}>
-					<Button type="button" variant="ghost" size="sm" aria-label={t("reply")} onClick={replyTo}>
-						<Reply className="h-5 w-5" />
-					</Button>
-				</Tooltip>
-				<Tooltip label="Forward">
-					<Button type="button" variant="ghost" size="sm" aria-label="Forward" onClick={forwardMsg}>
-						<Reply className="h-5 w-5 scale-x-[-1]" />
-					</Button>
-				</Tooltip>
+				{canSend && (
+					<>
+						<Tooltip label={t("reply")}>
+							<Button type="button" variant="ghost" size="sm" aria-label={t("reply")} onClick={replyTo}>
+								<Reply className="h-5 w-5" />
+							</Button>
+						</Tooltip>
+						<Tooltip label="Forward">
+							<Button type="button" variant="ghost" size="sm" aria-label="Forward" onClick={forwardMsg}>
+								<Reply className="h-5 w-5 scale-x-[-1]" />
+							</Button>
+						</Tooltip>
+					</>
+				)}
 				<Tooltip label={t("archive")}>
 					<Button
 						variant="ghost"

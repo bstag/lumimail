@@ -3,7 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const authFetch = vi.fn();
 vi.mock("@/lib/auth/client", () => ({ authFetch: (...a: unknown[]) => authFetch(...a) }));
 
-import { clearMailboxesCache, fetchMailboxOptions } from "@/components/mailbox-provider-utils";
+import {
+	canMailboxSend,
+	clearMailboxesCache,
+	fetchMailboxOptions,
+	findSendCapableMailbox,
+} from "@/components/mailbox-provider-utils";
 
 function jsonResponse(body: unknown) {
 	return { json: async () => body } as unknown as Response;
@@ -108,5 +113,34 @@ describe("clearMailboxesCache", () => {
 		clearMailboxesCache();
 		await fetchMailboxOptions();
 		expect(authFetch).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("mailbox send capabilities", () => {
+	it.each([
+		["viewer", false],
+		["responder", true],
+		["manager", true],
+	] as const)("maps %s to send capability %s", (role, expected) => {
+		expect(canMailboxSend({ ...mappedMailbox, role })).toBe(expected);
+	});
+
+	it("returns false without a mailbox", () => {
+		expect(canMailboxSend(null)).toBe(false);
+	});
+
+	it("finds the first responder or manager mailbox", () => {
+		const mailboxes = [
+			{ ...mappedMailbox, id: "viewer", role: "viewer" as const },
+			{ ...mappedMailbox, id: "responder", role: "responder" as const },
+			{ ...mappedMailbox, id: "manager", role: "manager" as const },
+		];
+		expect(findSendCapableMailbox(mailboxes)?.id).toBe("responder");
+	});
+
+	it("returns undefined for a viewer-only mailbox list", () => {
+		expect(
+			findSendCapableMailbox([{ ...mappedMailbox, role: "viewer" }]),
+		).toBeUndefined();
 	});
 });

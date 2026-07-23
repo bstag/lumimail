@@ -147,6 +147,13 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Acceptance: cross-user and cross-tenant negative tests cover every mailbox-scoped endpoint; shared-support-mailbox E2E flow passes.
   - Evidence 2026-07-23: F47 membership lifecycle and UI are deployed. Membership-backed authorization covers browser messages, shared state, attachments, drafts, sender resolution, outbound storage/jobs, and API-key message/send routes. Administrative inventory is separated from content access and its query cache cannot populate the content selector; owner self-claim is explicit; mailbox deletion requires typed exact-address confirmation. Full verification passes at 1,045 tests with 100% coverage, all 24 Playwright tests pass at CI concurrency, and the final OpenNext production build passes. Migration `0010` applied; aggregate verification found 2 organization mailboxes, 2 memberships, and 0 mailbox messages missing organization ownership. Worker `5d3f3c7a-8682-4ebd-84b8-777f8d8d43be` is live and unauthenticated mailbox APIs return JSON `401`. A real second user was assigned and manager/viewer/responder behavior was manually exercised; explicit unrelated-mailbox and immediate-revocation checks remain open.
 
+- [~] **R-29 Align mail actions and draft visibility with mailbox capabilities.** Spec: [F48](./specs/F48-role-aware-mail-actions-and-shared-draft-refresh.md).
+  - Hide viewer-only send/draft affordances and guard direct Compose entry without weakening API authorization.
+  - Require send capability for draft metadata and content across generic and dedicated message paths.
+  - Refresh visible shared draft lists on a bounded interval without claiming concurrent editing safety.
+  - Acceptance: viewer/responder browser contracts, draft-aware authorization tests, full verification, production build, deployment, and controlled live role checks pass.
+  - Evidence 2026-07-23: implemented locally; 32 focused unit tests, 1,056-test verification at 100% configured coverage, 28 Playwright scenarios, and the OpenNext production build pass. Deployment and controlled live checks remain.
+
 - [ ] **R-22 Bind invitations to the intended identity and deliver them safely.**
   - Registration must not accept an invite token for a different address; define whether invited external addresses become login identities or map to domain mailboxes.
   - Deliver or securely share invitations without exposing reusable tokens in ordinary member-list responses.
@@ -216,9 +223,6 @@ Add audit discoveries here before assigning them a priority. Promote each confir
 - Wrangler warns that the `CF_ACCOUNT_ID` environment variable name is deprecated in favor of `CLOUDFLARE_ACCOUNT_ID`; update configuration and runtime access together after confirming compatibility.
 - R-14 must include missing `compose.send` and the invalid ICU message in `compose.recipientsPlaceholder`, whose literal angle-bracket address is interpreted as a rich-text tag.
 - Session authentication scans every unexpired session and performs a bcrypt comparison for each row; include this in the R-17 performance pass and redesign lookup without weakening token-at-rest protection.
-- Mailbox capabilities need a role-aware UI pass: viewer-only users still see Compose and can enter a surface with no valid sender. Hide or disable unavailable compose/reply/forward/draft-edit/manage affordances and guard direct navigation without weakening server authorization.
-- Mailbox drafts autosave after roughly 900 ms and are stored with the selected mailbox, but other open users receive no live refresh and concurrent editing has no presence, locking, or conflict protection. Specify whether shared drafts need refresh-only behavior or real-time collaboration.
-- Draft authorization is inconsistent across list paths: dedicated draft APIs require send capability, while the general message list can return `status=draft` rows under read capability. Resolve this before treating viewer draft privacy as complete.
 
 ## Decisions and scope changes
 

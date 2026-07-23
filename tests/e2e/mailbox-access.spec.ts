@@ -45,6 +45,79 @@ async function mockAuthenticatedShell(page: Page) {
 	);
 }
 
+async function mockRoleShell(
+	page: Page,
+	role: "viewer" | "responder" | "manager",
+) {
+	await page.addInitScript(() => {
+		localStorage.setItem("lumimail-session-token", "e2e-session");
+	});
+	await page.route("**/api/auth/me", (route) =>
+		route.fulfill({ json: { id: "user_role", hasMailboxes: true } }),
+	);
+	await page.route("**/api/mailboxes", (route) =>
+		route.fulfill({
+			json: {
+				mailboxes: [
+					{
+						id: "mbx_role",
+						localPart: "support",
+						hostname: "example.com",
+						displayName: "Support",
+						isPrimary: true,
+						role,
+					},
+				],
+			},
+		}),
+	);
+	await page.route("**/api/messages/counts**", (route) =>
+		route.fulfill({
+			json: {
+				counts: {
+					folders: {
+						inbox: { total: 1, unread: 0 },
+						sent: { total: 0, unread: 0 },
+						drafts: { total: 0, unread: 0 },
+						trash: { total: 0, unread: 0 },
+						spam: { total: 0, unread: 0 },
+						starred: { total: 0, unread: 0 },
+					},
+					mailboxes: [],
+				},
+			},
+		}),
+	);
+}
+
+async function mockMessageDetail(page: Page) {
+	await page.route("**/api/messages/msg_role", (route) =>
+		route.fulfill({
+			json: {
+				message: {
+					id: "msg_role",
+					userId: "user_role",
+					mailboxId: "mbx_role",
+					direction: "inbound",
+					fromAddr: "sender@example.net",
+					toAddr: "support@example.com",
+					subject: "Role check",
+					snippet: "Role body",
+					status: "received",
+					read: true,
+					starred: false,
+					threadId: null,
+					createdAt: "2026-07-23T12:00:00.000Z",
+				},
+				body: { textBody: "Role body", htmlBody: null },
+			},
+		}),
+	);
+	await page.route("**/api/messages/msg_role/attachments", (route) =>
+		route.fulfill({ json: { success: true, data: { attachments: [] } } }),
+	);
+}
+
 test.describe("mailbox access administration", () => {
 	test("separates organization inventory from content access and lets an owner self-assign", async ({
 		page,
@@ -168,5 +241,62 @@ test.describe("mailbox access administration", () => {
 			confirmAddress: "support@example.com",
 		});
 		await expect(page).toHaveURL(/\/mailboxes$/);
+	});
+});
+
+test.describe("role-aware mail actions", () => {
+	test("keeps a viewer-only user out of compose and drafts", async ({ page }) => {
+		await mockRoleShell(page, "viewer");
+		await page.route("**/api/messages?*", (route) =>
+			route.fulfill({ json: { messages: [], total: 0, limit: 25, offset: 0 } }),
+		);
+
+		await page.goto("/inbox");
+		await expect(page.getByRole("button", { name: "Compose" })).toHaveCount(0);
+		await expect(page.getByRole("link", { name: "Drafts" })).toHaveCount(0);
+
+		await page.goto("/compose");
+		await expect(page).toHaveURL(/\/inbox$/);
+		await expect(page.getByRole("heading", { name: "Compose" })).toHaveCount(0);
+	});
+
+	test("hides reply and forward for a viewer mailbox", async ({ page }) => {
+		await mockRoleShell(page, "viewer");
+		await mockMessageDetail(page);
+
+		await page.goto("/inbox/msg_role");
+
+		await expect(page.getByRole("button", { name: "Reply" })).toHaveCount(0);
+		await expect(page.getByRole("button", { name: "Forward" })).toHaveCount(0);
+	});
+
+	test("shows send actions to a responder", async ({ page }) => {
+		await mockRoleShell(page, "responder");
+		await mockMessageDetail(page);
+
+		await page.goto("/inbox/msg_role");
+
+		await expect(page.getByRole("button", { name: "Compose" })).toBeVisible();
+		await expect(page.getByRole("link", { name: "Drafts" })).toBeVisible();
+		await expect(page.getByRole("button", { name: "Reply" })).toBeVisible();
+		await expect(page.getByRole("button", { name: "Forward" })).toBeVisible();
+	});
+
+	test("refreshes a visible shared draft list when the window regains focus", async ({
+		page,
+	}) => {
+		await mockRoleShell(page, "responder");
+		let draftRequests = 0;
+		await page.route("**/api/messages?*", (route) => {
+			draftRequests += 1;
+			return route.fulfill({
+				json: { messages: [], total: 0, limit: 25, offset: 0 },
+			});
+		});
+
+		await page.goto("/drafts");
+		await expect.poll(() => draftRequests).toBe(1);
+		await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+		await expect.poll(() => draftRequests).toBe(2);
 	});
 });

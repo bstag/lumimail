@@ -9,6 +9,18 @@ export function clearMailboxesCache() {
 	mailboxesRequest = null;
 }
 
+export function canMailboxSend(
+	mailbox: Pick<MailboxOption, "role"> | null | undefined,
+): boolean {
+	return mailbox?.role === "responder" || mailbox?.role === "manager";
+}
+
+export function findSendCapableMailbox(
+	mailboxes: readonly MailboxOption[],
+): MailboxOption | undefined {
+	return mailboxes.find(canMailboxSend);
+}
+
 export async function fetchMailboxOptions(force = false): Promise<MailboxOption[]> {
 	if (!force && mailboxesCache) return mailboxesCache;
 	if (!force && mailboxesRequest) return mailboxesRequest;

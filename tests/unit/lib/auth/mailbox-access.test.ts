@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
+import { drizzle } from "drizzle-orm/sqlite-proxy";
+import type { AppDatabase } from "@/db";
 import { createDbMock } from "../../helpers/db";
 import {
 	getMailboxAccess,
@@ -61,5 +64,17 @@ describe("mailbox access roles", () => {
 	it("builds membership-backed access for an organization mailbox", () => {
 		const mock = createDbMock();
 		expect(messageAccessCondition(mock.db, "usr_1", "org_1", "send")).toBeDefined();
+	});
+
+	it("requires send-capable membership when a read targets draft messages", () => {
+		const db = drizzle(async () => ({ rows: [] })) as unknown as AppDatabase;
+		const condition = messageAccessCondition(db, "usr_1", "org_1", "read");
+		const query = new SQLiteSyncDialect().sqlToQuery(condition!);
+
+		expect(query.sql).toContain('"messages"."status"');
+		expect(query.params).toContain("draft");
+		expect(query.params).toContain("viewer");
+		expect(query.params.filter((value) => value === "responder")).toHaveLength(2);
+		expect(query.params.filter((value) => value === "manager")).toHaveLength(2);
 	});
 });

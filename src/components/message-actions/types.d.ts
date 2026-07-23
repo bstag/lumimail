@@ -9,6 +9,7 @@ export type MessageActionsProps = {
 	fromAddr?: string;
 	toAddr?: string;
 	subject?: string | null;
+	canSend?: boolean;
 };
 
 export type SingleMessageAction = BulkMessageAction | "reply";

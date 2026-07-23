@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
+import { findSendCapableMailbox } from "@/components/mailbox-provider-utils";
 import { useMessageCounts } from "@/hooks/use-message-counts";
 import { cn } from "@/lib/utils";
 import { NavItem } from "./components-nav";
@@ -23,7 +24,8 @@ import { getFolderNavCount } from "./dashboard-nav-utils";
 
 export function DashboardNav({ className, onNavigate }: { className?: string; onNavigate?: () => void }) {
   const t = useTranslations("nav");
-  const { selectedMailbox, isLoading } = useSelectedMailbox();
+  const { selectedMailbox, mailboxes, isLoading } = useSelectedMailbox();
+  const canSend = Boolean(findSendCapableMailbox(mailboxes));
   const { counts } = useMessageCounts(selectedMailbox?.id, !isLoading);
 
   const links = [
@@ -40,11 +42,13 @@ export function DashboardNav({ className, onNavigate }: { className?: string; on
     { break: true },
     { href: "/settings", label: t("settings"), icon: Settings },
   ];
-  const linksWithCounts = links.map((link) => {
+  const linksWithCounts = links
+    .filter((link) => canSend || (link.href !== "/compose" && link.href !== "/drafts"))
+    .map((link) => {
     if (link.href === "/inbox") return { ...link, count: getFolderNavCount("inbox", counts.folders) };
     if (link.href === "/spam") return { ...link, count: getFolderNavCount("spam", counts.folders) };
     return link;
-  });
+    });
 
   return (
     <nav className={cn("flex flex-col gap-1 flex-1", className)}>

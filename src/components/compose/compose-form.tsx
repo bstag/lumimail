@@ -9,6 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
+import {
+	canMailboxSend,
+	findSendCapableMailbox,
+} from "@/components/mailbox-provider-utils";
 import { authFetch } from "@/lib/auth/client";
 import { formatEmailAddress } from "@/lib/email/address";
 import { cn } from "@/lib/utils";
@@ -59,7 +63,7 @@ export function ComposeForm({
 
 	const fromAddr = useMemo(
 		() =>
-			selectedMailbox && selectedMailbox.role !== "viewer"
+			selectedMailbox && canMailboxSend(selectedMailbox)
 				? formatEmailAddress(
 						`${selectedMailbox.localPart}@${selectedMailbox.hostname}`,
 						selectedMailbox.displayName ?? selectedMailbox.localPart,
@@ -67,6 +71,12 @@ export function ComposeForm({
 				: "",
 		[selectedMailbox],
 	);
+
+	useEffect(() => {
+		if (canMailboxSend(selectedMailbox)) return;
+		const sendMailbox = findSendCapableMailbox(mailboxes);
+		if (sendMailbox) setSelectedMailbox(sendMailbox);
+	}, [mailboxes, selectedMailbox, setSelectedMailbox]);
 
 	useEffect(() => {
 		if (!toast) return;

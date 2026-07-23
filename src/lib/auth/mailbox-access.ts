@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import type { AppDatabase } from "@/db";
 import { mailboxMemberships, mailboxes, messages } from "@/db/schema";
 
@@ -70,11 +70,11 @@ export async function listAccessibleMailboxIds(
 	return rows.map((row) => row.mailboxId);
 }
 
-export function messageAccessCondition(
+function messageAccessForRoles(
 	db: AppDatabase,
 	userId: string,
 	organizationId: string | null,
-	capability: MailboxCapability,
+	roles: readonly MailboxRole[],
 ) {
 	const privateMessage = and(isNull(messages.mailboxId), eq(messages.userId, userId));
 	if (!organizationId) return privateMessage;
@@ -86,7 +86,7 @@ export function messageAccessCondition(
 		.where(and(
 			eq(mailboxMemberships.userId, userId),
 			eq(mailboxes.organizationId, organizationId),
-			inArray(mailboxMemberships.role, [...rolesForCapability[capability]]),
+			inArray(mailboxMemberships.role, [...roles]),
 		));
 
 	return or(
@@ -95,5 +95,31 @@ export function messageAccessCondition(
 			eq(messages.organizationId, organizationId),
 			inArray(messages.mailboxId, accessibleMailboxIds),
 		),
+	);
+}
+
+export function messageAccessCondition(
+	db: AppDatabase,
+	userId: string,
+	organizationId: string | null,
+	capability: MailboxCapability,
+) {
+	const capabilityAccess = messageAccessForRoles(
+		db,
+		userId,
+		organizationId,
+		rolesForCapability[capability],
+	);
+	if (capability !== "read") return capabilityAccess;
+
+	const draftAccess = messageAccessForRoles(
+		db,
+		userId,
+		organizationId,
+		rolesForCapability.send,
+	);
+	return or(
+		and(ne(messages.status, "draft"), capabilityAccess),
+		and(eq(messages.status, "draft"), draftAccess),
 	);
 }

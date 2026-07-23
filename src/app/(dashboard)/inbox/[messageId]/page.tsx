@@ -10,6 +10,8 @@ import DOMPurify from "dompurify";
 import { MarkAsRead } from "@/components/mark-read";
 import { MessageActions } from "@/components/message-actions/message-actions";
 import { AttachmentList } from "@/components/messages/attachment-list";
+import { useSelectedMailbox } from "@/components/mailbox-provider";
+import { canMailboxSend } from "@/components/mailbox-provider-utils";
 import { getMessageBackHref } from "@/components/message-actions/utils";
 import { authFetch } from "@/lib/auth/client";
 import { getDisplayNameForAddress } from "@/lib/contacts/utils";
@@ -134,6 +136,7 @@ export default function MessageDetailPage() {
 	const [loading, setLoading] = useState(true);
 	const [threadMessages, setThreadMessages] = useState<ThreadMessage[]>([]);
 	const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+	const { mailboxes } = useSelectedMailbox();
 
 	useEffect(() => {
 		let cancelled = false;
@@ -192,6 +195,9 @@ export default function MessageDetailPage() {
 	const bodyDisplay = getMessageBodyDisplay(body?.textBody, body?.htmlBody, message.snippet);
 
 	const showThread = threadMessages.length > 1;
+	const canSend = canMailboxSend(
+		mailboxes.find((mailbox) => mailbox.id === message.mailboxId),
+	);
 
 	return (
 		<div className="h-full overflow-auto">
@@ -215,6 +221,7 @@ export default function MessageDetailPage() {
 					fromAddr={message.fromAddr}
 					toAddr={message.toAddr}
 					subject={message.subject}
+					canSend={canSend}
 				/>
 			</div>
 			<article className="px-6">

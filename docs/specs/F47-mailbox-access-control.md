@@ -273,6 +273,6 @@ Still pending before R-13 can be marked shipped: explicitly verify unrelated-mai
 
 ## 14. Follow-up observations
 
-- Role-aware UI affordances are incomplete. The server correctly rejects unauthorized send/manage operations, but Compose remains visible to viewer-only users and the compose surface merely lacks a valid sender. A follow-up should hide or disable compose, reply, forward, draft-edit, and management affordances from current capabilities while retaining every server-side check and guarding direct navigation.
-- Compose autosaves about 900 ms after non-empty content changes and associates the draft with the selected mailbox. That makes the stored draft mailbox-scoped, but other open sessions receive no live refresh. There is no polling, push event, collaborative presence, edit lock, version check, or conflict handling.
-- The general message-list endpoint currently evaluates draft rows with read capability, while the dedicated draft routes require send capability. The follow-up must decide and enforce one contract; the safer default is that viewers cannot list or read draft metadata/content.
+- Resolved locally by [F48](./F48-role-aware-mail-actions-and-shared-draft-refresh.md): viewer-only users no longer receive compose/draft/reply/forward affordances, direct Compose navigation is guarded, and responder/manager users retain send workflows.
+- Resolved locally by F48: visible shared Drafts pages refresh every 10 seconds and on focus/visibility restoration. Presence, edit locks, version checks, merges, and conflict handling remain explicitly out of scope.
+- Resolved locally by F48: draft rows require send capability across the generic message predicate as well as dedicated draft routes, so viewers cannot list or read draft metadata/content.
