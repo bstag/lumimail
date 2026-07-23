@@ -208,12 +208,17 @@ export async function getMessageWithBody(
 	userId: string,
 	organizationId: string | null,
 	messageId: string,
+	mailboxId?: string,
 ) {
 	const db = getDb(env);
 	const [message] = await db
 		.select()
 		.from(messages)
-		.where(and(eq(messages.id, messageId), messageAccessCondition(db, userId, organizationId, "read")))
+		.where(and(
+			eq(messages.id, messageId),
+			...(mailboxId ? [eq(messages.mailboxId, mailboxId)] : []),
+			messageAccessCondition(db, userId, organizationId, "read"),
+		))
 		.limit(1);
 	if (!message) return null;
 	const [body] = await db

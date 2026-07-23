@@ -15,7 +15,7 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "e2e": "playwright test",
-    "verify": "npm run typecheck && npm run lint && npm run test:cov",
+    "verify": "npm run typecheck && npm run lint && npm run test:cov && npm --prefix imap-bridge test",
     "deploy": "npm run db:migrate:remote && opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",

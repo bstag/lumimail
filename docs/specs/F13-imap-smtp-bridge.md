@@ -3,6 +3,10 @@
 **Status:** In Progress  
 **Priority:** High — required for full Google Workspace replacement  
 
+> Contract repair: the authentication, API, protocol, TLS, and verification details below were
+> found to be incomplete or incorrect. [F52](./F52-imap-smtp-bridge-contract-repair.md) is the
+> authoritative current contract; this file remains the original feature overview.
+
 ## Overview
 
 Lumimail's core runs on Cloudflare Workers, which only supports HTTP. To support standard email clients (Thunderbird, Apple Mail, Outlook, mobile mail apps), we need a separate TCP server that implements IMAP4rev1 (RFC 3501) and SMTP (RFC 5321) and bridges to the Lumimail HTTP API.

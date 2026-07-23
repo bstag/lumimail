@@ -1,83 +1,100 @@
-# Lumimail IMAP/SMTP Bridge — Real Mail Clients, Zero Compromise
+# Lumimail IMAP/SMTP Bridge
 
-**The bridge is the part everyone else skips.** Plenty of self-hosted webmail projects give you a browser tab and call it a day. Lumimail gives you the browser tab *and* the protocols every real client speaks — so Apple Mail, Thunderbird, Outlook, and the stock iOS/Android mail apps connect like Lumimail were Gmail itself.
+The bridge is a separate Node.js TCP service that lets a standard mail client use one Lumimail mailbox. It translates IMAP and SMTP operations into the mailbox-scoped HTTPS API served by the Cloudflare Worker.
 
-It speaks **IMAP4rev1** and **SMTP**. Your client doesn't know — or care — that mail actually lives in Cloudflare D1 and R2 behind an HTTP API.
+It does not run inside Cloudflare Workers: Workers serve the API and store/process mail, while this container must run on a long-running Docker host or VPS that can accept TCP connections.
 
-## How it works
+## Security model
 
-A lightweight Node.js TCP server implements IMAP4rev1 and SMTP and proxies every operation to the Lumimail HTTP API. It runs beside the Cloudflare Workers app (Workers can't open raw TCP sockets — so the bridge does, and translates). Authenticate with a Lumimail API key as the password; nothing else to configure on the client.
+- Username: the complete mailbox address assigned to the user, such as `support@example.com`.
+- Password: that user's Lumimail API key.
+- One client account is bound to one mailbox address. A user assigned several mailboxes configures one client account per address.
+- IMAP requires the key's `read` scope and viewer, responder, or manager mailbox access.
+- SMTP requires the key's `send` scope and responder or manager mailbox access.
+- Production requires an HTTPS Lumimail origin and a TLS key/certificate pair.
+- Production IMAP uses implicit TLS. SMTP submission uses STARTTLS.
+- Plaintext transport is limited to explicit loopback-only development mode.
+- The bridge sends credentials and message data only to `LUMIMAIL_API_URL` and does not persist API keys.
 
-## Quick start
+## Create a personal API key
 
-### 1. Configure
+In Lumimail, open **Settings → Personal API keys → Manage API keys**, create a key, and save the one-time secret. New keys currently contain the `read` and `send` scopes; the mailbox role still limits what the key can do.
 
-```bash
-cp .env.example .env
-# Edit .env — set LUMIMAIL_API_URL to your Lumimail deployment URL
+Restricted organization members use this personal settings route. `/api-keys` remains an organization-administration route.
+
+## Production configuration
+
+Copy `.env.example` to `.env` and set:
+
+```dotenv
+LUMIMAIL_API_URL=https://mail.example.com
+IMAPS_PORT=993
+SMTP_PORT=587
+BRIDGE_HOST=0.0.0.0
+TLS_KEY_PATH=/etc/ssl/private/bridge.key
+TLS_CERT_PATH=/etc/ssl/certs/bridge.crt
+ALLOW_INSECURE_LOCALHOST=false
 ```
 
-### 2. Run with Docker
+Both TLS files must be readable when the process starts. A missing/incomplete pair or a non-HTTPS API URL stops production startup.
+
+## Run with Docker
+
+Build from the `imap-bridge` directory:
 
 ```bash
 docker build -t lumimail-bridge .
-docker run -p 143:143 -p 587:587 --env-file .env lumimail-bridge
-```
-
-For TLS (recommended for production):
-
-```bash
-docker run \
-  -p 993:993 -p 587:587 \
-  -v /path/to/certs:/etc/ssl \
+docker run --restart unless-stopped \
+  -p 993:993 \
+  -p 587:587 \
   --env-file .env \
-  -e TLS_KEY_PATH=/etc/ssl/private/bridge.key \
-  -e TLS_CERT_PATH=/etc/ssl/certs/bridge.crt \
+  -v /path/to/certs:/etc/ssl:ro \
   lumimail-bridge
 ```
 
-### 3. Configure email clients
+Do not publish plaintext development ports.
 
-In your email client:
+## Loopback-only development
 
-**IMAP:**
-- Server: your bridge host
-- Port: 993 (SSL) or 143 (STARTTLS)
-- Username: your full email address (e.g. alice@example.com)
-- Password: your Lumimail API key (Settings → API Keys)
+For a local Lumimail instance:
 
-**SMTP:**
-- Server: your bridge host
-- Port: 587 (STARTTLS)
-- Username: your full email address
-- Password: your Lumimail API key
+```dotenv
+LUMIMAIL_API_URL=http://127.0.0.1:3000
+ALLOW_INSECURE_LOCALHOST=true
+IMAP_PORT=1143
+SMTP_PORT=1587
+```
 
-### 4. Generate an API key
+The bridge ignores a public `BRIDGE_HOST` in this mode and binds `127.0.0.1`.
 
-In Lumimail, go to **Settings → API Keys** and create a key with scopes `messages:read` and `send`.
+## Client settings
 
-## Supported commands
+| Direction | Server | Port | Security | Authentication |
+|---|---|---:|---|---|
+| Incoming | bridge hostname | 993 | SSL/TLS | Normal password |
+| Outgoing | bridge hostname | 587 | STARTTLS | Normal password |
 
-| Command | Status |
-|---------|--------|
-| LOGIN | ✅ |
-| LIST / LSUB | ✅ |
-| SELECT / EXAMINE | ✅ |
-| FETCH (headers, body) | ✅ |
-| STORE (\Seen, \Deleted) | ✅ |
-| EXPUNGE | ✅ |
-| STATUS | ✅ |
-| SEARCH | ✅ (returns all) |
-| NAMESPACE | ✅ |
-| SMTP send | ✅ |
+Use the assigned mailbox address as both usernames and the personal API key as both passwords.
 
-## Folder mapping
+The current SMTP contract deliberately accepts exactly one recipient per submitted message. Attachments are not promised until Lumimail completes inbound/outbound attachment delivery work.
 
-| IMAP folder | Lumimail |
-|-------------|----------|
-| INBOX | Inbox |
-| Sent | Sent |
-| Drafts | Drafts |
-| Spam / Junk | Spam |
-| Trash | Trash |
-| Starred | Starred |
+## Implemented IMAP behavior
+
+- `CAPABILITY`, `LOGIN`, `NAMESPACE`, `LIST`, `LSUB`
+- `SELECT`, `EXAMINE`, `STATUS`
+- sequence and `UID` forms of `FETCH`, `STORE`, and `SEARCH`
+- `SEARCH ALL`, `SEARCH SEEN`, and `SEARCH UNSEEN`
+- `NOOP`, `CLOSE`, `EXPUNGE`, `LOGOUT`
+- persistent API-backed UIDs
+- `\Seen` updates and recoverable `\Deleted` → Trash behavior
+
+The bridge does not advertise IMAP STARTTLS, IDLE/push, SASL authentication, arbitrary search criteria, or literal-plus. Unsupported behavior returns an error instead of a false success.
+
+## Tests
+
+```bash
+npm ci
+npm test
+```
+
+The repository root `npm run verify` also runs the bridge suite.

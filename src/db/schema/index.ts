@@ -212,6 +212,7 @@ export const messages = sqliteTable(
 		read: integer("read", { mode: "boolean" }).notNull().default(false),
 		starred: integer("starred", { mode: "boolean" }).notNull().default(false),
 		threadId: text("thread_id"),
+		imapUid: integer("imap_uid"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.notNull()
 			.$defaultFn(() => new Date()),
@@ -220,8 +221,14 @@ export const messages = sqliteTable(
 		index("messages_user_created_idx").on(t.userId, t.createdAt),
 		index("messages_mailbox_idx").on(t.mailboxId),
 		index("messages_org_idx").on(t.organizationId),
+		uniqueIndex("messages_imap_uid_idx").on(t.imapUid),
 	],
 );
+
+export const imapUidCounter = sqliteTable("imap_uid_counter", {
+	id: integer("id").primaryKey(),
+	value: integer("value").notNull(),
+});
 
 export const messageBodies = sqliteTable("message_bodies", {
 	id: text("id").primaryKey(),
@@ -397,6 +404,7 @@ export const schema = {
 	contacts,
 	apiKeys,
 	messages,
+	imapUidCounter,
 	messageBodies,
 	outboundJobs,
 	routingRules,

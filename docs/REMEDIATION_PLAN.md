@@ -177,6 +177,7 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Use API-key-aware endpoints consistently, align scope names and response envelopes, and correct SMTP recipient/body shapes.
   - Define TLS requirements and remove capabilities that are advertised but not implemented.
   - Acceptance: Thunderbird or another controlled client can authenticate, list/fetch/update a permitted mailbox, and send a message without accessing an unauthorized mailbox.
+  - Local evidence 2026-07-23: F52 implements mailbox-scoped `/api/v1/*` contracts, persistent UIDs/UIDNEXT, paged IMAP synchronization, truthful capabilities, sender-bound one-recipient SMTP, fail-closed TLS, and restricted-member personal key management. `npm run verify` passes with 1,110 application tests at 100% configured coverage plus 16 bridge tests; the focused Chromium scenario reported passing before the known Wrangler helper timeout; the fresh-D1 migration contract and final OpenNext build pass. Production migration/deployment, a separate TCP host with trusted certificates, and controlled Thunderbird isolation/send validation remain pending.
 
 ### Phase 4 — Theme, localization, and interface consistency
 

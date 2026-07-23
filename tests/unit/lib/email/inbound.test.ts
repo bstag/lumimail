@@ -464,4 +464,15 @@ describe("getMessageWithBody", () => {
 			body: { id: "body_1", messageId: "msg_1", textBody: "t" },
 		});
 	});
+
+	it("supports an explicit mailbox constraint for bridge reads", async () => {
+		mock
+			.queueSelect([{ id: "msg_1", mailboxId: "mb1", fromAddr: "f@x.com", toAddr: "t@y.com" }])
+			.queueSelect([]);
+		getMessageContactNames.mockResolvedValue({ fromContactName: null, toContactName: null });
+
+		const result = await getMessageWithBody(env, "u1", "org_1", "msg_1", "mb1");
+
+		expect(result?.message).toMatchObject({ id: "msg_1", mailboxId: "mb1" });
+	});
 });
