@@ -160,6 +160,12 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Acceptance: mismatched-address registration is denied and a controlled invited user completes the intended flow end to end.
   - Evidence 2026-07-23: F49 is deployed. The invited external address is server-bound as the login identity, invite acceptance creates no mailbox/routing rule, pending lists omit tokens, raw tokens are revealed once and stored only as SHA-256 hashes, and conditional claiming prevents replay. Production contained 0 unexpired legacy plaintext invitations before deployment. Verification passes with 1,065 tests at 100% configured coverage, all 30 Playwright scenarios, and the final OpenNext build. Commit `bf0375c` is deployed as Worker `f0527542-9628-4905-ab6a-1631485517d4`; production returned `200` for `/`, `401` for unauthenticated member listing, `404` for an invalid invitation, and `400` for malformed invitation registration. The controlled invite/register/assign/login flow remains open.
 
+- [~] **R-30 Isolate browser caches across account switches.** Spec: [F50](./specs/F50-account-switch-cache-isolation.md).
+  - Clear mailbox, message, count, TanStack Query, and selected-mailbox state at every successful authentication transition.
+  - Prevent requests started under a prior account from repopulating or deleting current-account cache entries.
+  - Acceptance: unit and browser account-switch tests pass, and a production logout/login switch shows only the new account without a hard refresh.
+  - Evidence 2026-07-23: production reproduced a stale one-mailbox selector after logout/login; a hard refresh restored the owner mailbox list. Code audit found account-agnostic module caches, persistent root query data, and uncleared selected-mailbox storage. F50 is implemented locally with browser-global reset broadcast, canonical auth persistence, cache generations, request identity guards, Query Client reset, and immediate mounted-provider clearing. Verification passes with 1,074 tests at 100% configured coverage, all 31 Playwright scenarios, and the final OpenNext build.
+
 - [ ] **R-23 Repair and verify the IMAP/SMTP bridge contract.** Depends on R-13 for mailbox authorization.
   - Use API-key-aware endpoints consistently, align scope names and response envelopes, and correct SMTP recipient/body shapes.
   - Define TLS requirements and remove capabilities that are advertised but not implemented.

@@ -33,6 +33,20 @@ const mappedMailbox = {
 	isPrimary: true,
 };
 
+const secondRawMailbox = {
+	...rawMailbox,
+	id: "mb_2",
+	localPart: "bob",
+	displayName: "Bob",
+};
+
+const secondMappedMailbox = {
+	...mappedMailbox,
+	id: "mb_2",
+	localPart: "bob",
+	displayName: "Bob",
+};
+
 beforeEach(() => {
 	authFetch.mockReset();
 	clearMailboxesCache();
@@ -102,6 +116,25 @@ describe("fetchMailboxOptions", () => {
 		clearMailboxesCache();
 		await fetchMailboxOptions();
 
+		expect(authFetch).toHaveBeenCalledTimes(2);
+	});
+
+	it("does not let a request from before reset repopulate or clear the current cache", async () => {
+		let resolveOld!: (value: Response) => void;
+		authFetch
+			.mockReturnValueOnce(new Promise<Response>((resolve) => {
+				resolveOld = resolve;
+			}))
+			.mockResolvedValueOnce(jsonResponse({ mailboxes: [secondRawMailbox] }));
+
+		const oldRequest = fetchMailboxOptions();
+		clearMailboxesCache();
+		const currentRequest = fetchMailboxOptions();
+
+		await expect(currentRequest).resolves.toEqual([secondMappedMailbox]);
+		resolveOld(jsonResponse({ mailboxes: [rawMailbox] }));
+		await expect(oldRequest).resolves.toEqual([mappedMailbox]);
+		await expect(fetchMailboxOptions()).resolves.toEqual([secondMappedMailbox]);
 		expect(authFetch).toHaveBeenCalledTimes(2);
 	});
 });

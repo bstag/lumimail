@@ -9,6 +9,10 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { fetchMailboxOptions } from "./mailbox-provider-utils";
+import {
+	registerAccountStateReset,
+	SELECTED_MAILBOX_STORAGE_KEY,
+} from "@/lib/auth/account-state";
 
 export type MailboxOption = {
 	id: string;
@@ -34,8 +38,6 @@ export function useSelectedMailbox() {
 	return ctx;
 }
 
-const STORAGE_KEY = "selected-mailbox-id";
-
 function safeStorageGet(key: string): string | null {
 	try { return localStorage.getItem(key); } catch { return null; }
 }
@@ -53,6 +55,12 @@ export function MailboxProvider({ children }: { children: ReactNode }) {
 	const [selectedMailbox, setSelectedMailboxState] = useState<MailboxOption | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 
+	useEffect(() => registerAccountStateReset(() => {
+		setMailboxes([]);
+		setSelectedMailboxState(null);
+		setIsLoading(true);
+	}), []);
+
 	useEffect(() => {
 		let cancelled = false;
 
@@ -61,7 +69,7 @@ export function MailboxProvider({ children }: { children: ReactNode }) {
 				if (cancelled) return;
 				setMailboxes(items);
 
-				const storedId = safeStorageGet(STORAGE_KEY);
+				const storedId = safeStorageGet(SELECTED_MAILBOX_STORAGE_KEY);
 				if (storedId) {
 					const found = items.find((mb) => mb.id === storedId);
 					if (found) {
@@ -73,7 +81,7 @@ export function MailboxProvider({ children }: { children: ReactNode }) {
 				const primary = items.find((mb) => mb.isPrimary) ?? items[0] ?? null;
 				if (primary) {
 					setSelectedMailboxState(primary);
-					safeStorageSet(STORAGE_KEY, primary.id);
+					safeStorageSet(SELECTED_MAILBOX_STORAGE_KEY, primary.id);
 				}
 			})
 			.catch((err) => {
@@ -92,9 +100,9 @@ export function MailboxProvider({ children }: { children: ReactNode }) {
 		setSelectedMailboxState(mb);
 		if (mb) {
 			setMailboxes((items) => items.map((item) => (item.id === mb.id ? mb : item)));
-			safeStorageSet(STORAGE_KEY, mb.id);
+			safeStorageSet(SELECTED_MAILBOX_STORAGE_KEY, mb.id);
 		} else {
-			safeStorageRemove(STORAGE_KEY);
+			safeStorageRemove(SELECTED_MAILBOX_STORAGE_KEY);
 		}
 	}, []);
 

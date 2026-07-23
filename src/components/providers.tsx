@@ -1,7 +1,8 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { registerQueryClientAccountReset } from "./providers-utils";
 
 export function Providers({ children }: { children: React.ReactNode }) {
 	const [client] = useState(
@@ -17,5 +18,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 				},
 			}),
 	);
+
+	useEffect(() => registerQueryClientAccountReset(client), [client]);
+
 	return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }

@@ -1,4 +1,5 @@
 import type { DomainSetupResult, SetupStatus } from "./types";
+import { persistAuthSession } from "@/lib/auth/client";
 
 export async function getSetupStatus(): Promise<SetupStatus> {
   const res = await fetch("/api/setup/status");
@@ -45,10 +46,7 @@ export async function submitRegistration(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const data = (await res.json()) as Record<string, unknown>;
-  if (res.ok && typeof data.token === "string") {
-    try { localStorage.setItem("lumimail-session-token", data.token); } catch { /* noop */ }
-  }
+  const data = (await persistAuthSession(res)) as Record<string, unknown>;
   return {
     ok: res.ok,
     data: {

@@ -10,6 +10,7 @@ import {
 } from "@/lib/auth/client";
 
 const STORAGE_KEY = "lumimail-session-token";
+const MAILBOX_STORAGE_KEY = "selected-mailbox-id";
 
 function makeStorage() {
 	const store = new Map<string, string>();
@@ -62,6 +63,7 @@ describe("getClientSessionToken", () => {
 describe("setClientSessionToken", () => {
 	it("writes the token to storage", () => {
 		setClientSessionToken("tok2");
+		expect(storage.removeItem).toHaveBeenCalledWith(MAILBOX_STORAGE_KEY);
 		expect(storage.setItem).toHaveBeenCalledWith(STORAGE_KEY, "tok2");
 		expect(storage._store.get(STORAGE_KEY)).toBe("tok2");
 	});
@@ -79,6 +81,7 @@ describe("clearClientSessionToken", () => {
 		storage._store.set(STORAGE_KEY, "tok3");
 		clearClientSessionToken();
 		expect(storage.removeItem).toHaveBeenCalledWith(STORAGE_KEY);
+		expect(storage.removeItem).toHaveBeenCalledWith(MAILBOX_STORAGE_KEY);
 		expect(storage._store.has(STORAGE_KEY)).toBe(false);
 	});
 
@@ -130,6 +133,7 @@ describe("authFetch", () => {
 
 		await authFetch("/api/x");
 		expect(storage.removeItem).toHaveBeenCalledWith(STORAGE_KEY);
+		expect(storage.removeItem).toHaveBeenCalledWith(MAILBOX_STORAGE_KEY);
 		expect(assign).toHaveBeenCalledWith("/login");
 	});
 
@@ -165,12 +169,14 @@ describe("persistAuthSession", () => {
 		const response = { ok: true, json: async () => ({ token: "tok7" }) } as unknown as Response;
 		const data = await persistAuthSession(response);
 		expect(data).toEqual({ token: "tok7" });
+		expect(storage.removeItem).toHaveBeenCalledWith(MAILBOX_STORAGE_KEY);
 		expect(storage.setItem).toHaveBeenCalledWith(STORAGE_KEY, "tok7");
 	});
 
 	it("does not store a token when the response is not ok", async () => {
 		const response = { ok: false, json: async () => ({ token: "tok8" }) } as unknown as Response;
 		await persistAuthSession(response);
+		expect(storage.removeItem).not.toHaveBeenCalledWith(MAILBOX_STORAGE_KEY);
 		expect(storage.setItem).not.toHaveBeenCalled();
 	});
 

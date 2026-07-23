@@ -1,6 +1,7 @@
 "use client";
 
 import type { AuthFetchOptions, AuthSessionResponse } from "./client-types";
+import { resetAccountScopedClientState } from "./account-state";
 
 const SESSION_STORAGE_KEY = "lumimail-session-token";
 
@@ -22,11 +23,13 @@ export function getClientSessionToken(): string | null {
 }
 
 export function setClientSessionToken(token: string): void {
+	resetAccountScopedClientState();
 	safeStorageSet(SESSION_STORAGE_KEY, token);
 }
 
 export function clearClientSessionToken(): void {
 	safeStorageRemove(SESSION_STORAGE_KEY);
+	resetAccountScopedClientState();
 }
 
 export function getAuthHeaders(headers?: HeadersInit): Headers {
