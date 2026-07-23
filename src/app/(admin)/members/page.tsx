@@ -144,7 +144,7 @@ export default function MembersPage() {
 
       {invites.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-ink-muted">Pending invites</h3>
+          <h3 className="text-sm font-semibold text-ink">Pending invites</h3>
           {invites.map((invite) => (
             <div
               key={invite.id}

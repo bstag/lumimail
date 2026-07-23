@@ -106,7 +106,7 @@ export default function RoutingPage() {
 
 	return (
 		<div className="space-y-6 max-w-2xl">
-			<h1 className="text-2xl font-semibold">Routing rules</h1>
+			<h1 className="text-2xl font-semibold text-ink">Routing rules</h1>
 			<p className="text-sm text-ink-muted">
 				Named addresses are matched before real mailboxes; catch-all runs only for otherwise unmatched addresses. Priority applies within each match type.
 			</p>

@@ -92,7 +92,7 @@ export default function DomainsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Domains</h1>
+          <h1 className="text-2xl font-semibold text-ink">Domains</h1>
           <p className="mt-1 text-sm text-ink-muted">
             Domains must be on your Cloudflare account. Sending readiness is
             verified directly against Cloudflare Email Service.

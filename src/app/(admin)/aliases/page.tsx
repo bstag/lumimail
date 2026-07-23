@@ -88,7 +88,7 @@ export default function AliasesPage() {
 
 	return (
 		<div className="space-y-6 max-w-3xl">
-			<h1 className="text-2xl font-semibold">Aliases</h1>
+			<h1 className="text-2xl font-semibold text-ink">Aliases</h1>
 			<p className="text-sm text-ink-muted">Create email aliases that forward to mailboxes or external addresses.</p>
 
 			{error && <p className="text-sm text-danger">{error}</p>}

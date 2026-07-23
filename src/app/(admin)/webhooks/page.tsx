@@ -41,7 +41,7 @@ export default function WebhooksPage() {
 
 	return (
 		<div className="space-y-6 max-w-2xl">
-			<h1 className="text-2xl font-semibold">Webhooks</h1>
+			<h1 className="text-2xl font-semibold text-ink">Webhooks</h1>
 			{secret && (
 				<Card>
 					<CardContent className="pt-6 text-sm">

@@ -89,7 +89,7 @@ export default function FiltersPage() {
 
 	return (
 		<div className="space-y-6 max-w-2xl">
-			<h1 className="text-2xl font-normal text-ink">Filters</h1>
+			<h1 className="text-2xl font-semibold text-ink">Filters</h1>
 			<p className="text-sm text-ink-muted">
 				Filters automatically apply actions to incoming messages that match your conditions.
 			</p>

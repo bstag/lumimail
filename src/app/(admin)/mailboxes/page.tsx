@@ -86,7 +86,7 @@ export default function MailboxesPage() {
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between gap-4">
-				<h1 className="text-2xl font-semibold">Mailboxes</h1>
+				<h1 className="text-2xl font-semibold text-ink">Mailboxes</h1>
 				<Dialog open={createOpen} onOpenChange={setCreateOpen}>
 					<DialogTrigger asChild>
 						<Button>
