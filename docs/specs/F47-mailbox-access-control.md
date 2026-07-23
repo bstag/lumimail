@@ -267,5 +267,12 @@ Tests:
 - Aggregate verification found 2 organization mailboxes, 2 explicit manager memberships, and 0 mailbox messages with a mailbox but no `organizationId`.
 - Deployed Worker version `5d3f3c7a-8682-4ebd-84b8-777f8d8d43be` to `mail.henriksen.dev`.
 - Live smoke checks: `/` returned `200`; unauthenticated `/api/mailboxes` and `/api/admin/mailboxes` returned JSON `401`.
+- The owner subsequently assigned a real user and manually validated the visible behavior of all three mailbox roles: `manager`, `responder`, and `viewer`.
 
-Still pending before R-13 can be marked shipped: complete a controlled production invite/share/read/send/revoke flow. The production flow is required because the current browser suite mocks API responses and does not itself prove D1 row isolation between two live users.
+Still pending before R-13 can be marked shipped: explicitly verify unrelated-mailbox isolation and immediate revocation in the live second-user session. The production checks are required because the current browser suite mocks API responses and does not itself prove D1 row isolation between two live users.
+
+## 14. Follow-up observations
+
+- Role-aware UI affordances are incomplete. The server correctly rejects unauthorized send/manage operations, but Compose remains visible to viewer-only users and the compose surface merely lacks a valid sender. A follow-up should hide or disable compose, reply, forward, draft-edit, and management affordances from current capabilities while retaining every server-side check and guarding direct navigation.
+- Compose autosaves about 900 ms after non-empty content changes and associates the draft with the selected mailbox. That makes the stored draft mailbox-scoped, but other open sessions receive no live refresh. There is no polling, push event, collaborative presence, edit lock, version check, or conflict handling.
+- The general message-list endpoint currently evaluates draft rows with read capability, while the dedicated draft routes require send capability. The follow-up must decide and enforce one contract; the safer default is that viewers cannot list or read draft metadata/content.
