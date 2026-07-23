@@ -9,7 +9,7 @@ export default function GlobalError({
 }) {
   return (
     <html>
-      <body className="antialiased light bg-surface">
+      <body className="antialiased bg-surface">
         <div className="flex min-h-dvh items-center justify-center p-8">
           <div className="text-center max-w-md">
             <h1 className="text-xl font-semibold text-ink">Something went wrong</h1>

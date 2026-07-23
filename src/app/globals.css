@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-/* ── Design tokens: light mode ─────────────────────────────── */
+/* ── Design tokens: light mode (default) ───────────────────── */
 :root {
+	color-scheme: light;
 	--surface: #fafaf8;
 	--surface-raised: #ffffff;
 	--surface-subtle: #f4f4f0;
@@ -24,17 +25,22 @@
 	--ink-inverse: #fafaf8;
 }
 
-/* Dark mode — system preference only, no manual toggle */
+/* ── Dark palette ───────────────────────────────────────────
+   Applied when the OS prefers dark AND the user hasn't chosen a
+   theme (`:root:not([data-theme])`), or when they explicitly pick
+   dark (`:root[data-theme="dark"]`). A manual "light" choice keeps
+   the light `:root` values above. Kept in sync between both selectors. */
 @media (prefers-color-scheme: dark) {
-	:root {
-		--surface: #111110;
-		--surface-raised: #1c1c1a;
-		--surface-subtle: #181816;
-		--ink: #f0f0ee;
-		--ink-muted: #91918a;
-		--ink-faint: #505050;
-		--border: #2e2e2a;
-		--border-strong: #3e3e3a;
+	:root:not([data-theme]) {
+		color-scheme: dark;
+		--surface: #17171a;
+		--surface-raised: #232327;
+		--surface-subtle: #1d1d20;
+		--ink: #f1f1ef;
+		--ink-muted: #a3a39c;
+		--ink-faint: #70706a;
+		--border: #33333a;
+		--border-strong: #45454d;
 		--accent: #3b82f6;
 		--accent-muted: #1e3a5f;
 		--danger: #ef4444;
@@ -48,6 +54,30 @@
 		--surface-inverse: #e8e8e4;
 		--ink-inverse: #1a1a18;
 	}
+}
+
+:root[data-theme="dark"] {
+	color-scheme: dark;
+	--surface: #17171a;
+	--surface-raised: #232327;
+	--surface-subtle: #1d1d20;
+	--ink: #f1f1ef;
+	--ink-muted: #a3a39c;
+	--ink-faint: #70706a;
+	--border: #33333a;
+	--border-strong: #45454d;
+	--accent: #3b82f6;
+	--accent-muted: #1e3a5f;
+	--danger: #ef4444;
+	--danger-muted: #3a1d1d;
+	--success: #22c55e;
+	--success-muted: #153021;
+	--warning: #f59e0b;
+	--warning-muted: #37290f;
+	--info: #a78bfa;
+	--info-muted: #2a2145;
+	--surface-inverse: #e8e8e4;
+	--ink-inverse: #1a1a18;
 }
 
 /* ── Tailwind v4 theme ──────────────────────────────────────── */

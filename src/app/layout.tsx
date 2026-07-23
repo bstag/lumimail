@@ -5,8 +5,12 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { rtlLocales } from "@/i18n/config";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import "./globals.css";
+
+// Applies the saved theme before first paint to avoid a light/dark flash.
+const themeScript = `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`;
 
 const geistSans = Geist({
 	variable: "--font-geist-sans",
@@ -42,7 +46,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-	colorScheme: "light",
+	colorScheme: "light dark",
 	themeColor: "#2563eb",
 	viewportFit: "cover",
 };
@@ -54,11 +58,13 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 
 	return (
 		<html lang={locale} dir={dir}>
-			<body className={`${geistSans.variable} ${geistMono.variable} antialiased light`}>
+			<body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+				<script dangerouslySetInnerHTML={{ __html: themeScript }} />
 				<NextIntlClientProvider messages={messages}>
 					<Providers>
 						<ServiceWorkerRegistration />
 						<LanguageSwitcher />
+						<ThemeToggle />
 						{children}
 					</Providers>
 				</NextIntlClientProvider>
