@@ -152,7 +152,7 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Require send capability for draft metadata and content across generic and dedicated message paths.
   - Refresh visible shared draft lists on a bounded interval without claiming concurrent editing safety.
   - Acceptance: viewer/responder browser contracts, draft-aware authorization tests, full verification, production build, deployment, and controlled live role checks pass.
-  - Evidence 2026-07-23: implemented locally; 32 focused unit tests, 1,056-test verification at 100% configured coverage, 28 Playwright scenarios, and the OpenNext production build pass. Deployment and controlled live checks remain.
+  - Evidence 2026-07-23: 32 focused unit tests, 1,056-test verification at 100% configured coverage, 28 Playwright scenarios, and the OpenNext production build pass. Worker `7655ecdf-3317-47e8-8d40-4a305ca63ace` is live; `/` returned `200`, and unauthenticated mailbox/draft-list requests returned `401`. Controlled live role and shared-draft checks remain.
 
 - [ ] **R-22 Bind invitations to the intended identity and deliver them safely.**
   - Registration must not accept an invite token for a different address; define whether invited external addresses become login identities or map to domain mailboxes.

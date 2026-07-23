@@ -1,6 +1,6 @@
 # F48 — Role-Aware Mail Actions and Shared Draft Refresh
 
-> Status: Implemented Locally — Deployment Pending
+> Status: Deployed — Controlled Validation Pending
 > Remediation: follow-up to R-13
 > Owner area: `src/lib/auth/mailbox-access.ts`, `src/app/api/messages*`, `src/components/compose/`, `src/components/message-actions/`, `src/components/messages/`, `src/components/dashboard-nav.tsx`
 
@@ -128,4 +128,10 @@ Impact:
 - `npx opennextjs-cloudflare build` completed and generated `.open-next/worker.js`.
 - The browser run continues to log the pre-existing localization defects tracked by R-14.
 
-Production deployment and a real viewer/responder smoke test remain pending.
+### 2026-07-23 — Production deployment
+
+- Deployed Worker version `7655ecdf-3317-47e8-8d40-4a305ca63ace` to `mail.henriksen.dev`.
+- Live smoke checks returned `200` for `/` and JSON `401` for unauthenticated `/api/mailboxes` and `/api/messages?status=draft`.
+- No D1 migration was required for F48.
+
+A real viewer/responder UI and shared-draft refresh smoke test remains pending.
