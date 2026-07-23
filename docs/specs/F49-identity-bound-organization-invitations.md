@@ -1,6 +1,6 @@
 # F49 — Identity-Bound Organization Invitations
 
-> Status: Deployed — Controlled Validation Pending
+> Status: Shipped
 > Remediation: R-22
 > Owner area: `src/app/api/org/members/route.ts`, `src/app/api/org/invites/[token]/route.ts`, `src/app/api/auth/register/route.ts`, `src/app/register/`, `src/components/admin/`
 
@@ -224,4 +224,14 @@ Impact:
 - Deployed Worker version `f0527542-9628-4905-ab6a-1631485517d4`.
 - Production smoke checks passed: `/` returned `200`, unauthenticated `/api/org/members` returned `401`, an invalid invitation lookup returned `404`, and malformed invitation registration returned `400`.
 
-A controlled invite/register/assign/login flow remains pending and must use a real external test identity chosen by the administrator.
+### 2026-07-23 — Controlled production validation
+
+- The administrator invited the external identity `support@lucidkith.org` as an organization member.
+- Registration fixed the login identity to the invited address, consumed the invitation once, and created one organization membership without creating a mailbox or routing rule.
+- The new account initially reached an empty inbox with zero mailbox memberships, as intended.
+- The administrator created `support@lucidkith.com` separately and assigned the invited user responder access.
+- The invited user logged in without a hard refresh and saw only `support@lucidkith.com`; the administrator and unrelated user mailboxes were absent.
+- Compose and Drafts were available for the responder role. Production D1 confirmed the exact responder membership.
+- Direct organization-administration inventory remained server-protected with `403`; a separate client navigation-visibility gap was discovered for restricted organization members and is outside F49's invitation contract.
+
+The controlled invite/register/assign/login flow passed. F49 is complete.
