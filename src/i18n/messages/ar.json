@@ -70,7 +70,11 @@
       "email": "you@gmail.com",
       "username": "you",
       "domain": "domain"
-    }
+    },
+    "continue": "متابعة",
+    "invitedBy": "لقد تمت دعوتك للانضمام إلى {orgName}.",
+    "loading": "جارٍ التحميل...",
+    "inviteExpired": "انتهت صلاحية هذه الدعوة أو أنها غير صالحة."
   },
   "onboarding": {
     "connectRouting": "توصيل توجيه البريد",
@@ -102,7 +106,7 @@
     "spam": "البريد المزعج",
     "trash": "المهملات",
     "labels": "Labels",
-      "filters": "Filters",
+    "filters": "Filters",
     "settings": "الإعدادات",
     "overview": "نظرة عامة",
     "mailboxes": "صناديق البريد",
@@ -120,7 +124,8 @@
     "adminSettingsDesc": "النطاقات، صناديق البريد، مفاتيح API",
     "countOverflow": "٩٩+",
     "starred": "Starred",
-    "contacts": "Contacts"
+    "contacts": "Contacts",
+    "members": "الأعضاء"
   },
   "search": {
     "placeholder": "البحث في البريد",
@@ -142,7 +147,24 @@
     "autosaveDraft": "حفظ تلقائي كمسودة",
     "sendSuccess": "تم إرسال الرسالة",
     "sendFailed": "فشل الإرسال",
-    "draftLoadFailed": "فشل تحميل المسودة"
+    "draftLoadFailed": "فشل تحميل المسودة",
+    "send": "إرسال",
+    "sending": "جارٍ الإرسال...",
+    "toolbar": {
+      "bold": "عريض",
+      "italic": "مائل",
+      "underline": "تسطير",
+      "strikethrough": "يتوسطه خط",
+      "heading1": "عنوان 1",
+      "heading2": "عنوان 2",
+      "bulletList": "قائمة نقطية",
+      "orderedList": "قائمة مرقمة",
+      "blockquote": "اقتباس",
+      "link": "رابط",
+      "alignLeft": "محاذاة لليسار",
+      "alignCenter": "توسيط",
+      "alignRight": "محاذاة لليمين"
+    }
   },
   "messages": {
     "loading": "جار التحميل...",
@@ -180,7 +202,8 @@
     "clearSelection": "مسح التحديد",
     "moreActions": "المزيد من الإجراءات",
     "reply": "رد",
-    "updateFailed": "تعذر تحديث الرسالة"
+    "updateFailed": "تعذر تحديث الرسالة",
+    "delete": "حذف"
   },
   "admin": {
     "title": "إعدادات المشرف",

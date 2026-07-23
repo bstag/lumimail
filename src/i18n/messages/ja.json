@@ -70,7 +70,11 @@
       "email": "you@gmail.com",
       "username": "you",
       "domain": "domain"
-    }
+    },
+    "continue": "続行",
+    "invitedBy": "{orgName} への参加に招待されました。",
+    "loading": "読み込み中...",
+    "inviteExpired": "この招待は有効期限が切れているか無効です。"
   },
   "onboarding": {
     "connectRouting": "メールルーティングを接続",
@@ -102,7 +106,7 @@
     "spam": "迷惑メール",
     "trash": "ゴミ箱",
     "labels": "Labels",
-      "filters": "Filters",
+    "filters": "Filters",
     "settings": "設定",
     "overview": "概要",
     "mailboxes": "メールボックス",
@@ -120,7 +124,8 @@
     "adminSettingsDesc": "ドメイン、メールボックス、APIキー",
     "countOverflow": "99+",
     "starred": "Starred",
-    "contacts": "Contacts"
+    "contacts": "Contacts",
+    "members": "メンバー"
   },
   "search": {
     "placeholder": "メール検索",
@@ -142,7 +147,24 @@
     "autosaveDraft": "下書き自動保存",
     "sendSuccess": "メッセージを送信しました",
     "sendFailed": "送信失敗",
-    "draftLoadFailed": "下書きの読み込みに失敗"
+    "draftLoadFailed": "下書きの読み込みに失敗",
+    "send": "送信",
+    "sending": "送信中...",
+    "toolbar": {
+      "bold": "太字",
+      "italic": "斜体",
+      "underline": "下線",
+      "strikethrough": "取り消し線",
+      "heading1": "見出し1",
+      "heading2": "見出し2",
+      "bulletList": "箇条書き",
+      "orderedList": "番号付きリスト",
+      "blockquote": "引用",
+      "link": "リンク",
+      "alignLeft": "左揃え",
+      "alignCenter": "中央揃え",
+      "alignRight": "右揃え"
+    }
   },
   "messages": {
     "loading": "読み込み中...",
@@ -180,7 +202,8 @@
     "clearSelection": "選択解除",
     "moreActions": "その他の操作",
     "reply": "返信",
-    "updateFailed": "メッセージを更新できませんでした"
+    "updateFailed": "メッセージを更新できませんでした",
+    "delete": "削除"
   },
   "admin": {
     "title": "管理者設定",

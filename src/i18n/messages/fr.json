@@ -70,7 +70,11 @@
       "email": "vous@gmail.com",
       "username": "vous",
       "domain": "domaine"
-    }
+    },
+    "continue": "Continuer",
+    "invitedBy": "Vous avez été invité à rejoindre {orgName}.",
+    "loading": "Chargement...",
+    "inviteExpired": "Cette invitation a expiré ou n'est pas valide."
   },
   "onboarding": {
     "connectRouting": "Connecter le routage email",
@@ -102,7 +106,7 @@
     "spam": "Spam",
     "trash": "Corbeille",
     "labels": "Labels",
-      "filters": "Filters",
+    "filters": "Filters",
     "settings": "Paramètres",
     "overview": "Aperçu",
     "mailboxes": "Boîtes mail",
@@ -120,7 +124,8 @@
     "adminSettingsDesc": "Domaines, boîtes mail, clés API",
     "countOverflow": "99+",
     "starred": "Starred",
-    "contacts": "Contacts"
+    "contacts": "Contacts",
+    "members": "Membres"
   },
   "search": {
     "placeholder": "Rechercher un email",
@@ -142,7 +147,24 @@
     "autosaveDraft": "Sauvegarde automatique comme brouillon",
     "sendSuccess": "Message envoyé",
     "sendFailed": "Échec d'envoi",
-    "draftLoadFailed": "Échec du chargement du brouillon"
+    "draftLoadFailed": "Échec du chargement du brouillon",
+    "send": "Envoyer",
+    "sending": "Envoi...",
+    "toolbar": {
+      "bold": "Gras",
+      "italic": "Italique",
+      "underline": "Souligné",
+      "strikethrough": "Barré",
+      "heading1": "Titre 1",
+      "heading2": "Titre 2",
+      "bulletList": "Liste à puces",
+      "orderedList": "Liste numérotée",
+      "blockquote": "Citation",
+      "link": "Lien",
+      "alignLeft": "Aligner à gauche",
+      "alignCenter": "Centrer",
+      "alignRight": "Aligner à droite"
+    }
   },
   "messages": {
     "loading": "Chargement...",
@@ -180,7 +202,8 @@
     "clearSelection": "Effacer la sélection",
     "moreActions": "Plus d'actions",
     "reply": "Répondre",
-    "updateFailed": "Impossible de mettre à jour le message"
+    "updateFailed": "Impossible de mettre à jour le message",
+    "delete": "Supprimer"
   },
   "admin": {
     "title": "Paramètres admin",

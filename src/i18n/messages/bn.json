@@ -70,7 +70,11 @@
       "email": "you@gmail.com",
       "username": "you",
       "domain": "domain"
-    }
+    },
+    "continue": "চালিয়ে যান",
+    "invitedBy": "আপনাকে {orgName}-এ যোগ দিতে আমন্ত্রণ জানানো হয়েছে।",
+    "loading": "লোড হচ্ছে...",
+    "inviteExpired": "এই আমন্ত্রণটির মেয়াদ শেষ হয়ে গেছে বা এটি অবৈধ।"
   },
   "onboarding": {
     "connectRouting": "মেইল রাউটিং সংযোগ করুন",
@@ -102,7 +106,7 @@
     "spam": "স্প্যাম",
     "trash": "ট্র্যাশ",
     "labels": "Labels",
-      "filters": "Filters",
+    "filters": "Filters",
     "settings": "সেটিংস",
     "overview": "সারসংক্ষেপ",
     "mailboxes": "মেইলবক্স",
@@ -120,7 +124,8 @@
     "adminSettingsDesc": "ডোমেইন, মেইলবক্স, API কী",
     "countOverflow": "৯৯+",
     "starred": "Starred",
-    "contacts": "Contacts"
+    "contacts": "Contacts",
+    "members": "সদস্যরা"
   },
   "search": {
     "placeholder": "মেইল অনুসন্ধান",
@@ -142,7 +147,24 @@
     "autosaveDraft": "খসড়া স্বয়ংক্রিয়ভাবে সংরক্ষণ",
     "sendSuccess": "বার্তা পাঠানো হয়েছে",
     "sendFailed": "পাঠাতে ব্যর্থ",
-    "draftLoadFailed": "খসড়া লোড করতে ব্যর্থ"
+    "draftLoadFailed": "খসড়া লোড করতে ব্যর্থ",
+    "send": "পাঠান",
+    "sending": "পাঠানো হচ্ছে...",
+    "toolbar": {
+      "bold": "বোল্ড",
+      "italic": "ইটালিক",
+      "underline": "আন্ডারলাইন",
+      "strikethrough": "স্ট্রাইকথ্রু",
+      "heading1": "শিরোনাম ১",
+      "heading2": "শিরোনাম ২",
+      "bulletList": "বুলেট তালিকা",
+      "orderedList": "সংখ্যাযুক্ত তালিকা",
+      "blockquote": "উদ্ধৃতি",
+      "link": "লিঙ্ক",
+      "alignLeft": "বাঁয়ে সারিবদ্ধ",
+      "alignCenter": "মাঝে সারিবদ্ধ",
+      "alignRight": "ডানে সারিবদ্ধ"
+    }
   },
   "messages": {
     "loading": "লোড হচ্ছে...",
@@ -180,7 +202,8 @@
     "clearSelection": "নির্বাচন পরিষ্কার",
     "moreActions": "আরও ক্রিয়া",
     "reply": "উত্তর",
-    "updateFailed": "বার্তা আপডেট করা যায়নি"
+    "updateFailed": "বার্তা আপডেট করা যায়নি",
+    "delete": "মুছুন"
   },
   "admin": {
     "title": "অ্যাডমিন সেটিংস",

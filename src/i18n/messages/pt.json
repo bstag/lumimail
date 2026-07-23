@@ -70,7 +70,11 @@
       "email": "voce@gmail.com",
       "username": "voce",
       "domain": "dominio"
-    }
+    },
+    "continue": "Continuar",
+    "invitedBy": "Você foi convidado para participar de {orgName}.",
+    "loading": "Carregando...",
+    "inviteExpired": "Este convite expirou ou é inválido."
   },
   "onboarding": {
     "connectRouting": "Conectar roteamento de email",
@@ -102,7 +106,7 @@
     "spam": "Spam",
     "trash": "Lixeira",
     "labels": "Labels",
-      "filters": "Filters",
+    "filters": "Filters",
     "settings": "Configurações",
     "overview": "Visão geral",
     "mailboxes": "Caixas",
@@ -120,7 +124,8 @@
     "adminSettingsDesc": "Domínios, caixas, chaves API",
     "countOverflow": "99+",
     "starred": "Starred",
-    "contacts": "Contacts"
+    "contacts": "Contacts",
+    "members": "Membros"
   },
   "search": {
     "placeholder": "Buscar email",
@@ -142,7 +147,24 @@
     "autosaveDraft": "Salva automaticamente como rascunho",
     "sendSuccess": "Mensagem enviada",
     "sendFailed": "Falha ao enviar",
-    "draftLoadFailed": "Falha ao carregar rascunho"
+    "draftLoadFailed": "Falha ao carregar rascunho",
+    "send": "Enviar",
+    "sending": "Enviando...",
+    "toolbar": {
+      "bold": "Negrito",
+      "italic": "Itálico",
+      "underline": "Sublinhado",
+      "strikethrough": "Tachado",
+      "heading1": "Título 1",
+      "heading2": "Título 2",
+      "bulletList": "Lista com marcadores",
+      "orderedList": "Lista numerada",
+      "blockquote": "Citação",
+      "link": "Link",
+      "alignLeft": "Alinhar à esquerda",
+      "alignCenter": "Centralizar",
+      "alignRight": "Alinhar à direita"
+    }
   },
   "messages": {
     "loading": "Carregando...",
@@ -180,7 +202,8 @@
     "clearSelection": "Limpar seleção",
     "moreActions": "Mais ações",
     "reply": "Responder",
-    "updateFailed": "Não foi possível atualizar a mensagem"
+    "updateFailed": "Não foi possível atualizar a mensagem",
+    "delete": "Excluir"
   },
   "admin": {
     "title": "Configurações admin",

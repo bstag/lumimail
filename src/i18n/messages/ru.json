@@ -70,7 +70,11 @@
       "email": "you@gmail.com",
       "username": "you",
       "domain": "domain"
-    }
+    },
+    "continue": "Продолжить",
+    "invitedBy": "Вас пригласили присоединиться к {orgName}.",
+    "loading": "Загрузка...",
+    "inviteExpired": "Приглашение истекло или недействительно."
   },
   "onboarding": {
     "connectRouting": "Подключить маршрутизацию почты",
@@ -102,7 +106,7 @@
     "spam": "Спам",
     "trash": "Корзина",
     "labels": "Labels",
-      "filters": "Filters",
+    "filters": "Filters",
     "settings": "Настройки",
     "overview": "Обзор",
     "mailboxes": "Ящики",
@@ -120,7 +124,8 @@
     "adminSettingsDesc": "Домены, ящики, API-ключи",
     "countOverflow": "99+",
     "starred": "Starred",
-    "contacts": "Contacts"
+    "contacts": "Contacts",
+    "members": "Участники"
   },
   "search": {
     "placeholder": "Поиск почты",
@@ -142,7 +147,24 @@
     "autosaveDraft": "Автосохранение черновика",
     "sendSuccess": "Сообщение отправлено",
     "sendFailed": "Ошибка отправки",
-    "draftLoadFailed": "Ошибка загрузки черновика"
+    "draftLoadFailed": "Ошибка загрузки черновика",
+    "send": "Отправить",
+    "sending": "Отправка...",
+    "toolbar": {
+      "bold": "Полужирный",
+      "italic": "Курсив",
+      "underline": "Подчёркнутый",
+      "strikethrough": "Зачёркнутый",
+      "heading1": "Заголовок 1",
+      "heading2": "Заголовок 2",
+      "bulletList": "Маркированный список",
+      "orderedList": "Нумерованный список",
+      "blockquote": "Цитата",
+      "link": "Ссылка",
+      "alignLeft": "По левому краю",
+      "alignCenter": "По центру",
+      "alignRight": "По правому краю"
+    }
   },
   "messages": {
     "loading": "Загрузка...",
@@ -180,7 +202,8 @@
     "clearSelection": "Снять выделение",
     "moreActions": "Ещё действия",
     "reply": "Ответить",
-    "updateFailed": "Не удалось обновить сообщение"
+    "updateFailed": "Не удалось обновить сообщение",
+    "delete": "Удалить"
   },
   "admin": {
     "title": "Настройки админа",

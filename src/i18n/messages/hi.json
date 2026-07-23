@@ -70,7 +70,11 @@
       "email": "you@gmail.com",
       "username": "you",
       "domain": "domain"
-    }
+    },
+    "continue": "जारी रखें",
+    "invitedBy": "आपको {orgName} में शामिल होने के लिए आमंत्रित किया गया है।",
+    "loading": "लोड हो रहा है...",
+    "inviteExpired": "यह आमंत्रण समाप्त हो गया है या अमान्य है।"
   },
   "onboarding": {
     "connectRouting": "मेल रूटिंग कनेक्ट करें",
@@ -102,7 +106,7 @@
     "spam": "स्पैम",
     "trash": "ट्रैश",
     "labels": "Labels",
-      "filters": "Filters",
+    "filters": "Filters",
     "settings": "सेटिंग्स",
     "overview": "अवलोकन",
     "mailboxes": "मेलबॉक्स",
@@ -120,7 +124,8 @@
     "adminSettingsDesc": "डोमेन, मेलबॉक्स, API की",
     "countOverflow": "99+",
     "starred": "Starred",
-    "contacts": "Contacts"
+    "contacts": "Contacts",
+    "members": "सदस्य"
   },
   "search": {
     "placeholder": "मेल खोजें",
@@ -142,7 +147,24 @@
     "autosaveDraft": "ड्राफ्ट स्वतः सहेजता है",
     "sendSuccess": "संदेश भेजा गया",
     "sendFailed": "भेजने में विफल",
-    "draftLoadFailed": "ड्राफ्ट लोड करने में विफल"
+    "draftLoadFailed": "ड्राफ्ट लोड करने में विफल",
+    "send": "भेजें",
+    "sending": "भेजा जा रहा है...",
+    "toolbar": {
+      "bold": "बोल्ड",
+      "italic": "इटैलिक",
+      "underline": "रेखांकित",
+      "strikethrough": "स्ट्राइकथ्रू",
+      "heading1": "शीर्षक 1",
+      "heading2": "शीर्षक 2",
+      "bulletList": "बुलेट सूची",
+      "orderedList": "क्रमांकित सूची",
+      "blockquote": "उद्धरण",
+      "link": "लिंक",
+      "alignLeft": "बाएं संरेखित करें",
+      "alignCenter": "केंद्र में संरेखित करें",
+      "alignRight": "दाएं संरेखित करें"
+    }
   },
   "messages": {
     "loading": "लोड हो रहा है...",
@@ -180,7 +202,8 @@
     "clearSelection": "चयन साफ़ करें",
     "moreActions": "अधिक कार्रवाइयां",
     "reply": "जवाब दें",
-    "updateFailed": "संदेश अपडेट नहीं कर सका"
+    "updateFailed": "संदेश अपडेट नहीं कर सका",
+    "delete": "हटाएं"
   },
   "admin": {
     "title": "एडमिन सेटिंग्स",

@@ -70,7 +70,11 @@
       "email": "tu@gmail.com",
       "username": "tu",
       "domain": "dominio"
-    }
+    },
+    "continue": "Continuar",
+    "invitedBy": "Has sido invitado a unirte a {orgName}.",
+    "loading": "Cargando...",
+    "inviteExpired": "Esta invitación ha caducado o no es válida."
   },
   "onboarding": {
     "connectRouting": "Conectar enrutamiento de correo",
@@ -102,7 +106,7 @@
     "spam": "Spam",
     "trash": "Papelera",
     "labels": "Labels",
-      "filters": "Filters",
+    "filters": "Filters",
     "settings": "Configuración",
     "overview": "Resumen",
     "mailboxes": "Buzones",
@@ -120,7 +124,8 @@
     "adminSettingsDesc": "Dominios, buzones, claves API",
     "countOverflow": "99+",
     "starred": "Starred",
-    "contacts": "Contacts"
+    "contacts": "Contacts",
+    "members": "Miembros"
   },
   "search": {
     "placeholder": "Buscar correo",
@@ -142,7 +147,24 @@
     "autosaveDraft": "Se autoguarda como borrador",
     "sendSuccess": "Mensaje enviado",
     "sendFailed": "Error al enviar",
-    "draftLoadFailed": "Error al cargar borrador"
+    "draftLoadFailed": "Error al cargar borrador",
+    "send": "Enviar",
+    "sending": "Enviando...",
+    "toolbar": {
+      "bold": "Negrita",
+      "italic": "Cursiva",
+      "underline": "Subrayado",
+      "strikethrough": "Tachado",
+      "heading1": "Encabezado 1",
+      "heading2": "Encabezado 2",
+      "bulletList": "Lista con viñetas",
+      "orderedList": "Lista numerada",
+      "blockquote": "Cita",
+      "link": "Enlace",
+      "alignLeft": "Alinear a la izquierda",
+      "alignCenter": "Centrar",
+      "alignRight": "Alinear a la derecha"
+    }
   },
   "messages": {
     "loading": "Cargando...",
@@ -180,7 +202,8 @@
     "clearSelection": "Limpiar selección",
     "moreActions": "Más acciones",
     "reply": "Responder",
-    "updateFailed": "No se pudo actualizar el mensaje"
+    "updateFailed": "No se pudo actualizar el mensaje",
+    "delete": "Eliminar"
   },
   "admin": {
     "title": "Configuración de administrador",

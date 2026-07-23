@@ -70,7 +70,11 @@
       "email": "you@gmail.com",
       "username": "you",
       "domain": "domain"
-    }
+    },
+    "continue": "继续",
+    "invitedBy": "您已被邀请加入 {orgName}。",
+    "loading": "加载中...",
+    "inviteExpired": "此邀请已过期或无效。"
   },
   "onboarding": {
     "connectRouting": "连接邮件路由",
@@ -102,7 +106,7 @@
     "spam": "垃圾邮件",
     "trash": "已删除",
     "labels": "Labels",
-      "filters": "Filters",
+    "filters": "Filters",
     "settings": "设置",
     "overview": "概览",
     "mailboxes": "邮箱",
@@ -120,7 +124,8 @@
     "adminSettingsDesc": "域名、邮箱、API 密钥",
     "countOverflow": "99+",
     "starred": "Starred",
-    "contacts": "Contacts"
+    "contacts": "Contacts",
+    "members": "成员"
   },
   "search": {
     "placeholder": "搜索邮件",
@@ -142,7 +147,24 @@
     "autosaveDraft": "自动保存草稿",
     "sendSuccess": "邮件已发送",
     "sendFailed": "发送失败",
-    "draftLoadFailed": "加载草稿失败"
+    "draftLoadFailed": "加载草稿失败",
+    "send": "发送",
+    "sending": "发送中...",
+    "toolbar": {
+      "bold": "加粗",
+      "italic": "斜体",
+      "underline": "下划线",
+      "strikethrough": "删除线",
+      "heading1": "标题 1",
+      "heading2": "标题 2",
+      "bulletList": "项目符号列表",
+      "orderedList": "编号列表",
+      "blockquote": "引用",
+      "link": "链接",
+      "alignLeft": "左对齐",
+      "alignCenter": "居中对齐",
+      "alignRight": "右对齐"
+    }
   },
   "messages": {
     "loading": "加载中...",
@@ -180,7 +202,8 @@
     "clearSelection": "清除选择",
     "moreActions": "更多操作",
     "reply": "回复",
-    "updateFailed": "无法更新邮件"
+    "updateFailed": "无法更新邮件",
+    "delete": "删除"
   },
   "admin": {
     "title": "管理设置",

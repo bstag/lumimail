@@ -70,7 +70,11 @@
       "email": "ban@gmail.com",
       "username": "ban",
       "domain": "tenmien"
-    }
+    },
+    "continue": "Tiếp tục",
+    "invitedBy": "Bạn đã được mời tham gia {orgName}.",
+    "loading": "Đang tải...",
+    "inviteExpired": "Lời mời này đã hết hạn hoặc không hợp lệ."
   },
   "onboarding": {
     "connectRouting": "Kết nối định tuyến thư",
@@ -102,7 +106,7 @@
     "spam": "Thư rác",
     "trash": "Thùng rác",
     "labels": "Labels",
-      "filters": "Filters",
+    "filters": "Filters",
     "settings": "Cài đặt",
     "overview": "Tổng quan",
     "mailboxes": "Hộp thư",
@@ -120,7 +124,8 @@
     "adminSettingsDesc": "Tên miền, hộp thư, khóa API",
     "countOverflow": "99+",
     "starred": "Starred",
-    "contacts": "Contacts"
+    "contacts": "Contacts",
+    "members": "Thành viên"
   },
   "search": {
     "placeholder": "Tìm kiếm thư",
@@ -142,7 +147,24 @@
     "autosaveDraft": "Tự động lưu nháp",
     "sendSuccess": "Đã gửi tin nhắn",
     "sendFailed": "Gửi thất bại",
-    "draftLoadFailed": "Không thể tải nháp"
+    "draftLoadFailed": "Không thể tải nháp",
+    "send": "Gửi",
+    "sending": "Đang gửi...",
+    "toolbar": {
+      "bold": "Đậm",
+      "italic": "Nghiêng",
+      "underline": "Gạch chân",
+      "strikethrough": "Gạch ngang",
+      "heading1": "Tiêu đề 1",
+      "heading2": "Tiêu đề 2",
+      "bulletList": "Danh sách dấu đầu dòng",
+      "orderedList": "Danh sách đánh số",
+      "blockquote": "Trích dẫn",
+      "link": "Liên kết",
+      "alignLeft": "Căn trái",
+      "alignCenter": "Căn giữa",
+      "alignRight": "Căn phải"
+    }
   },
   "messages": {
     "loading": "Đang tải...",
@@ -180,7 +202,8 @@
     "clearSelection": "Xóa lựa chọn",
     "moreActions": "Thêm hành động",
     "reply": "Trả lời",
-    "updateFailed": "Không thể cập nhật tin nhắn"
+    "updateFailed": "Không thể cập nhật tin nhắn",
+    "delete": "Xóa"
   },
   "admin": {
     "title": "Cài đặt quản trị",

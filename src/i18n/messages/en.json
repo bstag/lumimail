@@ -73,7 +73,8 @@
       "email": "you@gmail.com",
       "username": "you",
       "domain": "domain"
-    }
+    },
+    "continue": "Continue"
   },
   "onboarding": {
     "connectRouting": "Connect mail routing",
@@ -105,7 +106,7 @@
     "spam": "Spam",
     "trash": "Trash",
     "labels": "Labels",
-      "filters": "Filters",
+    "filters": "Filters",
     "settings": "Settings",
     "overview": "Overview",
     "mailboxes": "Mailboxes",
@@ -146,7 +147,24 @@
     "autosaveDraft": "Autosaves as draft",
     "sendSuccess": "Message sent",
     "sendFailed": "Send failed",
-    "draftLoadFailed": "Failed to load draft"
+    "draftLoadFailed": "Failed to load draft",
+    "send": "Send",
+    "sending": "Sending...",
+    "toolbar": {
+      "bold": "Bold",
+      "italic": "Italic",
+      "underline": "Underline",
+      "strikethrough": "Strikethrough",
+      "heading1": "Heading 1",
+      "heading2": "Heading 2",
+      "bulletList": "Bullet list",
+      "orderedList": "Numbered list",
+      "blockquote": "Quote",
+      "link": "Link",
+      "alignLeft": "Align left",
+      "alignCenter": "Align center",
+      "alignRight": "Align right"
+    }
   },
   "messages": {
     "loading": "Loading...",
@@ -184,7 +202,8 @@
     "clearSelection": "Clear selection",
     "moreActions": "More actions",
     "reply": "Reply",
-    "updateFailed": "Could not update message"
+    "updateFailed": "Could not update message",
+    "delete": "Delete"
   },
   "admin": {
     "title": "Admin settings",
