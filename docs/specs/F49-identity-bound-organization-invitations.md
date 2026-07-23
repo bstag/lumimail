@@ -1,6 +1,6 @@
 # F49 — Identity-Bound Organization Invitations
 
-> Status: Implemented Locally — Deployment Pending
+> Status: Deployed — Controlled Validation Pending
 > Remediation: R-22
 > Owner area: `src/app/api/org/members/route.ts`, `src/app/api/org/invites/[token]/route.ts`, `src/app/api/auth/register/route.ts`, `src/app/register/`, `src/components/admin/`
 
@@ -218,4 +218,10 @@ Impact:
 - `npx playwright test --workers=2` passed all 30 browser scenarios.
 - `npx opennextjs-cloudflare build` completed and generated `.open-next/worker.js`.
 
-Production deployment and a controlled invite/register/assign/login flow remain pending.
+### 2026-07-23 — Production deployment
+
+- Committed the verified implementation as `bf0375c`.
+- Deployed Worker version `f0527542-9628-4905-ab6a-1631485517d4`.
+- Production smoke checks passed: `/` returned `200`, unauthenticated `/api/org/members` returned `401`, an invalid invitation lookup returned `404`, and malformed invitation registration returned `400`.
+
+A controlled invite/register/assign/login flow remains pending and must use a real external test identity chosen by the administrator.
