@@ -11,10 +11,10 @@ export function getMessageParty(message: Message, folder: MessageFolderConfig["f
 }
 
 export function getMessagePartyClassName(message: Message, folder: MessageFolderConfig["folder"]) {
-	if (folder === "drafts") return "truncate font-semibold text-red-600";
+	if (folder === "drafts") return "truncate font-semibold text-danger";
 
 	const unread = message.direction === "inbound" && !message.read;
-	return `truncate ${unread ? "font-bold text-neutral-900" : "text-neutral-800"}`;
+	return `truncate ${unread ? "font-bold text-ink" : "text-ink"}`;
 }
 
 export function getMessagePreview(message: Message, folder: MessageFolderConfig["folder"]) {

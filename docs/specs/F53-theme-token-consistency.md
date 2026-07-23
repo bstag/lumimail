@@ -39,9 +39,10 @@ follows my OS light/dark preference, so form-based screens are legible and usabl
 - Replace hardcoded color utilities with token utilities across all `src/**/*.tsx`.
 
 **Out of scope:**
-- Any layout, spacing, typography, or behavior change. Only color utilities change.
-- A manual (in-app) light/dark toggle. Theme continues to follow system preference.
-- Redesigning the palette values themselves (existing light/dark values are kept).
+- ~~A manual (in-app) light/dark toggle.~~ Added 2026-07-23 (see change log) — a
+  System/Light/Dark toggle now overrides system preference for easy testing.
+- Wholesale palette redesign (existing hues are kept; dark surfaces were softened
+  from near-black and muted ink brightened for readability).
 
 ## 4. Design Tokens
 
@@ -142,6 +143,26 @@ Reason:
 
 Impact:
 - The app now renders one coherent theme that follows OS light/dark preference.
+
+### 2026-07-23 — Manual theme toggle + dark-palette readability
+
+Type: `Feature`
+
+Summary:
+- Added an app-wide floating System/Light/Dark toggle (`src/components/theme-toggle.tsx`),
+  persisted in `localStorage` and applied before first paint via an inline script.
+- Restructured `globals.css`: light `:root` is default; dark applies on system
+  preference when unset (`:root:not([data-theme])`) or explicitly via
+  `:root[data-theme="dark"]`, with `color-scheme` set per theme.
+- Fixed the root layout that pinned `viewport.colorScheme = "light"` (which fought
+  the dark palette) and removed the stale hardcoded `light` body class.
+- Softened dark surfaces away from near-black (`--surface #111110 → #17171a`) and
+  brightened muted/faint ink (`--ink-muted #91918a → #a3a39c`, `--ink-faint
+  #505050 → #70706a`) so low-emphasis text (e.g. inbox label chips) is legible.
+
+Reason:
+- Users testing on a dark OS found the near-black surfaces too stark and some muted
+  labels hard to read, and had no way to switch themes without changing OS settings.
 
 ## 14. Implementation and Verification Log
 
