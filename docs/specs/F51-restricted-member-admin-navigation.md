@@ -1,6 +1,6 @@
 # F51 — Restricted-Member Admin Navigation
 
-> Status: Implemented Locally — Deployment Pending
+> Status: Shipped
 > Remediation: UI authorization follow-up discovered during F49 production validation
 
 ## 1. Current behavior
@@ -96,4 +96,13 @@ Impact:
 - All 33 Chromium scenarios reported passing. The Playwright command then remained open until timeout because the known local Wrangler remote-proxy helper could not initialize or stop cleanly in the sandboxed non-interactive process.
 - The escalated OpenNext Cloudflare production build completed successfully and generated `.open-next/worker.js`.
 
-Production deployment and controlled member/admin validation remain pending.
+### 2026-07-23 — Production deployment and controlled validation
+
+- Committed the verified implementation as `2dad399`.
+- Deployed Worker version `8ac50a92-ae5e-4ae0-8d93-3100390a500a`.
+- Production smoke checks passed: `/` returned `200`, and unauthenticated `/api/admin/mailboxes` returned `401`.
+- After one normal reload to load the newly deployed JavaScript bundle, the existing `support@lucidkith.org` member session no longer showed **Admin settings**.
+- Direct member navigation to `/mailboxes` rendered no **New mailbox** control and redirected to `/inbox`.
+- Without a hard refresh, the browser logged out and signed in as the owner. **Admin settings** immediately appeared, `/mailboxes` remained accessible, and **New mailbox** was visible.
+
+F51 is production-validated and complete.
