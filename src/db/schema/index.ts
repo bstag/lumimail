@@ -163,6 +163,7 @@ export const apiKeys = sqliteTable("api_keys", {
 		.notNull()
 		.$defaultFn(() => new Date()),
 	lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
+	revokedAt: integer("revoked_at", { mode: "timestamp" }),
 });
 
 export const messages = sqliteTable(

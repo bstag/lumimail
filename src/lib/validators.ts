@@ -75,13 +75,34 @@ export const updateProfileSchema = z.object({
 	),
 });
 
-export const routingRuleSchema = z.object({
+const routingRuleFields = z.object({
 	domainId: z.string().min(1),
 	pattern: z.string().min(1),
 	action: z.enum(["store", "forward", "reject"]),
-	mailboxId: z.string().optional(),
-	forwardTo: z.string().email().optional(),
+	mailboxId: z.string().nullable().optional(),
+	forwardTo: z.string().email().nullable().optional(),
 	priority: z.number().int().default(0),
+});
+
+function validateRoutingRuleTarget(
+	data: z.infer<typeof routingRuleFields>,
+	ctx: z.RefinementCtx,
+) {
+	if (data.action === "store" && !data.mailboxId) {
+		ctx.addIssue({ code: "custom", path: ["mailboxId"], message: "Store rules require a target mailbox" });
+	}
+	if (data.action === "forward" && !data.forwardTo) {
+		ctx.addIssue({ code: "custom", path: ["forwardTo"], message: "Forward rules require a destination" });
+	}
+}
+
+export const routingRuleSchema = routingRuleFields.superRefine(validateRoutingRuleTarget);
+export const routingRuleUpdateSchema = z.object({
+	pattern: z.string().min(1).optional(),
+	action: z.enum(["store", "forward", "reject"]).optional(),
+	mailboxId: z.string().nullable().optional(),
+	forwardTo: z.string().email().nullable().optional(),
+	priority: z.number().int().optional(),
 });
 
 export const webhookSchema = z.object({

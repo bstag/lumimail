@@ -6,6 +6,7 @@ import {
 	mailboxSchema,
 	registerSchema,
 	routingRuleSchema,
+	routingRuleUpdateSchema,
 	sendEmailSchema,
 	updateProfileSchema,
 	webhookSchema,
@@ -109,12 +110,25 @@ describe("routingRuleSchema", () => {
 			domainId: "d1",
 			pattern: "*@example.com",
 			action: "store",
+			mailboxId: "mb1",
 		});
 		expect(result.success).toBe(true);
 		if (result.success) expect(result.data.priority).toBe(0);
 		expect(
 			routingRuleSchema.safeParse({ domainId: "d1", pattern: "*", action: "explode" }).success,
 		).toBe(false);
+	});
+
+	it("requires action-specific targets", () => {
+		expect(routingRuleSchema.safeParse({ domainId: "d1", pattern: "*", action: "store" }).success).toBe(false);
+		expect(routingRuleSchema.safeParse({ domainId: "d1", pattern: "*", action: "forward" }).success).toBe(false);
+		expect(routingRuleSchema.safeParse({ domainId: "d1", pattern: "*", action: "forward", forwardTo: "x@y.test" }).success).toBe(true);
+		expect(routingRuleSchema.safeParse({ domainId: "d1", pattern: "*", action: "reject" }).success).toBe(true);
+	});
+
+	it("keeps routing updates partial without injecting defaults", () => {
+		expect(routingRuleUpdateSchema.parse({ pattern: "admin" })).toEqual({ pattern: "admin" });
+		expect(routingRuleUpdateSchema.parse({ ignored: true })).toEqual({});
 	});
 });
 

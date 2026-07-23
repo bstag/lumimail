@@ -26,6 +26,7 @@ export async function GET(request: Request) {
 			scopes: apiKeys.scopes,
 			createdAt: apiKeys.createdAt,
 			lastUsedAt: apiKeys.lastUsedAt,
+			revokedAt: apiKeys.revokedAt,
 		})
 		.from(apiKeys)
 		.where(eq(apiKeys.userId, user.id));

@@ -7,7 +7,12 @@ import {
 	disableEmailRouting,
 	enableEmailRouting,
 	ensureEmailRoutingRuleToWorker,
+	ensureSendingDomain,
 	findZoneByHostname,
+	findSendingDomain,
+	disableEmailRoutingCatchAllToWorker,
+	ensureEmailRoutingCatchAllToWorker,
+	getEmailRoutingCatchAll,
 	getEmailRoutingDns,
 	getEmailRoutingSettings,
 	getSendingSubdomainDns,
@@ -127,6 +132,42 @@ describe("simple passthrough endpoints", () => {
 	});
 });
 
+describe("sending-domain discovery", () => {
+	it("finds only a normalized exact apex or nested hostname", async () => {
+		fetchMock.mockResolvedValue(
+			ok([
+				{ tag: "other", name: "notexample.com", enabled: true },
+				{ tag: "exact", name: "Example.COM", enabled: true, return_path_domain: "cf-bounce.example.com" },
+			]),
+		);
+		await expect(findSendingDomain(env, "z1", " example.com ")).resolves.toMatchObject({
+			tag: "exact",
+			return_path_domain: "cf-bounce.example.com",
+		});
+	});
+
+	it("returns null when no exact provider domain exists", async () => {
+		fetchMock.mockResolvedValue(ok([{ tag: "other", name: "mail.example.com", enabled: true }]));
+		await expect(findSendingDomain(env, "z1", "example.com")).resolves.toBeNull();
+	});
+
+	it("reuses an exact provider domain without creating it", async () => {
+		fetchMock.mockResolvedValue(ok([{ tag: "exact", name: "example.com", enabled: true }]));
+		await expect(ensureSendingDomain(env, "z1", "example.com")).resolves.toMatchObject({ tag: "exact" });
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("creates the exact hostname when provider onboarding is absent", async () => {
+		fetchMock
+			.mockResolvedValueOnce(ok([]))
+			.mockResolvedValueOnce(ok({ tag: "new", name: "example.com", enabled: false }));
+		await expect(ensureSendingDomain(env, "z1", "Example.COM")).resolves.toMatchObject({ tag: "new" });
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(fetchMock.mock.calls[1][0]).toContain("/zones/z1/email/sending/subdomains");
+		expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ name: "example.com" });
+	});
+});
+
 describe("createEmailRoutingRuleToWorker", () => {
 	it("posts a worker rule using the configured worker name", async () => {
 		fetchMock.mockResolvedValue(ok({ id: "r1" }));
@@ -179,5 +220,81 @@ describe("ensureEmailRoutingRuleToWorker", () => {
 		const result = await ensureEmailRoutingRuleToWorker(env, "z1", "a@x.com");
 		expect(result).toMatchObject({ id: "r-new" });
 		expect(fetchMock).toHaveBeenCalledTimes(2); // list + create
+	});
+});
+
+describe("Email Routing catch-all", () => {
+	it("gets the zone catch-all", async () => {
+		fetchMock.mockResolvedValue(ok({ enabled: false, matchers: [{ type: "all" }] }));
+		await expect(getEmailRoutingCatchAll(env, "z1")).resolves.toMatchObject({ enabled: false });
+		expect(fetchMock.mock.calls[0][0]).toContain("/zones/z1/email/routing/rules/catch_all");
+	});
+
+	it("reuses an enabled catch-all already targeting this Worker", async () => {
+		fetchMock.mockResolvedValue(ok({
+			enabled: true,
+			matchers: [{ type: "all" }],
+			actions: [{ type: "worker", value: ["lumimail"] }],
+		}));
+		await expect(ensureEmailRoutingCatchAllToWorker(env, "z1")).resolves.toMatchObject({ enabled: true });
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("accepts a Worker catch-all whose action omits the optional value", async () => {
+		fetchMock.mockResolvedValue(ok({ enabled: true, actions: [{ type: "worker" }] }));
+		await ensureEmailRoutingCatchAllToWorker(env, "z1");
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("treats an enabled catch-all without actions as a conflict", async () => {
+		fetchMock.mockResolvedValue(ok({ enabled: true }));
+		await expect(ensureEmailRoutingCatchAllToWorker(env, "z1")).rejects.toMatchObject({ name: "CloudflareCatchAllConflictError" });
+	});
+
+	it("refuses to overwrite an enabled catch-all targeting another destination", async () => {
+		fetchMock.mockResolvedValue(ok({
+			enabled: true,
+			matchers: [{ type: "all" }],
+			actions: [{ type: "forward", value: ["elsewhere@example.net"] }],
+		}));
+		await expect(ensureEmailRoutingCatchAllToWorker(env, "z1")).rejects.toMatchObject({ name: "CloudflareCatchAllConflictError" });
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("enables a disabled catch-all for this Worker", async () => {
+		fetchMock
+			.mockResolvedValueOnce(ok({ enabled: false, actions: [{ type: "drop" }], matchers: [{ type: "all" }] }))
+			.mockResolvedValueOnce(ok({ enabled: true, actions: [{ type: "worker", value: ["lumimail"] }] }));
+
+		await expect(ensureEmailRoutingCatchAllToWorker(env, "z1")).resolves.toMatchObject({ enabled: true });
+		const body = JSON.parse(fetchMock.mock.calls[1][1].body);
+		expect(body).toMatchObject({
+			enabled: true,
+			actions: [{ type: "worker", value: ["lumimail"] }],
+			matchers: [{ type: "all" }],
+		});
+	});
+
+	it("disables only a catch-all that still targets this Worker", async () => {
+		fetchMock
+			.mockResolvedValueOnce(ok({
+				enabled: true,
+				matchers: [{ type: "all" }],
+				actions: [{ type: "worker", value: ["lumimail"] }],
+			}))
+			.mockResolvedValueOnce(ok({ enabled: false }));
+		await expect(disableEmailRoutingCatchAllToWorker(env, "z1")).resolves.toMatchObject({ enabled: false });
+		expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ enabled: false });
+
+		fetchMock.mockClear();
+		fetchMock.mockResolvedValue(ok({ enabled: true, actions: [{ type: "forward", value: ["elsewhere@example.net"] }] }));
+		await disableEmailRoutingCatchAllToWorker(env, "z1");
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not update an already disabled catch-all", async () => {
+		fetchMock.mockResolvedValue(ok({ enabled: false, actions: [{ type: "drop" }] }));
+		await disableEmailRoutingCatchAllToWorker(env, "z1");
+		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
 });

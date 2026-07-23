@@ -1,4 +1,9 @@
-import type { CfDnsRecord, CfEmailRoutingRule, CfResponse } from "@/lib/cloudflare-api.types";
+import type {
+	CfDnsRecord,
+	CfEmailRoutingRule,
+	CfResponse,
+	CfSendingDomain,
+} from "@/lib/cloudflare-api.types";
 import {
 	formatCloudflareError,
 	getCloudflareAuth,
@@ -91,7 +96,7 @@ export async function listSendingSubdomains(
 	env: CloudflareEnv,
 	zoneId: string,
 ) {
-	return cfRequest<{ tag: string; name: string; enabled: boolean }[]>(
+	return cfRequest<CfSendingDomain[]>(
 		env,
 		`/zones/${zoneId}/email/sending/subdomains`,
 	);
@@ -102,7 +107,7 @@ export async function createSendingSubdomain(
 	zoneId: string,
 	hostname: string,
 ) {
-	return cfRequest<{ tag: string; name: string; enabled: boolean }>(
+	return cfRequest<CfSendingDomain>(
 		env,
 		`/zones/${zoneId}/email/sending/subdomains`,
 		{
@@ -110,6 +115,26 @@ export async function createSendingSubdomain(
 			body: JSON.stringify({ name: hostname }),
 		},
 	);
+}
+
+export async function findSendingDomain(
+	env: CloudflareEnv,
+	zoneId: string,
+	hostname: string,
+): Promise<CfSendingDomain | null> {
+	const normalized = hostname.toLowerCase().trim();
+	const sendingDomains = await listSendingSubdomains(env, zoneId);
+	return sendingDomains.find((domain) => domain.name.toLowerCase() === normalized) ?? null;
+}
+
+export async function ensureSendingDomain(
+	env: CloudflareEnv,
+	zoneId: string,
+	hostname: string,
+): Promise<CfSendingDomain> {
+	const normalized = hostname.toLowerCase().trim();
+	const existing = await findSendingDomain(env, zoneId, normalized);
+	return existing ?? createSendingSubdomain(env, zoneId, normalized);
 }
 
 export async function deleteSendingSubdomain(
@@ -150,6 +175,63 @@ export async function listEmailRoutingRules(env: CloudflareEnv, zoneId: string) 
 		env,
 		`/zones/${zoneId}/email/routing/rules`,
 	);
+}
+
+export class CloudflareCatchAllConflictError extends Error {
+	constructor() {
+		super("Cloudflare catch-all is already enabled for another destination");
+		this.name = "CloudflareCatchAllConflictError";
+	}
+}
+
+export async function getEmailRoutingCatchAll(env: CloudflareEnv, zoneId: string) {
+	return cfRequest<CfEmailRoutingRule>(env, `/zones/${zoneId}/email/routing/rules/catch_all`);
+}
+
+function catchAllTargetsWorker(rule: CfEmailRoutingRule, workerName: string): boolean {
+	return rule.actions?.some(
+		(action) => action.type === "worker" && (action.value?.length ? action.value.includes(workerName) : true),
+	) ?? false;
+}
+
+async function updateEmailRoutingCatchAll(
+	env: CloudflareEnv,
+	zoneId: string,
+	input: Pick<CfEmailRoutingRule, "actions" | "enabled" | "matchers" | "name">,
+) {
+	return cfRequest<CfEmailRoutingRule>(env, `/zones/${zoneId}/email/routing/rules/catch_all`, {
+		method: "PUT",
+		body: JSON.stringify({ ...input, source: "api" }),
+	});
+}
+
+export async function ensureEmailRoutingCatchAllToWorker(env: CloudflareEnv, zoneId: string) {
+	const current = await getEmailRoutingCatchAll(env, zoneId);
+	const workerName = getEmailWorkerName(env);
+	if (current.enabled) {
+		if (catchAllTargetsWorker(current, workerName)) return current;
+		throw new CloudflareCatchAllConflictError();
+	}
+
+	return updateEmailRoutingCatchAll(env, zoneId, {
+		actions: [{ type: "worker", value: [workerName] }],
+		enabled: true,
+		matchers: [{ type: "all" }],
+		name: `Route unmatched email to ${workerName}`,
+	});
+}
+
+export async function disableEmailRoutingCatchAllToWorker(env: CloudflareEnv, zoneId: string) {
+	const current = await getEmailRoutingCatchAll(env, zoneId);
+	const workerName = getEmailWorkerName(env);
+	if (!current.enabled || !catchAllTargetsWorker(current, workerName)) return current;
+
+	return updateEmailRoutingCatchAll(env, zoneId, {
+		actions: current.actions!,
+		enabled: false,
+		matchers: [{ type: "all" }],
+		name: current.name ?? `Route unmatched email to ${workerName}`,
+	});
 }
 
 export async function deleteEmailRoutingRule(

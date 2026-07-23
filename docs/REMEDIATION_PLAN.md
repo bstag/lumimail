@@ -77,22 +77,26 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Evidence 2026-07-22: 28 focused tests, 904-test full verification at 100% configured coverage, all 16 browser tests, Cloudflare sending-domain check, OpenNext build, and Wrangler dry run pass. Worker `e63887e2-a872-4fe9-8eb2-8d2282a05fef` deployed; recovery pages return HTTP 200 and invalid API input returns 400.
   - Evidence 2026-07-22: controlled production recovery passed email receipt, reset-link handling, password change, and subsequent login. No recovery address, token, link, or password was recorded.
 
-- [ ] **R-28 Add API-key revocation and lifecycle controls.**
+- [x] **R-28 Add API-key revocation and lifecycle controls.** Spec: [F44](./specs/F44-api-key-lifecycle.md).
   - Add user-scoped revoke/delete behavior, make the one-time secret display unambiguous, and define audit visibility for last use.
   - Acceptance: a revoked key immediately fails authentication and cannot read or send through any API-key endpoint.
+  - Evidence 2026-07-22: 30 focused lifecycle tests, fresh-migration structural coverage, 919-test full verification at 100% configured coverage, two Chromium lifecycle scenarios, OpenNext build, Wrangler dry run, production migration `0009`, remote schema inspection, Worker `158f8558-5c94-4849-aceb-730e7e56fae5`, page HTTP 200, unauthenticated revoke HTTP 401, and controlled production UI revocation-state validation.
 
 ### Phase 2 — Sending and routing correctness
 
-- [ ] **R-07 Make apex-domain sending provisioning truthful and usable.**
+- [x] **R-07 Make apex-domain sending provisioning truthful and usable.** Spec: [F45](./specs/F45-cloudflare-sending-domain-readiness.md).
   - Determine the supported Cloudflare Email Sending configuration for an apex zone such as `lucidkith.com`.
   - Never report a domain as sending-enabled unless provisioning and verification succeeded.
   - Surface actionable DNS/provider status in the interface.
   - Acceptance: send a traced test message from the configured domain and record provider/DNS verification evidence without storing message content in this document.
+  - Evidence 2026-07-22: 88 focused contracts, 936-test full verification at 100% configured coverage, three relevant Chromium scenarios, current Wrangler/API contract inspection, exact enabled provider/DNS status for both target apex domains, OpenNext build, Wrangler dry run, Worker `d82e393c-1abb-4f68-9719-284eb31c73af`, production D1 reconciliation, HTTP 200/401 smoke checks, and the user's prior controlled outbound-send confirmation.
 
-- [ ] **R-08 Make catch-all syntax unambiguous.**
+- [~] **R-08 Make catch-all syntax unambiguous.** Spec: [F46](./specs/F46-domain-catch-all-routing.md).
   - Define whether the canonical catch-all is `*`, `*@domain`, or both.
   - Normalize accepted input or reject unsupported patterns.
   - Test exact address, local-part, catch-all, precedence, and no-match behavior across multiple domains.
+  - Evidence 2026-07-22: implementation and provider-safety contracts pass in 985-test `npm run verify` at 100% configured coverage; both catch-all Chromium scenarios passed before the known Playwright server-teardown hang; OpenNext build and Wrangler dry run pass; Worker `3a99cabe-fbf6-4d1d-b5cb-5df76458b6c2` deployed with 49 ms startup; routing page returned HTTP 200 and unauthenticated POST returned 401.
+  - Production state 2026-07-22: read-only inspection before and after deploy confirms `lucidkith.com` remains enabled and forwarding externally while `henriksen.dev` remains disabled/drop. Production D1 currently contains only the active LucidKith domain and no internal routing rules. No provider rule was mutated by deployment. Controlled takeover, adding Henriksen as an inbound domain, and two-domain delivery remain required before completion.
 
 - [ ] **R-09 Implement actual external forwarding or remove the claim.**
   - Current forwarding behavior only records/logs the action.
@@ -197,6 +201,8 @@ Add one entry per completed item. Do not record secrets, email contents, reset t
 | 2026-07-22 | R-19 | 16 focused sanitizer/parser tests, 881-test full verification, 12 Playwright tests, OpenNext build, Wrangler dry run, Worker `722ae8e3-bb50-4031-9b96-dfc590a20739`, HTTP smoke checks, controlled reply and non-reply HTML messages | Local + production | Passed |
 | 2026-07-22 | R-06 | 7 focused schema tests, fresh local-D1 migration, structural Drizzle comparison, 887-test verification at 100% configured coverage | Local + CI path | Passed |
 | 2026-07-22 | R-21 | 28 focused tests, 904-test verification, 16 Playwright tests, build/dry run, Worker `e63887e2-a872-4fe9-8eb2-8d2282a05fef`, controlled recovery and login | Local + production | Passed |
+| 2026-07-22 | R-28 | 30 focused tests, 919-test verification at 100% configured coverage, 2 Chromium scenarios, build/dry run, migration `0009`, remote schema inspection, Worker `158f8558-5c94-4849-aceb-730e7e56fae5`, HTTP smoke checks, controlled UI revocation | Local + production | Passed |
+| 2026-07-22 | R-07 | 88 focused contracts, 936-test verification at 100% configured coverage, 3 Chromium scenarios, provider/DNS inspection, build/dry run, Worker `d82e393c-1abb-4f68-9719-284eb31c73af`, production reconciliation and smoke checks, prior controlled outbound send | Local + production | Passed |
 
 ## Newly discovered work
 

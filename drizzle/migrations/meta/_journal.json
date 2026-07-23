@@ -64,6 +64,13 @@
       "when": 1784754000000,
       "tag": "0008_add_password_reset_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1784761200000,
+      "tag": "0009_add_api_key_revocation",
+      "breakpoints": true
     }
   ]
 }

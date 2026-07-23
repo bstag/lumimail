@@ -67,7 +67,7 @@ describe("GET /api/domains", () => {
 		m.listUserDomains.mockResolvedValue([{ id: "d1" }, { id: "d2" }]);
 		m.getDomainDns.mockImplementation(async (_env: unknown, domain: { id: string }) => {
 			if (domain.id === "d2") throw new Error("boom");
-			return { routing: { records: [], missing: [] }, sending: [] };
+			return { routing: { records: [], missing: [] }, sending: { enabled: false, records: [] } };
 		});
 		const res = await GET(getReq("https://x.test/api/domains?includeDns=true"));
 		expect(res.status).toBe(200);

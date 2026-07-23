@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { apiKeys, users } from "@/db/schema";
 import { verifyApiKey, parseScopes } from "@/lib/api-keys";
@@ -19,17 +19,23 @@ export async function authenticateApiKey(
 
 	const prefix = key.slice(0, 12);
 	const db = getDb(env);
-	const candidates = await db.select().from(apiKeys).where(eq(apiKeys.prefix, prefix));
+	const candidates = await db
+		.select()
+		.from(apiKeys)
+		.where(and(eq(apiKeys.prefix, prefix), isNull(apiKeys.revokedAt)));
 
 	for (const candidate of candidates) {
+		if (candidate.revokedAt) continue;
 		if (!verifyApiKey(key, candidate.keyHash)) continue;
 		const [user] = await db.select().from(users).where(eq(users.id, candidate.userId)).limit(1);
 		if (!user) continue;
 
-		await db
+		const [claimedKey] = await db
 			.update(apiKeys)
 			.set({ lastUsedAt: new Date() })
-			.where(eq(apiKeys.id, candidate.id));
+			.where(and(eq(apiKeys.id, candidate.id), isNull(apiKeys.revokedAt)))
+			.returning({ id: apiKeys.id });
+		if (!claimedKey) continue;
 
 		return {
 			userId: user.id,

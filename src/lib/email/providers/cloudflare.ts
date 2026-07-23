@@ -3,9 +3,10 @@ import type { OutboundMessage, OutboundProvider, OutboundSendResult } from "./ty
 /**
  * Cloudflare Email Sending provider (default).
  *
- * Wraps the `env.EMAIL` (`SendEmail`) binding. Note that Cloudflare only
- * delivers to verified destination addresses; for arbitrary recipients use a
- * dedicated provider such as Resend (`MAIL_PROVIDER=resend`).
+ * Wraps the `env.EMAIL` (`SendEmail`) binding. On Workers Paid, an onboarded
+ * Email Sending domain can send transactional mail to arbitrary recipients.
+ * Verified destination addresses remain available without full sending-domain
+ * onboarding under Cloudflare's separate free-path rules.
  */
 export function createCloudflareProvider(env: CloudflareEnv): OutboundProvider {
 	return {

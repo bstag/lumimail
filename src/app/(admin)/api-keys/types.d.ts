@@ -5,4 +5,5 @@ export type ApiKey = {
 	scopes: string;
 	createdAt?: string;
 	lastUsedAt?: string | null;
+	revokedAt?: string | null;
 };

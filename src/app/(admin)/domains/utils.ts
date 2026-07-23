@@ -20,3 +20,15 @@ export async function fetchDomainDns(id: string): Promise<DomainMutationResult> 
 	const response = await authFetch(`/api/domains/${id}/dns`);
 	return parseApiResponse<DomainMutationResult>(response);
 }
+
+export async function reconcileDomainSending(
+	id: string,
+	action: "verify" | "enable",
+): Promise<DomainMutationResult> {
+	const response = await authFetch(`/api/domains/${id}/sending`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ action }),
+	});
+	return parseApiResponse<DomainMutationResult>(response);
+}

@@ -16,7 +16,9 @@ vi.mock("@/lib/domains/service", () => ({
 	removeDomainForUser: m.removeDomainForUser,
 }));
 
-import { GET, PATCH, DELETE } from "@/app/api/domains/[id]/route";
+import * as domainRoute from "@/app/api/domains/[id]/route";
+
+const { GET, DELETE } = domainRoute;
 
 let mock: DbMock;
 const unauth = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -67,45 +69,9 @@ describe("GET /api/domains/[id]", () => {
 	});
 });
 
-describe("PATCH /api/domains/[id]", () => {
-	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: unauth });
-		const res = await PATCH(req({ routingEnabled: true }), params());
-		expect(res.status).toBe(401);
-	});
-
-	it("returns 400 with no organization", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: null } });
-		const res = await PATCH(req({ routingEnabled: true }), params());
-		expect(res.status).toBe(400);
-	});
-
-	it("returns 404 when the domain is not found", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
-		m.getDomainForUser.mockResolvedValue(undefined);
-		const res = await PATCH(req({ routingEnabled: true }), params());
-		expect(res.status).toBe(404);
-	});
-
-	it("returns 400 when no valid fields are supplied", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
-		m.getDomainForUser.mockResolvedValue({ id: "d1" });
-		const res = await PATCH(req({ routingEnabled: "yes", other: 1 }), params());
-		expect(res.status).toBe(400);
-		expect((await res.json()) as any).toMatchObject({ error: { message: "No valid fields to update" } });
-	});
-
-	it("updates both boolean fields and returns the updated row", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
-		m.getDomainForUser.mockResolvedValue({ id: "d1" });
-		mock.queueSelect([{ id: "d1", routingEnabled: true, sendingEnabled: false }]);
-		const res = await PATCH(req({ routingEnabled: true, sendingEnabled: false }), params());
-		expect(res.status).toBe(200);
-		expect(mock.updates[0].set).toEqual({ routingEnabled: true, sendingEnabled: false });
-		expect((await res.json()) as any).toEqual({
-			success: true,
-			data: { domain: { id: "d1", routingEnabled: true, sendingEnabled: false } },
-		});
+describe("provider-backed readiness fields", () => {
+	it("does not expose a PATCH handler that can fabricate Cloudflare state", () => {
+		expect("PATCH" in domainRoute).toBe(false);
 	});
 });
 

@@ -6,6 +6,17 @@ export type CfDnsRecord = {
 	ttl?: number;
 };
 
+export type CfSendingDomain = {
+	tag: string;
+	name: string;
+	enabled: boolean;
+	created?: string;
+	modified?: string;
+	dkim_selector?: string;
+	return_path_domain?: string;
+	preview_enabled?: boolean;
+};
+
 export type CfApiError = {
 	code?: number;
 	message: string;
@@ -45,5 +56,6 @@ export type CfEmailRoutingRule = {
 	}[];
 	name?: string;
 	priority?: number;
+	source?: "api" | "wrangler";
 	tag?: string;
 };

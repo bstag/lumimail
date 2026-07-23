@@ -1,11 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ban, Copy, KeyRound, Plus } from "lucide-react";
 import { useState } from "react";
-import { KeyRound, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -16,47 +15,78 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { authFetch } from "@/lib/auth/client";
 import type { ApiKey } from "./types";
-import { parseApiKeyScopes } from "./utils";
+import {
+	createApiKey,
+	formatApiKeyTimestamp,
+	listApiKeys,
+	parseApiKeyScopes,
+	revokeApiKey,
+	type CreatedApiKey,
+} from "./utils";
 
 export default function ApiKeysPage() {
-	const qc = useQueryClient();
+	const queryClient = useQueryClient();
 	const [name, setName] = useState("");
-	const [newKey, setNewKey] = useState<string | null>(null);
 	const [createOpen, setCreateOpen] = useState(false);
+	const [createdKey, setCreatedKey] = useState<CreatedApiKey | null>(null);
+	const [copied, setCopied] = useState(false);
+	const [copyError, setCopyError] = useState(false);
+	const [revokeTarget, setRevokeTarget] = useState<ApiKey | null>(null);
 
-	const { data, isLoading } = useQuery({
+	const { data: apiKeys = [], isLoading } = useQuery({
 		queryKey: ["api-keys"],
-		queryFn: async () => {
-			const res = await authFetch("/api/api-keys");
-			return (await res.json()) as { apiKeys: ApiKey[] };
-		},
+		queryFn: listApiKeys,
 	});
 
 	const create = useMutation({
-		mutationFn: async () => {
-			const res = await authFetch("/api/api-keys", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name, scopes: ["send", "read"] }),
-			});
-			const json = (await res.json()) as { key?: string };
-			if (!res.ok) throw new Error("Failed");
-			setNewKey(json.key ?? null);
+		mutationFn: () => createApiKey(name),
+		onSuccess: (result) => {
+			setCreatedKey(result);
 			setName("");
-		},
-		onSuccess: () => {
 			setCreateOpen(false);
-			qc.invalidateQueries({ queryKey: ["api-keys"] });
+			queryClient.invalidateQueries({ queryKey: ["api-keys"] });
 		},
 	});
+
+	const revoke = useMutation({
+		mutationFn: (id: string) => revokeApiKey(id),
+		onSuccess: () => {
+			setRevokeTarget(null);
+			queryClient.invalidateQueries({ queryKey: ["api-keys"] });
+		},
+	});
+
+	async function copyCreatedKey() {
+		if (!createdKey) return;
+		try {
+			await navigator.clipboard.writeText(createdKey.key);
+			setCopied(true);
+			setCopyError(false);
+		} catch {
+			setCopied(false);
+			setCopyError(true);
+		}
+	}
+
+	function closeSecretDialog(open: boolean) {
+		if (open) return;
+		setCreatedKey(null);
+		setCopied(false);
+		setCopyError(false);
+	}
 
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between gap-4">
 				<h1 className="text-2xl font-semibold">API Keys</h1>
-				<Dialog open={createOpen} onOpenChange={setCreateOpen}>
+				<Dialog
+					open={createOpen}
+					onOpenChange={(open) => {
+						setCreateOpen(open);
+						if (open) create.reset();
+					}}
+				>
 					<DialogTrigger asChild>
 						<Button>
 							<Plus className="h-4 w-4" />
@@ -70,43 +100,98 @@ export default function ApiKeysPage() {
 						</DialogHeader>
 						<div className="space-y-4">
 							<div className="space-y-2">
-								<Label>Name</Label>
-								<Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Production app" />
+								<Label htmlFor="api-key-name">Name</Label>
+								<Input
+									id="api-key-name"
+									value={name}
+									onChange={(event) => setName(event.target.value)}
+									placeholder="Production app"
+								/>
 							</div>
-							{create.isError && (
-								<p className="text-sm text-red-600">{(create.error as Error).message}</p>
-							)}
-							<Button onClick={() => create.mutate()} disabled={!name || create.isPending}>
+							{create.isError && <p className="text-sm text-red-600">{create.error.message}</p>}
+							<Button onClick={() => create.mutate()} disabled={!name.trim() || create.isPending}>
 								{create.isPending ? "Creating..." : "Create key"}
 							</Button>
 						</div>
 					</DialogContent>
 				</Dialog>
 			</div>
-			{newKey && (
-				<Card className="border-blue-600/10 bg-blue-400/10">
-					<CardContent className="pt-6">
-						<p className="text-sm font-medium text-blue-600">Copy your key now:</p>
-						<code className="block mt-2 text-xs break-all font-bold">{newKey}</code>
-					</CardContent>
-				</Card>
-			)}
+
+			<Dialog open={createdKey !== null} onOpenChange={closeSecretDialog}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Save this API key now</DialogTitle>
+						<DialogDescription>
+							This secret is shown only once and cannot be recovered after you close this window.
+						</DialogDescription>
+					</DialogHeader>
+					<code className="block break-all rounded-md border bg-neutral-50 p-3 text-xs font-semibold">
+						{createdKey?.key}
+					</code>
+					{copyError && <p className="text-sm text-red-600">Copy failed. Select and copy the key manually.</p>}
+					<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+						<Button variant="outline" onClick={copyCreatedKey}>
+							<Copy className="h-4 w-4" />
+							{copied ? "Copied" : "Copy key"}
+						</Button>
+						<Button onClick={() => closeSecretDialog(false)}>Done</Button>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				open={revokeTarget !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setRevokeTarget(null);
+						revoke.reset();
+					}
+				}}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Revoke API key?</DialogTitle>
+						<DialogDescription>
+							{revokeTarget?.name} will stop working immediately. This action cannot be undone.
+						</DialogDescription>
+					</DialogHeader>
+					{revoke.isError && <p className="text-sm text-red-600">{revoke.error.message}</p>}
+					<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+						<Button
+							variant="outline"
+							onClick={() => {
+								setRevokeTarget(null);
+								revoke.reset();
+							}}
+							disabled={revoke.isPending}
+						>
+							Cancel
+						</Button>
+						<Button
+							variant="destructive"
+							onClick={() => revokeTarget && revoke.mutate(revokeTarget.id)}
+							disabled={revoke.isPending}
+						>
+							{revoke.isPending ? "Revoking..." : "Revoke key"}
+						</Button>
+					</div>
+				</DialogContent>
+			</Dialog>
+
 			<section className="space-y-3">
-				<div className="flex items-center justify-between">
-					<span className="text-sm text-neutral-500">{(data?.apiKeys ?? []).length} total</span>
-				</div>
+				<span className="text-sm text-neutral-500">{apiKeys.length} total</span>
 				{isLoading && (
 					<p className="rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-500">
 						Loading API keys...
 					</p>
 				)}
-				{!isLoading && (data?.apiKeys ?? []).length === 0 && (
+				{!isLoading && apiKeys.length === 0 && (
 					<p className="rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-500">
 						No API keys yet
 					</p>
 				)}
 				<div className="grid gap-3 md:grid-cols-2">
-					{(data?.apiKeys ?? []).map((key) => (
+					{apiKeys.map((key) => (
 						<div
 							key={key.id}
 							className="flex min-h-24 items-start gap-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm shadow-neutral-100"
@@ -115,7 +200,12 @@ export default function ApiKeysPage() {
 								<KeyRound className="h-5 w-5" />
 							</span>
 							<span className="min-w-0 flex-1 space-y-2">
-								<span className="block truncate text-sm font-semibold text-neutral-900">{key.name}</span>
+								<span className="flex items-center justify-between gap-2">
+									<span className="truncate text-sm font-semibold text-neutral-900">{key.name}</span>
+									<Badge variant={key.revokedAt ? "secondary" : "outline"}>
+										{key.revokedAt ? "Revoked" : "Active"}
+									</Badge>
+								</span>
 								<span className="block truncate font-mono text-sm text-neutral-500">{key.prefix}...</span>
 								<span className="flex flex-wrap gap-1">
 									{parseApiKeyScopes(key.scopes).map((scope) => (
@@ -124,6 +214,23 @@ export default function ApiKeysPage() {
 										</Badge>
 									))}
 								</span>
+								<span className="block text-xs text-neutral-500">
+									Created {formatApiKeyTimestamp(key.createdAt)}
+								</span>
+								<span className="block text-xs text-neutral-500">
+									Last used {formatApiKeyTimestamp(key.lastUsedAt)}
+								</span>
+								{key.revokedAt && (
+									<span className="block text-xs text-neutral-500">
+										Revoked {formatApiKeyTimestamp(key.revokedAt)}
+									</span>
+								)}
+								{!key.revokedAt && (
+									<Button size="sm" variant="outline" onClick={() => setRevokeTarget(key)}>
+										<Ban className="h-4 w-4" />
+										Revoke
+									</Button>
+								)}
 							</span>
 						</div>
 					))}

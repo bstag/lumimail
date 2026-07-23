@@ -14,12 +14,12 @@ export type DnsStatusSummary = {
 export function summariseDns(
 	routingRecords: CfDnsRecord[],
 	routingMissing: CfDnsRecord[],
-	sendingRecords: CfDnsRecord[],
+	sending: { enabled: boolean; records: CfDnsRecord[] },
 ): DnsStatusSummary {
 	const recordTypes = (
 		type: "routing-missing" | "sending",
 	) => {
-		const list = type === "routing-missing" ? routingMissing : sendingRecords;
+		const list = type === "routing-missing" ? routingMissing : sending.records;
 		return [...new Set(list.map((r) => r.type).filter(Boolean))] as string[];
 	};
 
@@ -29,7 +29,7 @@ export function summariseDns(
 			missing: recordTypes("routing-missing"),
 		},
 		sending: {
-			configured: sendingRecords.length > 0,
+			configured: sending.enabled,
 			records: recordTypes("sending"),
 		},
 	};

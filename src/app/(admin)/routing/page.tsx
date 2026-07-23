@@ -8,6 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authFetch } from "@/lib/auth/client";
+import {
+	canSubmitRoutingRule,
+	filterMailboxesByDomain,
+	readRoutingResponse,
+	sortRoutingRules,
+} from "./utils";
 
 type RoutingRule = {
 	id: string;
@@ -65,7 +71,7 @@ export default function RoutingPage() {
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(body),
 			});
-			if (!res.ok) throw new Error("Failed to create rule");
+			await readRoutingResponse(res);
 		},
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["routing-rules"] });
@@ -77,8 +83,10 @@ export default function RoutingPage() {
 
 	const remove = useMutation({
 		mutationFn: async (id: string) => {
+			const rule = rules.data?.rules.find((candidate) => candidate.id === id);
+			if (rule?.pattern === "*" && !confirm("Remove this catch-all and disable unmatched delivery for this domain?")) return;
 			const res = await authFetch(`/api/routing-rules/${id}`, { method: "DELETE" });
-			if (!res.ok) throw new Error("Failed");
+			await readRoutingResponse(res);
 		},
 		onSuccess: () => qc.invalidateQueries({ queryKey: ["routing-rules"] }),
 	});
@@ -91,12 +99,16 @@ export default function RoutingPage() {
 		if (rule.action === "forward" && rule.forwardTo) return `→ ${rule.forwardTo}`;
 		return rule.action;
 	};
+	const selectedHostname = domainHostname(domainId);
+	const availableMailboxes = filterMailboxesByDomain(mailboxes.data?.mailboxes ?? [], domainId);
+	const isCatchAllInput = pattern.trim() === "*" || pattern.trim().toLowerCase() === `*@${selectedHostname.toLowerCase()}`;
+	const canSubmit = canSubmitRoutingRule({ domainId, pattern, action, mailboxId, forwardTo });
 
 	return (
 		<div className="space-y-6 max-w-2xl">
 			<h1 className="text-2xl font-semibold">Routing rules</h1>
 			<p className="text-sm text-neutral-500">
-				Rules are evaluated in priority order. Incoming email for a domain is matched against each rule&apos;s pattern.
+				Named addresses are matched before real mailboxes; catch-all runs only for otherwise unmatched addresses. Priority applies within each match type.
 			</p>
 
 			<Card>
@@ -106,11 +118,12 @@ export default function RoutingPage() {
 				<CardContent className="space-y-4">
 					<div className="grid grid-cols-2 gap-4">
 						<div className="space-y-2">
-							<Label>Domain</Label>
+							<Label htmlFor="routing-domain">Domain</Label>
 							<select
+								id="routing-domain"
 								className="w-full h-10 rounded-md border border-neutral-200 px-3 text-sm"
 								value={domainId}
-								onChange={(e) => setDomainId(e.target.value)}
+								onChange={(e) => { setDomainId(e.target.value); setMailboxId(""); }}
 							>
 								<option value="">Select domain</option>
 								{(domains.data?.domains ?? []).map((d) => (
@@ -119,18 +132,23 @@ export default function RoutingPage() {
 							</select>
 						</div>
 						<div className="space-y-2">
-							<Label>Pattern</Label>
+							<Label htmlFor="routing-pattern">Pattern</Label>
 							<Input
-								placeholder="* or user@domain.com"
+								id="routing-pattern"
+								placeholder="*, support, or support@domain.com"
 								value={pattern}
 								onChange={(e) => setPattern(e.target.value)}
 							/>
 						</div>
 					</div>
+					<p className="text-xs text-neutral-500">
+						Use <span className="font-mono">*</span> for all otherwise unmatched addresses on the selected domain. Adding it enables that domain&apos;s Cloudflare catch-all for Lumimail.
+					</p>
 					<div className="grid grid-cols-2 gap-4">
 						<div className="space-y-2">
-							<Label>Action</Label>
+							<Label htmlFor="routing-action">Action</Label>
 							<select
+								id="routing-action"
 								className="w-full h-10 rounded-md border border-neutral-200 px-3 text-sm"
 								value={action}
 								onChange={(e) => setAction(e.target.value as "store" | "forward" | "reject")}
@@ -141,8 +159,9 @@ export default function RoutingPage() {
 							</select>
 						</div>
 						<div className="space-y-2">
-							<Label>Priority</Label>
+							<Label htmlFor="routing-priority">Priority</Label>
 							<Input
+								id="routing-priority"
 								type="number"
 								value={priority}
 								onChange={(e) => setPriority(parseInt(e.target.value) || 0)}
@@ -152,14 +171,15 @@ export default function RoutingPage() {
 
 					{action === "store" && (
 						<div className="space-y-2">
-							<Label>Target mailbox</Label>
+							<Label htmlFor="routing-mailbox">Target mailbox</Label>
 							<select
+								id="routing-mailbox"
 								className="w-full h-10 rounded-md border border-neutral-200 px-3 text-sm"
 								value={mailboxId}
 								onChange={(e) => setMailboxId(e.target.value)}
 							>
 								<option value="">Select mailbox</option>
-								{(mailboxes.data?.mailboxes ?? []).map((m) => (
+								{availableMailboxes.map((m) => (
 									<option key={m.id} value={m.id}>
 										{m.localPart}@{domainHostname(m.domainId)}
 									</option>
@@ -170,8 +190,9 @@ export default function RoutingPage() {
 
 					{action === "forward" && (
 						<div className="space-y-2">
-							<Label>Forward to</Label>
+							<Label htmlFor="routing-forward">Forward to</Label>
 							<Input
+								id="routing-forward"
 								type="email"
 								placeholder="destination@example.com"
 								value={forwardTo}
@@ -182,13 +203,16 @@ export default function RoutingPage() {
 
 					<Button
 						onClick={() => create.mutate()}
-						disabled={!domainId || !pattern || create.isPending}
+						disabled={!canSubmit || create.isPending}
 					>
 						<Plus className="h-4 w-4 mr-2" />
-						Add rule
+						{isCatchAllInput ? "Enable catch-all and add rule" : "Add rule"}
 					</Button>
 					{create.isError && (
-						<p className="text-sm text-red-600">Failed to create rule</p>
+						<p className="text-sm text-red-600">{create.error instanceof Error ? create.error.message : "Failed to create rule"}</p>
+					)}
+					{remove.isError && (
+						<p className="text-sm text-red-600">{remove.error instanceof Error ? remove.error.message : "Failed to remove rule"}</p>
 					)}
 				</CardContent>
 			</Card>
@@ -202,8 +226,7 @@ export default function RoutingPage() {
 						<p className="text-sm text-neutral-400">No routing rules yet.</p>
 					) : (
 						<ul className="divide-y divide-neutral-100">
-							{(rules.data?.rules ?? [])
-								.sort((a, b) => a.priority - b.priority)
+							{sortRoutingRules(rules.data?.rules ?? [])
 								.map((r) => (
 									<li key={r.id} className="flex items-center justify-between py-3">
 										<div className="flex items-center gap-3 text-sm">
@@ -224,6 +247,7 @@ export default function RoutingPage() {
 											size="sm"
 											onClick={() => remove.mutate(r.id)}
 											className="text-red-500 hover:text-red-700"
+											aria-label={`Remove ${r.pattern} rule for ${domainHostname(r.domainId)}`}
 										>
 											<Trash2 className="h-4 w-4" />
 										</Button>

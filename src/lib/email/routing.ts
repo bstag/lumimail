@@ -19,6 +19,8 @@ export type RoutingDecision = {
 	forwardTo?: string;
 };
 
+type RoutingRule = typeof routingRules.$inferSelect;
+
 async function loadMailboxDecision(
 	db: AppDatabase,
 	mailboxId: string,
@@ -42,6 +44,21 @@ async function loadMailboxDecision(
 			displayName: mailbox.displayName,
 		},
 	};
+}
+
+async function resolveRuleDecision(
+	db: AppDatabase,
+	rule: RoutingRule,
+	domainId: string,
+	hostname: string,
+): Promise<RoutingDecision | null> {
+	if (rule.action === "reject") return { action: "reject" };
+	if (rule.action === "forward") {
+		return rule.forwardTo ? { action: "forward", forwardTo: rule.forwardTo } : null;
+	}
+	return rule.mailboxId
+		? loadMailboxDecision(db, rule.mailboxId, domainId, hostname)
+		: null;
 }
 
 /**
@@ -132,32 +149,12 @@ export async function resolveInboundAddress(
 		.where(eq(routingRules.domainId, domain.id))
 		.orderBy(desc(routingRules.priority));
 
-	for (const rule of rules) {
-		if (rule.pattern === "*" || rule.pattern === parsed.local || rule.pattern === toAddress) {
-			if (rule.action === "reject") return { action: "reject" };
-			if (rule.action === "forward" && rule.forwardTo) {
-				return { action: "forward", forwardTo: rule.forwardTo };
-			}
-			if (rule.mailboxId) {
-				const [mailbox] = await db
-					.select()
-					.from(mailboxes)
-					.where(and(eq(mailboxes.id, rule.mailboxId), eq(mailboxes.domainId, domain.id)))
-					.limit(1);
-				if (!mailbox) return null;
-
-				return {
-					action: "store",
-					mailbox: {
-						mailboxId: mailbox.id,
-						userId: mailbox.userId,
-						domainId: domain.id,
-						localPart: mailbox.localPart,
-						hostname: domain.hostname,
-						displayName: mailbox.displayName,
-					},
-				};
-			}
+	const normalizedAddress = `${parsed.local}@${parsed.domain}`;
+	for (const pattern of [normalizedAddress, parsed.local]) {
+		for (const rule of rules) {
+			if (rule.pattern.toLowerCase() !== pattern) continue;
+			const decision = await resolveRuleDecision(db, rule, domain.id, domain.hostname);
+			if (decision) return decision;
 		}
 	}
 
@@ -167,17 +164,25 @@ export async function resolveInboundAddress(
 		.where(and(eq(mailboxes.domainId, domain.id), eq(mailboxes.localPart, parsed.local)))
 		.limit(1);
 
-	if (!mailbox) return null;
+	if (mailbox) {
+		return {
+			action: "store",
+			mailbox: {
+				mailboxId: mailbox.id,
+				userId: mailbox.userId,
+				domainId: domain.id,
+				localPart: mailbox.localPart,
+				hostname: domain.hostname,
+				displayName: mailbox.displayName,
+			},
+		};
+	}
 
-	return {
-		action: "store",
-		mailbox: {
-			mailboxId: mailbox.id,
-			userId: mailbox.userId,
-			domainId: domain.id,
-			localPart: mailbox.localPart,
-			hostname: domain.hostname,
-			displayName: mailbox.displayName,
-		},
-	};
+	for (const rule of rules) {
+		if (rule.pattern !== "*") continue;
+		const decision = await resolveRuleDecision(db, rule, domain.id, domain.hostname);
+		if (decision) return decision;
+	}
+
+	return null;
 }

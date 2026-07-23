@@ -49,12 +49,12 @@ describe("GET /api/domains/[id]/dns", () => {
 	it("returns the DNS view on success", async () => {
 		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
 		m.getDomainForUser.mockResolvedValue({ id: "d1" });
-		m.getDomainDns.mockResolvedValue({ routing: {}, sending: [] });
+		m.getDomainDns.mockResolvedValue({ routing: {}, sending: { enabled: true, records: [] } });
 		const res = await GET(req(), params());
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({
 			success: true,
-			data: { domain: { id: "d1" }, dns: { routing: {}, sending: [] } },
+			data: { domain: { id: "d1" }, dns: { routing: {}, sending: { enabled: true, records: [] } } },
 		});
 	});
 

@@ -22,16 +22,22 @@ import {
   ArrowRight,
   Globe2,
   Plus,
+  RefreshCw,
   Trash2,
 } from "lucide-react";
 import { authFetch } from "@/lib/auth/client";
 import type { DnsRecord, DnsStatusSummary, Domain } from "./types";
-import { createDomain as requestDomainCreation, fetchDomainDns } from "./utils";
+import {
+  createDomain as requestDomainCreation,
+  fetchDomainDns,
+  reconcileDomainSending,
+} from "./utils";
 
 export default function DomainsPage() {
   const qc = useQueryClient();
   const [hostname, setHostname] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [sendingTargetId, setSendingTargetId] = useState<string | null>(null);
   const [dnsView, setDnsView] = useState<{
     domain: Domain;
     dns: unknown;
@@ -67,6 +73,17 @@ export default function DomainsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["domains"] }),
   });
 
+  const sending = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: "verify" | "enable" }) => {
+      setSendingTargetId(id);
+      return reconcileDomainSending(id, action);
+    },
+    onSuccess: (result) => {
+      setDnsView(result);
+      qc.invalidateQueries({ queryKey: ["domains"] });
+    },
+  });
+
   const loadDns = async (id: string) => {
     setDnsView(await fetchDomainDns(id));
   };
@@ -77,8 +94,8 @@ export default function DomainsPage() {
         <div>
           <h1 className="text-2xl font-semibold">Domains</h1>
           <p className="mt-1 text-sm text-neutral-500">
-            Domains must be on your Cloudflare account. Adding a domain enables
-            Email Routing and Email Sending DNS automatically.
+            Domains must be on your Cloudflare account. Sending readiness is
+            verified directly against Cloudflare Email Service.
           </p>
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -159,9 +176,9 @@ export default function DomainsPage() {
                       {d.routingEnabled && (
                         <Badge variant="outline">routing</Badge>
                       )}
-                      {d.sendingEnabled && (
-                        <Badge variant="outline">sending</Badge>
-                      )}
+                      <Badge variant={d.sendingEnabled ? "outline" : "secondary"}>
+                        {d.sendingEnabled ? "sending ready" : "sending setup needed"}
+                      </Badge>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -222,6 +239,32 @@ export default function DomainsPage() {
                     </button>
                   </div>
                 )}
+                <div className="mt-auto">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      sending.mutate({
+                        id: d.id,
+                        action: d.sendingEnabled ? "verify" : "enable",
+                      })
+                    }
+                    disabled={sending.isPending && sendingTargetId === d.id}
+                    aria-label={`${d.sendingEnabled ? "Verify" : "Enable"} sending for ${d.hostname}`}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${sending.isPending && sendingTargetId === d.id ? "animate-spin" : ""}`} />
+                    {sending.isPending && sendingTargetId === d.id
+                      ? d.sendingEnabled
+                        ? "Checking..."
+                        : "Enabling..."
+                      : d.sendingEnabled
+                        ? "Verify sending"
+                        : "Enable sending"}
+                  </Button>
+                  {sending.isError && sendingTargetId === d.id && (
+                    <p className="mt-2 text-sm text-red-600">{sending.error.message}</p>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -251,7 +294,7 @@ export default function DomainsPage() {
               </p>
               <pre className="overflow-auto bg-neutral-50 dark:bg-neutral-900 p-3 rounded-md">
                 {JSON.stringify(
-                  (dnsView.dns as { sending: DnsRecord[] }).sending,
+                  (dnsView.dns as { sending: { enabled: boolean; records: DnsRecord[] } }).sending,
                   null,
                   2,
                 )}

@@ -26,12 +26,12 @@ gates later in this document must also pass.
 | ID | Feature | Status | Spec | Routes / integration | Known boundary |
 |----|---------|--------|------|----------------------|----------------|
 | F01 | Core auth: register, login, session, invite acceptance | Shipped | [F01](specs/F01-auth.md) | `/login`, `/register`, `/api/auth/*` | Password recovery is tracked separately as F21. |
-| F02 | Domain management and Cloudflare provisioning | Partially Shipped | [F02](specs/F02-domains.md) | `/domains`, `/api/domains*`, `/api/setup/*` | Domain and inbound setup work; automated apex-domain sending is not complete. |
+| F02 | Domain management and Cloudflare provisioning | Partially Shipped | [F02](specs/F02-domains.md), [F45](specs/F45-cloudflare-sending-domain-readiness.md) | `/domains`, `/api/domains*`, `/api/setup/*` | Apex/nested sending readiness is provider-backed and production-verified; domain administration still lacks role enforcement for restricted members. |
 | F03 | Organization-scoped mailbox CRUD | Partially Shipped | [F03](specs/F03-mailboxes.md) | `/mailboxes`, `/api/mailboxes*` | CRUD works, but every organization member can administer every mailbox; admin and mailbox permissions are not enforced. |
 | F04 | Mail folders: inbox, sent, drafts, spam, trash, starred | Shipped | [F04](specs/F04-mail-folders.md) | dashboard folders, `/api/messages*` | — |
 | F05 | Plain-text compose, provider send, drafts, attachment UI | Partially Shipped | [F05](specs/F05-compose-send.md) | `/compose`, `/api/send`, `/api/drafts*`, `/api/v1/send` | Attachments are uploaded after provider send and are not proven to be included in outbound MIME. |
-| F06 | API keys | Partially Shipped | [F06](specs/F06-api-keys.md) | `/api-keys`, `/api/api-keys`, `/api/v1/send` | Creation and authentication work, but keys cannot be revoked or deleted. |
-| F07 | Inbound routing rules and catch-all | Partially Shipped | Missing | `/routing`, `/api/routing-rules*` | Internal matching exists, but rules do not provision Cloudflare delivery. A `*` rule therefore does not receive unmatched addresses end to end. |
+| F06 | API keys | Shipped | [F06](specs/F06-api-keys.md), [F44](specs/F44-api-key-lifecycle.md) | `/api-keys`, `/api/api-keys`, `/api/v1/send` | Keys are created with a one-time secret, lifecycle metadata is visible, and owner-scoped permanent revocation is enforced during authentication. |
+| F07 | Inbound routing rules and catch-all | Partially Shipped | [F46](specs/F46-domain-catch-all-routing.md) | `/routing`, `/api/routing-rules*` | Canonical per-domain rules, safe Cloudflare catch-all provisioning, and named-recipient precedence are deployed. Production mail-flow acceptance is pending because `lucidkith.com` already forwards its provider catch-all externally and `henriksen.dev` is not yet configured as a Lumimail inbound test domain. |
 | F08 | Webhooks | Shipped | Missing | `/webhooks`, `/api/webhooks*` | Payload/privacy behavior must be included in the production data-export audit. |
 | F09 | Settings and profile | Shipped | [F09](specs/F09-settings.md) | `/settings`, `/api/settings/profile` | — |
 | F10 | Seed/demo data | Shipped (development only) | Missing | `/api/seed` | Must not be exposed as a production capability. |
@@ -88,7 +88,7 @@ multi-domain, multi-user email replacement.
 | P0 | Sanitize hostile inbound HTML safely on Workers | A received email can currently persist active HTML and expose viewers to stored XSS. | [R-19](REMEDIATION_PLAN.md#priority-override--security) |
 | P0 | Prove executable migrations match the application schema | A fresh or upgraded deployment can otherwise fail at runtime despite a successful build. | [R-06](REMEDIATION_PLAN.md#phase-1--data-integrity-and-api-contracts) — completed 2026-07-22 |
 | P0 | Specify and enforce mailbox ACLs | Restricted users and a shared `support@` mailbox cannot be isolated safely with organization roles alone. | [R-12/R-13](REMEDIATION_PLAN.md#phase-3--multi-user-authorization) |
-| P1 | Make domain sending state truthful and usable | Connected apex domains may receive mail while outbound sending remains disabled. | [R-07](REMEDIATION_PLAN.md#phase-2--sending-and-routing-correctness) |
+| P1 | Make domain sending state truthful and usable | Provider-backed apex/nested onboarding, verification, and production reconciliation are complete. | [R-07](REMEDIATION_PLAN.md#phase-2--sending-and-routing-correctness) — completed 2026-07-22 |
 | P1 | Define and verify catch-all behavior per domain | Ambiguous accepted patterns can silently misroute or drop mail. | [R-08](REMEDIATION_PLAN.md#phase-2--sending-and-routing-correctness) |
 | P1 | Include attachments in outbound delivery | Uploading after provider send stores a file but does not establish that recipients received it. | [R-20](REMEDIATION_PLAN.md#phase-2--sending-and-routing-correctness) |
 | P1 | Complete password recovery UI and email delivery | A production user who loses a password has no usable recovery flow. | [R-21](REMEDIATION_PLAN.md#phase-1--data-integrity-and-api-contracts) — completed 2026-07-22 |
@@ -118,7 +118,7 @@ All of these must be checked before a general production launch:
 ## Specification coverage debt
 
 The registry currently has shipped or partially shipped behaviors without numbered
-specifications: F07, F08, F10, and F14–F32. Those features need specs defining their
+specifications: F08, F10, and F14–F32. Those features need specs defining their
 actual security, tenant-isolation, error, and test contracts before they can be
 considered fully documented.
 

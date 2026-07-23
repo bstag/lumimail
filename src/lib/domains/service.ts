@@ -7,7 +7,8 @@ import {
 	getEmailRoutingDns,
 	getEmailRoutingSettings,
 	getSendingSubdomainDns,
-	deleteSendingSubdomain,
+	ensureSendingDomain,
+	findSendingDomain,
 	type CfDnsRecord,
 } from "@/lib/cloudflare-api";
 import { deleteEmailRoutingRulesForDomain } from "@/lib/domains/cloudflare-cleanup";
@@ -15,7 +16,7 @@ import { provisionDomainOnCloudflare } from "@/lib/domains/provision";
 
 export type DomainDnsView = {
 	routing: { records: CfDnsRecord[]; missing: CfDnsRecord[]; status?: string };
-	sending: CfDnsRecord[];
+	sending: { enabled: boolean; records: CfDnsRecord[] };
 };
 
 export async function listUserDomains(env: CloudflareEnv, organizationId: string) {
@@ -69,9 +70,9 @@ export async function getDomainDns(
 ): Promise<DomainDnsView> {
 	const routingDns = await getEmailRoutingDns(env, domain.zoneId);
 	const routingSettings = await getEmailRoutingSettings(env, domain.zoneId);
-	let sending: CfDnsRecord[] = [];
+	let sendingRecords: CfDnsRecord[] = [];
 	if (domain.sendingSubdomainTag) {
-		sending = await getSendingSubdomainDns(env, domain.zoneId, domain.sendingSubdomainTag);
+		sendingRecords = await getSendingSubdomainDns(env, domain.zoneId, domain.sendingSubdomainTag);
 	}
 	return {
 		routing: {
@@ -79,8 +80,39 @@ export async function getDomainDns(
 			missing: routingDns.missing,
 			status: routingSettings.status,
 		},
-		sending,
+		sending: { enabled: domain.sendingEnabled, records: sendingRecords },
 	};
+}
+
+export async function reconcileDomainSending(
+	env: CloudflareEnv,
+	domain: typeof domains.$inferSelect,
+	action: "verify" | "enable",
+): Promise<{ domain: typeof domains.$inferSelect; dns: DomainDnsView }> {
+	if (!domain.organizationId) throw new Error("Domain organization is required");
+	const sendingDomain =
+		action === "enable"
+			? await ensureSendingDomain(env, domain.zoneId, domain.hostname)
+			: await findSendingDomain(env, domain.zoneId, domain.hostname);
+	const sendingEnabled = sendingDomain?.enabled ?? false;
+	const updated = {
+		...domain,
+		sendingEnabled,
+		sendingSubdomainTag: sendingDomain?.tag ?? null,
+		status: domain.routingEnabled || sendingEnabled ? ("active" as const) : ("pending" as const),
+	};
+
+	const db = getDb(env);
+	await db
+		.update(domains)
+		.set({
+			sendingEnabled: updated.sendingEnabled,
+			sendingSubdomainTag: updated.sendingSubdomainTag,
+			status: updated.status,
+		})
+		.where(and(eq(domains.id, domain.id), eq(domains.organizationId, domain.organizationId)));
+
+	return { domain: updated, dns: await getDomainDns(env, updated) };
 }
 
 export async function removeDomainForUser(
@@ -107,14 +139,6 @@ export async function removeDomainForUser(
 			await disableEmailRouting(env, domain.zoneId);
 		} catch (err) {
 			console.warn("disableEmailRouting", err);
-		}
-	}
-
-	if (domain.sendingSubdomainTag) {
-		try {
-			await deleteSendingSubdomain(env, domain.zoneId, domain.sendingSubdomainTag);
-		} catch (err) {
-			console.warn("deleteSendingSubdomain", err);
 		}
 	}
 

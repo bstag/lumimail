@@ -101,7 +101,10 @@ test.describe("canonical API client contracts", () => {
 			route.fulfill({
 				json: {
 					success: true,
-					data: { domain, dns: { routing: { records: [], missing: [] }, sending: [] } },
+					data: {
+						domain,
+						dns: { routing: { records: [], missing: [] }, sending: { enabled: false, records: [] } },
+					},
 				},
 			}),
 		);
@@ -110,7 +113,7 @@ test.describe("canonical API client contracts", () => {
 		await page.getByRole("button", { name: "DNS", exact: true }).click();
 
 		await expect(page.getByRole("heading", { name: "DNS — example.com" })).toBeVisible();
-		await expect(page.getByText('"records": []')).toBeVisible();
+		await expect(page.getByText('"enabled": false')).toBeVisible();
 	});
 
 	test("uploads selected attachments with the canonical send message id", async ({ page }) => {

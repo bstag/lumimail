@@ -257,4 +257,85 @@ describe("resolveInboundAddress", () => {
 			.queueSelect([]);
 		expect(await resolveInboundAddress(db, "a@example.com")).toBeNull();
 	});
+
+	it("uses exact-address rules before local-part rules and catch-all regardless of priority", async () => {
+		mock
+			.queueSelect([activeDomain])
+			.queueSelect([
+				{ id: "wild", pattern: "*", action: "reject", priority: 100 },
+				{ id: "local", pattern: "admin", action: "reject", priority: 50 },
+				{ id: "exact", pattern: "admin@example.com", action: "store", mailboxId: "mb_exact", priority: 1 },
+			])
+			.queueSelect([{ id: "mb_exact", userId: "u1", localPart: "admin", displayName: null }]);
+
+		expect(await resolveInboundAddress(db, "ADMIN@EXAMPLE.COM")).toMatchObject({
+			action: "store",
+			mailbox: { mailboxId: "mb_exact", domainId: "dom_1" },
+		});
+	});
+
+	it("uses a local-part rule before a higher-priority catch-all", async () => {
+		mock
+			.queueSelect([activeDomain])
+			.queueSelect([
+				{ id: "wild", pattern: "*", action: "reject", priority: 100 },
+				{ id: "local", pattern: "admin", action: "store", mailboxId: "mb_local", priority: 1 },
+			])
+			.queueSelect([{ id: "mb_local", userId: "u1", localPart: "admin", displayName: null }]);
+
+		expect(await resolveInboundAddress(db, "admin@example.com")).toMatchObject({
+			action: "store",
+			mailbox: { mailboxId: "mb_local" },
+		});
+	});
+
+	it("delivers to a direct mailbox before applying catch-all", async () => {
+		mock
+			.queueSelect([activeDomain])
+			.queueSelect([{ id: "wild", pattern: "*", action: "reject", priority: 100 }])
+			.queueSelect([{ id: "mb_direct", userId: "u1", localPart: "support", displayName: "Support" }]);
+
+		expect(await resolveInboundAddress(db, "support@example.com")).toMatchObject({
+			action: "store",
+			mailbox: { mailboxId: "mb_direct" },
+		});
+	});
+
+	it("applies catch-all only after confirming no direct mailbox exists", async () => {
+		mock
+			.queueSelect([activeDomain])
+			.queueSelect([{ id: "wild", pattern: "*", action: "store", mailboxId: "mb_catch", priority: 1 }])
+			.queueSelect([])
+			.queueSelect([{ id: "mb_catch", userId: "owner", localPart: "admin", displayName: null }]);
+
+		expect(await resolveInboundAddress(db, "unknown@example.com")).toMatchObject({
+			action: "store",
+			mailbox: { mailboxId: "mb_catch", userId: "owner" },
+		});
+	});
+
+	it("does not apply another domain's catch-all", async () => {
+		mock
+			.queueSelect([{ ...activeDomain, id: "dom_2", hostname: "second.test" }])
+			.queueSelect([])
+			.queueSelect([]);
+
+		expect(await resolveInboundAddress(db, "unknown@second.test")).toBeNull();
+	});
+
+	it("skips a store rule without a mailbox target and falls back to the direct mailbox", async () => {
+		mock
+			.queueSelect([activeDomain])
+			.queueSelect([{ id: "broken", pattern: "a", action: "store", mailboxId: null, priority: 1 }])
+			.queueSelect([{ id: "mb_direct", userId: "u1", localPart: "a", displayName: null }]);
+		expect(await resolveInboundAddress(db, "a@example.com")).toMatchObject({ mailbox: { mailboxId: "mb_direct" } });
+	});
+
+	it("skips non-catch-all rules after direct mailbox lookup and returns no match", async () => {
+		mock
+			.queueSelect([activeDomain])
+			.queueSelect([{ id: "other", pattern: "other", action: "reject", priority: 1 }])
+			.queueSelect([]);
+		expect(await resolveInboundAddress(db, "unknown@example.com")).toBeNull();
+	});
 });
