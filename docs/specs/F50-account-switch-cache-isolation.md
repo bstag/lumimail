@@ -1,6 +1,6 @@
 # F50 — Account-Switch Cache Isolation
 
-> Status: Implemented Locally — Deployment Pending
+> Status: Shipped
 > Remediation: security follow-up discovered during F47/F48 production validation
 
 ## 1. Problem
@@ -139,4 +139,12 @@ Impact:
 - `npx playwright test --workers=2` passed all 31 browser scenarios.
 - `npx opennextjs-cloudflare build` completed and generated `.open-next/worker.js`.
 
-Production deployment and a controlled no-hard-refresh account switch remain pending.
+### 2026-07-23 — Production deployment and controlled validation
+
+- Deployed commit `3467284` as Worker version `c34cd897-8d39-4364-a4ff-129d0413d4bc`.
+- Production smoke checks passed: `/` and `/login` returned `200`, and unauthenticated `/api/org/members` returned `401`.
+- A new invited user registered and reached an empty inbox with no mailbox memberships, as intended.
+- Without a hard refresh, that browser then logged out and signed in as the administrator.
+- The administrator's mailbox selector immediately showed both `admin@lucidkith.com` and `admin@henriksen.dev`; no stale restricted-account selector remained.
+
+F50 is production-validated and complete.
