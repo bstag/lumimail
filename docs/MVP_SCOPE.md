@@ -31,7 +31,7 @@ gates later in this document must also pass.
 | F04 | Mail folders: inbox, sent, drafts, spam, trash, starred | Shipped | [F04](specs/F04-mail-folders.md) | dashboard folders, `/api/messages*` | — |
 | F05 | Plain-text compose, provider send, drafts, attachment UI | Partially Shipped | [F05](specs/F05-compose-send.md) | `/compose`, `/api/send`, `/api/drafts*`, `/api/v1/send` | Attachments are uploaded after provider send and are not proven to be included in outbound MIME. |
 | F06 | API keys | Shipped | [F06](specs/F06-api-keys.md), [F44](specs/F44-api-key-lifecycle.md) | `/api-keys`, `/api/api-keys`, `/api/v1/send` | Keys are created with a one-time secret, lifecycle metadata is visible, and owner-scoped permanent revocation is enforced during authentication. |
-| F07 | Inbound routing rules and catch-all | Partially Shipped | [F46](specs/F46-domain-catch-all-routing.md) | `/routing`, `/api/routing-rules*` | Canonical per-domain rules, safe Cloudflare catch-all provisioning, and named-recipient precedence are deployed. Production mail-flow acceptance is pending because `lucidkith.com` already forwards its provider catch-all externally and `henriksen.dev` is not yet configured as a Lumimail inbound test domain. |
+| F07 | Inbound routing rules and catch-all | Shipped | [F46](specs/F46-domain-catch-all-routing.md) | `/routing`, `/api/routing-rules*` | Canonical per-domain rules, safe Cloudflare catch-all provisioning, and named-recipient precedence are deployed and production-verified with controlled exact/catch-all delivery across LucidKith and Henriksen. |
 | F08 | Webhooks | Shipped | Missing | `/webhooks`, `/api/webhooks*` | Payload/privacy behavior must be included in the production data-export audit. |
 | F09 | Settings and profile | Shipped | [F09](specs/F09-settings.md) | `/settings`, `/api/settings/profile` | — |
 | F10 | Seed/demo data | Shipped (development only) | Missing | `/api/seed` | Must not be exposed as a production capability. |
@@ -104,7 +104,7 @@ All of these must be checked before a general production launch:
 
 - [ ] Hostile HTML, links, and inline content are rendered without executable content or credential leakage.
 - [ ] A fresh D1 database and an upgraded production-like database both pass automated schema verification.
-- [ ] Exact-address and catch-all inbound delivery pass across at least two domains, including precedence and no-match cases.
+- [x] Exact-address and catch-all inbound delivery pass across at least two domains, including precedence and no-match cases.
 - [ ] Outbound, reply, drafts, and attachments reach controlled recipients with observable delivery/failure state.
 - [ ] Retried queue events cannot send duplicate mail, and terminal failures are recoverable.
 - [ ] Restricted users cannot enumerate, read, search, download from, or send as unauthorized mailboxes.

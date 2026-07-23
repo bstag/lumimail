@@ -153,8 +153,6 @@ Action invariants:
 
 ## 12. Open Questions
 
-- Production acceptance for `henriksen.dev` requires that domain to be added to Lumimail and a controlled recipient/target mailbox selected by the user. This does not block the deployed implementation.
-- `lucidkith.com` currently has an enabled Cloudflare catch-all that forwards externally. The operator must explicitly choose whether to retain that route or replace it with Lumimail; the application refuses automatic takeover.
 - Resource ownership metadata is not stored. Safe disable therefore depends on inspecting that the current provider action still targets the configured Lumimail Worker.
 
 ## 13. Bug / Change Log
@@ -185,6 +183,8 @@ Evidence:
 - Both Chromium catch-all scenarios pass; the repository's known development-server teardown issue leaves the outer command running after assertions.
 - OpenNext production build and Wrangler dry run pass.
 - Worker `3a99cabe-fbf6-4d1d-b5cb-5df76458b6c2` deployed with 49 ms startup; `/routing` returned HTTP 200 and unauthenticated rule creation returned 401.
-- Read-only provider inspection before and after deployment proves deployment did not change existing catch-all rules: LucidKith remains enabled with its external forward and Henriksen remains disabled/drop.
-- Read-only production D1 inspection shows one active domain (`lucidkith.com`) and no internal routing rules; `henriksen.dev` has not yet been added as a Lumimail inbound domain.
-- Status remains In Progress until the operator resolves the LucidKith provider conflict and controlled exact/catch-all/no-match delivery is exercised across both domains.
+- Deployment initially preserved both pre-existing provider states: LucidKith retained its external forward and Henriksen remained disabled/drop.
+- After explicit operator approval, LucidKith's provider catch-all was changed to the `lumimail` Worker and paired with exactly one canonical D1 `*`/`store` rule targeting its admin mailbox.
+- Henriksen's Migadu MX records were intentionally removed, Cloudflare Email Routing reached `ready`, the domain was added to Lumimail, and its provider catch-all and canonical D1 rule were configured to the `lumimail` Worker and Henriksen admin mailbox.
+- Controlled exact-address and deliberately nonexistent-recipient messages arrived in the intended admin mailbox on both domains. Production reads confirmed message metadata, stored bodies, raw R2 references, mailbox ownership, and `received` status without recording message content.
+- Status: Complete.

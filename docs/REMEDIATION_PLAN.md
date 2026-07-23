@@ -91,12 +91,12 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Acceptance: send a traced test message from the configured domain and record provider/DNS verification evidence without storing message content in this document.
   - Evidence 2026-07-22: 88 focused contracts, 936-test full verification at 100% configured coverage, three relevant Chromium scenarios, current Wrangler/API contract inspection, exact enabled provider/DNS status for both target apex domains, OpenNext build, Wrangler dry run, Worker `d82e393c-1abb-4f68-9719-284eb31c73af`, production D1 reconciliation, HTTP 200/401 smoke checks, and the user's prior controlled outbound-send confirmation.
 
-- [~] **R-08 Make catch-all syntax unambiguous.** Spec: [F46](./specs/F46-domain-catch-all-routing.md).
+- [x] **R-08 Make catch-all syntax unambiguous.** Spec: [F46](./specs/F46-domain-catch-all-routing.md).
   - Define whether the canonical catch-all is `*`, `*@domain`, or both.
   - Normalize accepted input or reject unsupported patterns.
   - Test exact address, local-part, catch-all, precedence, and no-match behavior across multiple domains.
   - Evidence 2026-07-22: implementation and provider-safety contracts pass in 985-test `npm run verify` at 100% configured coverage; both catch-all Chromium scenarios passed before the known Playwright server-teardown hang; OpenNext build and Wrangler dry run pass; Worker `3a99cabe-fbf6-4d1d-b5cb-5df76458b6c2` deployed with 49 ms startup; routing page returned HTTP 200 and unauthenticated POST returned 401.
-  - Production state 2026-07-22: read-only inspection before and after deploy confirms `lucidkith.com` remains enabled and forwarding externally while `henriksen.dev` remains disabled/drop. Production D1 currently contains only the active LucidKith domain and no internal routing rules. No provider rule was mutated by deployment. Controlled takeover, adding Henriksen as an inbound domain, and two-domain delivery remain required before completion.
+  - Production evidence 2026-07-22: after explicit operator approval, the LucidKith catch-all was moved from external forwarding to the `lumimail` Worker and a canonical internal `*`/`store` rule targeting its admin mailbox. Henriksen was then migrated from Migadu MX records to Cloudflare Email Routing, added to Lumimail, and configured with the same canonical catch-all shape. Provider and D1 reads confirmed one Worker-backed catch-all per domain. Controlled exact-address and deliberately nonexistent-recipient messages arrived in the intended admin mailbox on both domains without recording message content.
 
 - [ ] **R-09 Implement actual external forwarding or remove the claim.**
   - Current forwarding behavior only records/logs the action.
@@ -203,6 +203,7 @@ Add one entry per completed item. Do not record secrets, email contents, reset t
 | 2026-07-22 | R-21 | 28 focused tests, 904-test verification, 16 Playwright tests, build/dry run, Worker `e63887e2-a872-4fe9-8eb2-8d2282a05fef`, controlled recovery and login | Local + production | Passed |
 | 2026-07-22 | R-28 | 30 focused tests, 919-test verification at 100% configured coverage, 2 Chromium scenarios, build/dry run, migration `0009`, remote schema inspection, Worker `158f8558-5c94-4849-aceb-730e7e56fae5`, HTTP smoke checks, controlled UI revocation | Local + production | Passed |
 | 2026-07-22 | R-07 | 88 focused contracts, 936-test verification at 100% configured coverage, 3 Chromium scenarios, provider/DNS inspection, build/dry run, Worker `d82e393c-1abb-4f68-9719-284eb31c73af`, production reconciliation and smoke checks, prior controlled outbound send | Local + production | Passed |
+| 2026-07-22 | R-08 | 985-test verification at 100% configured coverage, 2 Chromium scenarios, build/dry run, Worker `3a99cabe-fbf6-4d1d-b5cb-5df76458b6c2`, provider/D1 inspection, and controlled exact/catch-all delivery across LucidKith and Henriksen | Local + production | Passed |
 
 ## Newly discovered work
 
