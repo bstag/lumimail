@@ -61,15 +61,15 @@ export function ProfileForm({ initialName, initialResetEmail, email }: ProfileFo
 					placeholder={t("recoveryPlaceholder")}
 				/>
 			</div>
-			<div className="space-y-1 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2">
+			<div className="space-y-1 rounded-md border border-border bg-surface-subtle px-3 py-2">
 				<Label>{t("accountEmail")}</Label>
-				<p className="text-sm text-neutral-700">{email}</p>
+				<p className="text-sm text-ink-muted">{email}</p>
 			</div>
 			<div className="flex items-center gap-3">
 				<Button type="submit" disabled={loading || !hasChanges}>
 					{loading ? t("saving") : t("save")}
 				</Button>
-				{status && <p className="text-sm text-neutral-500">{status}</p>}
+				{status && <p className="text-sm text-ink-muted">{status}</p>}
 			</div>
 		</form>
 	);

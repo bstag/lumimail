@@ -60,8 +60,8 @@ export function MessageActions({
 	const markAction: BulkMessageAction = read ? "unread" : "read";
 
 	return (
-		<div className="flex items-center gap-3 text-neutral-600">
-			{error && <span className="text-xs text-red-600">{error}</span>}
+		<div className="flex items-center gap-3 text-ink-muted">
+			{error && <span className="text-xs text-danger">{error}</span>}
 			<div className="flex items-center gap-2">
 				{canSend && (
 					<>
@@ -123,7 +123,7 @@ export function MessageActions({
 				</Tooltip>
 				<Tooltip label={t("moveMessage")}>
 					<select
-						className="h-8 rounded-lg border border-neutral-200 bg-white px-2 text-xs text-neutral-700"
+						className="h-8 rounded-lg border border-border bg-surface-raised px-2 text-xs text-ink-muted"
 						disabled={disabled}
 						defaultValue=""
 						aria-label={t("moveMessage")}
@@ -139,7 +139,7 @@ export function MessageActions({
 					</select>
 				</Tooltip>
 				<Tooltip label={t("moreActions")}>
-					<span aria-label={t("moreActions")} className="rounded-full p-1 text-neutral-400">
+					<span aria-label={t("moreActions")} className="rounded-full p-1 text-ink-faint">
 						<MoreVertical className="h-5 w-5" />
 					</span>
 				</Tooltip>

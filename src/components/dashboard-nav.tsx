@@ -54,10 +54,10 @@ export function DashboardNav({ className, onNavigate }: { className?: string; on
     <nav className={cn("flex flex-col gap-1 flex-1", className)}>
       <Link
         href="/inbox"
-        className="mb-3 flex h-10 items-center gap-3 px-3 text-neutral-600"
+        className="mb-3 flex h-10 items-center gap-3 px-3 text-ink-muted"
       >
         <img src="/icon-96.png" height={28} width={28} />
-        <span className="text-lg font-semibold text-neutral-800">{t("mail")}</span>
+        <span className="text-lg font-semibold text-ink">{t("mail")}</span>
       </Link>
       {linksWithCounts.map((link, i) => (
         <NavItem link={link} onNavigate={onNavigate} key={`nav-${link.href || i}`} />

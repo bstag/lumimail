@@ -41,8 +41,8 @@ function MessageListRow({ message, config, selected, onSelectedChange, onStarTog
 	const { openDraftComposer } = useCompose();
 	const unread = message.direction === "inbound" && !message.read;
 	const className =
-		`grid min-h-12 w-full grid-cols-[24px_32px_minmax(160px,240px)_1fr_auto_auto] items-center gap-3 px-6 text-left text-sm hover:relative hover:z-10 hover:bg-[#f2f6fc] hover:shadow-sm ${
-			selected ? "bg-blue-50" : ""
+		`grid min-h-12 w-full grid-cols-[24px_32px_minmax(160px,240px)_1fr_auto_auto] items-center gap-3 px-6 text-left text-sm hover:relative hover:z-10 hover:bg-surface-subtle hover:shadow-sm ${
+			selected ? "bg-accent-muted" : ""
 		}`;
 
 	function handleStarClick(event: React.MouseEvent) {
@@ -55,26 +55,26 @@ function MessageListRow({ message, config, selected, onSelectedChange, onStarTog
 		<button
 			type="button"
 			onClick={handleStarClick}
-			className="flex items-center justify-center p-1 rounded hover:bg-neutral-200"
+			className="flex items-center justify-center p-1 rounded hover:bg-surface-subtle"
 			aria-label={message.starred ? "Unstar" : "Star"}
 		>
 			<Star
-				className={`h-4 w-4 ${message.starred ? "fill-yellow-400 text-yellow-400" : "text-neutral-300"}`}
+				className={`h-4 w-4 ${message.starred ? "fill-warning text-warning" : "text-ink-faint"}`}
 			/>
 		</button>
 	);
 
 	const content = (
 		<>
-			<Icon className="h-4 w-4 text-neutral-300" />
+			<Icon className="h-4 w-4 text-ink-faint" />
 			<span className={getMessagePartyClassName(message, config.folder)}>
 				{getMessageParty(message, config.folder)}
 			</span>
-			<span className="truncate text-neutral-700">
-				<span className={unread ? "font-bold text-neutral-900" : ""}>
+			<span className="truncate text-ink-muted">
+				<span className={unread ? "font-bold text-ink" : ""}>
 					{message.subject ?? t("noSubject")}
 				</span>
-				<span className="text-neutral-500"> - {getMessagePreview(message, config.folder)}</span>
+				<span className="text-ink-muted"> - {getMessagePreview(message, config.folder)}</span>
 			</span>
 			{config.showRowBadge !== false && (
 				<Badge variant={config.badgeVariant ?? "secondary"}>
@@ -91,7 +91,7 @@ function MessageListRow({ message, config, selected, onSelectedChange, onStarTog
 					type="checkbox"
 					checked={selected}
 					onChange={(event) => onSelectedChange(message.id, event.target.checked)}
-					className="h-4 w-4 rounded border-neutral-300"
+					className="h-4 w-4 rounded border-border-strong"
 					aria-label={t("selectMessage")}
 				/>
 				<button type="button" className="contents text-left" onClick={() => openDraftComposer(message.id)}>
@@ -108,7 +108,7 @@ function MessageListRow({ message, config, selected, onSelectedChange, onStarTog
 				type="checkbox"
 				checked={selected}
 				onChange={(event) => onSelectedChange(message.id, event.target.checked)}
-				className="h-4 w-4 rounded border-neutral-300"
+				className="h-4 w-4 rounded border-border-strong"
 				aria-label={t("selectMessage")}
 			/>
 			<Link href={`${config.hrefPrefix}/${message.id}`} className="contents">
@@ -199,14 +199,14 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 	return (
 		<div className="flex h-full flex-col">
 			{labels.length > 0 && (
-				<div className="flex items-center gap-2 border-b border-neutral-100 px-6 py-2">
+				<div className="flex items-center gap-2 border-b border-border px-6 py-2">
 					<button
 						type="button"
 						onClick={() => setActiveLabelId(null)}
 						className={`rounded-full px-3 py-0.5 text-xs font-medium transition-colors ${
 							activeLabelId === null
-								? "bg-neutral-800 text-white"
-								: "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+								? "bg-surface-inverse text-ink-inverse"
+								: "bg-surface-subtle text-ink-muted hover:bg-surface-subtle"
 						}`}
 					>
 						All
@@ -218,8 +218,8 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 							onClick={() => setActiveLabelId(activeLabelId === label.id ? null : label.id)}
 							className={`flex items-center gap-1.5 rounded-full px-3 py-0.5 text-xs font-medium transition-colors ${
 								activeLabelId === label.id
-									? "bg-neutral-800 text-white"
-									: "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+									? "bg-surface-inverse text-ink-inverse"
+									: "bg-surface-subtle text-ink-muted hover:bg-surface-subtle"
 							}`}
 						>
 							<span
@@ -231,7 +231,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 					))}
 				</div>
 			)}
-			<div className="flex h-14 items-center justify-between border-b border-neutral-200 px-6">
+			<div className="flex h-14 items-center justify-between border-b border-border px-6">
 				<div className="flex items-center gap-3 w-full">
 					<Tooltip label={t("selectAll")}>
 						<input
@@ -239,7 +239,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 							checked={allVisibleSelected}
 							disabled={messages.length === 0}
 							onChange={(event) => toggleAllVisible(event.target.checked)}
-							className="h-4 w-4 rounded border-neutral-300"
+							className="h-4 w-4 rounded border-border-strong"
 							aria-label={t("selectAll")}
 						/>
 					</Tooltip>
@@ -256,8 +256,8 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 					)}
 				</div>
 				{selectedIds.length === 0 && (
-					<div className="flex items-center gap-2 text-neutral-500">
-						<span className="text-xs text-neutral-500 whitespace-nowrap">
+					<div className="flex items-center gap-2 text-ink-muted">
+						<span className="text-xs text-ink-muted whitespace-nowrap">
 							{t("pageRange", { start: pageRange.start, end: pageRange.end, total: pageRange.total })}
 						</span>
 						<Tooltip label={t("previousPage")}>
@@ -289,7 +289,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 				)}
 			</div>
 
-			<div className="divide-y divide-neutral-100">
+			<div className="divide-y divide-border">
 				{messages.map((message) => (
 					<MessageListRow
 						key={message.id}
@@ -300,9 +300,9 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 						onStarToggle={handleStarToggle}
 					/>
 				))}
-				{isLoading && <p className="px-6 py-4 text-sm text-neutral-500">{t("loading")}</p>}
+				{isLoading && <p className="px-6 py-4 text-sm text-ink-muted">{t("loading")}</p>}
 				{!isLoading && messages.length === 0 && (
-					<p className="px-6 py-4 text-sm text-neutral-500">
+					<p className="px-6 py-4 text-sm text-ink-muted">
 						{hasActiveFilters ? t("noMessagesFilter") : config.emptyText}
 					</p>
 				)}

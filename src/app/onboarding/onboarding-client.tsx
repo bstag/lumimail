@@ -73,7 +73,7 @@ export function OnboardingClient() {
 				{ label: t("mailbox"), active: step === 2 },
 			]}
 			footer={
-				<span className="inline-flex items-center gap-2 text-neutral-500">
+				<span className="inline-flex items-center gap-2 text-ink-muted">
 					{t("setupFooter")}
 					<ArrowRight className="h-4 w-4" />
 				</span>
@@ -82,7 +82,7 @@ export function OnboardingClient() {
 			<div className="space-y-5">
 				{step === 1 && (
 					<>
-						<p className="rounded-2xl bg-[#eaf1fb] px-4 py-3 text-sm leading-6 text-neutral-700">
+						<p className="rounded-2xl bg-surface-subtle px-4 py-3 text-sm leading-6 text-ink-muted">
 							{t("dnsInfo")}
 						</p>
 						<div className="space-y-2">
@@ -114,7 +114,7 @@ export function OnboardingClient() {
 									onChange={(e) => setLocalPart(e.target.value)}
 									className="min-w-0"
 								/>
-								<span className="max-w-36 truncate text-sm font-medium text-neutral-500">@{hostname}</span>
+								<span className="max-w-36 truncate text-sm font-medium text-ink-muted">@{hostname}</span>
 							</div>
 						</div>
 						<Button
@@ -127,7 +127,7 @@ export function OnboardingClient() {
 					</>
 				)}
 				{error && (
-					<p className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+					<p className="rounded-2xl border border-danger/30 bg-danger-muted px-4 py-3 text-sm font-medium text-danger">
 						{error}
 					</p>
 				)}

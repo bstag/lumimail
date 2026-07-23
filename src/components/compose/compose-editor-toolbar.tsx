@@ -156,7 +156,7 @@ export function ComposeEditorToolbar({ editor }: { editor: Editor | null }) {
   const buttons = buildButtons(editor, labels);
 
   return (
-    <div className="flex flex-wrap items-center gap-0.5 border-b border-neutral-100 px-2 py-0.5">
+    <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-2 py-0.5">
       {buttons.map((btn) => (
         <Button
           key={btn.key}

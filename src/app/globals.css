@@ -13,7 +13,15 @@
 	--accent: #2563eb;
 	--accent-muted: #dbeafe;
 	--danger: #dc2626;
+	--danger-muted: #fef2f2;
 	--success: #16a34a;
+	--success-muted: #f0fdf4;
+	--warning: #d97706;
+	--warning-muted: #fffbeb;
+	--info: #7c3aed;
+	--info-muted: #f5f3ff;
+	--surface-inverse: #26262b;
+	--ink-inverse: #fafaf8;
 }
 
 /* Dark mode — system preference only, no manual toggle */
@@ -30,7 +38,15 @@
 		--accent: #3b82f6;
 		--accent-muted: #1e3a5f;
 		--danger: #ef4444;
+		--danger-muted: #3a1d1d;
 		--success: #22c55e;
+		--success-muted: #153021;
+		--warning: #f59e0b;
+		--warning-muted: #37290f;
+		--info: #a78bfa;
+		--info-muted: #2a2145;
+		--surface-inverse: #e8e8e4;
+		--ink-inverse: #1a1a18;
 	}
 }
 
@@ -47,7 +63,15 @@
 	--color-accent: var(--accent);
 	--color-accent-muted: var(--accent-muted);
 	--color-danger: var(--danger);
+	--color-danger-muted: var(--danger-muted);
 	--color-success: var(--success);
+	--color-success-muted: var(--success-muted);
+	--color-warning: var(--warning);
+	--color-warning-muted: var(--warning-muted);
+	--color-info: var(--info);
+	--color-info-muted: var(--info-muted);
+	--color-surface-inverse: var(--surface-inverse);
+	--color-ink-inverse: var(--ink-inverse);
 	--font-sans: var(--font-geist-sans);
 	--font-mono: var(--font-geist-mono);
 }

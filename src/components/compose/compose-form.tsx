@@ -255,8 +255,8 @@ export function ComposeForm({
 
 	const frameClass =
 		mode === "popup"
-			? "fixed bottom-4 right-4 z-40 flex h-[min(520px,calc(100vh-88px))] w-[min(560px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-2xl"
-			: "flex h-full min-h-[720px] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm";
+			? "fixed bottom-4 right-4 z-40 flex h-[min(520px,calc(100vh-88px))] w-[min(560px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg border border-border bg-surface-raised shadow-2xl"
+			: "flex h-full min-h-[720px] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-surface-raised shadow-sm";
 
 	const isSending = loading || uploadingAttachments;
 
@@ -266,17 +266,17 @@ export function ComposeForm({
 				<div
 					className={cn(
 						"fixed right-6 top-6 z-50 rounded-lg px-4 py-3 text-sm font-medium shadow-lg",
-						toast.type === "success" ? "bg-green-600 text-white" : "bg-red-600 text-white",
+						toast.type === "success" ? "bg-success text-white" : "bg-danger text-white",
 					)}
 				>
 					{toast.message}
 				</div>
 			)}
 			<form onSubmit={onSubmit} className={frameClass}>
-				<div className="flex h-9 items-center justify-between bg-neutral-800 px-4 text-sm font-medium text-white">
+				<div className="flex h-9 items-center justify-between bg-surface-inverse px-4 text-sm font-medium text-ink-inverse">
 					<span>{loadingDraft ? t("loadingDraft") : draftId ? t("draftSaved") : t("newMessage")}</span>
 					{mode === "popup" && (
-						<div className="flex items-center gap-3 text-neutral-300">
+						<div className="flex items-center gap-3 text-ink-faint">
 							<Minimize2 className="h-4 w-4" />
 							<button type="button" onClick={onClose}>
 								<X className="h-4 w-4" />
@@ -284,7 +284,7 @@ export function ComposeForm({
 						</div>
 					)}
 				</div>
-				<div className="border-b border-neutral-100 px-4 py-1">
+				<div className="border-b border-border px-4 py-1">
 					<Label htmlFor={`${mode}-from`} className="sr-only">{t("from")}</Label>
 					<Input
 						id={`${mode}-from`}
@@ -295,7 +295,7 @@ export function ComposeForm({
 						className="h-8 border-0 px-0 py-1 shadow-none focus-visible:ring-0"
 					/>
 				</div>
-				<div className="border-b border-neutral-100 px-4 py-1">
+				<div className="border-b border-border px-4 py-1">
 					<Label htmlFor={`${mode}-to`} className="sr-only">{t("to")}</Label>
 					<Input
 						id={`${mode}-to`}
@@ -308,7 +308,7 @@ export function ComposeForm({
 						className="h-8 border-0 px-0 py-1 shadow-none focus-visible:ring-0"
 					/>
 				</div>
-				<div className="border-b border-neutral-100 px-4 py-1">
+				<div className="border-b border-border px-4 py-1">
 					<Label htmlFor={`${mode}-subject`} className="sr-only">{t("subject")}</Label>
 					<Input
 						id={`${mode}-subject`}
@@ -332,19 +332,19 @@ export function ComposeForm({
 					/>
 				</div>
 				{attachedFiles.length > 0 && (
-					<div className="border-t border-neutral-100 px-4 py-2 flex flex-wrap gap-2">
+					<div className="border-t border-border px-4 py-2 flex flex-wrap gap-2">
 						{attachedFiles.map((attached) => (
 							<div
 								key={attached.id}
-								className="flex items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs text-neutral-700"
+								className="flex items-center gap-1.5 rounded-md border border-border bg-surface-subtle px-2 py-1 text-xs text-ink-muted"
 							>
-								<Paperclip className="h-3 w-3 text-neutral-400 flex-shrink-0" />
+								<Paperclip className="h-3 w-3 text-ink-faint flex-shrink-0" />
 								<span className="max-w-[160px] truncate">{attached.file.name}</span>
-								<span className="text-neutral-400">{formatFileSize(attached.file.size)}</span>
+								<span className="text-ink-faint">{formatFileSize(attached.file.size)}</span>
 								<button
 									type="button"
 									onClick={() => removeAttachment(attached.id)}
-									className="ml-0.5 rounded-full p-0.5 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-600"
+									className="ml-0.5 rounded-full p-0.5 text-ink-faint hover:bg-surface-subtle hover:text-ink-muted"
 									aria-label={`Remove ${attached.file.name}`}
 								>
 									<X className="h-3 w-3" />
@@ -353,7 +353,7 @@ export function ComposeForm({
 						))}
 					</div>
 				)}
-				<div className="flex items-center gap-3 border-t border-neutral-100 px-4 py-3">
+				<div className="flex items-center gap-3 border-t border-border px-4 py-3">
 					<input
 						ref={fileInputRef}
 						type="file"
@@ -366,13 +366,13 @@ export function ComposeForm({
 						type="button"
 						onClick={() => fileInputRef.current?.click()}
 						disabled={isSending || loadingDraft}
-						className="rounded-full p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-40"
+						className="rounded-full p-2 text-ink-muted hover:bg-surface-subtle hover:text-ink-muted disabled:opacity-40"
 						title="Attach files"
 					>
 						<Paperclip className="h-4 w-4" />
 					</button>
 					<span className="flex-1" />
-					<p className="text-xs text-neutral-500">
+					<p className="text-xs text-ink-muted">
 						{uploadingAttachments
 							? "Uploading attachments…"
 							: draftId

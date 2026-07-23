@@ -49,11 +49,11 @@ export function ResetPasswordClient() {
 			footer={<Link href="/login" className="hover:underline">Back to sign in</Link>}
 		>
 			{!validLink ? (
-				<p role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+				<p role="alert" className="rounded-2xl border border-danger/30 bg-danger-muted px-4 py-3 text-sm font-medium text-danger">
 					This reset link is incomplete or invalid. Request a new link and try again.
 				</p>
 			) : complete ? (
-				<div className="rounded-2xl border border-green-100 bg-green-50 px-4 py-4 text-sm text-green-800">
+				<div className="rounded-2xl border border-success/30 bg-success-muted px-4 py-4 text-sm text-success">
 					<p className="font-semibold">Password reset complete</p>
 					<p className="mt-1">You can now sign in with your new password.</p>
 				</div>
@@ -68,7 +68,7 @@ export function ResetPasswordClient() {
 						<Input id="confirmPassword" name="confirmPassword" type="password" minLength={8} autoComplete="new-password" required />
 					</div>
 					{error && (
-						<p role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+						<p role="alert" className="rounded-2xl border border-danger/30 bg-danger-muted px-4 py-3 text-sm font-medium text-danger">
 							{error}
 						</p>
 					)}

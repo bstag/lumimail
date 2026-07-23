@@ -16,13 +16,13 @@ export default function ErrorPage({
   return (
     <div className="flex min-h-[50vh] items-center justify-center p-8">
       <div className="text-center max-w-md">
-        <h2 className="text-lg font-semibold text-neutral-900">Something went wrong</h2>
-        <p className="mt-2 text-sm text-neutral-500">
+        <h2 className="text-lg font-semibold text-ink">Something went wrong</h2>
+        <p className="mt-2 text-sm text-ink-muted">
           {error.message || "An unexpected error occurred."}
         </p>
         <button
           onClick={reset}
-          className="mt-4 rounded-full bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="mt-4 rounded-full bg-accent px-5 py-2 text-sm font-medium text-white hover:brightness-90"
         >
           Try again
         </button>

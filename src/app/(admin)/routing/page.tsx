@@ -107,7 +107,7 @@ export default function RoutingPage() {
 	return (
 		<div className="space-y-6 max-w-2xl">
 			<h1 className="text-2xl font-semibold">Routing rules</h1>
-			<p className="text-sm text-neutral-500">
+			<p className="text-sm text-ink-muted">
 				Named addresses are matched before real mailboxes; catch-all runs only for otherwise unmatched addresses. Priority applies within each match type.
 			</p>
 
@@ -121,7 +121,7 @@ export default function RoutingPage() {
 							<Label htmlFor="routing-domain">Domain</Label>
 							<select
 								id="routing-domain"
-								className="w-full h-10 rounded-md border border-neutral-200 px-3 text-sm"
+								className="w-full h-10 rounded-md border border-border px-3 text-sm"
 								value={domainId}
 								onChange={(e) => { setDomainId(e.target.value); setMailboxId(""); }}
 							>
@@ -141,7 +141,7 @@ export default function RoutingPage() {
 							/>
 						</div>
 					</div>
-					<p className="text-xs text-neutral-500">
+					<p className="text-xs text-ink-muted">
 						Use <span className="font-mono">*</span> for all otherwise unmatched addresses on the selected domain. Adding it enables that domain&apos;s Cloudflare catch-all for Lumimail.
 					</p>
 					<div className="grid grid-cols-2 gap-4">
@@ -149,7 +149,7 @@ export default function RoutingPage() {
 							<Label htmlFor="routing-action">Action</Label>
 							<select
 								id="routing-action"
-								className="w-full h-10 rounded-md border border-neutral-200 px-3 text-sm"
+								className="w-full h-10 rounded-md border border-border px-3 text-sm"
 								value={action}
 								onChange={(e) => setAction(e.target.value as "store" | "forward" | "reject")}
 							>
@@ -174,7 +174,7 @@ export default function RoutingPage() {
 							<Label htmlFor="routing-mailbox">Target mailbox</Label>
 							<select
 								id="routing-mailbox"
-								className="w-full h-10 rounded-md border border-neutral-200 px-3 text-sm"
+								className="w-full h-10 rounded-md border border-border px-3 text-sm"
 								value={mailboxId}
 								onChange={(e) => setMailboxId(e.target.value)}
 							>
@@ -209,10 +209,10 @@ export default function RoutingPage() {
 						{isCatchAllInput ? "Enable catch-all and add rule" : "Add rule"}
 					</Button>
 					{create.isError && (
-						<p className="text-sm text-red-600">{create.error instanceof Error ? create.error.message : "Failed to create rule"}</p>
+						<p className="text-sm text-danger">{create.error instanceof Error ? create.error.message : "Failed to create rule"}</p>
 					)}
 					{remove.isError && (
-						<p className="text-sm text-red-600">{remove.error instanceof Error ? remove.error.message : "Failed to remove rule"}</p>
+						<p className="text-sm text-danger">{remove.error instanceof Error ? remove.error.message : "Failed to remove rule"}</p>
 					)}
 				</CardContent>
 			</Card>
@@ -223,21 +223,21 @@ export default function RoutingPage() {
 				</CardHeader>
 				<CardContent>
 					{(rules.data?.rules ?? []).length === 0 ? (
-						<p className="text-sm text-neutral-400">No routing rules yet.</p>
+						<p className="text-sm text-ink-faint">No routing rules yet.</p>
 					) : (
-						<ul className="divide-y divide-neutral-100">
+						<ul className="divide-y divide-border">
 							{sortRoutingRules(rules.data?.rules ?? [])
 								.map((r) => (
 									<li key={r.id} className="flex items-center justify-between py-3">
 										<div className="flex items-center gap-3 text-sm">
-											<GitBranch className="h-4 w-4 text-neutral-400" />
+											<GitBranch className="h-4 w-4 text-ink-faint" />
 											<div>
 												<div className="font-medium">
 													<span className="font-mono">{r.pattern}</span>
 													{" "}on{" "}
 													<span className="font-mono">{domainHostname(r.domainId)}</span>
 												</div>
-												<div className="text-xs text-neutral-500">
+												<div className="text-xs text-ink-muted">
 													{actionLabel(r)} · priority {r.priority}
 												</div>
 											</div>
@@ -246,7 +246,7 @@ export default function RoutingPage() {
 											variant="ghost"
 											size="sm"
 											onClick={() => remove.mutate(r.id)}
-											className="text-red-500 hover:text-red-700"
+											className="text-danger hover:text-danger"
 											aria-label={`Remove ${r.pattern} rule for ${domainHostname(r.domainId)}`}
 										>
 											<Trash2 className="h-4 w-4" />

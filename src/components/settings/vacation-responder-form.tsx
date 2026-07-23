@@ -86,7 +86,7 @@ export function VacationResponderForm() {
 						<div className="space-y-2">
 							<Label>Message</Label>
 							<textarea
-								className="w-full min-h-[100px] rounded-md border border-neutral-200 px-3 py-2 text-sm resize-y"
+								className="w-full min-h-[100px] rounded-md border border-border px-3 py-2 text-sm resize-y"
 								value={body}
 								onChange={(e) => setBody(e.target.value)}
 							/>

@@ -11,12 +11,12 @@ export default function SettingsPage() {
 			<CurrentMailboxForm />
 			<VacationResponderForm />
 			<ChangePasswordForm />
-			<section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-5">
+			<section className="space-y-3 rounded-lg border border-border bg-surface-raised p-5">
 				<div className="flex items-center gap-2">
-					<KeyRound className="h-5 w-5 text-neutral-600" />
-					<h2 className="text-lg font-semibold text-neutral-900">Personal API keys</h2>
+					<KeyRound className="h-5 w-5 text-ink-muted" />
+					<h2 className="text-lg font-semibold text-ink">Personal API keys</h2>
 				</div>
-				<p className="text-sm text-neutral-600">
+				<p className="text-sm text-ink-muted">
 					Create or revoke your own API keys for mail clients and integrations. A key can use only
 					the mailboxes assigned to your account.
 				</p>

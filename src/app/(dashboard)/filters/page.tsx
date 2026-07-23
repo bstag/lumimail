@@ -89,8 +89,8 @@ export default function FiltersPage() {
 
 	return (
 		<div className="space-y-6 max-w-2xl">
-			<h1 className="text-2xl font-normal text-neutral-900">Filters</h1>
-			<p className="text-sm text-neutral-500">
+			<h1 className="text-2xl font-normal text-ink">Filters</h1>
+			<p className="text-sm text-ink-muted">
 				Filters automatically apply actions to incoming messages that match your conditions.
 			</p>
 
@@ -103,7 +103,7 @@ export default function FiltersPage() {
 						<Label>Filter name</Label>
 						<Input placeholder="e.g. Newsletter auto-archive" value={name} onChange={(e) => setName(e.target.value)} />
 					</div>
-					<div className="text-sm font-medium text-neutral-700 mt-2">Conditions (messages matching any)</div>
+					<div className="text-sm font-medium text-ink-muted mt-2">Conditions (messages matching any)</div>
 					<div className="grid grid-cols-2 gap-4">
 						<div className="space-y-2">
 							<Label>From contains</Label>
@@ -114,7 +114,7 @@ export default function FiltersPage() {
 							<Input placeholder="unsubscribe" value={subjectContains} onChange={(e) => setSubjectContains(e.target.value)} />
 						</div>
 					</div>
-					<div className="text-sm font-medium text-neutral-700 mt-2">Actions</div>
+					<div className="text-sm font-medium text-ink-muted mt-2">Actions</div>
 					<div className="space-y-2">
 						{[
 							{ label: "Star it", checked: actionStar, onChange: setActionStar },
@@ -135,7 +135,7 @@ export default function FiltersPage() {
 						<div className="space-y-2">
 							<Label>Apply label</Label>
 							<select
-								className="w-full h-10 rounded-md border border-neutral-200 px-3 text-sm"
+								className="w-full h-10 rounded-md border border-border px-3 text-sm"
 								value={actionLabelId}
 								onChange={(e) => setActionLabelId(e.target.value)}
 							>
@@ -159,21 +159,21 @@ export default function FiltersPage() {
 				</CardHeader>
 				<CardContent>
 					{(filters.data ?? []).length === 0 ? (
-						<p className="text-sm text-neutral-400">No filters yet.</p>
+						<p className="text-sm text-ink-faint">No filters yet.</p>
 					) : (
-						<ul className="divide-y divide-neutral-100">
+						<ul className="divide-y divide-border">
 							{(filters.data ?? []).map((f) => {
 								const { conds, acts } = describeFilter(f);
 								return (
 									<li key={f.id} className="flex items-start justify-between py-3 gap-4">
 										<div className="flex items-start gap-3 text-sm min-w-0">
-											<Filter className="h-4 w-4 text-neutral-400 mt-0.5 shrink-0" />
+											<Filter className="h-4 w-4 text-ink-faint mt-0.5 shrink-0" />
 											<div className="min-w-0">
 												<div className="font-medium">{f.name}</div>
-												<div className="text-xs text-neutral-500 mt-1">
+												<div className="text-xs text-ink-muted mt-1">
 													{conds.length > 0 ? `If: ${conds.join(", ")}` : "Always matches"}
 												</div>
-												<div className="text-xs text-neutral-500">
+												<div className="text-xs text-ink-muted">
 													Then: {acts.length > 0 ? acts.join(", ") : "no action"}
 												</div>
 											</div>
@@ -182,7 +182,7 @@ export default function FiltersPage() {
 											variant="ghost"
 											size="sm"
 											onClick={() => remove.mutate(f.id)}
-											className="text-red-500 hover:text-red-700 shrink-0"
+											className="text-danger hover:text-danger shrink-0"
 										>
 											<Trash2 className="h-4 w-4" />
 										</Button>

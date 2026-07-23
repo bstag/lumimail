@@ -111,10 +111,10 @@ export default function MailboxSettingsPage() {
 
 			<div className="flex items-start justify-between gap-4">
 				<div className="min-w-0">
-					<h1 className="truncate text-2xl font-semibold text-neutral-900">
+					<h1 className="truncate text-2xl font-semibold text-ink">
 						{mailbox.data?.displayName || mailbox.data?.localPart || "Mailbox"}
 					</h1>
-					<p className="mt-1 truncate font-mono text-sm text-neutral-500">
+					<p className="mt-1 truncate font-mono text-sm text-ink-muted">
 						{address || "Loading mailbox..."}
 					</p>
 				</div>
@@ -122,7 +122,7 @@ export default function MailboxSettingsPage() {
 			</div>
 
 			{mailbox.isError && (
-				<p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+				<p className="rounded-lg border border-danger/30 bg-danger-muted px-4 py-3 text-sm text-danger">
 					{mailbox.error instanceof Error ? mailbox.error.message : "Failed to load mailbox"}
 				</p>
 			)}
@@ -146,14 +146,14 @@ export default function MailboxSettingsPage() {
 						/>
 					</div>
 					{updateName.isError && (
-						<p className="text-sm text-red-600">
+						<p className="text-sm text-danger">
 							{updateName.error instanceof Error
 								? updateName.error.message
 								: "Failed to update mailbox"}
 						</p>
 					)}
 					{updateName.isSuccess && (
-						<p className="text-sm text-green-700">Mailbox settings saved</p>
+						<p className="text-sm text-success">Mailbox settings saved</p>
 					)}
 					<Button
 						onClick={() => updateName.mutate()}
@@ -178,7 +178,7 @@ export default function MailboxSettingsPage() {
 							<select
 								value={newMemberId}
 								onChange={(event) => setNewMemberId(event.target.value)}
-								className="h-10 rounded-md border border-neutral-200 bg-white px-3 text-sm"
+								className="h-10 rounded-md border border-border bg-surface-raised px-3 text-sm"
 							>
 								<option value="">Select workspace member</option>
 								{availableMembers.map((member) => (
@@ -188,7 +188,7 @@ export default function MailboxSettingsPage() {
 							<select
 								value={newMemberRole}
 								onChange={(event) => setNewMemberRole(event.target.value as MailboxRole)}
-								className="h-10 rounded-md border border-neutral-200 bg-white px-3 text-sm"
+								className="h-10 rounded-md border border-border bg-surface-raised px-3 text-sm"
 							>
 								<option value="viewer">Viewer</option>
 								<option value="responder">Responder</option>
@@ -199,24 +199,24 @@ export default function MailboxSettingsPage() {
 							</Button>
 						</div>
 
-						{members.isLoading && <p className="text-sm text-neutral-500">Loading mailbox access…</p>}
+						{members.isLoading && <p className="text-sm text-ink-muted">Loading mailbox access…</p>}
 						{(members.error || addMember.error || changeMemberRole.error || removeMember.error) && (
-							<p className="text-sm text-red-600">
+							<p className="text-sm text-danger">
 								{(members.error ?? addMember.error ?? changeMemberRole.error ?? removeMember.error)?.message}
 							</p>
 						)}
-						<div className="divide-y divide-neutral-100 rounded-md border border-neutral-200">
+						<div className="divide-y divide-border rounded-md border border-border">
 							{(members.data?.members ?? []).map((member) => (
 								<div key={member.id} className="flex items-center justify-between gap-3 px-3 py-3">
 									<div className="min-w-0">
-										<p className="truncate text-sm font-medium text-neutral-900">{member.name}</p>
-										<p className="truncate text-xs text-neutral-500">{member.email}</p>
+										<p className="truncate text-sm font-medium text-ink">{member.name}</p>
+										<p className="truncate text-xs text-ink-muted">{member.email}</p>
 									</div>
 									<div className="flex items-center gap-2">
 										<select
 											value={member.role}
 											onChange={(event) => changeMemberRole.mutate({ membershipId: member.id, role: event.target.value as MailboxRole })}
-											className="h-8 rounded-md border border-neutral-200 bg-white px-2 text-xs"
+											className="h-8 rounded-md border border-border bg-surface-raised px-2 text-xs"
 										>
 											<option value="viewer">Viewer</option>
 											<option value="responder">Responder</option>
@@ -249,34 +249,34 @@ export default function MailboxSettingsPage() {
 				</CardHeader>
 				<CardContent className="grid gap-4 sm:grid-cols-2">
 					<div className="space-y-1">
-						<p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Email</p>
-						<p className="truncate font-mono text-sm text-neutral-900">{address || "-"}</p>
+						<p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Email</p>
+						<p className="truncate font-mono text-sm text-ink">{address || "-"}</p>
 					</div>
 					<div className="space-y-1">
-						<p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Username</p>
-						<p className="truncate font-mono text-sm text-neutral-900">
+						<p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Username</p>
+						<p className="truncate font-mono text-sm text-ink">
 							{mailbox.data?.localPart ?? "-"}
 						</p>
 					</div>
 					<div className="space-y-1">
-						<p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Domain</p>
-						<p className="truncate font-mono text-sm text-neutral-900">
+						<p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Domain</p>
+						<p className="truncate font-mono text-sm text-ink">
 							{mailbox.data?.hostname ?? "-"}
 						</p>
 					</div>
 					<div className="space-y-1">
-						<p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Routing</p>
-						<p className="flex items-center gap-2 text-sm text-neutral-900">
-							<Mail className="h-4 w-4 text-neutral-400" />
+						<p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Routing</p>
+						<p className="flex items-center gap-2 text-sm text-ink">
+							<Mail className="h-4 w-4 text-ink-faint" />
 							Cloudflare Email Routing
 						</p>
 					</div>
 				</CardContent>
 			</Card>
 
-			<Card className="border-red-200">
+			<Card className="border-danger/30">
 				<CardHeader>
-					<CardTitle className="text-red-700">Delete mailbox</CardTitle>
+					<CardTitle className="text-danger">Delete mailbox</CardTitle>
 					<CardDescription>
 						This permanently removes the mailbox and its stored data. Type the full
 						mailbox address to confirm.
@@ -294,7 +294,7 @@ export default function MailboxSettingsPage() {
 						/>
 					</div>
 					{removeMailbox.isError && (
-						<p className="text-sm text-red-600">
+						<p className="text-sm text-danger">
 							{removeMailbox.error instanceof Error
 								? removeMailbox.error.message
 								: "Failed to delete mailbox"}

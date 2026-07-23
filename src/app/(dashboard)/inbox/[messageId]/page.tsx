@@ -61,35 +61,35 @@ function ThreadItem({
 
 	return (
 		<div
-			className={`border border-neutral-200 rounded-lg overflow-hidden transition-all duration-200 ${isCurrent ? "ring-2 ring-neutral-300" : ""}`}
+			className={`border border-border rounded-lg overflow-hidden transition-all duration-200 ${isCurrent ? "ring-2 ring-border-strong" : ""}`}
 		>
 			<button
 				type="button"
 				onClick={onToggle}
-				className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-neutral-50 transition-colors"
+				className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-surface-subtle transition-colors"
 			>
 				<div className="flex items-center gap-3 min-w-0">
-					<div className="flex-shrink-0 w-8 h-8 rounded-full bg-neutral-200 flex items-center justify-center text-xs font-medium text-neutral-600">
+					<div className="flex-shrink-0 w-8 h-8 rounded-full bg-surface-subtle flex items-center justify-center text-xs font-medium text-ink-muted">
 						{(fromName || fromAddress).slice(0, 1).toUpperCase()}
 					</div>
 					<div className="min-w-0">
-						<p className="text-sm font-medium text-neutral-900 truncate">
+						<p className="text-sm font-medium text-ink truncate">
 							{fromName || fromAddress}
 							{fromName && (
-								<span className="ml-1 font-normal text-neutral-500">&lt;{fromAddress}&gt;</span>
+								<span className="ml-1 font-normal text-ink-muted">&lt;{fromAddress}&gt;</span>
 							)}
 						</p>
 						{!isExpanded && (
-							<p className="text-xs text-neutral-500 truncate">{msg.snippet ?? ""}</p>
+							<p className="text-xs text-ink-muted truncate">{msg.snippet ?? ""}</p>
 						)}
 					</div>
 				</div>
 				<div className="flex items-center gap-3 flex-shrink-0 ml-4">
-					<span className="text-xs text-neutral-400">
+					<span className="text-xs text-ink-faint">
 						{dayjs(msg.createdAt).format("MMM DD, hh:mmA")}
 					</span>
 					<ChevronDown
-						className={`h-4 w-4 text-neutral-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+						className={`h-4 w-4 text-ink-faint transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
 					/>
 				</div>
 			</button>
@@ -97,8 +97,8 @@ function ThreadItem({
 			<div
 				className={`transition-all duration-200 ease-in-out ${isExpanded ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"}`}
 			>
-				<div className="px-4 pb-4 pt-0 border-t border-neutral-100">
-					<div className="prose max-w-none text-neutral-900 mt-3">
+				<div className="px-4 pb-4 pt-0 border-t border-border">
+					<div className="prose max-w-none text-ink mt-3">
 						{bodyDisplay.htmlBody ? (
 							<div
 								dangerouslySetInnerHTML={{
@@ -111,9 +111,9 @@ function ThreadItem({
 						{bodyDisplay.quotedContent.map((quotedContent) => (
 							<blockquote
 								key={`${quotedContent.dateLine}-${quotedContent.content.slice(0, 24)}`}
-								className="mt-4 border-l-2 border-neutral-300 pl-4 text-neutral-500"
+								className="mt-4 border-l-2 border-border-strong pl-4 text-ink-muted"
 							>
-								<p className="mb-2 text-xs font-medium text-neutral-400">
+								<p className="mb-2 text-xs font-medium text-ink-faint">
 									{quotedContent.dateLine}
 								</p>
 								<pre className="whitespace-pre-wrap text-sm font-sans">
@@ -183,11 +183,11 @@ export default function MessageDetailPage() {
 	}
 
 	if (loading) {
-		return <p className="px-6 py-4 text-sm text-neutral-500">{t("loading")}</p>;
+		return <p className="px-6 py-4 text-sm text-ink-muted">{t("loading")}</p>;
 	}
 
 	if (!data?.message) {
-		return <p className="px-6 py-4 text-sm text-neutral-500">{data?.error ?? t("messageNotFound")}</p>;
+		return <p className="px-6 py-4 text-sm text-ink-muted">{data?.error ?? t("messageNotFound")}</p>;
 	}
 
 	const { message, body } = data;
@@ -208,7 +208,7 @@ export default function MessageDetailPage() {
 				<div className="flex items-center flex-row gap-6">
 					<Link
 						href={getMessageBackHref(message.direction, message.status)}
-						className="rounded-full p-2 text-neutral-600 hover:bg-neutral-100"
+						className="rounded-full p-2 text-ink-muted hover:bg-surface-subtle"
 					>
 						<ArrowLeft className="h-5 w-5" />
 					</Link>
@@ -225,13 +225,13 @@ export default function MessageDetailPage() {
 				/>
 			</div>
 			<article className="px-6">
-				<h1 className="text-2xl text-neutral-900 mb-4">
+				<h1 className="text-2xl text-ink mb-4">
 					{message.subject ?? t("noSubject")}
 				</h1>
 
 				{showThread ? (
 					<div className="flex flex-col gap-2 mb-4">
-						<p className="text-xs text-neutral-400 mb-1">
+						<p className="text-xs text-ink-faint mb-1">
 							{threadMessages.length} messages in thread
 						</p>
 						{threadMessages.map((msg) => (
@@ -246,20 +246,20 @@ export default function MessageDetailPage() {
 					</div>
 				) : (
 					<>
-						<div className="mb-6 flex items-start justify-between border-b border-neutral-100 pb-5">
+						<div className="mb-6 flex items-start justify-between border-b border-border pb-5">
 							<div>
-								<p className="text-sm text-neutral-900">
-									<b>{fromName}</b> <span className="text-neutral-500">&lt;{fromAddress}&gt;</span>
+								<p className="text-sm text-ink">
+									<b>{fromName}</b> <span className="text-ink-muted">&lt;{fromAddress}&gt;</span>
 								</p>
-								<p className="text-xs text-neutral-500">
+								<p className="text-xs text-ink-muted">
 									{t("toRecipient", { name: toName })}
 								</p>
 							</div>
-							<p className="text-xs text-neutral-400">
+							<p className="text-xs text-ink-faint">
 								{dayjs(message.createdAt).format("MMM DD, YYYY, hh:mmA")}
 							</p>
 						</div>
-						<div className="prose max-w-none text-neutral-900">
+						<div className="prose max-w-none text-ink">
 							{bodyDisplay.htmlBody ? (
 								<div dangerouslySetInnerHTML={{ __html: sanitizeRenderedHtml(bodyDisplay.htmlBody) }} />
 							) : (
@@ -270,9 +270,9 @@ export default function MessageDetailPage() {
 							{bodyDisplay.quotedContent.map((quotedContent) => (
 								<blockquote
 									key={`${quotedContent.dateLine}-${quotedContent.content.slice(0, 24)}`}
-									className="mt-6 border-l-2 border-neutral-300 pl-4 text-neutral-500"
+									className="mt-6 border-l-2 border-border-strong pl-4 text-ink-muted"
 								>
-									<p className="mb-3 text-xs font-medium text-neutral-400">
+									<p className="mb-3 text-xs font-medium text-ink-faint">
 										{quotedContent.dateLine}
 									</p>
 									<pre className="whitespace-pre-wrap text-sm font-sans">

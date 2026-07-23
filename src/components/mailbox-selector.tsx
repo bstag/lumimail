@@ -59,23 +59,23 @@ export function MailboxSelector() {
 			<button
 				type="button"
 				onClick={() => setOpen((value) => !value)}
-				className="flex items-center justify-between gap-3 rounded-full pr-2 pl-4 py-1.5 text-left hover:bg-neutral-200"
+				className="flex items-center justify-between gap-3 rounded-full pr-2 pl-4 py-1.5 text-left hover:bg-surface-subtle"
 			>
 				<div className="flex min-w-0 items-center gap-3">
 					<div className="min-w-0 text-right flex flex-col justify-center">
-						<p className="truncate text-sm font-medium text-neutral-800">{selectedName}</p>
-						<p className="truncate text-[11px] text-neutral-500">{selectedEmail}</p>
+						<p className="truncate text-sm font-medium text-ink">{selectedName}</p>
+						<p className="truncate text-[11px] text-ink-muted">{selectedEmail}</p>
 					</div>
-					<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+					<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-white">
 						<Mail className="h-4 w-4" />
 					</div>
 				</div>
 			</button>
 			{open && (
-				<div className="absolute right-0 top-12 z-50 w-80 overflow-hidden rounded-2xl border border-neutral-200 bg-white py-2 shadow-xl">
+				<div className="absolute right-0 top-12 z-50 w-80 overflow-hidden rounded-2xl border border-border bg-surface-raised py-2 shadow-xl">
 					<div className="px-4 pt-3 pb-2">
-						<p className="text-sm font-medium text-neutral-900">{t("mailboxes")}</p>
-						<p className="text-xs text-neutral-500">{t("chooseMailbox")}</p>
+						<p className="text-sm font-medium text-ink">{t("mailboxes")}</p>
+						<p className="text-xs text-ink-muted">{t("chooseMailbox")}</p>
 					</div>
 					{mailboxes.map((mb) => {
 						const email = `${mb.localPart}@${mb.hostname}`;
@@ -95,67 +95,67 @@ export function MailboxSelector() {
 									router.push("/inbox");
 								}}
 								className={cn(
-									"flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-[#f2f6fc]",
-									active && "bg-blue-50",
+									"flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-subtle",
+									active && "bg-accent-muted",
 								)}
 							>
-								<div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+								<div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-muted text-accent">
 									{name.slice(0, 1).toUpperCase()}
 								</div>
 								<div className="min-w-0 flex-1">
 									<div className="flex items-center gap-2">
-										<p className="truncate text-sm font-medium text-neutral-900">{name}</p>
+										<p className="truncate text-sm font-medium text-ink">{name}</p>
 										{mb.isPrimary && (
-											<span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+											<span className="rounded-full bg-accent-muted px-2 py-0.5 text-[10px] font-medium text-accent">
 												{t("primary")}
 											</span>
 										)}
 									</div>
-									<p className="truncate text-xs text-neutral-500">
+									<p className="truncate text-xs text-ink-muted">
 										{email}
 										{inbox > 0 && ` · ${inbox} ${t("inbox").toLowerCase()}`}
 									</p>
 								</div>
 								{unread > 0 && (
-									<span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+									<span className="rounded-full bg-accent-muted px-2 py-0.5 text-[11px] font-semibold text-accent">
 										{unread > 99 ? t("countOverflow") : unread}
 									</span>
 								)}
-								{active && <Check className="h-4 w-4 text-blue-600" />}
+								{active && <Check className="h-4 w-4 text-accent" />}
 							</button>
 						);
 					})}
-					<div className="mt-2 border-t divide-y divide-neutral-100 border-neutral-100 pt-2">
+					<div className="mt-2 border-t divide-y divide-border border-border pt-2">
 						{canAdministerOrganization && (
 							<Link
 								href="/admin"
 								onClick={() => setOpen(false)}
 								className={cn(
-									"flex items-center gap-3 px-4 py-3 text-sm font-medium text-neutral-700 hover:bg-[#f2f6fc]",
-									adminActive && "bg-blue-50",
+									"flex items-center gap-3 px-4 py-3 text-sm font-medium text-ink-muted hover:bg-surface-subtle",
+									adminActive && "bg-accent-muted",
 								)}
 							>
-								<div className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-100 text-neutral-700">
+								<div className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-subtle text-ink-muted">
 									<Settings className="h-4 w-4" />
 								</div>
 								<div>
-									<p className="text-sm font-medium text-neutral-900">{t("adminSettings")}</p>
-									<p className="text-xs text-neutral-500">{t("adminSettingsDesc")}</p>
+									<p className="text-sm font-medium text-ink">{t("adminSettings")}</p>
+									<p className="text-xs text-ink-muted">{t("adminSettingsDesc")}</p>
 								</div>
-								{adminActive && <Check className="ml-auto h-4 w-4 text-blue-600" />}
+								{adminActive && <Check className="ml-auto h-4 w-4 text-accent" />}
 							</Link>
 						)}
 						<button
 							type="button"
 							onClick={logout}
-							className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-red-600 hover:bg-red-50"
+							className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-danger hover:bg-danger-muted"
 						>
-							<div className="flex h-9 w-9 items-center justify-center rounded-full bg-red-50 text-red-600">
+							<div className="flex h-9 w-9 items-center justify-center rounded-full bg-danger-muted text-danger">
 								<LogOut className="h-4 w-4" />
 							</div>
 							<div>
 								<p className="text-sm font-medium">{t("logOut")}</p>
-								<p className="text-xs text-red-500/80">{t("signOutSession")}</p>
+								<p className="text-xs text-danger/80">{t("signOutSession")}</p>
 							</div>
 						</button>
 					</div>

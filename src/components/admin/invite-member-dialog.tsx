@@ -74,7 +74,7 @@ export function InviteMemberDialog({ open, onOpenChange, onInviteCreated }: Prop
         </DialogHeader>
         {inviteLink ? (
           <div className="space-y-4">
-            <p className="text-sm text-neutral-600">
+            <p className="text-sm text-ink-muted">
               Share this link with {email}. They will join as {role}.
             </p>
             <div className="flex items-center gap-2">
@@ -112,12 +112,12 @@ export function InviteMemberDialog({ open, onOpenChange, onInviteCreated }: Prop
                 <option value="member">Member</option>
                 <option value="admin">Admin</option>
               </select>
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-ink-muted">
                 Admins can manage members. Members can only use mail.
               </p>
             </div>
             {error && (
-              <p className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <p className="rounded-lg border border-danger/30 bg-danger-muted px-3 py-2 text-sm text-danger">
                 {error}
               </p>
             )}

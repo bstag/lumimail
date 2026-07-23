@@ -19,8 +19,8 @@ export default function AdminSettingsPage() {
 	return (
 		<div className="h-full overflow-auto">
 			<div className="mb-8">
-				<h1 className="text-2xl font-normal text-neutral-900">{t("title")}</h1>
-				<p className="mt-2 text-sm text-neutral-500">{t("desc")}</p>
+				<h1 className="text-2xl font-normal text-ink">{t("title")}</h1>
+				<p className="mt-2 text-sm text-ink-muted">{t("desc")}</p>
 			</div>
 			<div className="grid max-w-5xl gap-4 md:grid-cols-2">
 				{sections.map((section) => {
@@ -30,13 +30,13 @@ export default function AdminSettingsPage() {
 						<Link key={section.href} href={section.href}>
 							<Card className="h-full transition-shadow hover:shadow-md">
 								<CardHeader className="flex-row items-center gap-4 space-y-0">
-									<div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+									<div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-muted text-accent">
 										<Icon className="h-5 w-5" />
 									</div>
 									<CardTitle className="text-base">{section.title}</CardTitle>
 								</CardHeader>
 								<CardContent>
-									<p className="text-sm text-neutral-500">{section.description}</p>
+									<p className="text-sm text-ink-muted">{section.description}</p>
 								</CardContent>
 							</Card>
 						</Link>

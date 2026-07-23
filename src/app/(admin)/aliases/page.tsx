@@ -84,14 +84,14 @@ export default function AliasesPage() {
 
 	const domainHostname = (id: string) => domains.find((d) => d.id === id)?.hostname ?? "";
 
-	if (loading) return <div className="p-8 text-sm text-neutral-500">Loading…</div>;
+	if (loading) return <div className="p-8 text-sm text-ink-muted">Loading…</div>;
 
 	return (
 		<div className="space-y-6 max-w-3xl">
 			<h1 className="text-2xl font-semibold">Aliases</h1>
-			<p className="text-sm text-neutral-500">Create email aliases that forward to mailboxes or external addresses.</p>
+			<p className="text-sm text-ink-muted">Create email aliases that forward to mailboxes or external addresses.</p>
 
-			{error && <p className="text-sm text-red-600">{error}</p>}
+			{error && <p className="text-sm text-danger">{error}</p>}
 
 			<Card>
 				<CardHeader>
@@ -110,7 +110,7 @@ export default function AliasesPage() {
 						<div className="space-y-2">
 							<Label>Domain</Label>
 							<select
-								className="w-full h-10 rounded-md border border-neutral-200 px-3 text-sm"
+								className="w-full h-10 rounded-md border border-border px-3 text-sm"
 								value={domainId}
 								onChange={(e) => setDomainId(e.target.value)}
 							>
@@ -124,7 +124,7 @@ export default function AliasesPage() {
 					<div className="space-y-2">
 						<Label>Deliver to mailbox</Label>
 						<select
-							className="w-full h-10 rounded-md border border-neutral-200 px-3 text-sm"
+							className="w-full h-10 rounded-md border border-border px-3 text-sm"
 							value={targetMailboxId}
 							onChange={(e) => { setTargetMailboxId(e.target.value); setForwardTo(""); }}
 						>
@@ -159,17 +159,17 @@ export default function AliasesPage() {
 				</CardHeader>
 				<CardContent>
 					{aliases.length === 0 ? (
-						<p className="text-sm text-neutral-400">No aliases yet.</p>
+						<p className="text-sm text-ink-faint">No aliases yet.</p>
 					) : (
-						<ul className="divide-y divide-neutral-100">
+						<ul className="divide-y divide-border">
 							{aliases.map((a) => (
 								<li key={a.id} className="flex items-center justify-between py-3">
 									<div className="flex items-center gap-2 text-sm">
 										<span className="font-mono font-medium">
 											{a.localPart}@{a.domainHostname}
 										</span>
-										<ArrowRight className="h-3 w-3 text-neutral-400" />
-										<span className="text-neutral-600">
+										<ArrowRight className="h-3 w-3 text-ink-faint" />
+										<span className="text-ink-muted">
 											{a.forwardTo ?? (a.targetMailboxId ? "mailbox" : "group")}
 										</span>
 									</div>
@@ -177,7 +177,7 @@ export default function AliasesPage() {
 										variant="ghost"
 										size="sm"
 										onClick={() => remove(a.id)}
-										className="text-red-500 hover:text-red-700"
+										className="text-danger hover:text-danger"
 									>
 										<Trash2 className="h-4 w-4" />
 									</Button>

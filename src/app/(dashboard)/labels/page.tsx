@@ -85,15 +85,15 @@ export default function LabelsPage() {
 	return (
 		<div className="space-y-8">
 			<div>
-				<h2 className="text-xl font-semibold text-neutral-900">Labels</h2>
-				<p className="text-sm text-neutral-500">Organise your messages with custom labels.</p>
+				<h2 className="text-xl font-semibold text-ink">Labels</h2>
+				<p className="text-sm text-ink-muted">Organise your messages with custom labels.</p>
 			</div>
 
-			<form onSubmit={handleSubmit} className="rounded-lg border border-neutral-200 bg-white p-4 space-y-4">
-				<h3 className="text-sm font-medium text-neutral-700">New label</h3>
+			<form onSubmit={handleSubmit} className="rounded-lg border border-border bg-surface-raised p-4 space-y-4">
+				<h3 className="text-sm font-medium text-ink-muted">New label</h3>
 
 				{formError && (
-					<p className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{formError}</p>
+					<p className="rounded-lg border border-danger/30 bg-danger-muted px-4 py-3 text-sm text-danger">{formError}</p>
 				)}
 
 				<div className="flex items-center gap-3">
@@ -102,7 +102,7 @@ export default function LabelsPage() {
 						value={name}
 						onChange={(e) => setName(e.target.value)}
 						placeholder="Label name"
-						className="h-9 flex-1 rounded-md border border-neutral-200 bg-neutral-50 px-3 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+						className="h-9 flex-1 rounded-md border border-border bg-surface-subtle px-3 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-border-strong"
 					/>
 					<Button type="submit" disabled={createMutation.isPending} className="gap-2">
 						<Plus className="h-4 w-4" />
@@ -111,7 +111,7 @@ export default function LabelsPage() {
 				</div>
 
 				<div className="flex items-center gap-2">
-					<span className="text-xs text-neutral-500">Color:</span>
+					<span className="text-xs text-ink-muted">Color:</span>
 					{PRESET_COLORS.map((c) => (
 						<button
 							key={c}
@@ -128,31 +128,31 @@ export default function LabelsPage() {
 			</form>
 
 			{isLoading ? (
-				<p className="text-sm text-neutral-500">Loading...</p>
+				<p className="text-sm text-ink-muted">Loading...</p>
 			) : labels.length === 0 ? (
-				<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-neutral-200 py-12 text-center">
-					<Tag className="mb-3 h-8 w-8 text-neutral-300" />
-					<p className="text-sm text-neutral-500">No labels yet. Create one above.</p>
+				<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-12 text-center">
+					<Tag className="mb-3 h-8 w-8 text-ink-faint" />
+					<p className="text-sm text-ink-muted">No labels yet. Create one above.</p>
 				</div>
 			) : (
 				<div className="space-y-2">
 					{labels.map((label) => (
 						<div
 							key={label.id}
-							className="flex items-center justify-between rounded-lg border border-neutral-200 bg-white px-4 py-3"
+							className="flex items-center justify-between rounded-lg border border-border bg-surface-raised px-4 py-3"
 						>
 							<div className="flex items-center gap-3">
 								<span
 									className="h-3 w-3 rounded-full flex-shrink-0"
 									style={{ backgroundColor: label.color }}
 								/>
-								<span className="text-sm font-medium text-neutral-900">{label.name}</span>
+								<span className="text-sm font-medium text-ink">{label.name}</span>
 							</div>
 							<button
 								type="button"
 								onClick={() => deleteMutation.mutate(label.id)}
 								disabled={deleteMutation.isPending}
-								className="text-neutral-400 hover:text-red-600"
+								className="text-ink-faint hover:text-danger"
 								title="Delete label"
 							>
 								<X className="h-4 w-4" />

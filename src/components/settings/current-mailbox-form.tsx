@@ -47,9 +47,9 @@ export function CurrentMailboxForm() {
 	if (isLoading) {
 		return (
 			<div className="max-w-2xl space-y-6 p-8">
-				<h1 className="text-2xl font-semibold text-neutral-900">{t("title")}</h1>
+				<h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
 				<Card>
-					<CardContent className="p-6 text-sm text-neutral-500">{t("loadingMailbox")}</CardContent>
+					<CardContent className="p-6 text-sm text-ink-muted">{t("loadingMailbox")}</CardContent>
 				</Card>
 			</div>
 		);
@@ -58,9 +58,9 @@ export function CurrentMailboxForm() {
 	if (!selectedMailbox) {
 		return (
 			<div className="max-w-2xl space-y-6 p-8">
-				<h1 className="text-2xl font-semibold text-neutral-900">{t("title")}</h1>
+				<h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
 				<Card>
-					<CardContent className="p-6 text-sm text-neutral-500">
+					<CardContent className="p-6 text-sm text-ink-muted">
 						{t("selectMailbox")}
 					</CardContent>
 				</Card>
@@ -74,8 +74,8 @@ export function CurrentMailboxForm() {
 	return (
 		<div className="max-w-2xl space-y-6 p-8">
 			<div>
-				<h1 className="text-2xl font-semibold text-neutral-900">{t("title")}</h1>
-				<p className="mt-1 text-sm text-neutral-500">{address}</p>
+				<h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
+				<p className="mt-1 text-sm text-ink-muted">{address}</p>
 			</div>
 
 			<Card>
@@ -95,14 +95,14 @@ export function CurrentMailboxForm() {
 								disabled={saving}
 							/>
 						</div>
-						<div className="grid gap-4 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-3 sm:grid-cols-2">
+						<div className="grid gap-4 rounded-md border border-border bg-surface-subtle px-3 py-3 sm:grid-cols-2">
 							<div className="space-y-1">
-								<p className="text-xs font-medium uppercase text-neutral-500">{t("email")}</p>
-								<p className="truncate font-mono text-sm text-neutral-900">{address}</p>
+								<p className="text-xs font-medium uppercase text-ink-muted">{t("email")}</p>
+								<p className="truncate font-mono text-sm text-ink">{address}</p>
 							</div>
 							<div className="space-y-1">
-								<p className="text-xs font-medium uppercase text-neutral-500">{t("domain")}</p>
-								<p className="truncate font-mono text-sm text-neutral-900">{selectedMailbox.hostname}</p>
+								<p className="text-xs font-medium uppercase text-ink-muted">{t("domain")}</p>
+								<p className="truncate font-mono text-sm text-ink">{selectedMailbox.hostname}</p>
 							</div>
 						</div>
 						<div className="flex items-center gap-3">
@@ -110,7 +110,7 @@ export function CurrentMailboxForm() {
 								<Save className="h-4 w-4" />
 								{saving ? t("saving") : t("saveChanges")}
 							</Button>
-							{status && <p className="text-sm text-neutral-500">{status}</p>}
+							{status && <p className="text-sm text-ink-muted">{status}</p>}
 						</div>
 					</form>
 				</CardContent>

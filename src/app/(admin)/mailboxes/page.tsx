@@ -103,7 +103,7 @@ export default function MailboxesPage() {
 							<div className="space-y-2">
 								<Label>Domain</Label>
 								<select
-									className="w-full h-10 rounded-md border border-neutral-200 px-3 text-sm shadow-sm shadow-neutral-200/50 placeholder:text-neutral-500 focus-visible:outline-none focus-visible:border-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+									className="w-full h-10 rounded-md border border-border px-3 text-sm shadow-sm shadow-border/50 placeholder:text-ink-muted focus-visible:outline-none focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-50"
 									value={domainId}
 									onChange={(event) => setDomainId(event.target.value)}
 								>
@@ -123,13 +123,13 @@ export default function MailboxesPage() {
 									placeholder="support"
 								/>
 								{domainId && (
-									<span className="absolute bottom-2.5 right-4 text-sm text-neutral-400">
+									<span className="absolute bottom-2.5 right-4 text-sm text-ink-faint">
 										@{domainMap.get(domainId)}
 									</span>
 								)}
 							</div>
 							{create.isError && (
-								<p className="text-sm text-red-600">{(create.error as Error).message}</p>
+								<p className="text-sm text-danger">{(create.error as Error).message}</p>
 							)}
 							<Button
 								onClick={() => create.mutate()}
@@ -143,17 +143,17 @@ export default function MailboxesPage() {
 			</div>
 			<section className="space-y-3">
 				{/* <div className="flex items-center justify-between">
-					<span className="text-sm text-neutral-500">
+					<span className="text-sm text-ink-muted">
 						{(mailboxes.data?.mailboxes ?? []).length} total
 					</span>
 				</div> */}
 				{mailboxes.isLoading && (
-					<p className="rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-500">
+					<p className="rounded-lg border border-border bg-surface-raised px-4 py-3 text-sm text-ink-muted">
 						Loading mailboxes...
 					</p>
 				)}
 				{!mailboxes.isLoading && (mailboxes.data?.mailboxes ?? []).length === 0 && (
-					<p className="rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-500">
+					<p className="rounded-lg border border-border bg-surface-raised px-4 py-3 text-sm text-ink-muted">
 						No mailboxes yet
 					</p>
 				)}
@@ -166,17 +166,17 @@ export default function MailboxesPage() {
 
 						const content = (
 							<>
-								<span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600 group-hover:bg-blue-50 group-hover:text-blue-700">
+								<span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-subtle text-ink-muted group-hover:bg-accent-muted group-hover:text-accent">
 									<Mail className="h-5 w-5" />
 								</span>
 								<span className="min-w-0 space-y-1">
-									<span className="block truncate text-sm font-semibold text-neutral-900">
+									<span className="block truncate text-sm font-semibold text-ink">
 										{getMailboxName(mailboxWithHostname)}
 									</span>
-									<span className="block truncate font-mono text-sm text-neutral-500">
+									<span className="block truncate font-mono text-sm text-ink-muted">
 										{getMailboxAddress(mailboxWithHostname)}
 									</span>
-									<span className="block text-xs capitalize text-neutral-400">
+									<span className="block text-xs capitalize text-ink-faint">
 										{mailbox.role ?? "No content access"}
 									</span>
 								</span>
@@ -187,14 +187,14 @@ export default function MailboxesPage() {
 								<Link
 									key={mailbox.id}
 									href={`/mailboxes/${mailbox.id}`}
-									className="group flex min-h-24 items-start gap-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm shadow-neutral-100 transition hover:border-blue-200 hover:bg-[#f8fbff] hover:shadow-md"
+									className="group flex min-h-24 items-start gap-3 rounded-lg border border-border bg-surface-raised p-4 shadow-sm shadow-border transition hover:border-accent/30 hover:bg-surface hover:shadow-md"
 								>
 									{content}
 								</Link>
 							);
 						}
 						return (
-							<div key={mailbox.id} className="group flex min-h-24 items-start gap-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm shadow-neutral-100">
+							<div key={mailbox.id} className="group flex min-h-24 items-start gap-3 rounded-lg border border-border bg-surface-raised p-4 shadow-sm shadow-border">
 								{content}
 								{!mailbox.role && mailboxes.data?.canSelfAssign && (
 									<Button size="sm" variant="outline" onClick={() => claimAccess.mutate(mailbox.id)} disabled={claimAccess.isPending}>

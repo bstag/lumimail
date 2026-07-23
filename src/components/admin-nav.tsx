@@ -33,10 +33,10 @@ export function AdminNav({ className, onNavigate }: { className?: string; onNavi
     <nav className={cn("flex flex-col gap-1", className)}>
       <Link
         href="/inbox"
-        className="mb-3 flex h-10 items-center gap-3 px-3 text-neutral-600"
+        className="mb-3 flex h-10 items-center gap-3 px-3 text-ink-muted"
       >
         <img src="/icon-96.png" height={28} width={28} />
-        <span className="text-lg font-semibold text-neutral-800">{t("admin")}</span>
+        <span className="text-lg font-semibold text-ink">{t("admin")}</span>
       </Link>
       {links.map((link) => (
         <NavItem link={link} onNavigate={onNavigate} key={link.href} />

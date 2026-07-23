@@ -92,8 +92,8 @@ export function ChangePasswordForm() {
 							required
 						/>
 					</div>
-					{error && <p className="text-sm text-red-600">{error}</p>}
-					{success && <p className="text-sm text-green-600">Password changed successfully</p>}
+					{error && <p className="text-sm text-danger">{error}</p>}
+					{success && <p className="text-sm text-success">Password changed successfully</p>}
 					<Button type="submit" disabled={saving}>
 						{saving ? "Saving…" : "Change password"}
 					</Button>

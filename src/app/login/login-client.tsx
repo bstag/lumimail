@@ -60,7 +60,7 @@ export function LoginClient() {
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-4">
             <Label htmlFor="password">{t("password")}</Label>
-            <Link href="/forgot-password" className="text-sm font-medium text-blue-700 hover:underline">
+            <Link href="/forgot-password" className="text-sm font-medium text-accent hover:underline">
               Forgot password?
             </Link>
           </div>
@@ -73,7 +73,7 @@ export function LoginClient() {
           />
         </div>
         {error && (
-          <p className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          <p className="rounded-2xl border border-danger/30 bg-danger-muted px-4 py-3 text-sm font-medium text-danger">
             {error}
           </p>
         )}

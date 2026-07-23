@@ -50,7 +50,7 @@ export function NavItem({ link, onNavigate }: { link: NavLink; onNavigate?: () =
         <Icon className="h-4 w-4" />
         <span className="flex-1">{link.label}</span>
         {countLabel && (
-          <span className="ml-auto mr-3 rounded-full px-2 py-0.5 text-sm font-semibold text-neutral-700">
+          <span className="ml-auto mr-3 rounded-full px-2 py-0.5 text-sm font-semibold text-ink-muted">
             {countLabel}
           </span>
         )}
@@ -67,7 +67,7 @@ export function NavItem({ link, onNavigate }: { link: NavLink; onNavigate?: () =
       <Icon className="h-4 w-4" />
       <span className="flex-1">{link.label}</span>
       {countLabel && (
-        <span className="ml-auto mr-3 rounded-full px-2 py-0.5 text-sm font-semibold text-neutral-700">
+        <span className="ml-auto mr-3 rounded-full px-2 py-0.5 text-sm font-semibold text-ink-muted">
           {countLabel}
         </span>
       )}
