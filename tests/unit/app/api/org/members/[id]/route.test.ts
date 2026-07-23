@@ -102,7 +102,7 @@ describe("DELETE /api/org/members/[id]", () => {
 		const res = await DELETE(delReq(), params());
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({ success: true, data: { ok: true } });
-		expect(mock.deletes).toHaveLength(1);
+		expect(mock.deletes).toHaveLength(2);
 		expect(mock.updates[0].set).toMatchObject({ organizationId: null });
 	});
 });

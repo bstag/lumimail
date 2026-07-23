@@ -1,10 +1,16 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { getDb } from "@/db";
 import { messageBodies, messages } from "@/db/schema";
+import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
 type Db = ReturnType<typeof getDb>;
 
-export function selectDraftWithBody(db: Db, userId: string, draftId: string) {
+export function selectDraftWithBody(
+	db: Db,
+	userId: string,
+	organizationId: string | null,
+	draftId: string,
+) {
 	return db
 		.select({
 			id: messages.id,
@@ -19,7 +25,7 @@ export function selectDraftWithBody(db: Db, userId: string, draftId: string) {
 		})
 		.from(messages)
 		.leftJoin(messageBodies, eq(messageBodies.messageId, messages.id))
-		.where(eq(messages.id, draftId))
+		.where(and(eq(messages.id, draftId), messageAccessCondition(db, userId, organizationId, "send")))
 		.limit(1)
-		.then(([draft]) => (draft && draft.userId === userId && draft.status === "draft" ? draft : null));
+		.then(([draft]) => (draft?.status === "draft" ? draft : null));
 }

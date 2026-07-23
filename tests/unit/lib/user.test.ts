@@ -74,19 +74,19 @@ describe("getPrimaryDomainForOrg", () => {
 describe("markMessageAsRead", () => {
 	it("returns false when the message is missing", async () => {
 		mock.queueSelect([]);
-		expect(await markMessageAsRead(env, "u1", "msg_1")).toBe(false);
+		expect(await markMessageAsRead(env, "u1", null, "msg_1")).toBe(false);
 		expect(mock.updates).toHaveLength(0);
 	});
 
 	it("returns false when the message belongs to another user", async () => {
-		mock.queueSelect([{ id: "msg_1", userId: "other" }]);
-		expect(await markMessageAsRead(env, "u1", "msg_1")).toBe(false);
+		mock.queueSelect([]);
+		expect(await markMessageAsRead(env, "u1", "org_1", "msg_1")).toBe(false);
 		expect(mock.updates).toHaveLength(0);
 	});
 
 	it("marks the message read and returns true", async () => {
 		mock.queueSelect([{ id: "msg_1", userId: "u1" }]);
-		expect(await markMessageAsRead(env, "u1", "msg_1")).toBe(true);
+		expect(await markMessageAsRead(env, "u1", "org_1", "msg_1")).toBe(true);
 		expect(mock.updates).toEqual([{ table: expect.anything(), set: { read: true } }]);
 	});
 });
@@ -94,18 +94,18 @@ describe("markMessageAsRead", () => {
 describe("updateMessageStatus", () => {
 	it("returns false when the message is missing", async () => {
 		mock.queueSelect([]);
-		expect(await updateMessageStatus(env, "u1", "msg_1", "spam")).toBe(false);
+		expect(await updateMessageStatus(env, "u1", null, "msg_1", "spam")).toBe(false);
 		expect(mock.updates).toHaveLength(0);
 	});
 
 	it("returns false when the message belongs to another user", async () => {
-		mock.queueSelect([{ id: "msg_1", userId: "other" }]);
-		expect(await updateMessageStatus(env, "u1", "msg_1", "spam")).toBe(false);
+		mock.queueSelect([]);
+		expect(await updateMessageStatus(env, "u1", "org_1", "msg_1", "spam")).toBe(false);
 	});
 
 	it("updates the status and returns true", async () => {
 		mock.queueSelect([{ id: "msg_1", userId: "u1" }]);
-		expect(await updateMessageStatus(env, "u1", "msg_1", "spam")).toBe(true);
+		expect(await updateMessageStatus(env, "u1", "org_1", "msg_1", "spam")).toBe(true);
 		expect(mock.updates).toEqual([{ table: expect.anything(), set: { status: "spam" } }]);
 	});
 });

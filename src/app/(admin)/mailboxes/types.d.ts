@@ -5,6 +5,7 @@ export type Mailbox = {
 	domainId: string;
 	hostname: string;
 	isPrimary?: boolean;
+	role: "viewer" | "responder" | "manager" | null;
 };
 
 export type Domain = {

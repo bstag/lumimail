@@ -14,7 +14,7 @@ export async function POST(
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
-	const success = await markMessageAsRead(env, user.id, messageId);
+	const success = await markMessageAsRead(env, user.id, user.organizationId, messageId);
 	if (!success) {
 		return NextResponse.json({ error: "Message not found" }, { status: 404 });
 	}

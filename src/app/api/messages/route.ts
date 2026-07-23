@@ -7,6 +7,7 @@ import { messages, messageLabels } from "@/db/schema";
 import { getContactDisplayNameMap } from "@/lib/contacts/service";
 import { normalizeEmailAddress } from "@/lib/email/address";
 import { getLatestEmailContent } from "@/lib/email/reply-content-utils";
+import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
 export async function GET(request: Request) {
 	const env = getEnv();
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
 	const offset = Math.max(Number(url.searchParams.get("offset") ?? 0), 0);
 
 	const db = getDb(env);
-	const conditions = [eq(messages.userId, user.id)];
+	const conditions = [messageAccessCondition(db, user.id, user.organizationId, "read")];
 	if (direction === "inbound" || direction === "outbound") {
 		conditions.push(eq(messages.direction, direction));
 	}

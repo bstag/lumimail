@@ -4,6 +4,7 @@ import { getEnv } from "@/lib/cloudflare";
 import { authenticateApiKey, requireScope } from "@/lib/api/auth";
 import { getDb } from "@/db";
 import { messages } from "@/db/schema";
+import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
 export async function GET(request: Request) {
 	const env = getEnv();
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
 	const limit = Math.min(Number(url.searchParams.get("limit") ?? 50), 100);
 
 	const db = getDb(env);
-	const conditions = [eq(messages.userId, auth.userId)];
+	const conditions = [messageAccessCondition(db, auth.userId, auth.organizationId, "read")];
 	if (mailboxId) conditions.push(eq(messages.mailboxId, mailboxId));
 	if (direction === "inbound" || direction === "outbound") {
 		conditions.push(eq(messages.direction, direction));

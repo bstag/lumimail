@@ -21,7 +21,7 @@ export async function POST(
 		return NextResponse.json({ error: "Invalid message status" }, { status: 400 });
 	}
 
-	const success = await updateMessageStatus(env, user.id, messageId, payload.status);
+	const success = await updateMessageStatus(env, user.id, user.organizationId, messageId, payload.status);
 	if (!success) {
 		return NextResponse.json({ error: "Message not found" }, { status: 404 });
 	}

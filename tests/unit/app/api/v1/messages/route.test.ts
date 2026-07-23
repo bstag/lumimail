@@ -46,7 +46,7 @@ describe("GET /api/v1/messages", () => {
 	});
 
 	it("lists messages with no filters (default limit 50)", async () => {
-		m.authenticateApiKey.mockResolvedValue({ userId: "u1", scopes: ["read"] });
+		m.authenticateApiKey.mockResolvedValue({ userId: "u1", organizationId: "o1", scopes: ["read"] });
 		m.requireScope.mockReturnValue(true);
 		mock.queueSelect([{ id: "m1" }]);
 		const res = await GET(req());
@@ -55,7 +55,7 @@ describe("GET /api/v1/messages", () => {
 	});
 
 	it("applies mailboxId and inbound direction filters and caps the limit", async () => {
-		m.authenticateApiKey.mockResolvedValue({ userId: "u1", scopes: ["read"] });
+		m.authenticateApiKey.mockResolvedValue({ userId: "u1", organizationId: "o1", scopes: ["read"] });
 		m.requireScope.mockReturnValue(true);
 		mock.queueSelect([]);
 		const res = await GET(req("?mailboxId=mb1&direction=inbound&limit=500"));
@@ -64,7 +64,7 @@ describe("GET /api/v1/messages", () => {
 	});
 
 	it("applies the outbound direction filter", async () => {
-		m.authenticateApiKey.mockResolvedValue({ userId: "u1", scopes: ["read"] });
+		m.authenticateApiKey.mockResolvedValue({ userId: "u1", organizationId: "o1", scopes: ["read"] });
 		m.requireScope.mockReturnValue(true);
 		mock.queueSelect([]);
 		const res = await GET(req("?direction=outbound"));
@@ -72,7 +72,7 @@ describe("GET /api/v1/messages", () => {
 	});
 
 	it("ignores unknown direction values", async () => {
-		m.authenticateApiKey.mockResolvedValue({ userId: "u1", scopes: ["read"] });
+		m.authenticateApiKey.mockResolvedValue({ userId: "u1", organizationId: "o1", scopes: ["read"] });
 		m.requireScope.mockReturnValue(true);
 		mock.queueSelect([]);
 		const res = await GET(req("?direction=sideways"));

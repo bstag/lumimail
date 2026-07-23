@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth/cookies";
 import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
 import { messages, messageBodies } from "@/db/schema";
+import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
 type ThreadRouteParams = {
 	params: Promise<{ threadId: string }>;
@@ -40,7 +41,7 @@ export async function GET(request: Request, { params }: ThreadRouteParams) {
 		})
 		.from(messages)
 		.leftJoin(messageBodies, eq(messageBodies.messageId, messages.id))
-		.where(and(eq(messages.threadId, threadId), eq(messages.userId, user.id)))
+		.where(and(eq(messages.threadId, threadId), messageAccessCondition(db, user.id, user.organizationId, "read")))
 		.orderBy(asc(messages.createdAt));
 
 	return NextResponse.json({ messages: rows });

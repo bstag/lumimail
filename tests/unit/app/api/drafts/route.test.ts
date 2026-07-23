@@ -2,10 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 import { createDbMock, type DbMock } from "../../../helpers/db";
 
-const m = vi.hoisted(() => ({ db: null as unknown, guardUser: vi.fn() }));
+const m = vi.hoisted(() => ({ db: null as unknown, guardUser: vi.fn(), getMailboxAccess: vi.fn() }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
 vi.mock("@/lib/auth/cookies", () => ({ guardUser: m.guardUser }));
+vi.mock("@/lib/auth/mailbox-access", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/lib/auth/mailbox-access")>()),
+	getMailboxAccess: m.getMailboxAccess,
+}));
 vi.mock("@/lib/ids", () => ({ newId: (p?: string) => (p === "msg" ? "msg_1" : "body_1") }));
 vi.mock("@/lib/email/parse", () => ({ buildSnippet: () => "snippet" }));
 
@@ -18,6 +22,7 @@ beforeEach(() => {
 	mock = createDbMock();
 	m.db = mock.db;
 	m.guardUser.mockReset();
+	m.getMailboxAccess.mockReset();
 });
 
 function post(body: unknown) {
@@ -35,7 +40,7 @@ describe("GET /api/drafts", () => {
 	});
 
 	it("lists drafts without a mailbox filter", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
 		mock.queueSelect([{ id: "msg_1" }]);
 		const res = await GET(new Request("https://x.test/api/drafts"));
 		expect(res.status).toBe(200);
@@ -43,7 +48,7 @@ describe("GET /api/drafts", () => {
 	});
 
 	it("lists drafts with a mailbox filter", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
 		mock.queueSelect([{ id: "msg_1", mailboxId: "mb_1" }]);
 		const res = await GET(new Request("https://x.test/api/drafts?mailboxId=mb_1"));
 		expect(res.status).toBe(200);
@@ -59,7 +64,8 @@ describe("POST /api/drafts", () => {
 	});
 
 	it("creates a draft with provided fields", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
+		m.getMailboxAccess.mockResolvedValue({ role: "responder" });
 		const res = await POST(
 			post({
 				mailboxId: "mb_1",
@@ -72,9 +78,10 @@ describe("POST /api/drafts", () => {
 		);
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({ draft: { id: "msg_1" } });
-		expect(mock.inserts[0].values).toMatchObject({
+			expect(mock.inserts[0].values).toMatchObject({
 			id: "msg_1",
 			userId: "u1",
+			organizationId: "o1",
 			mailboxId: "mb_1",
 			direction: "outbound",
 			fromAddr: "me@x.test",
@@ -91,8 +98,23 @@ describe("POST /api/drafts", () => {
 		});
 	});
 
+	it("hides a mailbox draft target from a viewer", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
+		m.getMailboxAccess.mockResolvedValue({ role: "viewer" });
+		const res = await POST(post({ mailboxId: "mb_1" }));
+		expect(res.status).toBe(404);
+		expect(mock.inserts).toHaveLength(0);
+	});
+
+	it("hides a mailbox draft target when the user has no organization", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: null } });
+		const res = await POST(post({ mailboxId: "mb_1" }));
+		expect(res.status).toBe(404);
+		expect(m.getMailboxAccess).not.toHaveBeenCalled();
+	});
+
 	it("defaults all optional fields when omitted", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
 		const res = await POST(post({}));
 		expect(res.status).toBe(200);
 		expect(mock.inserts[0].values).toMatchObject({

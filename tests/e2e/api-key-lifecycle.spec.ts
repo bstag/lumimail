@@ -7,6 +7,27 @@ async function mockAuthenticatedShell(page: Page) {
 	await page.route("**/api/auth/me", (route) =>
 		route.fulfill({ json: { id: "user_1", hasMailboxes: true } }),
 	);
+	await page.route("**/api/mailboxes", (route) =>
+		route.fulfill({
+			json: {
+				mailboxes: [
+					{
+						id: "mbx_1",
+						localPart: "owner",
+						hostname: "example.com",
+						displayName: "Owner",
+						isPrimary: true,
+						role: "manager",
+					},
+				],
+			},
+		}),
+	);
+	await page.route("**/api/messages/counts**", (route) =>
+		route.fulfill({
+			json: { inbox: 0, starred: 0, drafts: 0, sent: 0, spam: 0, trash: 0 },
+		}),
+	);
 }
 
 test.describe("API key lifecycle", () => {

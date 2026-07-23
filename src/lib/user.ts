@@ -1,6 +1,7 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { messages, domains, mailboxes, users } from "@/db/schema";
+import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
 export async function userHasMailboxes(env: CloudflareEnv, userId: string): Promise<boolean> {
 	const db = getDb(env);
@@ -41,14 +42,19 @@ export function getPrimaryDomainForOrg(env: CloudflareEnv, organizationId: strin
 		.then(([row]) => row ?? null);
 }
 
-export async function markMessageAsRead(env: CloudflareEnv, userId: string, messageId: string) {
+export async function markMessageAsRead(
+	env: CloudflareEnv,
+	userId: string,
+	organizationId: string | null,
+	messageId: string,
+) {
 	const db = getDb(env);
 	const [message] = await db
 		.select()
 		.from(messages)
-		.where(eq(messages.id, messageId))
+		.where(and(eq(messages.id, messageId), messageAccessCondition(db, userId, organizationId, "read")))
 		.limit(1);
-	if (!message || message.userId !== userId) return false;
+	if (!message) return false;
 	await db
 		.update(messages)
 		.set({ read: true })
@@ -59,6 +65,7 @@ export async function markMessageAsRead(env: CloudflareEnv, userId: string, mess
 export async function updateMessageStatus(
 	env: CloudflareEnv,
 	userId: string,
+	organizationId: string | null,
 	messageId: string,
 	status: string,
 ) {
@@ -66,9 +73,9 @@ export async function updateMessageStatus(
 	const [message] = await db
 		.select()
 		.from(messages)
-		.where(eq(messages.id, messageId))
+		.where(and(eq(messages.id, messageId), messageAccessCondition(db, userId, organizationId, "read")))
 		.limit(1);
-	if (!message || message.userId !== userId) return false;
+	if (!message) return false;
 	await db
 		.update(messages)
 		.set({ status })

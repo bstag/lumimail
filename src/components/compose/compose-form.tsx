@@ -59,7 +59,7 @@ export function ComposeForm({
 
 	const fromAddr = useMemo(
 		() =>
-			selectedMailbox
+			selectedMailbox && selectedMailbox.role !== "viewer"
 				? formatEmailAddress(
 						`${selectedMailbox.localPart}@${selectedMailbox.hostname}`,
 						selectedMailbox.displayName ?? selectedMailbox.localPart,

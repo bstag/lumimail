@@ -92,6 +92,33 @@ export const mailboxes = sqliteTable(
 	],
 );
 
+export const mailboxMemberships = sqliteTable(
+	"mailbox_memberships",
+	{
+		id: text("id").primaryKey(),
+		mailboxId: text("mailbox_id")
+			.notNull()
+			.references(() => mailboxes.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		role: text("role", { enum: ["viewer", "responder", "manager"] })
+			.notNull()
+			.default("viewer"),
+		createdAt: integer("created_at", { mode: "timestamp" })
+			.notNull()
+			.$defaultFn(() => new Date()),
+		updatedAt: integer("updated_at", { mode: "timestamp" })
+			.notNull()
+			.$defaultFn(() => new Date()),
+	},
+	(t) => [
+		uniqueIndex("mailbox_memberships_mailbox_user_idx").on(t.mailboxId, t.userId),
+		index("mailbox_memberships_user_mailbox_idx").on(t.userId, t.mailboxId),
+		index("mailbox_memberships_mailbox_role_idx").on(t.mailboxId, t.role),
+	],
+);
+
 export const aliases = sqliteTable(
   "aliases",
   {
@@ -348,6 +375,7 @@ export const vacationResponders = sqliteTable("vacation_responders", {
 
 export type User = typeof users.$inferSelect;
 export type Mailbox = typeof mailboxes.$inferSelect;
+export type MailboxMembership = typeof mailboxMemberships.$inferSelect;
 export type Organization = typeof organizations.$inferSelect;
 export type OrganizationMember = typeof organizationMembers.$inferSelect;
 export type OrgInvite = typeof orgInvites.$inferSelect;
@@ -362,6 +390,7 @@ export const schema = {
 	users,
 	domains,
 	mailboxes,
+	mailboxMemberships,
 	aliases,
 	groupMembers,
 	passwordResetTokens,

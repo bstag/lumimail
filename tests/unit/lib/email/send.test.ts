@@ -123,7 +123,7 @@ describe("sendEmail", () => {
 			subject: "Hi",
 			snippet: "snippet",
 			status: "queued",
-			mailboxId: null,
+			mailboxId: "mb_1",
 		});
 		expect(mock.inserts[2].values).toMatchObject({ id: "job_id", status: "queued" });
 

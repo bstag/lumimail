@@ -60,7 +60,7 @@ describe("authenticateApiKey", () => {
 		h.parseScopes.mockReturnValue(["read"]);
 
 		const result = await authenticateApiKey(env, "Bearer ep_anothersecret");
-		expect(result).toEqual({ userId: "u2", email: "two@example.com", scopes: ["read"] });
+		expect(result).toEqual({ userId: "u2", email: "two@example.com", organizationId: undefined, scopes: ["read"] });
 		// lastUsedAt updated once for the successful candidate
 		expect(mock.updates).toHaveLength(1);
 		expect((mock.updates[0].set as Record<string, unknown>).lastUsedAt).toBeInstanceOf(Date);
@@ -75,9 +75,10 @@ describe("authenticateApiKey", () => {
 		h.parseScopes.mockReturnValue(["messages:read", "messages:write"]);
 
 		const result = await authenticateApiKey(env, "Bearer ep_validkey1234567");
-		expect(result).toEqual({
+			expect(result).toEqual({
 			userId: "u1",
 			email: "one@example.com",
+			organizationId: undefined,
 			scopes: ["messages:read", "messages:write"],
 		});
 		expect(h.parseScopes).toHaveBeenCalledWith("json");

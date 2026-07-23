@@ -6,6 +6,7 @@ const mailbox = {
 	hostname: "example.com",
 	displayName: "Owner",
 	isPrimary: true,
+	role: "manager",
 };
 
 async function mockAuthenticatedShell(page: Page) {

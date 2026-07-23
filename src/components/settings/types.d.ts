@@ -18,6 +18,7 @@ export type CurrentMailboxFormResponse = {
 		localPart: string;
 		hostname: string;
 		displayName: string | null;
+		role: "viewer" | "responder" | "manager";
 		isPrimary?: boolean;
 	};
 	error?: unknown;

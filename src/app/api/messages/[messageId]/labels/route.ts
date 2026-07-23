@@ -6,6 +6,7 @@ import { guardUser } from "@/lib/auth/cookies";
 import { getDb } from "@/db";
 import { messages, labels, messageLabels } from "@/db/schema";
 import { apiSuccess, apiError } from "@/lib/api/response";
+import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
 const labelIdSchema = z.object({ labelId: z.string().min(1) });
 
@@ -20,7 +21,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ mess
 	const msg = await db
 		.select()
 		.from(messages)
-		.where(and(eq(messages.id, messageId), eq(messages.userId, user.id)))
+		.where(and(eq(messages.id, messageId), messageAccessCondition(db, user.id, user.organizationId, "read")))
 		.get();
 
 	if (!msg) return apiError("Message not found", 404);
@@ -58,7 +59,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ mes
 	const msg = await db
 		.select()
 		.from(messages)
-		.where(and(eq(messages.id, messageId), eq(messages.userId, user.id)))
+		.where(and(eq(messages.id, messageId), messageAccessCondition(db, user.id, user.organizationId, "read")))
 		.get();
 
 	if (!msg) return apiError("Message not found", 404);
@@ -103,7 +104,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ m
 	const msg = await db
 		.select()
 		.from(messages)
-		.where(and(eq(messages.id, messageId), eq(messages.userId, user.id)))
+		.where(and(eq(messages.id, messageId), messageAccessCondition(db, user.id, user.organizationId, "read")))
 		.get();
 
 	if (!msg) return apiError("Message not found", 404);

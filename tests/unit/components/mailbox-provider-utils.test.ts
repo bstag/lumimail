@@ -14,6 +14,7 @@ const rawMailbox = {
 	localPart: "alice",
 	hostname: "example.com",
 	displayName: "Alice",
+	role: "responder",
 	isPrimary: true,
 	extra: "dropped",
 };
@@ -23,6 +24,7 @@ const mappedMailbox = {
 	localPart: "alice",
 	hostname: "example.com",
 	displayName: "Alice",
+	role: "responder",
 	isPrimary: true,
 };
 

@@ -68,4 +68,13 @@ describe("POST /api/send", () => {
 		expect(res.status).toBe(500);
 		expect((await res.json()) as any).toMatchObject({ error: { message: "Send failed" } });
 	});
+
+	it("returns 404 for an unassigned sender mailbox", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		const error = new Error("denied");
+		error.name = "SenderNotAllowedError";
+		m.sendEmail.mockRejectedValue(error);
+		const res = await POST(req(validBody));
+		expect(res.status).toBe(404);
+	});
 });

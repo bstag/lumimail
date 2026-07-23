@@ -7,6 +7,7 @@ import { expandAliasTargets } from "@/lib/email/alias-targets";
 export type ResolvedMailbox = {
 	mailboxId: string;
 	userId: string;
+	organizationId: string | null;
 	domainId: string;
 	localPart: string;
 	hostname: string;
@@ -38,6 +39,7 @@ async function loadMailboxDecision(
 		mailbox: {
 			mailboxId: mailbox.id,
 			userId: mailbox.userId,
+			organizationId: mailbox.organizationId,
 			domainId,
 			localPart: mailbox.localPart,
 			hostname,
@@ -170,6 +172,7 @@ export async function resolveInboundAddress(
 			mailbox: {
 				mailboxId: mailbox.id,
 				userId: mailbox.userId,
+				organizationId: mailbox.organizationId,
 				domainId: domain.id,
 				localPart: mailbox.localPart,
 				hostname: domain.hostname,

@@ -4,6 +4,7 @@ import { getEnv } from "@/lib/cloudflare";
 import { guardUser } from "@/lib/auth/cookies";
 import { getDb } from "@/db";
 import { messages } from "@/db/schema";
+import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
 export async function PATCH(
 	request: Request,
@@ -21,7 +22,7 @@ export async function PATCH(
 	const [updated] = await db
 		.update(messages)
 		.set({ starred })
-		.where(and(eq(messages.id, messageId), eq(messages.userId, user.id)))
+		.where(and(eq(messages.id, messageId), messageAccessCondition(db, user.id, user.organizationId, "read")))
 		.returning({ starred: messages.starred });
 
 	if (!updated) {

@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { messages } from "@/db/schema";
@@ -10,6 +10,7 @@ import {
 	getStatusForBulkAction,
 	isAllowedBulkMessageAction,
 } from "./utils";
+import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
 export async function POST(request: Request) {
 	const env = getEnv();
@@ -40,7 +41,10 @@ export async function POST(request: Request) {
 	await db
 		.update(messages)
 		.set(values)
-		.where(and(eq(messages.userId, user.id), inArray(messages.id, messageIds)));
+		.where(and(
+			messageAccessCondition(db, user.id, user.organizationId, "read"),
+			inArray(messages.id, messageIds),
+		));
 
 	return NextResponse.json({ ok: true });
 }

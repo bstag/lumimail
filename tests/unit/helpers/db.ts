@@ -67,6 +67,7 @@ export function createDbMock() {
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const db: any = {
+		batch: vi.fn(async () => undefined),
 		select: vi.fn(() => makeBuilder(() => selectQueue.shift() ?? [])),
 		insert: vi.fn((table: unknown) => {
 			const b = makeBuilder(() => undefined);

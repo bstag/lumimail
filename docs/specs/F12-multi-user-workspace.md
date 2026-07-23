@@ -1,7 +1,9 @@
 # F12 — Multi-User Workspace (Organizations, Invites, Roles)
 
-> Status: In Progress
+> Status: Partially Shipped
 > Owner area: `src/app/api/org/*`, `src/lib/auth/org-guard.ts`, `src/app/(admin)/members/`, `src/db/schema/`
+
+Organization membership and invitations do not define mailbox-content access. The least-privilege shared-mailbox follow-on is specified separately in [F47](./F47-mailbox-access-control.md); where this historical specification describes organization-wide mailbox visibility or personal message ownership, F47 controls the desired behavior.
 
 ## 1. Problem & User Job
 
@@ -23,9 +25,9 @@ keeping their own inbox private.
     then the member's role updates immediately.
   - Given I click "Remove" on a member, when I confirm,
     then the member is removed and can no longer see org resources.
-- As a **member**, I can see shared org mailboxes but only my own messages.
-  - Given I view the mailbox selector, I see all org mailboxes.
-  - Given I view inbox/sent/drafts, I see only my own messages.
+- As a **member**, I can see only mailboxes explicitly assigned to me and the messages stored in those mailboxes.
+  - Given I view the mailbox selector, I see only mailboxes granted through F47 membership.
+  - Given I view inbox/sent/drafts, mailbox-scoped data follows F47 while null-mailbox personal data remains private.
 - As an **admin**, I manage org domains and mailboxes that all members share.
   - Given I add a domain or create a mailbox, it's scoped to the org, not just me.
 

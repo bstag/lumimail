@@ -44,7 +44,7 @@ describe("POST /api/messages/[messageId]/status", () => {
 		m.updateMessageStatus.mockResolvedValue(false);
 		const res = await post({ status: "trash" });
 		expect(res.status).toBe(404);
-		expect(m.updateMessageStatus).toHaveBeenCalledWith({}, "u1", "m1", "trash");
+		expect(m.updateMessageStatus).toHaveBeenCalledWith({}, "u1", undefined, "m1", "trash");
 	});
 
 	it("updates the message status", async () => {

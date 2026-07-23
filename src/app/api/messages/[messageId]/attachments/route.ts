@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { attachments, messages } from "@/db/schema";
 import { guardUser } from "@/lib/auth/cookies";
 import { apiSuccess, apiError } from "@/lib/api/response";
+import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
 export async function GET(
 	request: Request,
@@ -18,7 +19,7 @@ export async function GET(
 	const [msg] = await db
 		.select({ id: messages.id })
 		.from(messages)
-		.where(and(eq(messages.id, messageId), eq(messages.userId, user.id)))
+		.where(and(eq(messages.id, messageId), messageAccessCondition(db, user.id, user.organizationId, "read")))
 		.limit(1);
 
 	if (!msg) return apiError("Message not found", 404);

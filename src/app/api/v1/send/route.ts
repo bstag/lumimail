@@ -19,7 +19,10 @@ export async function POST(request: Request) {
 	try {
 		const result = await sendEmail(env, { userId: auth.userId, ...parsed.data });
 		return apiSuccess(result);
-	} catch {
+	} catch (error) {
+		if (error instanceof Error && error.name === "SenderNotAllowedError") {
+			return apiError("Mailbox not found", 404);
+		}
 		return apiError("Send failed", 500);
 	}
 }

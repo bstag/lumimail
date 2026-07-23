@@ -6,12 +6,17 @@ const m = vi.hoisted(() => ({
 	db: null as unknown,
 	guardUser: vi.fn(),
 	selectDraftWithBody: vi.fn(),
+	getMailboxAccess: vi.fn(),
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
 vi.mock("@/lib/auth/cookies", () => ({ guardUser: m.guardUser }));
 vi.mock("@/lib/email/parse", () => ({ buildSnippet: () => "snippet" }));
 vi.mock("@/app/api/drafts/[id]/utils", () => ({ selectDraftWithBody: m.selectDraftWithBody }));
+vi.mock("@/lib/auth/mailbox-access", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/lib/auth/mailbox-access")>()),
+	getMailboxAccess: m.getMailboxAccess,
+}));
 
 import { GET, PATCH, DELETE } from "@/app/api/drafts/[id]/route";
 
@@ -24,6 +29,7 @@ beforeEach(() => {
 	m.db = mock.db;
 	m.guardUser.mockReset();
 	m.selectDraftWithBody.mockReset();
+	m.getMailboxAccess.mockReset();
 });
 
 function req(body?: unknown) {
@@ -41,7 +47,7 @@ describe("GET /api/drafts/[id]", () => {
 	});
 
 	it("returns 404 when the draft is not found / cross-tenant", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
 		m.selectDraftWithBody.mockResolvedValue(null);
 		const res = await GET(req(), params());
 		expect(res.status).toBe(404);
@@ -49,12 +55,12 @@ describe("GET /api/drafts/[id]", () => {
 	});
 
 	it("returns the draft on success", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
 		m.selectDraftWithBody.mockResolvedValue({ id: "msg_1", status: "draft" });
 		const res = await GET(req(), params());
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({ draft: { id: "msg_1", status: "draft" } });
-		expect(m.selectDraftWithBody).toHaveBeenCalledWith(mock.db, "u1", "msg_1");
+		expect(m.selectDraftWithBody).toHaveBeenCalledWith(mock.db, "u1", "o1", "msg_1");
 	});
 });
 
@@ -74,7 +80,7 @@ describe("PATCH /api/drafts/[id]", () => {
 
 	it("returns 404 when the draft belongs to another user", async () => {
 		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
-		mock.queueSelect([{ id: "msg_1", userId: "other", status: "draft" }]);
+		mock.queueSelect([]);
 		const res = await PATCH(req({}), params());
 		expect(res.status).toBe(404);
 	});
@@ -102,8 +108,9 @@ describe("PATCH /api/drafts/[id]", () => {
 	});
 
 	it("updates draft with provided field values", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
 		mock.queueSelect([{ id: "msg_1", userId: "u1", status: "draft" }]);
+		m.getMailboxAccess.mockResolvedValue({ role: "responder" });
 		const res = await PATCH(
 			req({
 				mailboxId: "mb_1",
@@ -124,6 +131,23 @@ describe("PATCH /api/drafts/[id]", () => {
 		});
 		expect(mock.updates[1].set).toEqual({ textBody: "t", htmlBody: "<p>h</p>" });
 	});
+
+	it("rejects moving a draft into a viewer-only mailbox", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
+		mock.queueSelect([{ id: "msg_1", userId: "u1", status: "draft" }]);
+		m.getMailboxAccess.mockResolvedValue({ role: "viewer" });
+		const res = await PATCH(req({ mailboxId: "mb_1" }), params());
+		expect(res.status).toBe(404);
+		expect(mock.updates).toHaveLength(0);
+	});
+
+	it("rejects moving a draft into a mailbox without an organization", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: null } });
+		mock.queueSelect([{ id: "msg_1", userId: "u1", status: "draft" }]);
+		const res = await PATCH(req({ mailboxId: "mb_1" }), params());
+		expect(res.status).toBe(404);
+		expect(m.getMailboxAccess).not.toHaveBeenCalled();
+	});
 });
 
 describe("DELETE /api/drafts/[id]", () => {
@@ -142,7 +166,7 @@ describe("DELETE /api/drafts/[id]", () => {
 
 	it("returns 404 when the draft belongs to another user", async () => {
 		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
-		mock.queueSelect([{ id: "msg_1", userId: "other", status: "draft" }]);
+		mock.queueSelect([]);
 		const res = await DELETE(req(), params());
 		expect(res.status).toBe(404);
 	});

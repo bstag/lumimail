@@ -16,7 +16,7 @@ beforeEach(() => {
 describe("selectMailboxForUser", () => {
 	it("resolves to the queued mailbox row", async () => {
 		mock.queueSelect([{ id: "mb_1", organizationId: "org_1" }]);
-		const result = await selectMailboxForUser(mock.db as never, "org_1", "mb_1");
+		const result = await selectMailboxForUser(mock.db as never, "org_1", "usr_1", "mb_1", ["viewer", "responder", "manager"]);
 		expect(result).toEqual([{ id: "mb_1", organizationId: "org_1" }]);
 	});
 });

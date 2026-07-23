@@ -67,6 +67,15 @@ export const updateMailboxSchema = z.object({
 	displayName: z.string().max(100).nullable().optional(),
 });
 
+export const mailboxMembershipSchema = z.object({
+	userId: z.string().min(1),
+	role: z.enum(["viewer", "responder", "manager"]),
+});
+
+export const updateMailboxMembershipSchema = z.object({
+	role: z.enum(["viewer", "responder", "manager"]),
+});
+
 export const updateProfileSchema = z.object({
 	name: z.string().trim().min(1).max(100),
 	resetEmail: z.preprocess(

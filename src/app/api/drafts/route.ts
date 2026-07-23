@@ -6,6 +6,11 @@ import { messageBodies, messages } from "@/db/schema";
 import { guardUser } from "@/lib/auth/cookies";
 import { newId } from "@/lib/ids";
 import { buildSnippet } from "@/lib/email/parse";
+import {
+	getMailboxAccess,
+	hasMailboxCapability,
+	messageAccessCondition,
+} from "@/lib/auth/mailbox-access";
 
 type DraftPayload = {
 	mailboxId?: string | null;
@@ -24,7 +29,7 @@ export async function GET(request: Request) {
 	const mailboxId = url.searchParams.get("mailboxId");
 	const db = getDb(env);
 	const conditions = [
-		eq(messages.userId, user.id),
+		messageAccessCondition(db, user.id, user.organizationId, "send"),
 		eq(messages.direction, "outbound" as const),
 		eq(messages.status, "draft"),
 	];
@@ -46,6 +51,14 @@ export async function POST(request: Request) {
 	if (errorResponse) return errorResponse;
 	const input = (await request.json()) as DraftPayload;
 	const db = getDb(env);
+	if (input.mailboxId) {
+		const access = user.organizationId
+			? await getMailboxAccess(db, user.id, user.organizationId, input.mailboxId)
+			: null;
+		if (!access || !hasMailboxCapability(access.role, "send")) {
+			return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
+		}
+	}
 	const draftId = newId("msg");
 	const text = input.text ?? "";
 	const html = input.html ?? "";
@@ -53,6 +66,7 @@ export async function POST(request: Request) {
 	await db.insert(messages).values({
 		id: draftId,
 		userId: user.id,
+		organizationId: input.mailboxId ? user.organizationId : null,
 		mailboxId: input.mailboxId ?? null,
 		direction: "outbound",
 		fromAddr: input.from ?? "",

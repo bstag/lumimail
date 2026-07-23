@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { attachments, messages } from "@/db/schema";
 import { guardUser } from "@/lib/auth/cookies";
 import { apiError } from "@/lib/api/response";
+import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
 export async function GET(
 	request: Request,
@@ -26,7 +27,7 @@ export async function GET(
 		})
 		.from(attachments)
 		.innerJoin(messages, eq(attachments.messageId, messages.id))
-		.where(and(eq(attachments.id, id), eq(messages.userId, user.id)))
+		.where(and(eq(attachments.id, id), messageAccessCondition(db, user.id, user.organizationId, "read")))
 		.limit(1);
 
 	if (!att) return apiError("Attachment not found", 404);

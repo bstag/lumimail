@@ -71,4 +71,14 @@ describe("POST /api/v1/send", () => {
 		expect(res.status).toBe(500);
 		expect((await res.json()) as any).toMatchObject({ error: { message: "Send failed" } });
 	});
+
+	it("returns 404 when the key owner is not assigned to the sender mailbox", async () => {
+		m.authenticateApiKey.mockResolvedValue({ userId: "u1", scopes: ["send"] });
+		m.requireScope.mockReturnValue(true);
+		const error = new Error("denied");
+		error.name = "SenderNotAllowedError";
+		m.sendEmail.mockRejectedValue(error);
+		const res = await POST(req(validBody));
+		expect(res.status).toBe(404);
+	});
 });

@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
-import { domains, mailboxes } from "@/db/schema";
+import { domains, mailboxMemberships, mailboxes } from "@/db/schema";
 import { guardUser } from "@/lib/auth/cookies";
+import { guardOrgAdmin } from "@/lib/auth/org-guard";
 import { newId } from "@/lib/ids";
 import { mailboxSchema } from "@/lib/validators";
 import { ensureEmailRoutingRuleToWorker } from "@/lib/cloudflare-api";
@@ -24,10 +25,17 @@ export async function GET(request: Request) {
 			displayName: mailboxes.displayName,
 			createdAt: mailboxes.createdAt,
 			hostname: domains.hostname,
+			role: mailboxMemberships.role,
 		})
 		.from(mailboxes)
 		.innerJoin(domains, eq(mailboxes.domainId, domains.id))
-		.where(eq(mailboxes.organizationId, user.organizationId!));
+		.innerJoin(mailboxMemberships, eq(mailboxMemberships.mailboxId, mailboxes.id))
+		.where(
+			and(
+				eq(mailboxes.organizationId, user.organizationId!),
+				eq(mailboxMemberships.userId, user.id),
+			),
+		);
 	return NextResponse.json({
 		mailboxes: rows.map((row) => ({
 			...row,
@@ -38,7 +46,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
 	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
+	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
 	if (errorResponse) return errorResponse;
 	const parsed = mailboxSchema.safeParse(await request.json());
 	if (!parsed.success) return apiError("Validation failed", 400, parsed.error.flatten());
@@ -49,7 +57,7 @@ export async function POST(request: Request) {
 		.from(domains)
 		.where(eq(domains.id, parsed.data.domainId))
 		.limit(1);
-	if (!domain || domain.organizationId !== user.organizationId) {
+	if (!domain || domain.organizationId !== orgUser.organizationId) {
 		return apiError("Domain not found", 404);
 	}
 
@@ -69,14 +77,22 @@ export async function POST(request: Request) {
 	}
 
 	const id = newId("mbx");
-	await db.insert(mailboxes).values({
-		id,
-		userId: user.id,
-		organizationId: user.organizationId!,
-		domainId: parsed.data.domainId,
-		localPart,
-		displayName: parsed.data.displayName,
-	});
+	await db.batch([
+		db.insert(mailboxes).values({
+			id,
+			userId: orgUser.id,
+			organizationId: orgUser.organizationId,
+			domainId: parsed.data.domainId,
+			localPart,
+			displayName: parsed.data.displayName,
+		}),
+		db.insert(mailboxMemberships).values({
+			id: newId("mbm"),
+			mailboxId: id,
+			userId: orgUser.id,
+			role: "manager",
+		}),
+	]);
 
 	return apiSuccess({ id, address });
 }

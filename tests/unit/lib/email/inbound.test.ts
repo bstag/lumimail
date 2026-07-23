@@ -36,6 +36,7 @@ let mock: DbMock;
 const mailbox: ResolvedMailbox = {
 	mailboxId: "mb_1",
 	userId: "u1",
+	organizationId: "org_1",
 	domainId: "dom_1",
 	localPart: "a",
 	hostname: "example.com",
@@ -138,9 +139,10 @@ describe("processInboundMessage", () => {
 		});
 
 		expect(mock.inserts).toHaveLength(2); // messages, messageBodies
-		expect(mock.inserts[0].values).toMatchObject({
+			expect(mock.inserts[0].values).toMatchObject({
 			id: "msg_id",
 			userId: "u1",
+			organizationId: "org_1",
 			mailboxId: "mb_1",
 			direction: "inbound",
 			providerMessageId: "<mid@x>",
@@ -441,12 +443,12 @@ describe("getMessageWithBody", () => {
 
 	it("returns null when the message is missing", async () => {
 		mock.queueSelect([]);
-		expect(await getMessageWithBody(env, "u1", "msg_1")).toBeNull();
+		expect(await getMessageWithBody(env, "u1", null, "msg_1")).toBeNull();
 	});
 
 	it("returns null when the message belongs to another user", async () => {
-		mock.queueSelect([{ id: "msg_1", userId: "other" }]);
-		expect(await getMessageWithBody(env, "u1", "msg_1")).toBeNull();
+		mock.queueSelect([]);
+		expect(await getMessageWithBody(env, "u1", "org_1", "msg_1")).toBeNull();
 	});
 
 	it("returns the message merged with contact names plus the body", async () => {
@@ -455,7 +457,7 @@ describe("getMessageWithBody", () => {
 			.queueSelect([{ id: "body_1", messageId: "msg_1", textBody: "t" }]);
 		getMessageContactNames.mockResolvedValue({ fromContactName: "F", toContactName: "T" });
 
-		const result = await getMessageWithBody(env, "u1", "msg_1");
+		const result = await getMessageWithBody(env, "u1", "org_1", "msg_1");
 		expect(getMessageContactNames).toHaveBeenCalledWith(env, "u1", "f@x.com", "t@y.com");
 		expect(result).toEqual({
 			message: { id: "msg_1", userId: "u1", fromAddr: "f@x.com", toAddr: "t@y.com", fromContactName: "F", toContactName: "T" },

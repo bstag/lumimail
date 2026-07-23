@@ -1,7 +1,7 @@
 import { eq, and } from "drizzle-orm";
 import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
-import { users, organizationMembers } from "@/db/schema";
+import { users, organizationMembers, mailboxMemberships } from "@/db/schema";
 import { guardOrgAdmin } from "@/lib/auth/org-guard";
 import { apiSuccess, apiError } from "@/lib/api/response";
 
@@ -59,8 +59,11 @@ export async function DELETE(
   if (!membership) return apiError("Member not found", 404);
   if (membership.role === "owner") return apiError("Cannot remove the owner", 403);
 
-  await db.delete(organizationMembers).where(eq(organizationMembers.id, id));
-  await db.update(users).set({ organizationId: null }).where(eq(users.id, membership.userId));
+  await db.batch([
+    db.delete(mailboxMemberships).where(eq(mailboxMemberships.userId, membership.userId)),
+    db.delete(organizationMembers).where(eq(organizationMembers.id, id)),
+    db.update(users).set({ organizationId: null }).where(eq(users.id, membership.userId)),
+  ]);
 
   return apiSuccess({ ok: true });
 }

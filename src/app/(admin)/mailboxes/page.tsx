@@ -35,10 +35,29 @@ export default function MailboxesPage() {
 	});
 
 	const mailboxes = useQuery({
-		queryKey: ["mailboxes"],
+		queryKey: ["admin", "mailboxes"],
 		queryFn: async () => {
-			const res = await authFetch("/api/mailboxes");
-			return (await res.json()) as { mailboxes: Mailbox[] };
+			const res = await authFetch("/api/admin/mailboxes");
+			return (await res.json()) as {
+				mailboxes: Mailbox[];
+				canSelfAssign: boolean;
+				currentUserId: string;
+			};
+		},
+	});
+
+	const claimAccess = useMutation({
+		mutationFn: async (mailboxId: string) => {
+			const res = await authFetch(`/api/mailboxes/${mailboxId}/members`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ userId: mailboxes.data?.currentUserId, role: "manager" }),
+			});
+			await parseApiResponse<{ id: string }>(res);
+		},
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["admin", "mailboxes"] });
+			qc.invalidateQueries({ queryKey: ["mailboxes"] });
 		},
 	});
 
@@ -55,6 +74,7 @@ export default function MailboxesPage() {
 		},
 		onSuccess: () => {
 			setCreateOpen(false);
+			qc.invalidateQueries({ queryKey: ["admin", "mailboxes"] });
 			qc.invalidateQueries({ queryKey: ["mailboxes"] });
 		},
 	});
@@ -144,12 +164,8 @@ export default function MailboxesPage() {
 							hostname: mailbox.hostname ?? domainMap.get(mailbox.domainId) ?? "?",
 						};
 
-						return (
-							<Link
-								key={mailbox.id}
-								href={`/mailboxes/${mailbox.id}`}
-								className="group flex min-h-24 items-start gap-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm shadow-neutral-100 transition hover:border-blue-200 hover:bg-[#f8fbff] hover:shadow-md"
-							>
+						const content = (
+							<>
 								<span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600 group-hover:bg-blue-50 group-hover:text-blue-700">
 									<Mail className="h-5 w-5" />
 								</span>
@@ -160,8 +176,32 @@ export default function MailboxesPage() {
 									<span className="block truncate font-mono text-sm text-neutral-500">
 										{getMailboxAddress(mailboxWithHostname)}
 									</span>
+									<span className="block text-xs capitalize text-neutral-400">
+										{mailbox.role ?? "No content access"}
+									</span>
 								</span>
-							</Link>
+							</>
+						);
+						if (mailbox.role === "manager") {
+							return (
+								<Link
+									key={mailbox.id}
+									href={`/mailboxes/${mailbox.id}`}
+									className="group flex min-h-24 items-start gap-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm shadow-neutral-100 transition hover:border-blue-200 hover:bg-[#f8fbff] hover:shadow-md"
+								>
+									{content}
+								</Link>
+							);
+						}
+						return (
+							<div key={mailbox.id} className="group flex min-h-24 items-start gap-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm shadow-neutral-100">
+								{content}
+								{!mailbox.role && mailboxes.data?.canSelfAssign && (
+									<Button size="sm" variant="outline" onClick={() => claimAccess.mutate(mailbox.id)} disabled={claimAccess.isPending}>
+										Claim access
+									</Button>
+								)}
+							</div>
 						);
 					})}
 				</div>

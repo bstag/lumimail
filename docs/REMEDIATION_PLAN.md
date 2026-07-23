@@ -135,15 +135,17 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
 
 ### Phase 3 — Multi-user authorization
 
-- [ ] **R-12 Specify mailbox-level access control.**
+- [x] **R-12 Specify mailbox-level access control.** Spec: [F47](./specs/F47-mailbox-access-control.md).
   - Required use case: the owner can access all permitted/catch-all mail while selected users can share `support@kingdomtasks.com` without seeing unrelated mailboxes.
   - Define organization roles, mailbox membership, read/send/admin permissions, catch-all ownership, and invitation behavior.
   - Treat permission defaults and existing-data migration as security decisions requiring explicit review.
+  - Evidence 2026-07-22: current endpoint/schema audit recorded in F47; owner self-assignment, shared mailbox state, and the three-role model were explicitly approved.
 
-- [ ] **R-13 Implement and enforce mailbox ACLs everywhere.** Depends on R-12.
+- [~] **R-13 Implement and enforce mailbox ACLs everywhere.** Depends on R-12.
   - Enforce access server-side for message lists, individual messages, search, attachments, drafts, sending identities, contacts where scoped, and mutations.
   - Hide unauthorized mailboxes in the client, but never rely on client filtering for security.
   - Acceptance: cross-user and cross-tenant negative tests cover every mailbox-scoped endpoint; shared-support-mailbox E2E flow passes.
+  - Evidence 2026-07-23: F47 membership lifecycle and UI are implemented locally. Membership-backed authorization covers browser messages, shared state, attachments, drafts, sender resolution, outbound storage/jobs, and API-key message/send routes. Administrative inventory is separated from content access and its query cache cannot populate the content selector; owner self-claim is explicit; mailbox deletion requires typed exact-address confirmation. Full verification passes at 1,045 tests with 100% coverage, all 24 Playwright tests pass at CI concurrency, and the final OpenNext production build passes. Migration deployment and a controlled live two-user share/read/send/revoke flow remain open.
 
 - [ ] **R-22 Bind invitations to the intended identity and deliver them safely.**
   - Registration must not accept an invite token for a different address; define whether invited external addresses become login identities or map to domain mailboxes.
@@ -162,6 +164,7 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Compare all locale key trees with the English base and detect missing keys automatically.
   - Inventory hardcoded user-facing English and migrate it in bounded passes.
   - Acceptance: no interface displays raw translation keys in supported locales.
+  - Evidence 2026-07-23: the passing 24-test Playwright run logs missing `actions.delete`, missing `compose.send`/`compose.sending`, and an invalid ICU tag in `compose.recipientsPlaceholder`.
 
 - [ ] **R-15 Convert the interface to semantic theme tokens.**
   - Replace fixed light palette usage (`bg-white`, neutral text/borders, and hexadecimal surfaces) with semantic tokens in shared primitives and then feature components.

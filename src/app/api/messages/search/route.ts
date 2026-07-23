@@ -7,6 +7,7 @@ import { messages } from "@/db/schema";
 import { getContactDisplayNameMap } from "@/lib/contacts/service";
 import { normalizeEmailAddress } from "@/lib/email/address";
 import { getLatestEmailContent } from "@/lib/email/reply-content-utils";
+import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
 export async function GET(request: Request) {
 	const env = getEnv();
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
 	const mailboxId = url.searchParams.get("mailboxId");
 
 	const db = getDb(env);
-	const conditions = [eq(messages.userId, user.id)];
+	const conditions = [messageAccessCondition(db, user.id, user.organizationId, "read")];
 	if (mailboxId) {
 		conditions.push(eq(messages.mailboxId, mailboxId));
 	}

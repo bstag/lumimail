@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { messageBodies, messages, messageFilters, messageLabels, vacationResponders } from "@/db/schema";
 import { newId } from "@/lib/ids";
@@ -7,6 +7,7 @@ import { resolveInboundTargets, type ResolvedMailbox } from "@/lib/email/routing
 import { dispatchWebhooks } from "@/lib/email/webhooks";
 import { getMessageContactNames, upsertContactFromAddress } from "@/lib/contacts/service";
 import { formatEmailAddress, getEmailAddress } from "@/lib/email/address";
+import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
 export type InboundQueueMessage = {
 	from: string;
@@ -80,6 +81,7 @@ async function deliverToMailbox(
 	await db.insert(messages).values({
 		id: messageId,
 		userId: mailbox.userId,
+		organizationId: mailbox.organizationId,
 		mailboxId: mailbox.mailboxId,
 		direction: "inbound",
 		providerMessageId: parsed.messageId,
@@ -201,14 +203,19 @@ export async function storeRawToR2(
 	return key;
 }
 
-export async function getMessageWithBody(env: CloudflareEnv, userId: string, messageId: string) {
+export async function getMessageWithBody(
+	env: CloudflareEnv,
+	userId: string,
+	organizationId: string | null,
+	messageId: string,
+) {
 	const db = getDb(env);
 	const [message] = await db
 		.select()
 		.from(messages)
-		.where(eq(messages.id, messageId))
+		.where(and(eq(messages.id, messageId), messageAccessCondition(db, userId, organizationId, "read")))
 		.limit(1);
-	if (!message || message.userId !== userId) return null;
+	if (!message) return null;
 	const [body] = await db
 		.select()
 		.from(messageBodies)

@@ -5,6 +5,7 @@ import { attachments, messages } from "@/db/schema";
 import { guardUser } from "@/lib/auth/cookies";
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { newId } from "@/lib/ids";
+import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
 export async function POST(request: Request) {
 	const env = getEnv();
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
 	const [msg] = await db
 		.select({ id: messages.id })
 		.from(messages)
-		.where(and(eq(messages.id, messageId), eq(messages.userId, user.id)))
+		.where(and(eq(messages.id, messageId), messageAccessCondition(db, user.id, user.organizationId, "send")))
 		.limit(1);
 
 	if (!msg) return apiError("Message not found", 404);

@@ -21,6 +21,7 @@ export async function fetchMailboxOptions(force = false): Promise<MailboxOption[
 				localPart: m.localPart,
 				hostname: m.hostname,
 				displayName: m.displayName,
+				role: m.role,
 				isPrimary: m.isPrimary,
 			}));
 			mailboxesCache = items;

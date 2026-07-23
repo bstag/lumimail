@@ -6,6 +6,7 @@ import { verifyApiKey, parseScopes } from "@/lib/api-keys";
 export type ApiAuthResult = {
 	userId: string;
 	email: string;
+	organizationId: string | null;
 	scopes: string[];
 };
 
@@ -40,6 +41,7 @@ export async function authenticateApiKey(
 		return {
 			userId: user.id,
 			email: user.email,
+			organizationId: user.organizationId,
 			scopes: parseScopes(candidate.scopes),
 		};
 	}

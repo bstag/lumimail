@@ -3,10 +3,11 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { mailboxes } from "@/db/schema";
 import { guardUser } from "@/lib/auth/cookies";
+import { guardOrgAdmin } from "@/lib/auth/org-guard";
 import { getEnv } from "@/lib/cloudflare";
 import { updateMailboxSchema } from "@/lib/validators";
 import type { MailboxRouteParams } from "./types";
-import { getMailboxUpdateValues, selectMailboxForUser } from "./utils";
+import { getMailboxUpdateValues, selectMailboxForOrganization, selectMailboxForUser } from "./utils";
 
 export async function GET(request: Request, { params }: MailboxRouteParams) {
 	const { id } = await params;
@@ -15,7 +16,7 @@ export async function GET(request: Request, { params }: MailboxRouteParams) {
 	if (errorResponse) return errorResponse;
 	if (!user.organizationId) return NextResponse.json({ error: "No organization" }, { status: 400 });
 	const db = getDb(env);
-	const [mailbox] = await selectMailboxForUser(db, user.organizationId, id);
+	const [mailbox] = await selectMailboxForUser(db, user.organizationId, user.id, id, ["viewer", "responder", "manager"]);
 
 	if (!mailbox) {
 		return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
@@ -42,7 +43,7 @@ export async function PATCH(request: Request, { params }: MailboxRouteParams) {
 	}
 
 	const db = getDb(env);
-	const [existing] = await selectMailboxForUser(db, user.organizationId, id);
+	const [existing] = await selectMailboxForUser(db, user.organizationId, user.id, id, ["manager"]);
 
 	if (!existing) {
 		return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
@@ -56,7 +57,7 @@ export async function PATCH(request: Request, { params }: MailboxRouteParams) {
 			.where(eq(mailboxes.id, id));
 	}
 
-	const [mailbox] = await selectMailboxForUser(db, user.organizationId, id);
+	const [mailbox] = await selectMailboxForUser(db, user.organizationId, user.id, id, ["manager"]);
 
 	return NextResponse.json({
 		mailbox: {
@@ -69,15 +70,28 @@ export async function PATCH(request: Request, { params }: MailboxRouteParams) {
 export async function DELETE(request: Request, { params }: MailboxRouteParams) {
 	const { id } = await params;
 	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
+	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
 	if (errorResponse) return errorResponse;
-	if (!user.organizationId) return NextResponse.json({ error: "No organization" }, { status: 400 });
 
 	const db = getDb(env);
-	const [mailbox] = await selectMailboxForUser(db, user.organizationId, id);
+	const [mailbox] = await selectMailboxForOrganization(db, orgUser.organizationId as string, id);
 
 	if (!mailbox) {
 		return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
+	}
+
+	let body: { confirmAddress?: unknown };
+	try {
+		body = await request.json() as { confirmAddress?: unknown };
+	} catch {
+		return NextResponse.json({ error: "Address confirmation required" }, { status: 400 });
+	}
+	const expectedAddress = `${mailbox.localPart}@${mailbox.hostname}`.toLowerCase();
+	const confirmedAddress = typeof body.confirmAddress === "string"
+		? body.confirmAddress.trim().toLowerCase()
+		: "";
+	if (confirmedAddress !== expectedAddress) {
+		return NextResponse.json({ error: "Address confirmation does not match" }, { status: 400 });
 	}
 
 	await db.delete(mailboxes).where(eq(mailboxes.id, id));
