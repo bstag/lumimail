@@ -102,7 +102,7 @@ describe("submitRegistration", () => {
 		expect(result).toEqual({ ok: true, data: { redirect: "/inbox", error: undefined } });
 	});
 
-	it("omits the domain when not first run and includes the invite token", async () => {
+	it("binds invite registration to the token without sending a client-selected username", async () => {
 		fetchMock.mockResolvedValue(jsonResponse(true, {}));
 
 		await submitRegistration(form(), {
@@ -113,7 +113,6 @@ describe("submitRegistration", () => {
 
 		const sentBody = JSON.parse(fetchMock.mock.calls[0][1].body);
 		expect(sentBody).toEqual({
-			username: "alice",
 			password: "secret",
 			resetEmail: "alice@example.com",
 			inviteToken: "inv_1",

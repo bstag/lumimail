@@ -1,7 +1,8 @@
-import { eq, gt } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
 import { orgInvites, organizations } from "@/db/schema";
+import { hashInvitationToken } from "@/lib/auth/invitation";
 import { apiSuccess, apiError } from "@/lib/api/response";
 
 export async function GET(
@@ -9,6 +10,7 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
+  const tokenHash = await hashInvitationToken(token);
   const env = getEnv();
   const db = getDb(env);
 
@@ -23,7 +25,7 @@ export async function GET(
     })
     .from(orgInvites)
     .innerJoin(organizations, eq(orgInvites.organizationId, organizations.id))
-    .where(eq(orgInvites.token, token))
+    .where(eq(orgInvites.token, tokenHash))
     .limit(1);
 
   if (!invite) return apiError("Invite not found", 404);

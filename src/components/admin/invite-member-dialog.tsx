@@ -37,7 +37,7 @@ export function InviteMemberDialog({ open, onOpenChange, onInviteCreated }: Prop
     });
     const json = (await res.json()) as {
       success: boolean;
-      data?: { token: string };
+      data?: { invite: { token: string } };
       error?: { message: string };
     };
     setLoading(false);
@@ -45,7 +45,7 @@ export function InviteMemberDialog({ open, onOpenChange, onInviteCreated }: Prop
       setError(typeof json.error?.message === "string" ? json.error.message : "Failed to create invite");
       return;
     }
-    const link = `${window.location.origin}/register?token=${json.data!.token}`;
+    const link = `${window.location.origin}/register?token=${json.data!.invite.token}`;
     setInviteLink(link);
     onInviteCreated();
   }

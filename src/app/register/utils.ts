@@ -1,4 +1,3 @@
-import { persistAuthSession } from "@/lib/auth/client";
 import type { DomainSetupResult, SetupStatus } from "./types";
 
 export async function getSetupStatus(): Promise<SetupStatus> {
@@ -31,11 +30,15 @@ export async function submitRegistration(
   form: FormData,
   opts: { firstRun: boolean; domain: string; inviteToken: string | null },
 ): Promise<RegistrationResult> {
-  const body: Record<string, unknown> = opts.firstRun
-    ? { domain: opts.domain, username: form.get("username"), password: form.get("password"), resetEmail: form.get("resetEmail") }
-    : { username: form.get("username"), password: form.get("password"), resetEmail: form.get("resetEmail") };
-
-  if (opts.inviteToken) body.inviteToken = opts.inviteToken;
+  const body: Record<string, unknown> = opts.inviteToken
+    ? {
+        inviteToken: opts.inviteToken,
+        password: form.get("password"),
+        resetEmail: form.get("resetEmail"),
+      }
+    : opts.firstRun
+      ? { domain: opts.domain, username: form.get("username"), password: form.get("password"), resetEmail: form.get("resetEmail") }
+      : { username: form.get("username"), password: form.get("password"), resetEmail: form.get("resetEmail") };
 
   const res = await fetch("/api/auth/register", {
     method: "POST",

@@ -39,7 +39,7 @@ test.describe("domain catch-all routing", () => {
 		await page.getByRole("button", { name: "Enable catch-all and add rule" }).click();
 
 		await expect.poll(() => posted).toMatchObject({ domainId: "d1", pattern: "*@lucidkith.com", mailboxId: "m1" });
-		await expect(page.getByText("*", { exact: true })).toBeVisible();
+		await expect(page.getByRole("listitem").getByText("*", { exact: true })).toBeVisible();
 	});
 
 	test("shows a provider conflict without adding a catch-all", async ({ page }) => {

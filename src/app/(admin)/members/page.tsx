@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Mail, Clock, Plus, Copy, X } from "lucide-react";
+import { Mail, Clock, Plus, X } from "lucide-react";
 import { authFetch } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { InviteMemberDialog } from "@/components/admin/invite-member-dialog";
@@ -19,7 +19,6 @@ type Invite = {
   id: string;
   email: string;
   role: "admin" | "member";
-  token: string;
   expiresAt: string;
   createdAt: string;
 };
@@ -70,11 +69,6 @@ export default function MembersPage() {
     if (!confirm("Remove this member from the workspace?")) return;
     const res = await authFetch(`/api/org/members/${memberId}`, { method: "DELETE" });
     if (res.ok) void fetchMembers();
-  }
-
-  function copyInviteLink(token: string) {
-    const link = `${window.location.origin}/register?token=${token}`;
-    void navigator.clipboard.writeText(link);
   }
 
   if (loading) {
@@ -170,16 +164,6 @@ export default function MembersPage() {
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${ROLE_BADGES[invite.role]}`}>
                   {invite.role}
                 </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1 text-xs"
-                  onClick={() => copyInviteLink(invite.token)}
-                >
-                  <Copy className="h-3 w-3" />
-                  Copy link
-                </Button>
               </div>
             </div>
           ))}
@@ -190,7 +174,6 @@ export default function MembersPage() {
         open={inviteOpen}
         onOpenChange={setInviteOpen}
         onInviteCreated={() => {
-          setInviteOpen(false);
           void fetchMembers();
         }}
       />

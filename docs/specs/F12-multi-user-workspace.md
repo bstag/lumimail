@@ -3,7 +3,7 @@
 > Status: Partially Shipped
 > Owner area: `src/app/api/org/*`, `src/lib/auth/org-guard.ts`, `src/app/(admin)/members/`, `src/db/schema/`
 
-Organization membership and invitations do not define mailbox-content access. The least-privilege shared-mailbox follow-on is specified separately in [F47](./F47-mailbox-access-control.md); where this historical specification describes organization-wide mailbox visibility or personal message ownership, F47 controls the desired behavior.
+Organization membership and invitations do not define mailbox-content access. The least-privilege shared-mailbox follow-on is specified separately in [F47](./F47-mailbox-access-control.md), and identity-bound invitation acceptance is specified in [F49](./F49-identity-bound-organization-invitations.md). Where this historical specification describes organization-wide mailbox visibility, personal message ownership, invited usernames, or automatic invited-user mailboxes, F47/F49 control the desired behavior.
 
 ## 1. Problem & User Job
 
@@ -19,7 +19,7 @@ keeping their own inbox private.
     then an invite is created with a unique token link.
 - As an **invited user**, I can register via the invite link and join the existing org.
   - Given I visit `/register?token=<valid>`, when I complete registration,
-    then I join the inviter's org with the assigned role and get a mailbox.
+    then I join the inviter's org using the invited external email as my login identity and receive no mailbox until an administrator assigns one.
 - As an **org owner**, I can change a member's role or remove them.
   - Given I click a member's role dropdown, when I select a new role,
     then the member's role updates immediately.

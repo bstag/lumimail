@@ -28,6 +28,17 @@ export const primaryDomainRegisterSchema = z.object({
 	resetEmail: z.string().email(),
 });
 
+export const inviteRegisterSchema = z.object({
+	inviteToken: z.string().trim().min(1),
+	password: z.string().min(8),
+	resetEmail: z.string().trim().toLowerCase().email(),
+});
+
+export const organizationInviteSchema = z.object({
+	email: z.string().trim().toLowerCase().email(),
+	role: z.enum(["admin", "member"]),
+});
+
 export const setupDomainSchema = z.object({
 	hostname: z.string().regex(/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/),
 });

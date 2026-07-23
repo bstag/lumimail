@@ -154,10 +154,11 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Acceptance: viewer/responder browser contracts, draft-aware authorization tests, full verification, production build, deployment, and controlled live role checks pass.
   - Evidence 2026-07-23: 32 focused unit tests, 1,056-test verification at 100% configured coverage, 28 Playwright scenarios, and the OpenNext production build pass. Worker `7655ecdf-3317-47e8-8d40-4a305ca63ace` is live; `/` returned `200`, and unauthenticated mailbox/draft-list requests returned `401`. Controlled live role and shared-draft checks remain.
 
-- [ ] **R-22 Bind invitations to the intended identity and deliver them safely.**
+- [~] **R-22 Bind invitations to the intended identity and deliver them safely.** Spec: [F49](./specs/F49-identity-bound-organization-invitations.md).
   - Registration must not accept an invite token for a different address; define whether invited external addresses become login identities or map to domain mailboxes.
   - Deliver or securely share invitations without exposing reusable tokens in ordinary member-list responses.
   - Acceptance: mismatched-address registration is denied and a controlled invited user completes the intended flow end to end.
+  - Evidence 2026-07-23: F49 is implemented locally. The invited external address is server-bound as the login identity, invite acceptance creates no mailbox/routing rule, pending lists omit tokens, raw tokens are revealed once and stored only as SHA-256 hashes, and conditional claiming prevents replay. Production contained 0 unexpired legacy plaintext invitations before deployment. Verification passes with 1,065 tests at 100% configured coverage, all 30 Playwright scenarios, and the final OpenNext build.
 
 - [ ] **R-23 Repair and verify the IMAP/SMTP bridge contract.** Depends on R-13 for mailbox authorization.
   - Use API-key-aware endpoints consistently, align scope names and response envelopes, and correct SMTP recipient/body shapes.

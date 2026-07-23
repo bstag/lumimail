@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDbMock, type DbMock } from "../../../../../helpers/db";
 
-const m = vi.hoisted(() => ({ db: null as unknown }));
+const m = vi.hoisted(() => ({ db: null as unknown, hashInvitationToken: vi.fn() }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
+vi.mock("@/lib/auth/invitation", () => ({ hashInvitationToken: m.hashInvitationToken }));
 
 import { GET } from "@/app/api/org/invites/[token]/route";
 
@@ -12,6 +13,7 @@ let mock: DbMock;
 beforeEach(() => {
 	mock = createDbMock();
 	m.db = mock.db;
+	m.hashInvitationToken.mockReset().mockResolvedValue("hashed_tok");
 });
 
 const params = (token = "tok") => ({ params: Promise.resolve({ token }) });
@@ -23,6 +25,7 @@ describe("GET /api/org/invites/[token]", () => {
 		const res = await GET(req(), params());
 		expect(res.status).toBe(404);
 		expect((await res.json()) as any).toMatchObject({ error: { message: "Invite not found" } });
+		expect(m.hashInvitationToken).toHaveBeenCalledWith("tok");
 	});
 
 	it("returns 410 when the invite has expired", async () => {

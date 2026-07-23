@@ -79,15 +79,19 @@ export function RegisterClient() {
     setError(null);
 
     const form = new FormData(e.currentTarget);
-    const firstRun = hasPrimaryDomain === false;
+    const firstRun = !inviteToken && hasPrimaryDomain === false;
     const domain = firstRun ? setupDomain : primaryDomain;
-    if (!domain) {
+    if (!inviteToken && !domain) {
       setLoading(false);
       setError(t("domainSetupIncomplete"));
       return;
     }
 
-    const { ok, data } = await submitRegistration(form, { firstRun, domain, inviteToken });
+    const { ok, data } = await submitRegistration(form, {
+      firstRun,
+      domain: domain ?? "",
+      inviteToken,
+    });
     setLoading(false);
     if (!ok) {
       setError(typeof data.error === "string" ? data.error : t("registrationFailed"));
@@ -96,14 +100,14 @@ export function RegisterClient() {
     router.push(data.redirect ?? "/inbox");
   }
 
-  const firstRun = hasPrimaryDomain === false;
+  const firstRun = !inviteToken && hasPrimaryDomain === false;
   const accountDomain = firstRun ? setupDomain : primaryDomain;
   const showDomainStep = firstRun && step === 1;
 
   return (
     <AuthShell
       icon={MailPlus}
-      title={showDomainStep ? t("addDomain") : t("createMailbox")}
+      title={invite ? t("createAccountCta") : showDomainStep ? t("addDomain") : t("createMailbox")}
       steps={
         firstRun
           ? [
@@ -123,7 +127,8 @@ export function RegisterClient() {
         <p className="text-sm text-neutral-500">{t("loading")}</p>
       ) : invite ? (
         <div className="mb-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-          {t("invitedBy", { orgName: invite.orgName })}
+          <p>{t("invitedBy", { orgName: invite.orgName })}</p>
+          <p className="mt-1 font-medium">{invite.email}</p>
         </div>
       ) : null}
       {error && (
@@ -131,7 +136,7 @@ export function RegisterClient() {
           {error}
         </p>
       )}
-      {showDomainStep ? (
+      {inviteToken && !invite ? null : showDomainStep ? (
         <form onSubmit={onDomainSubmit} className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="domain">{t("primaryDomain")}</Label>
@@ -144,22 +149,34 @@ export function RegisterClient() {
         </form>
       ) : (
         <form onSubmit={onSubmit} className="space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="username">{t("username")}</Label>
-            <div className="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+          {invite ? (
+            <div className="space-y-2">
+              <Label htmlFor="invite-email">{t("email")}</Label>
               <Input
-                id="username"
-                name="username"
-                placeholder={t("placeholders.username")}
+                id="invite-email"
+                value={invite.email}
+                readOnly
                 autoComplete="username"
-                required
-                className="pr-34"
               />
-              <span className="absolute right-5 top-2.5 max-w-36 truncate text-sm font-medium text-neutral-500">
-                @{accountDomain ?? t("placeholders.domain")}
-              </span>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="username">{t("username")}</Label>
+              <div className="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                <Input
+                  id="username"
+                  name="username"
+                  placeholder={t("placeholders.username")}
+                  autoComplete="username"
+                  required
+                  className="pr-34"
+                />
+                <span className="absolute right-5 top-2.5 max-w-36 truncate text-sm font-medium text-neutral-500">
+                  @{accountDomain ?? t("placeholders.domain")}
+                </span>
+              </div>
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="password">{t("password")}</Label>
             <Input id="password" name="password" type="password" minLength={8} autoComplete="new-password" required />
