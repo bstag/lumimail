@@ -34,6 +34,11 @@
 	"observability": {
 		"enabled": true,
 	},
+	"triggers": {
+		"crons": [
+			"* * * * *",
+		],
+	},
 	"upload_source_maps": true,
 	"send_email": [
 		{
@@ -64,6 +69,11 @@
 			{
 				"binding": "OUTBOUND_QUEUE",
 				"queue": "lumimail-outbound",
+			},
+			{
+				// Metrics-only use by the queue-health checker.
+				"binding": "OUTBOUND_DLQ_QUEUE",
+				"queue": "lumimail-outbound-dlq",
 			},
 		],
 		"consumers": [

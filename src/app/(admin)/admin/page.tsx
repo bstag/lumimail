@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Globe2, KeyRound, Mail, Settings, Webhook } from "lucide-react";
+import { Activity, Globe2, KeyRound, Mail, Settings, Webhook } from "lucide-react";
+import { useAuthSession } from "@/components/auth/auth-session-context";
 import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function AdminSettingsPage() {
 	const t = useTranslations("admin");
+	const session = useAuthSession();
 
 	const sections = [
 		{ href: "/mailboxes", title: t("mailboxesCard"), description: t("mailboxesDesc"), icon: Mail },
@@ -14,6 +16,14 @@ export default function AdminSettingsPage() {
 		{ href: "/api-keys", title: t("apiKeysCard"), description: t("apiKeysDesc"), icon: KeyRound },
 		{ href: "/webhooks", title: t("webhooksCard"), description: t("webhooksDesc"), icon: Webhook },
 		{ href: "/settings", title: t("accountCard"), description: t("accountDesc"), icon: Settings },
+		...(session?.user.role === "owner"
+			? [{
+				href: "/queue-health",
+				title: "Queue health",
+				description: "Monitor scheduled inbound and outbound delivery queues.",
+				icon: Activity,
+			}]
+			: []),
 	];
 
 	return (

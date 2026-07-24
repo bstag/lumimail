@@ -14,6 +14,7 @@ import {
 	isOutboundDeadLetterQueue,
 	isOutboundQueueMessage,
 } from "./worker-utils";
+import { runQueueHealthCheck } from "./src/lib/queue-health";
 
 export default {
 	fetch: nextHandler.fetch,
@@ -68,5 +69,12 @@ export default {
 				msg.retry({ delaySeconds: 30 });
 			}
 		}
+	},
+
+	async scheduled(
+		_controller: ScheduledController,
+		env: CloudflareEnv,
+	): Promise<void> {
+		await runQueueHealthCheck(env);
 	},
 } satisfies ExportedHandler<CloudflareEnv>;

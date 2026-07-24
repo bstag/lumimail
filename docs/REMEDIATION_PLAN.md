@@ -205,6 +205,29 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
 
 ### Phase 5 — Operational hardening
 
+- [x] **R-32 Monitor queue health and stale delivery work.** Spec: [F56](./specs/F56-queue-health-monitoring.md).
+  - [x] Add one-minute scheduled checks for inbound, outbound, and outbound
+    dead-letter aggregate metrics.
+  - [x] Persist current D1 snapshots and combine outbound backlog with stale
+    queued/processing job detection.
+  - [x] Add an owner-only, platform-wide status page and manual check without
+    granting automatic resume/purge authority.
+  - [x] Apply migration `0013`, deploy the Cron Trigger and metrics-only DLQ
+    binding, then confirm scheduled `checkedAt` advances in production.
+  - Acceptance: all three queues show fresh scheduled status; an aging backlog or
+    dead-letter message becomes actionable without exposing message content.
+  - Local evidence 2026-07-24: focused queue/migration/API contracts pass; full
+    `npm run verify` passes with 1,206 application tests at 100% configured
+    coverage plus 16 bridge tests; four relevant Chromium assertions passed
+    before the known local Wrangler helper teardown timeout; fresh local migration,
+    OpenNext production build, and Wrangler dry run pass.
+  - Production evidence 2026-07-24: migration `0013` is applied; Worker
+    `32a2f078-ee99-47d8-a4c2-7c90d12bc84e` is deployed at 100%; version
+    inspection confirms `scheduled` plus inbound, outbound, and outbound-DLQ
+    bindings. Scheduled D1 snapshots existed and were healthy before manual
+    validation. The owner page showed all three queues healthy, and **Check now**
+    advanced every timestamp with zero backlog, dead letters, and stale jobs.
+
 - [ ] **R-17 Run a multiple-domain performance and isolation pass.**
   - Seed realistic domains, users, mailboxes, aliases, rules, and messages.
   - Measure bounded pagination, search, routing lookup, mailbox loading, DNS status loading, queue throughput, and D1 query plans.
@@ -235,6 +258,7 @@ Add one entry per completed item. Do not record secrets, email contents, reset t
 | 2026-07-22 | R-07 | 88 focused contracts, 936-test verification at 100% configured coverage, 3 Chromium scenarios, provider/DNS inspection, build/dry run, Worker `d82e393c-1abb-4f68-9719-284eb31c73af`, production reconciliation and smoke checks, prior controlled outbound send | Local + production | Passed |
 | 2026-07-22 | R-08 | 985-test verification at 100% configured coverage, 2 Chromium scenarios, build/dry run, Worker `3a99cabe-fbf6-4d1d-b5cb-5df76458b6c2`, provider/D1 inspection, and controlled exact/catch-all delivery across LucidKith and Henriksen | Local + production | Passed |
 | 2026-07-24 | R-10 | 1,153-test verification at 100% configured coverage, 35 Chromium scenarios, migration `0012`, outbound DLQ topology, Workers `70e646ad-809e-45b2-8d13-4e0b03c28563` / `73a3d71a-411b-4de7-8ada-0e1decdf39e1`, and a controlled one-attempt queued-to-sent provider delivery | Local + production | Passed |
+| 2026-07-24 | R-32 | 1,206-test verification at 100% configured coverage, migration `0013`, scheduled snapshots, three Queue bindings, Worker `32a2f078-ee99-47d8-a4c2-7c90d12bc84e`, and owner-page/manual-refresh validation | Local + production | Passed |
 
 ## Newly discovered work
 

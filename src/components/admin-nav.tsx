@@ -10,13 +10,16 @@ import {
   AtSign,
   Webhook,
   GitBranch,
+  Activity,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useAuthSession } from "@/components/auth/auth-session-context";
 import { cn } from "@/lib/utils";
 import { NavItem } from "./components-nav";
 
 export function AdminNav({ className, onNavigate }: { className?: string; onNavigate?: () => void }) {
   const t = useTranslations("nav");
+  const session = useAuthSession();
 
   const links = [
     { href: "/admin", label: t("overview"), icon: Settings },
@@ -27,6 +30,9 @@ export function AdminNav({ className, onNavigate }: { className?: string; onNavi
     { href: "/aliases", label: "Aliases", icon: AtSign },
     { href: "/routing", label: "Routing", icon: GitBranch },
     { href: "/webhooks", label: "Webhooks", icon: Webhook },
+    ...(session?.user.role === "owner"
+      ? [{ href: "/queue-health", label: "Queue health", icon: Activity }]
+      : []),
   ];
 
   return (
@@ -35,7 +41,7 @@ export function AdminNav({ className, onNavigate }: { className?: string; onNavi
         href="/inbox"
         className="mb-3 flex h-10 items-center gap-3 px-3 text-ink-muted"
       >
-        <img src="/icon-96.png" height={28} width={28} />
+        <img src="/icon-96.png" height={28} width={28} alt="" />
         <span className="text-lg font-semibold text-ink">{t("admin")}</span>
       </Link>
       {links.map((link) => (

@@ -49,6 +49,10 @@ Update `wrangler.jsonc` with your specific settings, such as:
 - D1 database ID and R2 bucket names
 - environment variables
 
+Keep the example's one-minute Cron Trigger and all three Queue producer bindings,
+including `OUTBOUND_DLQ_QUEUE`. Lumimail uses that dead-letter binding only to
+read aggregate queue-health metrics.
+
 Now that Wrangler is authenticated and configured, store the Cloudflare API token
 you created earlier as a secret:
 
@@ -100,6 +104,8 @@ npx wrangler d1 migrations apply DB --remote
 Check:
 
 - Worker deployed successfully
+- Cron Trigger `* * * * *` is registered
+- **Admin → Queue health** shows fresh inbound, outbound, and dead-letter checks
 - DNS records are active
 - Email Routing is enabled
 - Inbound email is routed correctly

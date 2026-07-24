@@ -75,11 +75,19 @@ test("hides organization administration and redirects direct member visits", asy
 		"/aliases",
 		"/routing",
 		"/webhooks",
+		"/queue-health",
 	]) {
 		await page.goto(path);
 		await expect(page).toHaveURL(/\/inbox$/);
 		await expect(page.getByRole("button", { name: "New mailbox" })).toHaveCount(0);
 	}
+});
+
+test("keeps deployment queue health owner-only for an organization admin", async ({ page }) => {
+	await mockShell(page, "admin");
+	await page.goto("/queue-health");
+	await expect(page).toHaveURL(/\/inbox$/);
+	await expect(page.getByRole("heading", { name: "Queue health" })).toHaveCount(0);
 });
 
 test("retains organization administration for an owner", async ({ page }) => {

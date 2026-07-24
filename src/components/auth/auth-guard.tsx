@@ -15,6 +15,7 @@ export function AuthGuard({
 	mode = "protected",
 	requireMailbox,
 	requireOrgAdmin,
+	requireOrgOwner,
 }: AuthGuardProps) {
 	const pathname = usePathname();
 	const router = useRouter();
@@ -60,6 +61,11 @@ export function AuthGuard({
 				return;
 			}
 
+			if (requireOrgOwner && data.user?.role !== "owner") {
+				router.replace("/inbox");
+				return;
+			}
+
 			setSession(data);
 			setAuthorized(true);
 		}
@@ -69,7 +75,7 @@ export function AuthGuard({
 		return () => {
 			cancelled = true;
 		};
-	}, [mode, pathname, requireMailbox, requireOrgAdmin, router]);
+	}, [mode, pathname, requireMailbox, requireOrgAdmin, requireOrgOwner, router]);
 
 	if (!authorized) return null;
 	return (

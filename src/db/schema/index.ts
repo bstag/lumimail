@@ -264,6 +264,21 @@ export const outboundJobs = sqliteTable("outbound_jobs", {
 	index("outbound_jobs_status_updated_idx").on(t.status, t.updatedAt),
 ]);
 
+export const queueHealthSnapshots = sqliteTable("queue_health_snapshots", {
+	queueKey: text("queue_key", {
+		enum: ["inbound", "outbound", "outbound_dlq"],
+	}).primaryKey(),
+	status: text("status", {
+		enum: ["healthy", "delayed", "attention", "unavailable"],
+	}).notNull(),
+	backlogCount: integer("backlog_count").notNull().default(0),
+	backlogBytes: integer("backlog_bytes").notNull().default(0),
+	oldestMessageAt: integer("oldest_message_at", { mode: "timestamp" }),
+	staleJobCount: integer("stale_job_count").notNull().default(0),
+	detail: text("detail"),
+	checkedAt: integer("checked_at", { mode: "timestamp" }).notNull(),
+});
+
 export const routingRules = sqliteTable("routing_rules", {
 	id: text("id").primaryKey(),
 	userId: text("user_id")
@@ -412,6 +427,7 @@ export const schema = {
 	imapUidCounter,
 	messageBodies,
 	outboundJobs,
+	queueHealthSnapshots,
 	routingRules,
 	webhooks,
 	webhookDeliveries,
