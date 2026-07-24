@@ -76,6 +76,12 @@
 				"queue": "lumimail-outbound",
 				"max_batch_size": 5,
 				"max_retries": 3,
+				"dead_letter_queue": "lumimail-outbound-dlq",
+			},
+			{
+				"queue": "lumimail-outbound-dlq",
+				"max_batch_size": 5,
+				"max_retries": 3,
 			},
 		],
 	},

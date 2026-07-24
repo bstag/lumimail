@@ -1,6 +1,6 @@
 # F53 — Theme Token Consistency
 
-> Status: `Implemented locally; production visual validation pending`
+> Status: `Shipped`
 > Owner area: `src/app/globals.css`, `src/app/**`, `src/components/**`
 
 ## 1. Problem & User Job
@@ -175,3 +175,10 @@ Reason:
 - In the complete 34-scenario Chromium run, 33 scenarios passed and one API-key error-flow scenario hit its 30-second timeout under concurrency. The timed-out scenario passed alone in 1.8 seconds. Both Playwright commands then remained open until command timeout because the known local Wrangler remote-proxy helper could not initialize or stop cleanly in the non-interactive sandbox.
 - An OpenNext production build passed while the F53 working tree was present. The final six class-only shadow-token corrections were covered by the subsequent typecheck, lint, and test verification; the production build was not rerun after those six substitutions.
 - A deliberate light/dark production visual comparison remains pending, so F53 is not yet marked production-validated.
+
+### 2026-07-24 — Production usability validation
+
+- The operator completed production light/dark usability review after the semantic-token,
+  manual theme-selector, typography, responsive-layout, and stale-service-worker fixes.
+- The resulting interface was confirmed materially more usable, closing the remaining
+  manual validation boundary for this feature.

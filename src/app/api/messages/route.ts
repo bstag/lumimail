@@ -37,7 +37,28 @@ export async function GET(request: Request) {
 		conditions.push(eq(messages.mailboxId, mailboxId));
 	}
 	if (status) {
-		conditions.push(eq(messages.status, status));
+		const allowedStatuses = new Set([
+			"received",
+			"sent",
+			"draft",
+			"queued",
+			"failed",
+			"trash",
+			"spam",
+			"archived",
+		]);
+		const requestedStatuses = [...new Set(status.split(",").filter(Boolean))];
+		if (
+			requestedStatuses.length === 0 ||
+			requestedStatuses.some((requestedStatus) => !allowedStatuses.has(requestedStatus))
+		) {
+			return NextResponse.json({ error: "Invalid message status" }, { status: 400 });
+		}
+		conditions.push(
+			requestedStatuses.length === 1
+				? eq(messages.status, requestedStatuses[0])
+				: inArray(messages.status, requestedStatuses),
+		);
 	}
 	if (read === "read") {
 		conditions.push(eq(messages.read, true));

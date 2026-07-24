@@ -24,6 +24,7 @@ export function getMessagePreview(message: Message, folder: MessageFolderConfig[
 
 export function getMessageBadge(message: Message, folder: MessageFolderConfig["folder"]) {
 	if (folder === "drafts") return "draft";
+	if (folder === "sent") return message.status;
 	if (folder === "trash" || folder === "spam") return message.status;
 	return message.direction;
 }

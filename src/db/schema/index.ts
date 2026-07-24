@@ -248,16 +248,21 @@ export const outboundJobs = sqliteTable("outbound_jobs", {
 		.references(() => users.id, { onDelete: "cascade" }),
 	organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
 	messageId: text("message_id").references(() => messages.id, { onDelete: "set null" }),
-	status: text("status", { enum: ["queued", "sent", "failed"] }).notNull().default("queued"),
+	status: text("status", { enum: ["queued", "processing", "sent", "failed"] }).notNull().default("queued"),
 	payload: text("payload").notNull(),
 	error: text("error"),
+	attempts: integer("attempts").notNull().default(0),
+	deliveryToken: text("delivery_token"),
+	lastAttemptAt: integer("last_attempt_at", { mode: "timestamp" }),
 	createdAt: integer("created_at", { mode: "timestamp" })
 		.notNull()
 		.$defaultFn(() => new Date()),
 	updatedAt: integer("updated_at", { mode: "timestamp" })
 		.notNull()
 		.$defaultFn(() => new Date()),
-});
+}, (t) => [
+	index("outbound_jobs_status_updated_idx").on(t.status, t.updatedAt),
+]);
 
 export const routingRules = sqliteTable("routing_rules", {
 	id: text("id").primaryKey(),

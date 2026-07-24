@@ -1,4 +1,9 @@
-import type { OutboundMessage, OutboundProvider, OutboundSendResult } from "./types";
+import {
+	OutboundProviderError,
+	type OutboundMessage,
+	type OutboundProvider,
+	type OutboundSendResult,
+} from "./types";
 
 const DEFAULT_BASE_URL = "https://api.resend.com";
 
@@ -26,29 +31,44 @@ export function createResendProvider(env: CloudflareEnv): OutboundProvider {
 	return {
 		id: "resend",
 		async send(message: OutboundMessage): Promise<OutboundSendResult> {
-			const response = await fetch(`${baseUrl}/emails`, {
-				method: "POST",
-				headers: {
-					Authorization: `Bearer ${apiKey}`,
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					from: message.from,
-					to: [message.to],
-					subject: message.subject,
-					html: message.html,
-					text: message.text,
-				}),
-			});
+			let response: Response;
+			try {
+				response = await fetch(`${baseUrl}/emails`, {
+					method: "POST",
+					headers: {
+						Authorization: `Bearer ${apiKey}`,
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({
+						from: message.from,
+						to: [message.to],
+						subject: message.subject,
+						html: message.html,
+						text: message.text,
+					}),
+				});
+			} catch (error) {
+				throw new OutboundProviderError("Resend network request failed", {
+					code: "NETWORK_ERROR",
+					retryable: true,
+					cause: error,
+				});
+			}
 
 			if (!response.ok) {
-				const detail = await response.text();
-				throw new Error(`Resend send failed (${response.status}): ${detail}`);
+				const retryable = response.status === 429 || response.status >= 500;
+				throw new OutboundProviderError(`Resend send failed (${response.status})`, {
+					code: `HTTP_${response.status}`,
+					retryable,
+				});
 			}
 
 			const data = (await response.json()) as ResendSuccess;
 			if (!data.id) {
-				throw new Error("Resend send failed: response did not include a message id");
+				throw new OutboundProviderError(
+					"Resend send failed: response did not include a message id",
+					{ code: "INVALID_RESPONSE", retryable: false },
+				);
 			}
 			return { providerMessageId: data.id };
 		},

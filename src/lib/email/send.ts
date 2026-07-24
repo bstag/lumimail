@@ -1,4 +1,4 @@
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { domains, mailboxMemberships, mailboxes, messageBodies, messages, outboundJobs, users } from "@/db/schema";
 import { newId } from "@/lib/ids";
@@ -6,6 +6,7 @@ import { buildSnippet } from "@/lib/email/parse";
 import { dispatchWebhooks } from "@/lib/email/webhooks";
 import { ensureEmailRoutingRuleToWorker } from "@/lib/cloudflare-api";
 import { selectOutboundProvider } from "@/lib/email/providers";
+import { OutboundProviderError } from "@/lib/email/providers/types";
 import { upsertContactFromAddress } from "@/lib/contacts/service";
 import { formatEmailAddress, getEmailAddress } from "@/lib/email/address";
 import { parseAddress } from "@/lib/utils";
@@ -29,6 +30,23 @@ export type SendEmailInput = {
 	text?: string;
 	mailboxId?: string;
 };
+
+type OutboundDeliverySnapshot = {
+	from: string;
+	to: string;
+	subject: string;
+	html?: string;
+	text?: string;
+};
+
+export type OutboundQueueMessage = {
+	kind: "outbound";
+	jobId: string;
+};
+
+export type OutboundQueueResult =
+	| { action: "ack" }
+	| { action: "retry"; delaySeconds: number };
 
 type SenderAuthorization = { mailboxId: string; organizationId: string | null };
 
@@ -91,7 +109,10 @@ export async function validateSenderDomain(
 	return !!await resolveSenderAuthorization(env, userId, from, mailboxId);
 }
 
-export async function sendEmail(env: CloudflareEnv, input: SendEmailInput): Promise<{ messageId: string }> {
+export async function sendEmail(
+	env: CloudflareEnv,
+	input: SendEmailInput,
+): Promise<{ messageId: string; status: "queued" }> {
 	const db = getDb(env);
 	const authorization = await resolveSenderAuthorization(env, input.userId, input.from, input.mailboxId);
 	if (!authorization) {
@@ -109,7 +130,15 @@ export async function sendEmail(env: CloudflareEnv, input: SendEmailInput): Prom
 	const messageId = newId("msg");
 	const snippet = buildSnippet(input.text ?? null, input.html ?? null);
 
-	await db.insert(messages).values({
+	const jobId = newId("job");
+	const snapshot: OutboundDeliverySnapshot = {
+		from: fromAddr,
+		to: input.to,
+		subject: input.subject,
+		html: input.html,
+		text: input.text,
+	};
+	const messageInsert = db.insert(messages).values({
 		id: messageId,
 		userId: input.userId,
 		organizationId: sender.organizationId,
@@ -121,56 +150,40 @@ export async function sendEmail(env: CloudflareEnv, input: SendEmailInput): Prom
 		snippet,
 		status: "queued",
 	});
-
-	await db.insert(messageBodies).values({
+	const bodyInsert = db.insert(messageBodies).values({
 		id: newId(),
 		messageId,
 		textBody: input.text ?? null,
 		htmlBody: input.html ?? null,
 	});
-
-	const jobId = newId("job");
-	await db.insert(outboundJobs).values({
+	const jobInsert = db.insert(outboundJobs).values({
 		id: jobId,
 		userId: input.userId,
 		organizationId: sender.organizationId,
 		messageId,
 		status: "queued",
-		payload: JSON.stringify(authorizedInput),
+		payload: JSON.stringify(snapshot),
 	});
 
+	await db.batch([messageInsert, bodyInsert, jobInsert]);
+
 	try {
-		const provider = selectOutboundProvider(env);
-		const response = await provider.send({
-			from: fromAddr,
-			to: input.to,
-			subject: input.subject,
-			html: input.html,
-			text: input.text,
-		});
-
-		await db
-			.update(messages)
-			.set({ status: "sent", providerMessageId: response.providerMessageId })
-			.where(eq(messages.id, messageId));
-		await db.update(outboundJobs).set({ status: "sent", updatedAt: new Date() }).where(eq(outboundJobs.id, jobId));
-
-		await dispatchWebhooks(env, input.userId, "message.outbound", {
+		await env.OUTBOUND_QUEUE.send({ kind: "outbound", jobId });
+		return { messageId, status: "queued" };
+	} catch (error) {
+		const failureMessage = "Queue unavailable";
+		await db.batch([
+			db
+				.update(outboundJobs)
+				.set({ status: "failed", error: failureMessage, updatedAt: new Date() })
+				.where(eq(outboundJobs.id, jobId)),
+			db.update(messages).set({ status: "failed" }).where(eq(messages.id, messageId)),
+		]);
+		await dispatchWebhooks(env, input.userId, "message.failed", {
 			messageId,
-			providerMessageId: response.providerMessageId,
-			to: input.to,
+			error: failureMessage,
 		});
-
-		return { messageId };
-	} catch (err) {
-		const error = err instanceof Error ? err.message : "Send failed";
-		await db.update(messages).set({ status: "failed" }).where(eq(messages.id, messageId));
-		await db
-			.update(outboundJobs)
-			.set({ status: "failed", error, updatedAt: new Date() })
-			.where(eq(outboundJobs.id, jobId));
-		await dispatchWebhooks(env, input.userId, "message.failed", { messageId, error });
-		throw err;
+		throw error;
 	}
 }
 
@@ -217,11 +230,184 @@ async function getSenderContext(
 	};
 }
 
-export type OutboundQueueMessage = SendEmailInput & { jobId?: string };
+function parseDeliverySnapshot(payload: string): OutboundDeliverySnapshot | null {
+	try {
+		const value = JSON.parse(payload) as Record<string, unknown>;
+		if (
+			typeof value !== "object" ||
+			value === null ||
+			typeof value.from !== "string" ||
+			typeof value.to !== "string" ||
+			typeof value.subject !== "string" ||
+			(value.html !== undefined && typeof value.html !== "string") ||
+			(value.text !== undefined && typeof value.text !== "string")
+		) {
+			return null;
+		}
+		return {
+			from: value.from,
+			to: value.to,
+			subject: value.subject,
+			html: value.html as string | undefined,
+			text: value.text as string | undefined,
+		};
+	} catch {
+		return null;
+	}
+}
+
+function providerFailureMessage(error: unknown): string {
+	if (!(error instanceof OutboundProviderError)) return "Outbound provider failed";
+	const message = error.message.slice(0, 400);
+	return error.code ? `${error.code}: ${message}` : message;
+}
+
+async function markOutboundFailed(
+	env: CloudflareEnv,
+	jobId: string,
+	error: string,
+): Promise<boolean> {
+	const db = getDb(env);
+	const [job] = await db
+		.update(outboundJobs)
+		.set({
+			status: "failed",
+			error: error.slice(0, 500),
+			deliveryToken: null,
+			updatedAt: new Date(),
+		})
+		.where(and(eq(outboundJobs.id, jobId), inArray(outboundJobs.status, ["queued", "processing"])))
+		.returning({
+			id: outboundJobs.id,
+			userId: outboundJobs.userId,
+			messageId: outboundJobs.messageId,
+		});
+	if (!job) return false;
+
+	if (job.messageId) {
+		await db.update(messages).set({ status: "failed" }).where(eq(messages.id, job.messageId));
+		await dispatchWebhooks(env, job.userId, "message.failed", {
+			messageId: job.messageId,
+			error,
+		});
+	}
+	return true;
+}
 
 export async function processOutboundQueue(
 	env: CloudflareEnv,
 	payload: OutboundQueueMessage,
+	deliveryToken: string,
+): Promise<OutboundQueueResult> {
+	const db = getDb(env);
+	const now = new Date();
+	const [job] = await db
+		.update(outboundJobs)
+		.set({
+			status: "processing",
+			deliveryToken,
+			attempts: sql`${outboundJobs.attempts} + 1`,
+			lastAttemptAt: now,
+			updatedAt: now,
+			error: null,
+		})
+		.where(and(eq(outboundJobs.id, payload.jobId), eq(outboundJobs.status, "queued")))
+		.returning({
+			id: outboundJobs.id,
+			userId: outboundJobs.userId,
+			messageId: outboundJobs.messageId,
+			payload: outboundJobs.payload,
+			status: outboundJobs.status,
+			deliveryToken: outboundJobs.deliveryToken,
+		});
+
+	if (!job) {
+		const [existing] = await db
+			.select({
+				status: outboundJobs.status,
+				deliveryToken: outboundJobs.deliveryToken,
+			})
+			.from(outboundJobs)
+			.where(eq(outboundJobs.id, payload.jobId))
+			.limit(1);
+		if (
+			existing?.status === "processing" &&
+			existing.deliveryToken === deliveryToken
+		) {
+			await markOutboundFailed(
+				env,
+				payload.jobId,
+				"Outbound delivery outcome is unknown; automatic retry was stopped to prevent a duplicate",
+			);
+		}
+		return { action: "ack" };
+	}
+
+	if (!job.messageId) {
+		await markOutboundFailed(env, job.id, "Outbound message no longer exists");
+		return { action: "ack" };
+	}
+
+	const snapshot = parseDeliverySnapshot(job.payload);
+	if (!snapshot) {
+		await markOutboundFailed(env, job.id, "Stored outbound payload is invalid");
+		return { action: "ack" };
+	}
+
+	try {
+		const response = await selectOutboundProvider(env).send(snapshot);
+		await db.batch([
+			db
+				.update(outboundJobs)
+				.set({
+					status: "sent",
+					error: null,
+					deliveryToken: null,
+					updatedAt: new Date(),
+				})
+				.where(and(
+					eq(outboundJobs.id, job.id),
+					eq(outboundJobs.status, "processing"),
+					eq(outboundJobs.deliveryToken, deliveryToken),
+				)),
+			db
+				.update(messages)
+				.set({ status: "sent", providerMessageId: response.providerMessageId })
+				.where(eq(messages.id, job.messageId)),
+		]);
+		await dispatchWebhooks(env, job.userId, "message.outbound", {
+			messageId: job.messageId,
+			providerMessageId: response.providerMessageId,
+			to: snapshot.to,
+		});
+		return { action: "ack" };
+	} catch (error) {
+		const failureMessage = providerFailureMessage(error);
+		if (error instanceof OutboundProviderError && error.retryable) {
+			await db
+				.update(outboundJobs)
+				.set({
+					status: "queued",
+					error: failureMessage,
+					deliveryToken: null,
+					updatedAt: new Date(),
+				})
+				.where(and(
+					eq(outboundJobs.id, job.id),
+					eq(outboundJobs.status, "processing"),
+					eq(outboundJobs.deliveryToken, deliveryToken),
+				));
+			return { action: "retry", delaySeconds: 30 };
+		}
+
+		await markOutboundFailed(env, job.id, failureMessage);
+		return { action: "ack" };
+	}
+}
+
+export async function processOutboundDeadLetter(
+	env: CloudflareEnv,
+	payload: OutboundQueueMessage,
 ): Promise<void> {
-	await sendEmail(env, payload);
+	await markOutboundFailed(env, payload.jobId, "Outbound delivery retries exhausted");
 }

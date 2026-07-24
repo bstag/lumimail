@@ -95,8 +95,8 @@ offline fallback.
   mailbox data are never cached.
 - Cross-origin requests are never cached by Lumimail's service worker.
 - Failed navigations receive only the generic offline shell.
-- Static `/_next/static/**` assets can be cached, but document responses are
-  network-only to avoid storing authenticated pages.
+- Content-hashed `/_next/static/**` assets are left to the browser HTTP cache;
+  the service worker does not retain them across deployments.
 - The service worker file must not be immutable-cached so updates can roll out.
 
 ## 11. Permissions & Security
@@ -127,15 +127,34 @@ request responses. Offline support is limited to static shell assets.
   theme color, and viewport metadata.
 - `src/components/service-worker-registration.tsx` registers `/sw.js` on secure
   origins and localhost.
-- `public/sw.js` precaches only public PWA shell assets, caches safe static
-  assets, keeps documents network-only, and returns `public/offline.html` for
-  failed GET navigations.
+- `public/sw.js` precaches only public PWA shell assets, keeps documents
+  network-only, leaves content-hashed Next assets to the browser HTTP cache,
+  and returns `public/offline.html` for failed GET navigations.
 - API routes, auth paths, Next data paths, non-GET requests, cross-origin
   requests, and mailbox/admin data routes are never cached by the service worker.
 - `src/middleware.ts` preserves CSRF checks while avoiding locale rewrites to
   non-existent routes so `/` remains a valid PWA start URL.
 
 ## 14. Bug / Change Log
+
+### 2026-07-24 — Prevent stale JavaScript after deployments
+
+Type: `Correctness`
+
+Summary:
+- Bump the service-worker cache generation to v2 and stop intercepting
+  `/_next/static/**` assets, which already have content-hashed filenames and
+  immutable HTTP cache headers.
+- Align the service-worker contract tests with the new cache generation and
+  network fall-through behavior.
+
+Reason:
+- A constant runtime cache could retain old application chunks across a Worker
+  deployment and require users to hard-refresh.
+
+Impact:
+- New deployments use their current JavaScript bundles while the public offline
+  shell remains precached.
 
 ### 2026-07-04 — Pre-land PWA hardening
 

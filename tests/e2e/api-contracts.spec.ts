@@ -124,7 +124,10 @@ test.describe("canonical API client contracts", () => {
 			route.fulfill({ json: { draft: { id: "draft_1" } } }),
 		);
 		await page.route("**/api/send", (route) =>
-			route.fulfill({ json: { success: true, data: { messageId: "msg_1" } } }),
+			route.fulfill({
+				status: 202,
+				json: { success: true, data: { messageId: "msg_1", status: "queued" } },
+			}),
 		);
 		await page.route("**/api/attachments", async (route) => {
 			const body = await route.request().postDataBuffer();
@@ -144,5 +147,67 @@ test.describe("canonical API client contracts", () => {
 		await page.locator('button[type="submit"]').click();
 
 		await expect.poll(() => uploadedMessageId).toBe("msg_1");
+		await expect(page.getByText("Message queued for sending")).toBeVisible();
+	});
+
+	test("shows and refreshes queued and failed outbound delivery states", async ({ page }) => {
+		await mockAuthenticatedShell(page);
+		await page.route("**/api/labels", (route) =>
+			route.fulfill({ json: { success: true, data: [] } }),
+		);
+		let messageRequestCount = 0;
+		await page.route("**/api/messages?**", (route) => {
+			const requestUrl = new URL(route.request().url());
+			expect(requestUrl.searchParams.get("status")).toBe("queued,sent,failed");
+			messageRequestCount += 1;
+			const deliveryStatus = messageRequestCount === 1 ? "queued" : "sent";
+			return route.fulfill({
+				json: {
+					messages: [
+						{
+							id: "msg_delivery",
+							userId: "user_1",
+							mailboxId: "mbx_1",
+							direction: "outbound",
+							providerMessageId: deliveryStatus === "sent" ? "provider_1" : null,
+							fromAddr: "owner@example.com",
+							toAddr: "recipient@example.net",
+							subject: "Delivery state",
+							snippet: "Queued body",
+							status: deliveryStatus,
+							read: true,
+							starred: false,
+							threadId: null,
+							createdAt: "2026-07-24T12:00:00.000Z",
+						},
+						{
+							id: "msg_failed",
+							userId: "user_1",
+							mailboxId: "mbx_1",
+							direction: "outbound",
+							providerMessageId: null,
+							fromAddr: "owner@example.com",
+							toAddr: "bad@example.net",
+							subject: "Failed state",
+							snippet: "Failed body",
+							status: "failed",
+							read: true,
+							starred: false,
+							threadId: null,
+							createdAt: "2026-07-24T11:00:00.000Z",
+						},
+					],
+					total: 2,
+					limit: 25,
+					offset: 0,
+				},
+			});
+		});
+
+		await page.goto("/sent");
+		await expect(page.getByText("queued", { exact: true })).toBeVisible();
+		await expect(page.getByText("failed", { exact: true })).toBeVisible();
+		await expect.poll(() => messageRequestCount, { timeout: 8_000 }).toBeGreaterThan(1);
+		await expect(page.getByText("sent", { exact: true })).toBeVisible();
 	});
 });

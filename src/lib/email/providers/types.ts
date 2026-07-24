@@ -28,6 +28,21 @@ export type OutboundSendResult = {
 	providerMessageId: string;
 };
 
+export class OutboundProviderError extends Error {
+	readonly retryable: boolean;
+	readonly code?: string;
+
+	constructor(
+		message: string,
+		options: { retryable: boolean; code?: string; cause?: unknown },
+	) {
+		super(message, options.cause === undefined ? undefined : { cause: options.cause });
+		this.name = "OutboundProviderError";
+		this.retryable = options.retryable;
+		this.code = options.code;
+	}
+}
+
 /** A configured outbound provider ready to send a single message. */
 export interface OutboundProvider {
 	/** Stable provider identifier, e.g. `"cloudflare"` or `"resend"`. */

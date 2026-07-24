@@ -56,10 +56,13 @@ describe("POST /api/v1/send", () => {
 	it("sends the email on success", async () => {
 		m.authenticateApiKey.mockResolvedValue({ userId: "u1", scopes: ["send"] });
 		m.requireScope.mockReturnValue(true);
-		m.sendEmail.mockResolvedValue({ id: "msg1" });
+		m.sendEmail.mockResolvedValue({ messageId: "msg1", status: "queued" });
 		const res = await POST(req(validBody));
-		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ success: true, data: { id: "msg1" } });
+		expect(res.status).toBe(202);
+		expect((await res.json()) as any).toEqual({
+			success: true,
+			data: { messageId: "msg1", status: "queued" },
+		});
 		expect(m.sendEmail).toHaveBeenCalledWith({}, { userId: "u1", ...validBody });
 	});
 

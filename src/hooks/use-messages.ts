@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import type { Message, MessageFilterOptions, MessageFolder } from "./types";
 import { clearMessageCountsCache, clearMessageListCache, fetchMessageList, getMessageQueryParams } from "./utils";
-import { shouldRefreshSharedDrafts } from "@/components/messages/message-folder-utils";
+import {
+	shouldRefreshDeliveryStatus,
+	shouldRefreshSharedDrafts,
+} from "@/components/messages/message-folder-utils";
 
 export function useMessages(
 	folder: MessageFolder,
@@ -28,6 +31,7 @@ export function useMessages(
 	useEffect(() => {
 		if (!enabled) return;
 		let cancelled = false;
+		let currentStatuses: string[] = [];
 		async function loadMessages(force = false, background = false) {
 			if (!background) setIsLoading(true);
 			try {
@@ -40,6 +44,7 @@ export function useMessages(
 					title,
 				});
 				const data = await fetchMessageList(params, force);
+				currentStatuses = (data.messages ?? []).map((message) => message.status);
 				if (!cancelled) {
 					setMessages(data.messages ?? []);
 					setTotal(data.total ?? 0);
@@ -71,17 +76,28 @@ export function useMessages(
 				void loadMessages(true, true);
 			}
 		}
+		function refreshDeliveryStatus() {
+			if (shouldRefreshDeliveryStatus(folder, document.visibilityState, currentStatuses)) {
+				void loadMessages(true, true);
+			}
+		}
 		const refreshInterval = folder === "drafts"
 			? window.setInterval(refreshSharedDrafts, 10_000)
-			: null;
+			: folder === "sent"
+				? window.setInterval(refreshDeliveryStatus, 5_000)
+				: null;
 		window.addEventListener("focus", refreshSharedDrafts);
+		window.addEventListener("focus", refreshDeliveryStatus);
 		document.addEventListener("visibilitychange", refreshSharedDrafts);
+		document.addEventListener("visibilitychange", refreshDeliveryStatus);
 
 		return () => {
 			cancelled = true;
 			window.removeEventListener("lumimail:messages-changed", onMessagesChanged);
 			window.removeEventListener("focus", refreshSharedDrafts);
+			window.removeEventListener("focus", refreshDeliveryStatus);
 			document.removeEventListener("visibilitychange", refreshSharedDrafts);
+			document.removeEventListener("visibilitychange", refreshDeliveryStatus);
 			if (refreshInterval !== null) window.clearInterval(refreshInterval);
 		};
 	}, [enabled, folder, labelId, mailboxId, query, read, requestedLimit, requestedOffset, title]);

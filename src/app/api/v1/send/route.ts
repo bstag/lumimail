@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { getEnv } from "@/lib/cloudflare";
 import { authenticateApiKey, requireScope } from "@/lib/api/auth";
 import { sendEmailSchema } from "@/lib/validators";
@@ -18,7 +17,7 @@ export async function POST(request: Request) {
 
 	try {
 		const result = await sendEmail(env, { userId: auth.userId, ...parsed.data });
-		return apiSuccess(result);
+		return apiSuccess(result, 202);
 	} catch (error) {
 		if (error instanceof Error && error.name === "SenderNotAllowedError") {
 			return apiError("Mailbox not found", 404);

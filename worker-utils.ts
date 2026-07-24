@@ -1,4 +1,5 @@
 import type { InboundQueueMessage } from "./src/lib/email/inbound";
+import type { OutboundQueueMessage } from "./src/lib/email/send";
 
 export function isInboundQueueMessage(payload: unknown): payload is InboundQueueMessage {
 	return (
@@ -10,18 +11,18 @@ export function isInboundQueueMessage(payload: unknown): payload is InboundQueue
 	);
 }
 
-export interface OutboundQueueMessage {
-	messageId: string;
-	from: string;
-	to: string;
-}
-
 export function isOutboundQueueMessage(payload: unknown): payload is OutboundQueueMessage {
 	return (
 		typeof payload === "object" &&
 		payload !== null &&
-		"messageId" in payload &&
-		"from" in payload &&
-		"to" in payload
+		"kind" in payload &&
+		payload.kind === "outbound" &&
+		"jobId" in payload &&
+		typeof payload.jobId === "string" &&
+		payload.jobId.length > 0
 	);
+}
+
+export function isOutboundDeadLetterQueue(queueName: string): boolean {
+	return queueName.includes("outbound-dlq");
 }

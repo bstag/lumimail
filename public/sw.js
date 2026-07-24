@@ -19,7 +19,6 @@ const PRECACHE_URLS = [
 ];
 
 const PUBLIC_ASSET_PATHS = new Set(PRECACHE_URLS);
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 const NETWORK_ONLY_PREFIXES = [
 	"/api/auth/",
 	"/api/",

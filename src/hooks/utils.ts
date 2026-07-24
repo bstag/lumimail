@@ -41,7 +41,7 @@ export function getMessageQueryParams(
 
 	if (folder === "sent") {
 		params.set("direction", "outbound");
-		params.set("status", "sent");
+		params.set("status", "queued,sent,failed");
 	}
 
 	if (folder === "drafts") {

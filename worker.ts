@@ -5,8 +5,15 @@ import {
 	storeRawToR2,
 	type InboundQueueMessage,
 } from "./src/lib/email/inbound";
-import { processOutboundQueue, type OutboundQueueMessage } from "./src/lib/email/send";
-import { isInboundQueueMessage } from "./worker-utils";
+import {
+	processOutboundDeadLetter,
+	processOutboundQueue,
+} from "./src/lib/email/send";
+import {
+	isInboundQueueMessage,
+	isOutboundDeadLetterQueue,
+	isOutboundQueueMessage,
+} from "./worker-utils";
 
 export default {
 	fetch: nextHandler.fetch,
@@ -32,13 +39,33 @@ export default {
 			try {
 				if (isInboundQueueMessage(msg.body)) {
 					await processInboundMessage(env, msg.body);
+					msg.ack();
+				} else if (isOutboundQueueMessage(msg.body)) {
+					if (isOutboundDeadLetterQueue(batch.queue)) {
+						await processOutboundDeadLetter(env, msg.body);
+						msg.ack();
+						continue;
+					}
+					const result = await processOutboundQueue(env, msg.body, msg.id);
+					if (result.action === "retry") {
+						msg.retry({ delaySeconds: result.delaySeconds });
+					} else {
+						msg.ack();
+					}
 				} else {
-					await processOutboundQueue(env, msg.body as OutboundQueueMessage);
+					console.error("Queue payload rejected", {
+						queue: batch.queue,
+						messageId: msg.id,
+					});
+					msg.ack();
 				}
-				msg.ack();
 			} catch (err) {
-				console.error("Queue processing failed", err);
-				msg.retry({ delaySeconds: 10 });
+				console.error("Queue processing failed", {
+					queue: batch.queue,
+					messageId: msg.id,
+					error: err instanceof Error ? err.message : "Unknown error",
+				});
+				msg.retry({ delaySeconds: 30 });
 			}
 		}
 	},

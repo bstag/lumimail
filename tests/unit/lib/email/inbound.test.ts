@@ -362,7 +362,7 @@ describe("processInboundMessage vacation responder", () => {
 		mock
 			.queueSelect([])
 			.queueSelect([{ enabled: true, startDate: null, endDate: null, subject: "Away", body: "OOO" }]);
-		sendEmail.mockResolvedValue({ messageId: "msg_x" });
+		sendEmail.mockResolvedValue({ messageId: "msg_x", status: "queued" });
 
 		await processInboundMessage(env(), payload);
 
@@ -391,7 +391,7 @@ describe("processInboundMessage vacation responder", () => {
 		mock
 			.queueSelect([])
 			.queueSelect([{ enabled: true, startDate: null, endDate: null, subject: "Away", body: "OOO" }]);
-		sendEmail.mockResolvedValue({ messageId: "x" });
+		sendEmail.mockResolvedValue({ messageId: "x", status: "queued" });
 
 		await processInboundMessage(env(), payload);
 		expect(sendEmail).toHaveBeenCalledWith(

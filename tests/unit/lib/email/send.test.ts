@@ -11,8 +11,14 @@ vi.mock("@/lib/contacts/service", () => ({ upsertContactFromAddress: vi.fn() }))
 vi.mock("@/lib/email/parse", () => ({ buildSnippet: vi.fn(() => "snippet") }));
 vi.mock("@/lib/ids", () => ({ newId: vi.fn((p?: string) => (p ? `${p}_id` : "raw_id")) }));
 
-import { processOutboundQueue, sendEmail, validateSenderDomain } from "@/lib/email/send";
+import {
+	processOutboundDeadLetter,
+	processOutboundQueue,
+	sendEmail,
+	validateSenderDomain,
+} from "@/lib/email/send";
 import { selectOutboundProvider } from "@/lib/email/providers";
+import { OutboundProviderError } from "@/lib/email/providers/types";
 import { dispatchWebhooks } from "@/lib/email/webhooks";
 import { ensureEmailRoutingRuleToWorker } from "@/lib/cloudflare-api";
 import { upsertContactFromAddress } from "@/lib/contacts/service";
@@ -22,8 +28,11 @@ const dispatch = vi.mocked(dispatchWebhooks);
 const ensureRule = vi.mocked(ensureEmailRoutingRuleToWorker);
 const upsertContact = vi.mocked(upsertContactFromAddress);
 const providerSend = vi.fn();
+const queueSend = vi.fn();
 
-const env = {} as CloudflareEnv;
+const env = {
+	OUTBOUND_QUEUE: { send: queueSend },
+} as unknown as CloudflareEnv;
 let mock: DbMock;
 
 beforeEach(() => {
@@ -31,6 +40,8 @@ beforeEach(() => {
 	mock = createDbMock();
 	h.db = mock.db;
 	providerSend.mockReset();
+	queueSend.mockReset();
+	queueSend.mockResolvedValue(undefined);
 	selectProvider.mockReturnValue({ id: "test", send: providerSend } as unknown as ReturnType<typeof selectOutboundProvider>);
 });
 
@@ -42,65 +53,65 @@ describe("validateSenderDomain", () => {
 	});
 
 	it("returns false when no active domain matches", async () => {
-		mock.queueSelect([]); // domain
+		mock.queueSelect([]);
 		expect(await validateSenderDomain(env, "u1", "a@example.com")).toBe(false);
 	});
 
 	it("returns false when no mailbox matches (org user path)", async () => {
 		mock
-			.queueSelect([activeDomain]) // domain
-			.queueSelect([{ organizationId: "org_1" }]) // getUserOrgId
-			.queueSelect([]); // mailbox -> none
+			.queueSelect([activeDomain])
+			.queueSelect([{ organizationId: "org_1" }])
+			.queueSelect([]);
 		expect(await validateSenderDomain(env, "u1", "a@example.com")).toBe(false);
 		expect(ensureRule).not.toHaveBeenCalled();
 	});
 
 	it("ensures the routing rule and returns true for an org user with a mailbox", async () => {
 		mock
-			.queueSelect([activeDomain]) // domain
-			.queueSelect([{ organizationId: "org_1" }]) // getUserOrgId
-			.queueSelect([{ id: "mb_1" }]); // mailbox
+			.queueSelect([activeDomain])
+			.queueSelect([{ organizationId: "org_1" }])
+			.queueSelect([{ id: "mb_1" }]);
 		expect(await validateSenderDomain(env, "u1", "a@example.com")).toBe(true);
 		expect(ensureRule).toHaveBeenCalledWith(env, "zone_1", "a@example.com");
 	});
 
 	it("uses the personal-user path when the user has no organization", async () => {
 		mock
-			.queueSelect([activeDomain]) // domain
-			.queueSelect([{ organizationId: null }]) // getUserOrgId -> null
-			.queueSelect([{ id: "mb_1" }]); // mailbox
+			.queueSelect([activeDomain])
+			.queueSelect([{ organizationId: null }])
+			.queueSelect([{ id: "mb_1" }]);
 		expect(await validateSenderDomain(env, "u1", "a@example.com")).toBe(true);
 		expect(ensureRule).toHaveBeenCalledWith(env, "zone_1", "a@example.com");
 	});
 
-	it("treats a missing user row as a personal user (org id null)", async () => {
+	it("treats a missing user row as a personal user", async () => {
 		mock
-			.queueSelect([activeDomain]) // domain
-			.queueSelect([]) // getUserOrgId -> no user row
-			.queueSelect([{ id: "mb_1" }]); // mailbox
+			.queueSelect([activeDomain])
+			.queueSelect([])
+			.queueSelect([{ id: "mb_1" }]);
 		expect(await validateSenderDomain(env, "u1", "a@example.com")).toBe(true);
 	});
 });
 
-describe("sendEmail", () => {
-	function queueValidation(orgId: string | null = null) {
+describe("sendEmail producer", () => {
+	function queueAuthorization(orgId: string | null = null) {
 		mock
-			.queueSelect([activeDomain]) // validateSenderDomain: domain
-			.queueSelect([{ organizationId: orgId }]) // getUserOrgId
-			.queueSelect([{ id: "mb_1" }]); // mailbox
+			.queueSelect([activeDomain])
+			.queueSelect([{ organizationId: orgId }])
+			.queueSelect([{ id: "mb_1" }]);
 	}
 
-	it("throws when the sender is not an allowed mailbox", async () => {
-		mock.queueSelect([]); // domain lookup fails -> validate false
+	it("throws before persistence when the sender is not an allowed mailbox", async () => {
+		mock.queueSelect([]);
 		await expect(
 			sendEmail(env, { userId: "u1", from: "a@example.com", to: "b@x.com", subject: "Hi" }),
 		).rejects.toThrow(/not an active mailbox/);
 		expect(mock.inserts).toHaveLength(0);
+		expect(queueSend).not.toHaveBeenCalled();
 	});
 
-	it("sends successfully without a mailboxId and uses the raw from address", async () => {
-		queueValidation();
-		providerSend.mockResolvedValue({ providerMessageId: "prov-1" });
+	it("persists and enqueues without calling the provider", async () => {
+		queueAuthorization();
 
 		const result = await sendEmail(env, {
 			userId: "u1",
@@ -111,47 +122,38 @@ describe("sendEmail", () => {
 			html: "<p>body</p>",
 		});
 
-		expect(result).toEqual({ messageId: "msg_id" });
+		expect(result).toEqual({ messageId: "msg_id", status: "queued" });
 		expect(upsertContact).toHaveBeenCalledWith(env, { userId: "u1", address: "b@x.com", source: "outbound" });
-
-		expect(mock.inserts).toHaveLength(3); // messages, messageBodies, outboundJobs
+		expect(mock.inserts).toHaveLength(3);
 		expect(mock.inserts[0].values).toMatchObject({
 			id: "msg_id",
 			direction: "outbound",
 			fromAddr: "a@example.com",
 			toAddr: "b@x.com",
-			subject: "Hi",
-			snippet: "snippet",
 			status: "queued",
 			mailboxId: "mb_1",
 		});
-		expect(mock.inserts[2].values).toMatchObject({ id: "job_id", status: "queued" });
-
-		expect(providerSend).toHaveBeenCalledWith({
-			from: "a@example.com",
-			to: "b@x.com",
-			subject: "Hi",
-			html: "<p>body</p>",
-			text: "body",
+		expect(mock.inserts[2].values).toMatchObject({
+			id: "job_id",
+			status: "queued",
+			payload: JSON.stringify({
+				from: "a@example.com",
+				to: "b@x.com",
+				subject: "Hi",
+				html: "<p>body</p>",
+				text: "body",
+			}),
 		});
-
-		expect(mock.updates).toHaveLength(2);
-		expect(mock.updates[0].set).toEqual({ status: "sent", providerMessageId: "prov-1" });
-		expect(mock.updates[1].set).toMatchObject({ status: "sent" });
-
-		expect(dispatch).toHaveBeenCalledWith(env, "u1", "message.outbound", {
-			messageId: "msg_id",
-			providerMessageId: "prov-1",
-			to: "b@x.com",
-		});
+		expect(queueSend).toHaveBeenCalledWith({ kind: "outbound", jobId: "job_id" });
+		expect(providerSend).not.toHaveBeenCalled();
+		expect(dispatch).not.toHaveBeenCalled();
 	});
 
-	it("formats the sender address from the mailbox when it matches the requested from", async () => {
-		queueValidation();
+	it("stores the canonical formatted sender in the immutable job snapshot", async () => {
+		queueAuthorization();
 		mock
-			.queueSelect([{ organizationId: null }]) // getUserOrgId inside getFormattedSenderAddress
-			.queueSelect([{ localPart: "a", displayName: "Agent A", hostname: "example.com" }]); // mailbox join
-		providerSend.mockResolvedValue({ providerMessageId: "prov-2" });
+			.queueSelect([{ organizationId: null }])
+			.queueSelect([{ localPart: "a", displayName: "Agent A", hostname: "example.com" }]);
 
 		await sendEmail(env, {
 			userId: "u1",
@@ -162,15 +164,16 @@ describe("sendEmail", () => {
 		});
 
 		expect(mock.inserts[0].values).toMatchObject({ fromAddr: '"Agent A" <a@example.com>' });
-		expect(providerSend.mock.calls[0][0].from).toBe('"Agent A" <a@example.com>');
+		expect(JSON.parse((mock.inserts[2].values as { payload: string }).payload)).toMatchObject({
+			from: '"Agent A" <a@example.com>',
+		});
 	});
 
-	it("falls back to the mailbox localPart when the matched mailbox has no displayName", async () => {
-		queueValidation();
+	it("uses the mailbox local part when the sender has no display name", async () => {
+		queueAuthorization();
 		mock
-			.queueSelect([{ organizationId: null }]) // getUserOrgId inside getFormattedSenderAddress
-			.queueSelect([{ localPart: "a", displayName: null, hostname: "example.com" }]); // a@example.com, no display name
-		providerSend.mockResolvedValue({ providerMessageId: "prov-3" });
+			.queueSelect([{ organizationId: null }])
+			.queueSelect([{ localPart: "a", displayName: null, hostname: "example.com" }]);
 
 		await sendEmail(env, {
 			userId: "u1",
@@ -180,73 +183,263 @@ describe("sendEmail", () => {
 			mailboxId: "mb_1",
 		});
 
-		// displayName null -> formatEmailAddress falls back to localPart "a"
 		expect(mock.inserts[0].values).toMatchObject({ fromAddr: '"a" <a@example.com>' });
-		expect(providerSend.mock.calls[0][0].from).toBe('"a" <a@example.com>');
 	});
 
-	it("keeps the requested from when the mailbox row is missing", async () => {
-		queueValidation();
+	it("keeps the requested sender when the resolved mailbox address differs", async () => {
+		queueAuthorization("org_1");
 		mock
-			.queueSelect([{ organizationId: null }]) // getUserOrgId
-			.queueSelect([]); // mailbox join -> none
-		providerSend.mockResolvedValue({ providerMessageId: "p" });
+			.queueSelect([{ organizationId: "org_1" }])
+			.queueSelect([{ localPart: "other", displayName: null, hostname: "example.com" }]);
 
-		await sendEmail(env, { userId: "u1", from: "a@example.com", to: "b@x.com", subject: "Hi", mailboxId: "mb_1" });
+		await sendEmail(env, {
+			userId: "u1",
+			from: "a@example.com",
+			to: "b@x.com",
+			subject: "Hi",
+			mailboxId: "mb_1",
+		});
+
 		expect(mock.inserts[0].values).toMatchObject({ fromAddr: "a@example.com" });
 	});
 
-	it("keeps the requested from when the requested address differs from the mailbox address", async () => {
-		queueValidation("org_9");
-		mock
-			.queueSelect([{ organizationId: "org_9" }]) // getUserOrgId inside getFormattedSenderAddress
-			.queueSelect([{ localPart: "other", displayName: null, hostname: "example.com" }]); // other@example.com
-		providerSend.mockResolvedValue({ providerMessageId: "p" });
-
-		await sendEmail(env, { userId: "u1", from: "a@example.com", to: "b@x.com", subject: "Hi", mailboxId: "mb_1" });
-		expect(mock.inserts[0].values).toMatchObject({ fromAddr: "a@example.com" });
-	});
-
-	it("marks the message failed and dispatches message.failed when the provider throws an Error", async () => {
-		queueValidation();
-		providerSend.mockRejectedValue(new Error("smtp down"));
+	it("marks the persisted rows failed when enqueueing fails", async () => {
+		queueAuthorization();
+		queueSend.mockRejectedValue(new Error("queue unavailable"));
 
 		await expect(
 			sendEmail(env, { userId: "u1", from: "a@example.com", to: "b@x.com", subject: "Hi" }),
-		).rejects.toThrow("smtp down");
+		).rejects.toThrow("queue unavailable");
 
+		expect(providerSend).not.toHaveBeenCalled();
 		expect(mock.updates).toHaveLength(2);
-		expect(mock.updates[0].set).toEqual({ status: "failed" });
-		expect(mock.updates[1].set).toMatchObject({ status: "failed", error: "smtp down" });
+		expect(mock.updates[0].set).toMatchObject({ status: "failed", error: "Queue unavailable" });
+		expect(mock.updates[1].set).toEqual({ status: "failed" });
 		expect(dispatch).toHaveBeenCalledWith(env, "u1", "message.failed", {
 			messageId: "msg_id",
-			error: "smtp down",
+			error: "Queue unavailable",
 		});
 	});
 
-	it("uses a generic error message when the provider throws a non-Error", async () => {
-		queueValidation();
-		providerSend.mockRejectedValue("oops");
+	it("does not enqueue when the persistence batch fails", async () => {
+		queueAuthorization();
+		mock.db.batch.mockRejectedValueOnce(new Error("D1 unavailable"));
 
 		await expect(
 			sendEmail(env, { userId: "u1", from: "a@example.com", to: "b@x.com", subject: "Hi" }),
-		).rejects.toBe("oops");
-
-		expect(mock.updates[1].set).toMatchObject({ status: "failed", error: "Send failed" });
+		).rejects.toThrow("D1 unavailable");
+		expect(queueSend).not.toHaveBeenCalled();
 	});
 });
 
-describe("processOutboundQueue", () => {
-	it("delegates to sendEmail", async () => {
+const storedJob = {
+	id: "job_1",
+	userId: "u1",
+	messageId: "msg_1",
+	status: "processing",
+	deliveryToken: "delivery_1",
+	payload: JSON.stringify({
+		from: "a@example.com",
+		to: "b@x.com",
+		subject: "Hi",
+		text: "Body",
+	}),
+};
+
+describe("processOutboundQueue consumer", () => {
+	it("claims and sends the persisted job exactly once", async () => {
+		mock.queueSelect([storedJob]);
+		providerSend.mockResolvedValue({ providerMessageId: "provider_1" });
+
+		const result = await processOutboundQueue(
+			env,
+			{ kind: "outbound", jobId: "job_1" },
+			"delivery_1",
+		);
+
+		expect(result).toEqual({ action: "ack" });
+		expect(providerSend).toHaveBeenCalledWith({
+			from: "a@example.com",
+			to: "b@x.com",
+			subject: "Hi",
+			text: "Body",
+		});
+		expect(mock.updates).toHaveLength(3);
+		expect(mock.updates[1].set).toMatchObject({ status: "sent" });
+		expect(mock.updates[2].set).toEqual({ status: "sent", providerMessageId: "provider_1" });
+		expect(dispatch).toHaveBeenCalledWith(env, "u1", "message.outbound", {
+			messageId: "msg_1",
+			providerMessageId: "provider_1",
+			to: "b@x.com",
+		});
+	});
+
+	it.each(["sent", "failed"])("acknowledges an already %s job without sending", async (status) => {
+		mock.queueSelect([]).queueSelect([{ ...storedJob, status }]);
+		await expect(
+			processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_2"),
+		).resolves.toEqual({ action: "ack" });
+		expect(providerSend).not.toHaveBeenCalled();
+	});
+
+	it("acknowledges a duplicate delivery owned by another token", async () => {
+		mock.queueSelect([]).queueSelect([{ ...storedJob, deliveryToken: "delivery_other" }]);
+		await expect(
+			processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_2"),
+		).resolves.toEqual({ action: "ack" });
+		expect(providerSend).not.toHaveBeenCalled();
+		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it("fails closed after an ambiguous crash with the same delivery token", async () => {
 		mock
-			.queueSelect([activeDomain])
-			.queueSelect([{ organizationId: null }])
-			.queueSelect([{ id: "mb_1" }]);
-		providerSend.mockResolvedValue({ providerMessageId: "p" });
+			.queueSelect([])
+			.queueSelect([storedJob])
+			.queueSelect([{ id: "job_1", userId: "u1", messageId: "msg_1" }]);
 
 		await expect(
-			processOutboundQueue(env, { userId: "u1", from: "a@example.com", to: "b@x.com", subject: "Hi" }),
-		).resolves.toBeUndefined();
-		expect(providerSend).toHaveBeenCalledTimes(1);
+			processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1"),
+		).resolves.toEqual({ action: "ack" });
+		expect(providerSend).not.toHaveBeenCalled();
+		expect(mock.updates.at(-1)?.set).toEqual({ status: "failed" });
+		expect(dispatch).toHaveBeenCalledWith(env, "u1", "message.failed", {
+			messageId: "msg_1",
+			error: expect.stringContaining("unknown"),
+		});
+	});
+
+	it("acknowledges a missing job without sending", async () => {
+		mock.queueSelect([]).queueSelect([]);
+		await expect(
+			processOutboundQueue(env, { kind: "outbound", jobId: "missing" }, "delivery_1"),
+		).resolves.toEqual({ action: "ack" });
+		expect(providerSend).not.toHaveBeenCalled();
+	});
+
+	it("fails a claimed job whose visible message was deleted", async () => {
+		mock
+			.queueSelect([{ ...storedJob, messageId: null }])
+			.queueSelect([{ id: "job_1", userId: "u1", messageId: null }]);
+		await expect(
+			processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1"),
+		).resolves.toEqual({ action: "ack" });
+		expect(providerSend).not.toHaveBeenCalled();
+		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it("returns a delayed retry for a classified transient provider failure", async () => {
+		mock.queueSelect([storedJob]);
+		providerSend.mockRejectedValue(
+			new OutboundProviderError("Provider rate limited", { retryable: true, code: "E_RATE_LIMIT_EXCEEDED" }),
+		);
+
+		await expect(
+			processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1"),
+		).resolves.toEqual({ action: "retry", delaySeconds: 30 });
+		expect(mock.updates.at(-1)?.set).toMatchObject({
+			status: "queued",
+			deliveryToken: null,
+			error: "E_RATE_LIMIT_EXCEEDED: Provider rate limited",
+		});
+		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it("marks a permanent provider failure and acknowledges it", async () => {
+		mock
+			.queueSelect([storedJob])
+			.queueSelect([{ id: "job_1", userId: "u1", messageId: "msg_1" }]);
+		providerSend.mockRejectedValue(
+			new OutboundProviderError("Sender rejected", { retryable: false, code: "E_SENDER_NOT_VERIFIED" }),
+		);
+
+		await expect(
+			processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1"),
+		).resolves.toEqual({ action: "ack" });
+		expect(mock.updates.at(-1)?.set).toEqual({ status: "failed" });
+		expect(dispatch).toHaveBeenCalledWith(env, "u1", "message.failed", {
+			messageId: "msg_1",
+			error: "E_SENDER_NOT_VERIFIED: Sender rejected",
+		});
+	});
+
+	it("treats corrupt stored payload as a terminal failure", async () => {
+		mock
+			.queueSelect([{ ...storedJob, payload: "{" }])
+			.queueSelect([{ id: "job_1", userId: "u1", messageId: "msg_1" }]);
+
+		await expect(
+			processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1"),
+		).resolves.toEqual({ action: "ack" });
+		expect(providerSend).not.toHaveBeenCalled();
+		expect(dispatch).toHaveBeenCalledWith(env, "u1", "message.failed", {
+			messageId: "msg_1",
+			error: "Stored outbound payload is invalid",
+		});
+	});
+
+	it.each([
+		"null",
+		JSON.stringify("not an object"),
+		JSON.stringify({}),
+		JSON.stringify({ from: 1, to: "b@x.com", subject: "Hi" }),
+		JSON.stringify({ from: "a@example.com", to: 1, subject: "Hi" }),
+		JSON.stringify({ from: "a@example.com", to: "b@x.com", subject: 1 }),
+		JSON.stringify({ from: "a@example.com", to: "b@x.com", subject: "Hi", html: 1 }),
+		JSON.stringify({ from: "a@example.com", to: "b@x.com", subject: "Hi", text: 1 }),
+	])("rejects a structurally invalid stored payload", async (invalidPayload) => {
+		mock
+			.queueSelect([{ ...storedJob, payload: invalidPayload }])
+			.queueSelect([{ id: "job_1", userId: "u1", messageId: "msg_1" }]);
+
+		await expect(
+			processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1"),
+		).resolves.toEqual({ action: "ack" });
+		expect(providerSend).not.toHaveBeenCalled();
+	});
+
+	it("stores a bounded provider message when no provider code is available", async () => {
+		mock
+			.queueSelect([storedJob])
+			.queueSelect([{ id: "job_1", userId: "u1", messageId: "msg_1" }]);
+		providerSend.mockRejectedValue(
+			new OutboundProviderError("Permanent provider failure", { retryable: false }),
+		);
+
+		await processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1");
+		expect(dispatch).toHaveBeenCalledWith(env, "u1", "message.failed", {
+			messageId: "msg_1",
+			error: "Permanent provider failure",
+		});
+	});
+
+	it("fails closed with a generic diagnostic for an unclassified provider error", async () => {
+		mock
+			.queueSelect([storedJob])
+			.queueSelect([{ id: "job_1", userId: "u1", messageId: "msg_1" }]);
+		providerSend.mockRejectedValue(new Error("response may contain sensitive detail"));
+
+		await processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1");
+		expect(dispatch).toHaveBeenCalledWith(env, "u1", "message.failed", {
+			messageId: "msg_1",
+			error: "Outbound provider failed",
+		});
+	});
+});
+
+describe("processOutboundDeadLetter", () => {
+	it("marks an exhausted queued job failed", async () => {
+		mock.queueSelect([{ id: "job_1", userId: "u1", messageId: "msg_1" }]);
+		await processOutboundDeadLetter(env, { kind: "outbound", jobId: "job_1" });
+		expect(mock.updates.at(-1)?.set).toEqual({ status: "failed" });
+		expect(dispatch).toHaveBeenCalledWith(env, "u1", "message.failed", {
+			messageId: "msg_1",
+			error: "Outbound delivery retries exhausted",
+		});
+	});
+
+	it("does not overwrite a sent or already failed job", async () => {
+		mock.queueSelect([]);
+		await processOutboundDeadLetter(env, { kind: "outbound", jobId: "job_1" });
+		expect(dispatch).not.toHaveBeenCalled();
 	});
 });

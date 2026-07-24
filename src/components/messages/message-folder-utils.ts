@@ -6,3 +6,11 @@ export function shouldRefreshSharedDrafts(
 ): boolean {
 	return folder === "drafts" && visibilityState === "visible";
 }
+
+export function shouldRefreshDeliveryStatus(
+	folder: MessageFolder,
+	visibilityState: DocumentVisibilityState,
+	statuses: string[],
+): boolean {
+	return folder === "sent" && visibilityState === "visible" && statuses.includes("queued");
+}

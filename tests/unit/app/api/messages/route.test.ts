@@ -107,6 +107,20 @@ describe("GET /api/messages", () => {
 		expect(res.status).toBe(200);
 	});
 
+	it("accepts a comma-delimited delivery-status filter", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		mock.queueSelect([{ total: 0 }]);
+		mock.queueSelect([]);
+		const res = await get("?direction=outbound&status=queued,sent,failed");
+		expect(res.status).toBe(200);
+	});
+
+	it("rejects an unknown message status", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		const res = await get("?status=teleported");
+		expect(res.status).toBe(400);
+	});
+
 	it("ignores unknown direction values", async () => {
 		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		mock.queueSelect([{ total: 0 }]);

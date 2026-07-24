@@ -9,9 +9,12 @@ beforeEach(() => authFetch.mockReset());
 
 describe("submitMessage", () => {
 	it("unwraps the message id required by attachment upload", async () => {
-		authFetch.mockResolvedValue(Response.json({ success: true, data: { messageId: "msg_1" } }));
+		authFetch.mockResolvedValue(Response.json({
+			success: true,
+			data: { messageId: "msg_1", status: "queued" },
+		}));
 		const input = { from: "a@example.com", to: "b@example.com", subject: "Hi", text: "Body", mailboxId: "mbx_1" };
-		await expect(submitMessage(input)).resolves.toEqual({ messageId: "msg_1" });
+		await expect(submitMessage(input)).resolves.toEqual({ messageId: "msg_1", status: "queued" });
 		expect(authFetch).toHaveBeenCalledWith("/api/send", expect.objectContaining({ body: JSON.stringify(input) }));
 	});
 

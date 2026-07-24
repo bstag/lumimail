@@ -21,13 +21,15 @@ export type SubmitMessageInput = {
 	mailboxId?: string;
 };
 
-export async function submitMessage(input: SubmitMessageInput): Promise<{ messageId: string }> {
+export async function submitMessage(
+	input: SubmitMessageInput,
+): Promise<{ messageId: string; status: "queued" }> {
 	const response = await authFetch("/api/send", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(input),
 	});
-	return parseApiResponse<{ messageId: string }>(response);
+	return parseApiResponse<{ messageId: string; status: "queued" }>(response);
 }
 
 export async function uploadMessageAttachment(messageId: string, file: File): Promise<void> {

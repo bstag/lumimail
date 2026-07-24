@@ -106,6 +106,7 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
 - [ ] **R-10 Connect outbound sending to the configured queue.**
   - Define synchronous acknowledgement, retry policy, idempotency, dead-letter handling, and user-visible delivery states.
   - Acceptance: HTTP requests enqueue rather than perform provider delivery inline, and duplicate queue delivery cannot send duplicate mail.
+  - Local evidence 2026-07-24: F54 implements HTTP 202 queue acknowledgement, job-ID-only queue payloads, conditional D1 at-most-once claims, provider-specific transient/permanent classification, bounded retry delay, fail-closed ambiguous outcomes, dedicated DLQ finalization, and visible queued/sent/failed states. `npm run verify` passes with 1,153 application tests at 100% coverage plus 16 bridge tests; all 35 Chromium scenarios passed before the known Wrangler teardown timeout; the final OpenNext build and Wrangler dry run pass. Production migration/deployment and controlled traced retry/no-duplicate validation remain.
 
 - [ ] **R-11 Prevent orphaned raw inbound objects.**
   - Define retention for unroutable, rejected, failed, and successfully processed messages.
@@ -181,22 +182,25 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
 
 ### Phase 4 — Theme, localization, and interface consistency
 
-- [ ] **R-14 Repair missing and inconsistent translation keys.**
+- [x] **R-14 Repair missing and inconsistent translation keys.**
   - Correct the missing `auth.continue` contract.
   - Compare all locale key trees with the English base and detect missing keys automatically.
   - Inventory hardcoded user-facing English and migrate it in bounded passes.
   - Acceptance: no interface displays raw translation keys in supported locales.
   - Evidence 2026-07-23: the passing 24-test Playwright run logs missing `actions.delete`, missing `compose.send`/`compose.sending`, and an invalid ICU tag in `compose.recipientsPlaceholder`.
+  - Completion evidence 2026-07-24: commit `914793f` added the missing UI translations across all supported locales; the subsequent theme/mobile production review displayed translated interface copy without the previously observed raw keys.
 
-- [ ] **R-15 Convert the interface to semantic theme tokens.**
+- [x] **R-15 Convert the interface to semantic theme tokens.**
   - Replace fixed light palette usage (`bg-white`, neutral text/borders, and hexadecimal surfaces) with semantic tokens in shared primitives and then feature components.
   - Include dialogs, inputs, navigation, message lists, compose, admin pages, loading/error/empty states, and the global error page.
   - Acceptance: light and dark themes meet contrast requirements and have no mixed-theme surfaces in visual E2E checks.
+  - Completion evidence 2026-07-24: F53 replaced hardcoded palette utilities with semantic tokens, passed the full local verification recorded in the spec, and received operator production usability validation after the follow-up typography and responsive-layout repairs.
 
-- [ ] **R-16 Add a persistent theme selector.** Depends on R-15.
+- [x] **R-16 Add a persistent theme selector.** Depends on R-15.
   - Support light, dark, and system preferences without a flash of the wrong theme.
   - Preserve the selection across sessions where appropriate.
   - Acceptance: selection, persistence, system changes, SSR/hydration, and global error behavior are tested.
+  - Completion evidence 2026-07-24: commit `6d4f57a` added persistent System/Light/Dark selection and pre-paint application; production usability validation confirmed the completed theme flow.
 
 ### Phase 5 — Operational hardening
 
@@ -236,7 +240,7 @@ Add audit discoveries here before assigning them a priority. Promote each confir
 
 - Next.js 16 warns that the `middleware` file convention is deprecated in favor of `proxy`; triage as a bounded framework-maintenance item.
 - Wrangler warns that the `CF_ACCOUNT_ID` environment variable name is deprecated in favor of `CLOUDFLARE_ACCOUNT_ID`; update configuration and runtime access together after confirming compatibility.
-- R-14 must include missing `compose.send` and the invalid ICU message in `compose.recipientsPlaceholder`, whose literal angle-bracket address is interpreted as a rich-text tag.
+- R-14 follow-up completed 2026-07-24: the invalid ICU `compose.recipientsPlaceholder` angle-bracket address was replaced in all 11 locales and a formatting regression test now exercises every locale.
 - Session authentication scans every unexpired session and performs a bcrypt comparison for each row; include this in the R-17 performance pass and redesign lookup without weakening token-at-rest protection.
 
 ## Decisions and scope changes

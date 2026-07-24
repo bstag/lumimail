@@ -221,7 +221,7 @@ describe("PWA service worker assets", () => {
 		harness.cacheStore.set("old-cache", new Map());
 		await harness.dispatchLifecycle("activate");
 
-		expect(harness.cacheStore.get("lumimail-pwa-v1-precache")?.has("https://lumimail.test/offline.html")).toBe(true);
+		expect(harness.cacheStore.get("lumimail-pwa-v2-precache")?.has("https://lumimail.test/offline.html")).toBe(true);
 		expect(harness.cacheStore.has("old-cache")).toBe(false);
 		expect(harness.self.skipWaiting).toHaveBeenCalledOnce();
 		expect(harness.self.clients.claim).toHaveBeenCalledOnce();
@@ -251,7 +251,7 @@ describe("PWA service worker assets", () => {
 		});
 
 		expect(await online?.text()).toBe("network:/inbox");
-		expect(harness.cacheStore.get("lumimail-pwa-v1-runtime")?.has("https://lumimail.test/inbox")).not.toBe(true);
+		expect(harness.cacheStore.get("lumimail-pwa-v2-runtime")?.has("https://lumimail.test/inbox")).not.toBe(true);
 
 		harness.fetchMock.mockRejectedValueOnce(new TypeError("offline"));
 		const offline = await harness.dispatchFetch({
@@ -276,16 +276,13 @@ describe("PWA service worker assets", () => {
 		expect(harness.fetchMock).toHaveBeenCalledTimes(1);
 	});
 
-	it("caches Next static assets outside local development hosts", async () => {
+	it("does not intercept content-hashed Next static assets", async () => {
 		const harness = createServiceWorkerHarness();
 
 		const response = await harness.dispatchFetch({ url: "https://lumimail.test/_next/static/chunks/app.js" });
 
-		expect(await response?.text()).toBe("network:/_next/static/chunks/app.js");
-		expect(
-			harness.cacheStore
-				.get("lumimail-pwa-v1-runtime")
-				?.has("https://lumimail.test/_next/static/chunks/app.js"),
-		).toBe(true);
+		expect(response).toBeUndefined();
+		expect(harness.fetchMock).not.toHaveBeenCalled();
+		expect(harness.cacheStore.get("lumimail-pwa-v2-runtime")).toBeUndefined();
 	});
 });
