@@ -20,6 +20,10 @@ export type OutboundMessage = {
 	subject: string;
 	html?: string;
 	text?: string;
+	headers?: {
+		"In-Reply-To": string;
+		References: string;
+	};
 	attachments?: Array<{
 		filename: string;
 		contentType: string;

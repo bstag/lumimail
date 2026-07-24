@@ -39,6 +39,7 @@ export function createCloudflareProvider(env: CloudflareEnv): OutboundProvider {
 					subject: message.subject,
 					html: message.html,
 					text: message.text,
+					...(message.headers ? { headers: message.headers } : {}),
 					...(message.attachments?.length
 						? {
 							attachments: message.attachments.map((attachment) => ({

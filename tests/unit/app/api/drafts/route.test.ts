@@ -98,6 +98,45 @@ describe("POST /api/drafts", () => {
 		});
 	});
 
+	it("persists an accessible same-mailbox reply source", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
+		m.getMailboxAccess.mockResolvedValue({ role: "responder" });
+		mock.queueSelect([{ id: "msg_parent" }]);
+
+		const res = await POST(post({
+			mailboxId: "mb_1",
+			replyToMessageId: "msg_parent",
+			subject: "Re: Hi",
+		}));
+
+		expect(res.status).toBe(200);
+		expect(mock.inserts[0].values).toMatchObject({
+			mailboxId: "mb_1",
+			replySourceMessageId: "msg_parent",
+		});
+	});
+
+	it("rejects an inaccessible reply source without creating a draft", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
+		m.getMailboxAccess.mockResolvedValue({ role: "responder" });
+		mock.queueSelect([]);
+
+		const res = await POST(post({
+			mailboxId: "mb_1",
+			replyToMessageId: "msg_other_tenant",
+		}));
+
+		expect(res.status).toBe(404);
+		expect(mock.inserts).toHaveLength(0);
+	});
+
+	it("rejects malformed reply source input", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
+		const res = await POST(post({ replyToMessageId: 42 }));
+		expect(res.status).toBe(400);
+		expect(mock.inserts).toHaveLength(0);
+	});
+
 	it("hides a mailbox draft target from a viewer", async () => {
 		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
 		m.getMailboxAccess.mockResolvedValue({ role: "viewer" });

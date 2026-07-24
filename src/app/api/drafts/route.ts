@@ -11,6 +11,7 @@ import {
 	hasMailboxCapability,
 	messageAccessCondition,
 } from "@/lib/auth/mailbox-access";
+import { selectAccessibleReplySource } from "@/lib/email/reply-source";
 
 type DraftPayload = {
 	mailboxId?: string | null;
@@ -19,6 +20,7 @@ type DraftPayload = {
 	subject?: string;
 	text?: string;
 	html?: string;
+	replyToMessageId?: string;
 };
 
 export async function GET(request: Request) {
@@ -51,12 +53,36 @@ export async function POST(request: Request) {
 	if (errorResponse) return errorResponse;
 	const input = (await request.json()) as DraftPayload;
 	const db = getDb(env);
+	if (
+		input.replyToMessageId !== undefined
+		&& (
+			typeof input.replyToMessageId !== "string"
+			|| input.replyToMessageId.trim().length === 0
+			|| input.replyToMessageId.length > 100
+		)
+	) {
+		return NextResponse.json({ error: "Invalid reply source" }, { status: 400 });
+	}
 	if (input.mailboxId) {
 		const access = user.organizationId
 			? await getMailboxAccess(db, user.id, user.organizationId, input.mailboxId)
 			: null;
 		if (!access || !hasMailboxCapability(access.role, "send")) {
 			return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
+		}
+	}
+	if (input.replyToMessageId) {
+		if (
+			!input.mailboxId
+			|| !await selectAccessibleReplySource(
+				db,
+				user.id,
+				user.organizationId,
+				input.mailboxId,
+				input.replyToMessageId.trim(),
+			)
+		) {
+			return NextResponse.json({ error: "Reply source not found" }, { status: 404 });
 		}
 	}
 	const draftId = newId("msg");
@@ -75,6 +101,7 @@ export async function POST(request: Request) {
 		snippet: buildSnippet(text || null, html || null),
 		status: "draft",
 		read: true,
+		replySourceMessageId: input.replyToMessageId?.trim() ?? null,
 	});
 
 	await db.insert(messageBodies).values({

@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
 	attachments,
@@ -16,6 +16,7 @@ import { getMessageContactNames, upsertContactFromAddress } from "@/lib/contacts
 import { formatEmailAddress, getEmailAddress } from "@/lib/email/address";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 import { prepareInboundAttachments } from "@/lib/email/inbound-attachments";
+import { resolveInboundThreading } from "@/lib/email/threading";
 
 export type InboundQueueMessage = {
 	from: string;
@@ -80,7 +81,6 @@ async function deliverToMailbox(
 	const toAddr = parsed.toAddr && getEmailAddress(parsed.toAddr).toLowerCase() !== mailboxAddress.toLowerCase()
 		? parsed.toAddr
 		: mailboxHeader;
-
 	await upsertContactFromAddress(env, {
 		userId: mailbox.userId,
 		address: fromAddr,
@@ -99,19 +99,52 @@ async function deliverToMailbox(
 			content: attachment.content,
 		};
 	});
+	const threading = await resolveInboundThreading({
+		mailboxId: mailbox.mailboxId,
+		messageId: parsed.messageId,
+		inReplyTo: parsed.inReplyTo,
+		references: parsed.references,
+		fallbackThreadId: () => newId("thr"),
+		findAncestor: async (candidates) => {
+			const rows = await db
+				.select({
+					rfcMessageId: messages.rfcMessageId,
+					providerMessageId: messages.providerMessageId,
+					threadId: messages.threadId,
+				})
+				.from(messages)
+				.where(and(
+					eq(messages.mailboxId, mailbox.mailboxId),
+					or(
+						inArray(messages.rfcMessageId, candidates),
+						inArray(messages.providerMessageId, candidates),
+					),
+				));
+			for (const candidate of candidates) {
+				const match = rows.find((row) =>
+					row.rfcMessageId === candidate || row.providerMessageId === candidate
+				);
+				if (match) return { threadId: match.threadId };
+			}
+			return null;
+		},
+	});
 	const messageInsert = db.insert(messages).values({
 		id: messageId,
 		userId: mailbox.userId,
 		organizationId: mailbox.organizationId,
 		mailboxId: mailbox.mailboxId,
 		direction: "inbound",
-		providerMessageId: parsed.messageId,
+		providerMessageId: threading.rfcMessageId,
+		rfcMessageId: threading.rfcMessageId,
+		inReplyTo: threading.inReplyTo,
+		referencesHeader: threading.referencesHeader,
 		fromAddr,
 		toAddr,
 		subject: parsed.subject,
 		snippet,
 		status: "received",
-		threadId: parsed.messageId,
+		threadId: threading.threadId,
 		attachmentStatus: prepared.status,
 		attachmentError: prepared.error,
 	});

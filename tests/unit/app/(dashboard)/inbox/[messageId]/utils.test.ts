@@ -104,14 +104,15 @@ describe("getMessageBodyDisplay", () => {
 		expect(splitRepliedEmailContent).toHaveBeenCalledWith("");
 	});
 
-	it("nulls out htmlBody and flags quoted content when quotes exist", () => {
+	it("keeps sanitized html as the single display source when the text alternative contains quotes", () => {
 		splitRepliedEmailContent.mockReturnValue({
 			latestContent: "latest",
 			quotedContent: [{ dateLine: "d", content: "c" }],
 		});
 		const result = getMessageBodyDisplay("text", "<p>html</p>", null);
-		expect(result.htmlBody).toBeNull();
-		expect(result.hasQuotedContent).toBe(true);
+		expect(result.htmlBody).toBe("<p>html</p>");
+		expect(result.quotedContent).toEqual([]);
+		expect(result.hasQuotedContent).toBe(false);
 	});
 
 	it("defaults htmlBody to null when no html and no quotes", () => {

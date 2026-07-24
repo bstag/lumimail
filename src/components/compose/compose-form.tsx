@@ -52,6 +52,7 @@ export function ComposeForm({
 	const [to, setTo] = useState("");
 	const [subject, setSubject] = useState("");
 	const [text, setText] = useState("");
+	const [replyToMessageId, setReplyToMessageId] = useState<string | null>(null);
 	const [toast, setToast] = useState<Toast>(null);
 	const [loading, setLoading] = useState(false);
 	const [loadingDraft, setLoadingDraft] = useState(false);
@@ -96,6 +97,7 @@ export function ComposeForm({
 				setTo(draft.toAddr);
 				setSubject(draft.subject ?? "");
 				setText(draft.textBody ?? "");
+				setReplyToMessageId(draft.replySourceMessageId);
 				setLoadedDraftMailboxId(draft.mailboxId);
 			})
 			.catch((err) => {
@@ -122,6 +124,7 @@ export function ComposeForm({
 		if (subjectParam) setSubject(subjectParam);
 		const sourceId = forwardOf ?? inReplyTo;
 		if (!sourceId) return;
+		setReplyToMessageId(inReplyTo && !forwardOf ? inReplyTo : null);
 
 		let cancelled = false;
 		authFetch(`/api/messages/${sourceId}`)
@@ -162,6 +165,7 @@ export function ComposeForm({
 				to,
 				subject,
 				text,
+				...(replyToMessageId ? { replyToMessageId } : {}),
 			};
 			const res = await authFetch(draftId ? `/api/drafts/${draftId}` : "/api/drafts", {
 				method: draftId ? "PATCH" : "POST",
@@ -175,7 +179,7 @@ export function ComposeForm({
 		return () => {
 			if (saveTimer.current) clearTimeout(saveTimer.current);
 		};
-	}, [draftId, fromAddr, loadingDraft, selectedMailbox?.id, subject, text, to]);
+	}, [draftId, fromAddr, loadingDraft, replyToMessageId, selectedMailbox?.id, subject, text, to]);
 
 	function handleFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
 		const files = Array.from(event.target.files ?? []);
@@ -223,6 +227,7 @@ export function ComposeForm({
 				subject,
 				text,
 				mailboxId: selectedMailbox?.id,
+				...(replyToMessageId ? { replyToMessageId } : {}),
 			}, attachedFiles.map((attachment) => attachment.file));
 			setLoading(false);
 		} catch (error) {
@@ -240,6 +245,7 @@ export function ComposeForm({
 		setTo("");
 		setSubject("");
 		setText("");
+		setReplyToMessageId(null);
 		setAttachedFiles([]);
 		setToast({ type: "success", message: t("sendSuccess") });
 		window.dispatchEvent(new Event("lumimail:messages-changed"));

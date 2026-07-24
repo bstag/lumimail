@@ -22,6 +22,7 @@ export function selectDraftWithBody(
 			status: messages.status,
 			textBody: messageBodies.textBody,
 			htmlBody: messageBodies.htmlBody,
+			replySourceMessageId: messages.replySourceMessageId,
 		})
 		.from(messages)
 		.leftJoin(messageBodies, eq(messageBodies.messageId, messages.id))

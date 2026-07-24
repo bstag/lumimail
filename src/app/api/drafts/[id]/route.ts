@@ -12,6 +12,7 @@ import {
 	hasMailboxCapability,
 	messageAccessCondition,
 } from "@/lib/auth/mailbox-access";
+import { selectAccessibleReplySource } from "@/lib/email/reply-source";
 
 export async function GET(request: Request, { params }: DraftRouteParams) {
 	const { id } = await params;
@@ -35,6 +36,16 @@ export async function PATCH(request: Request, { params }: DraftRouteParams) {
 	if (errorResponse) return errorResponse;
 	const input = (await request.json()) as DraftPayload;
 	const db = getDb(env);
+	if (
+		input.replyToMessageId !== undefined
+		&& (
+			typeof input.replyToMessageId !== "string"
+			|| input.replyToMessageId.trim().length === 0
+			|| input.replyToMessageId.length > 100
+		)
+	) {
+		return NextResponse.json({ error: "Invalid reply source" }, { status: 400 });
+	}
 	const [draft] = await db
 		.select()
 		.from(messages)
@@ -52,6 +63,20 @@ export async function PATCH(request: Request, { params }: DraftRouteParams) {
 			return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
 		}
 	}
+	if (input.replyToMessageId) {
+		if (
+			!input.mailboxId
+			|| !await selectAccessibleReplySource(
+				db,
+				user.id,
+				user.organizationId,
+				input.mailboxId,
+				input.replyToMessageId.trim(),
+			)
+		) {
+			return NextResponse.json({ error: "Reply source not found" }, { status: 404 });
+		}
+	}
 
 	const text = input.text ?? "";
 	const html = input.html ?? "";
@@ -64,6 +89,7 @@ export async function PATCH(request: Request, { params }: DraftRouteParams) {
 			toAddr: input.to ?? "",
 			subject: input.subject ?? null,
 			snippet: buildSnippet(text || null, html || null),
+			replySourceMessageId: input.replyToMessageId?.trim() ?? null,
 		})
 		.where(eq(messages.id, id));
 

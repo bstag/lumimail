@@ -8,6 +8,8 @@ export type ParsedEmail = {
 	text: string | null;
 	html: string | null;
 	messageId: string | null;
+	inReplyTo: string | null;
+	references: string | null;
 	fromAddr: string | null;
 	toAddr: string | null;
 	attachments: ParsedAttachment[];
@@ -39,6 +41,8 @@ export async function parseRawMime(raw: ArrayBuffer): Promise<ParsedEmail> {
 		text: email.text ?? null,
 		html: sanitizeHtml(email.html),
 		messageId: email.messageId ?? null,
+		inReplyTo: email.inReplyTo ?? null,
+		references: email.references ?? null,
 		fromAddr: formatPostalAddress(email.from, null),
 		toAddr: formatPostalAddressList(email.to, null),
 		attachments: (email.attachments ?? []).map((attachment) => ({

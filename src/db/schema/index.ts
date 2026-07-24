@@ -204,6 +204,10 @@ export const messages = sqliteTable(
 		mailboxId: text("mailbox_id").references(() => mailboxes.id, { onDelete: "set null" }),
 		direction: text("direction", { enum: ["inbound", "outbound"] }).notNull(),
 		providerMessageId: text("provider_message_id"),
+		rfcMessageId: text("rfc_message_id"),
+		inReplyTo: text("in_reply_to"),
+		referencesHeader: text("references_header"),
+		replySourceMessageId: text("reply_source_message_id"),
 		fromAddr: text("from_addr").notNull(),
 		toAddr: text("to_addr").notNull(),
 		subject: text("subject"),
@@ -224,6 +228,7 @@ export const messages = sqliteTable(
 	(t) => [
 		index("messages_user_created_idx").on(t.userId, t.createdAt),
 		index("messages_mailbox_idx").on(t.mailboxId),
+		index("messages_mailbox_rfc_message_idx").on(t.mailboxId, t.rfcMessageId),
 		index("messages_org_idx").on(t.organizationId),
 		uniqueIndex("messages_imap_uid_idx").on(t.imapUid),
 	],

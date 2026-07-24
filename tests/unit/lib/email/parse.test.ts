@@ -14,6 +14,8 @@ describe("parseRawMime", () => {
 			text: "Hello body",
 			html: "<p>safe</p>",
 			messageId: "<abc@example.com>",
+			inReplyTo: "<parent@example.com>",
+			references: "<root@example.com> <parent@example.com>",
 			from: { address: "alice@example.com", name: "Alice" },
 			to: [{ address: "bob@example.com", name: "Bob" }],
 			attachments: [
@@ -38,6 +40,8 @@ describe("parseRawMime", () => {
 		// covered by its own test, here we assert the value is wired through.
 		expect(result.html).toContain("safe");
 		expect(result.messageId).toBe("<abc@example.com>");
+		expect(result.inReplyTo).toBe("<parent@example.com>");
+		expect(result.references).toBe("<root@example.com> <parent@example.com>");
 		expect(result.fromAddr).toContain("alice@example.com");
 		expect(result.toAddr).toContain("bob@example.com");
 		expect(result.attachments[0]).toMatchObject({
@@ -60,6 +64,8 @@ describe("parseRawMime", () => {
 			text: null,
 			html: null,
 			messageId: null,
+			inReplyTo: null,
+			references: null,
 			fromAddr: null,
 			toAddr: null,
 			attachments: [],

@@ -106,6 +106,24 @@ describe("createResendProvider", () => {
 		}]);
 	});
 
+	it("posts RFC reply headers", async () => {
+		fetchMock.mockResolvedValue(jsonResponse({ id: "re-reply" }));
+		const provider = createResendProvider({ RESEND_API_KEY: "re_secret" } as CloudflareEnv);
+
+		await provider.send({
+			...message,
+			headers: {
+				"In-Reply-To": "<parent@example.com>",
+				References: "<root@example.com> <parent@example.com>",
+			},
+		});
+
+		expect(JSON.parse(fetchMock.mock.calls[0][1].body).headers).toEqual({
+			"In-Reply-To": "<parent@example.com>",
+			References: "<root@example.com> <parent@example.com>",
+		});
+	});
+
 	it.each([429, 500, 503])("classifies HTTP %s as retryable", async (status) => {
 		fetchMock.mockResolvedValue(jsonResponse("temporary detail", { ok: false, status }));
 		const provider = createResendProvider({ RESEND_API_KEY: "re_secret" } as CloudflareEnv);

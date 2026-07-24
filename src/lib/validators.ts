@@ -4,6 +4,7 @@ export const sendEmailSchema = z.object({
 	from: z.string().min(3),
 	to: z.string().min(3),
 	subject: z.string().min(1).max(500),
+	replyToMessageId: z.string().trim().min(1).max(100).optional(),
 	html: z.string().optional(),
 	text: z.string().optional(),
 	mailboxId: z.string().optional(),

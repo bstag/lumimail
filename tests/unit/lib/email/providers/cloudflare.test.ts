@@ -71,6 +71,28 @@ describe("createCloudflareProvider", () => {
 		}));
 	});
 
+	it("passes RFC reply headers to the Cloudflare binding", async () => {
+		const send = vi.fn().mockResolvedValue({ messageId: "cf-reply" });
+		const provider = createCloudflareProvider(makeEnv(send));
+
+		await provider.send({
+			from: "a@example.com",
+			to: "b@example.com",
+			subject: "Re: S",
+			headers: {
+				"In-Reply-To": "<parent@example.com>",
+				References: "<root@example.com> <parent@example.com>",
+			},
+		});
+
+		expect(send).toHaveBeenCalledWith(expect.objectContaining({
+			headers: {
+				"In-Reply-To": "<parent@example.com>",
+				References: "<root@example.com> <parent@example.com>",
+			},
+		}));
+	});
+
 	it.each([
 		["E_RATE_LIMIT_EXCEEDED", true],
 		["E_DELIVERY_FAILED", true],

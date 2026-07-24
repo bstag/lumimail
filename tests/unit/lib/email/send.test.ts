@@ -141,6 +141,7 @@ describe("sendEmail producer", () => {
 			toAddr: "b@x.com",
 			status: "queued",
 			mailboxId: "mb_1",
+			threadId: "thr_id",
 		});
 		expect(mock.inserts[2].values).toMatchObject({
 			id: "job_id",
@@ -156,6 +157,74 @@ describe("sendEmail producer", () => {
 		expect(queueSend).toHaveBeenCalledWith({ kind: "outbound", jobId: "job_id" });
 		expect(providerSend).not.toHaveBeenCalled();
 		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it("derives authorized reply headers and inherits the source thread", async () => {
+		queueAuthorization("org_1");
+		mock.queueSelect([{
+			id: "msg_parent",
+			threadId: "thr_existing",
+			rfcMessageId: "<parent@example.com>",
+			providerMessageId: "provider_123",
+			referencesHeader: "<root@example.com>",
+		}]);
+
+		await sendEmail(env, {
+			userId: "u1",
+			from: "a@example.com",
+			to: "b@x.com",
+			subject: "Re: Hi",
+			replyToMessageId: "msg_parent",
+		});
+
+		expect(mock.inserts[0].values).toMatchObject({
+			threadId: "thr_existing",
+			inReplyTo: "<parent@example.com>",
+			referencesHeader: "<root@example.com> <parent@example.com>",
+			replySourceMessageId: "msg_parent",
+		});
+		expect(JSON.parse((mock.inserts[2].values as { payload: string }).payload)).toMatchObject({
+			headers: {
+				"In-Reply-To": "<parent@example.com>",
+				References: "<root@example.com> <parent@example.com>",
+			},
+		});
+	});
+
+	it("rejects a reply source outside the selected accessible mailbox", async () => {
+		queueAuthorization("org_1");
+		mock.queueSelect([]);
+
+		await expect(sendEmail(env, {
+			userId: "u1",
+			from: "a@example.com",
+			to: "b@x.com",
+			subject: "Re: Hi",
+			replyToMessageId: "msg_other_tenant",
+		})).rejects.toMatchObject({ name: "ReplySourceNotAllowedError" });
+		expect(mock.inserts).toHaveLength(0);
+		expect(queueSend).not.toHaveBeenCalled();
+	});
+
+	it("assigns a fresh thread when an authorized legacy source has no thread id", async () => {
+		queueAuthorization("org_1");
+		mock.queueSelect([{
+			id: "msg_parent",
+			threadId: null,
+			rfcMessageId: "<parent@example.com>",
+			providerMessageId: null,
+			referencesHeader: null,
+		}]);
+
+		await sendEmail(env, {
+			userId: "u1",
+			from: "a@example.com",
+			to: "b@x.com",
+			subject: "Re: Hi",
+			replyToMessageId: "msg_parent",
+		});
+
+		expect(mock.inserts[0].values).toMatchObject({ threadId: "thr_id" });
 	});
 
 	it("stores the canonical formatted sender in the immutable job snapshot", async () => {
@@ -375,6 +444,58 @@ describe("processOutboundQueue consumer", () => {
 			messageId: "msg_1",
 			providerMessageId: "provider_1",
 			to: "b@x.com",
+		});
+	});
+
+	it("sends persisted RFC reply headers from the immutable snapshot", async () => {
+		mock.queueSelect([{
+			...storedJob,
+			payload: JSON.stringify({
+				from: "a@example.com",
+				to: "b@x.com",
+				subject: "Re: Hi",
+				text: "Body",
+				headers: {
+					"In-Reply-To": "<parent@example.com>",
+					References: "<root@example.com> <parent@example.com>",
+				},
+			}),
+		}]);
+		providerSend.mockResolvedValue({ providerMessageId: "<sent@example.com>" });
+
+		await processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1");
+
+		expect(providerSend).toHaveBeenCalledWith(expect.objectContaining({
+			headers: {
+				"In-Reply-To": "<parent@example.com>",
+				References: "<root@example.com> <parent@example.com>",
+			},
+		}));
+		expect(mock.updates[2].set).toEqual({
+			status: "sent",
+			providerMessageId: "<sent@example.com>",
+			rfcMessageId: "<sent@example.com>",
+		});
+	});
+
+	it("rejects a stored snapshot with malformed reply headers", async () => {
+		mock.queueSelect([{
+			...storedJob,
+			payload: JSON.stringify({
+				from: "a@example.com",
+				to: "b@x.com",
+				subject: "Re: Hi",
+				headers: null,
+			}),
+		}]).queueSelect([storedJob]);
+
+		await processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1");
+
+		expect(providerSend).not.toHaveBeenCalled();
+		expect(mock.updates).toHaveLength(3);
+		expect(mock.updates[1].set).toMatchObject({
+			status: "failed",
+			error: "Stored outbound payload is invalid",
 		});
 	});
 

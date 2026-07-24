@@ -130,6 +130,18 @@ describe("routingRuleSchema", () => {
 		expect(routingRuleUpdateSchema.parse({ pattern: "admin" })).toEqual({ pattern: "admin" });
 		expect(routingRuleUpdateSchema.parse({ ignored: true })).toEqual({});
 	});
+
+	it("accepts a bounded internal reply source id", () => {
+		const base = { from: "a@b.co", to: "c@d.co", subject: "Re: Hi" };
+		expect(sendEmailSchema.safeParse({
+			...base,
+			replyToMessageId: "msg_parent",
+		}).success).toBe(true);
+		expect(sendEmailSchema.safeParse({
+			...base,
+			replyToMessageId: "x".repeat(101),
+		}).success).toBe(false);
+	});
 });
 
 describe("webhookSchema", () => {

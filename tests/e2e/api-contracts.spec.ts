@@ -155,6 +155,63 @@ test.describe("canonical API client contracts", () => {
 		await expect(page.getByText("Message queued for sending")).toBeVisible();
 	});
 
+	test("submits an internal reply source without exposing raw RFC headers", async ({ page }) => {
+		await mockAuthenticatedShell(page);
+		const parent = {
+			id: "msg_parent",
+			userId: "user_1",
+			mailboxId: "mbx_1",
+			direction: "inbound",
+			providerMessageId: "<parent@example.net>",
+			fromAddr: "Sender <sender@example.net>",
+			toAddr: "owner@example.com",
+			subject: "Thread contract",
+			snippet: "Parent body",
+			status: "received",
+			read: true,
+			starred: false,
+			threadId: "thr_parent",
+			createdAt: "2026-07-24T12:00:00.000Z",
+		};
+		await page.route("**/api/messages/msg_parent", (route) =>
+			route.fulfill({
+				json: {
+					message: parent,
+					body: { textBody: "Parent body", htmlBody: null },
+				},
+			}),
+		);
+		await page.route("**/api/messages/msg_parent/attachments", (route) =>
+			route.fulfill({ json: { success: true, data: { attachments: [] } } }),
+		);
+		await page.route("**/api/drafts", (route) =>
+			route.fulfill({ json: { draft: { id: "draft_reply" } } }),
+		);
+		let sentPayload: Record<string, unknown> | null = null;
+		await page.route("**/api/send", async (route) => {
+			sentPayload = route.request().postDataJSON() as Record<string, unknown>;
+			return route.fulfill({
+				status: 202,
+				json: { success: true, data: { messageId: "msg_reply", status: "queued" } },
+			});
+		});
+
+		await page.goto("/inbox/msg_parent");
+		await page.getByRole("button", { name: "Reply", exact: true }).click();
+		await expect(page).toHaveURL(/\/compose\?.*inReplyTo=msg_parent/);
+		await page.getByLabel("Body").fill("Reply body");
+		await page.locator('button[type="submit"]').click();
+
+		await expect.poll(() => sentPayload).not.toBeNull();
+		expect(sentPayload).toMatchObject({
+			mailboxId: "mbx_1",
+			replyToMessageId: "msg_parent",
+		});
+		expect(sentPayload).not.toHaveProperty("inReplyTo");
+		expect(sentPayload).not.toHaveProperty("references");
+		expect(sentPayload).not.toHaveProperty("threadId");
+	});
+
 	test("keeps the popup composer Send action above floating preference controls", async ({ page }) => {
 		await mockAuthenticatedShell(page);
 		await page.route("**/api/labels", (route) =>

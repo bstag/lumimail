@@ -177,4 +177,16 @@ describe("POST /api/send", () => {
 		const res = await POST(req(validBody));
 		expect(res.status).toBe(404);
 	});
+
+	it("returns 404 for an inaccessible reply source", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		const error = new Error("denied");
+		error.name = "ReplySourceNotAllowedError";
+		m.sendEmail.mockRejectedValue(error);
+		const res = await POST(req({ ...validBody, replyToMessageId: "msg_parent" }));
+		expect(res.status).toBe(404);
+		expect((await res.json()) as any).toMatchObject({
+			error: { message: "Reply source not found" },
+		});
+	});
 });

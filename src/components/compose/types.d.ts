@@ -6,6 +6,7 @@ export type ComposeDraft = {
 	subject: string | null;
 	textBody: string | null;
 	htmlBody: string | null;
+	replySourceMessageId: string | null;
 };
 
 export type DraftResponse = {

@@ -19,6 +19,7 @@ export type SubmitMessageInput = {
 	subject: string;
 	text: string;
 	mailboxId?: string;
+	replyToMessageId?: string;
 };
 
 export async function submitMessage(

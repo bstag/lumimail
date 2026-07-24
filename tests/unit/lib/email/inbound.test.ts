@@ -51,6 +51,8 @@ const parsed: ParsedEmail = {
 	text: "text body",
 	html: "<p>html</p>",
 	messageId: "<mid@x>",
+	inReplyTo: null,
+	references: null,
 	fromAddr: "sender@other.com",
 	toAddr: "a@example.com",
 	attachments: [],
@@ -159,7 +161,10 @@ describe("processInboundMessage", () => {
 			fromAddr: "sender@other.com",
 			subject: "Hello",
 			status: "received",
-			threadId: "<mid@x>",
+			rfcMessageId: "<mid@x>",
+			inReplyTo: null,
+			referencesHeader: null,
+			threadId: expect.stringMatching(/^thr_[a-f0-9]{32}$/),
 			attachmentStatus: "none",
 			attachmentError: null,
 		});
@@ -180,6 +185,90 @@ describe("processInboundMessage", () => {
 		});
 		// vacation disabled -> no send
 		expect(sendEmail).not.toHaveBeenCalled();
+	});
+
+	it("inherits the thread of a parent found inside the target mailbox", async () => {
+		resolveInboundTargets.mockResolvedValue(storeDecisions);
+		parseRawMime.mockResolvedValue({
+			...parsed,
+			messageId: "<child@x>",
+			inReplyTo: "<parent@x>",
+			references: "<root@x> <parent@x>",
+		});
+		const env = makeEnv(makeR2());
+		mock
+			.queueSelect([{ rfcMessageId: "<parent@x>", providerMessageId: null, threadId: "thr_existing" }])
+			.queueSelect([])
+			.queueSelect([{ enabled: false }]);
+
+		await processInboundMessage(env, payload);
+
+		expect(mock.inserts[0].values).toMatchObject({
+			rfcMessageId: "<child@x>",
+			inReplyTo: "<parent@x>",
+			referencesHeader: "<root@x> <parent@x>",
+			threadId: "thr_existing",
+		});
+	});
+
+	it("creates a mailbox-scoped fallback thread when RFC metadata is absent", async () => {
+		resolveInboundTargets.mockResolvedValue(storeDecisions);
+		parseRawMime.mockResolvedValue({
+			...parsed,
+			messageId: null,
+			inReplyTo: null,
+			references: null,
+		});
+		const env = makeEnv(makeR2());
+		mock.queueSelect([]).queueSelect([{ enabled: false }]);
+
+		await processInboundMessage(env, payload);
+
+		expect(mock.inserts[0].values).toMatchObject({
+			rfcMessageId: null,
+			threadId: "thr_id",
+		});
+	});
+
+	it("does not inherit a thread when reply identities are absent from this mailbox", async () => {
+		resolveInboundTargets.mockResolvedValue(storeDecisions);
+		parseRawMime.mockResolvedValue({
+			...parsed,
+			messageId: "<child@x>",
+			inReplyTo: "<missing@x>",
+			references: "<root@x>",
+		});
+		const env = makeEnv(makeR2());
+		mock.queueSelect([]).queueSelect([]).queueSelect([{ enabled: false }]);
+
+		await processInboundMessage(env, payload);
+
+		expect(mock.inserts[0].values).toMatchObject({
+			threadId: expect.stringMatching(/^thr_[a-f0-9]{32}$/),
+		});
+	});
+
+	it("can inherit a legacy parent stored only as providerMessageId", async () => {
+		resolveInboundTargets.mockResolvedValue(storeDecisions);
+		parseRawMime.mockResolvedValue({
+			...parsed,
+			messageId: "<child@x>",
+			inReplyTo: "<legacy-parent@x>",
+			references: null,
+		});
+		const env = makeEnv(makeR2());
+		mock
+			.queueSelect([{
+				rfcMessageId: null,
+				providerMessageId: "<legacy-parent@x>",
+				threadId: "thr_legacy",
+			}])
+			.queueSelect([])
+			.queueSelect([{ enabled: false }]);
+
+		await processInboundMessage(env, payload);
+
+		expect(mock.inserts[0].values).toMatchObject({ threadId: "thr_legacy" });
 	});
 
 	it("stores exact attachment bytes before atomically batching message metadata", async () => {
@@ -585,7 +674,13 @@ describe("processInboundMessage multiple mailbox targets", () => {
 			.queueSelect([]) // mb2 filters
 			.queueSelect([{ enabled: false }]); // mb2 vacation
 		await processInboundMessage(makeEnv(makeR2()), payload);
-		expect(mock.inserts.filter((i) => (i.values as { direction?: string }).direction === "inbound")).toHaveLength(2);
+		const deliveries = mock.inserts.filter(
+			(i) => (i.values as { direction?: string }).direction === "inbound",
+		);
+		expect(deliveries).toHaveLength(2);
+		expect(new Set(deliveries.map(
+			(delivery) => (delivery.values as { threadId: string }).threadId,
+		)).size).toBe(2);
 	});
 
 	it("creates independent attachment objects for every mailbox delivery", async () => {

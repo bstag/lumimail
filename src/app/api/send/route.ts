@@ -89,6 +89,9 @@ export async function POST(request: Request) {
 		if (error instanceof Error && error.name === "SenderNotAllowedError") {
 			return apiError("Mailbox not found", 404);
 		}
+		if (error instanceof Error && error.name === "ReplySourceNotAllowedError") {
+			return apiError("Reply source not found", 404);
+		}
 		return apiError("Send failed", 500);
 	}
 }

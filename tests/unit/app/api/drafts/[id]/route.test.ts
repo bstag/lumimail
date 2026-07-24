@@ -132,6 +132,47 @@ describe("PATCH /api/drafts/[id]", () => {
 		expect(mock.updates[1].set).toEqual({ textBody: "t", htmlBody: "<p>h</p>" });
 	});
 
+	it("rejects malformed reply source input before updating", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		const res = await PATCH(req({ replyToMessageId: "" }), params());
+		expect(res.status).toBe(400);
+		expect(mock.updates).toHaveLength(0);
+	});
+
+	it("persists an accessible reply source while updating a draft", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
+		mock
+			.queueSelect([{ id: "msg_1", userId: "u1", status: "draft" }])
+			.queueSelect([{ id: "msg_parent" }]);
+		m.getMailboxAccess.mockResolvedValue({ role: "responder" });
+
+		const res = await PATCH(req({
+			mailboxId: "mb_1",
+			replyToMessageId: "msg_parent",
+		}), params());
+
+		expect(res.status).toBe(200);
+		expect(mock.updates[0].set).toMatchObject({
+			replySourceMessageId: "msg_parent",
+		});
+	});
+
+	it("rejects an inaccessible reply source while updating a draft", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
+		mock
+			.queueSelect([{ id: "msg_1", userId: "u1", status: "draft" }])
+			.queueSelect([]);
+		m.getMailboxAccess.mockResolvedValue({ role: "responder" });
+
+		const res = await PATCH(req({
+			mailboxId: "mb_1",
+			replyToMessageId: "msg_other_tenant",
+		}), params());
+
+		expect(res.status).toBe(404);
+		expect(mock.updates).toHaveLength(0);
+	});
+
 	it("rejects moving a draft into a viewer-only mailbox", async () => {
 		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
 		mock.queueSelect([{ id: "msg_1", userId: "u1", status: "draft" }]);

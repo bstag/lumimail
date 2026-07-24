@@ -25,10 +25,12 @@ export function getMessageBodyDisplay(
 ): MessageBodyDisplay {
 	const textSource = textBody ?? (htmlToReadableText(htmlBody) || fallback || "");
 	const parts = splitRepliedEmailContent(textSource);
+	const renderedHtml = htmlBody ?? null;
 
 	return {
-		...parts,
-		htmlBody: parts.quotedContent.length > 0 ? null : htmlBody ?? null,
-		hasQuotedContent: parts.quotedContent.length > 0,
+		latestContent: parts.latestContent,
+		quotedContent: renderedHtml ? [] : parts.quotedContent,
+		htmlBody: renderedHtml,
+		hasQuotedContent: renderedHtml ? false : parts.quotedContent.length > 0,
 	};
 }

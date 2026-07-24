@@ -24,6 +24,12 @@ import {
 	type OutboundAttachmentInput,
 	type ValidatedOutboundAttachment,
 } from "@/lib/email/outbound-attachments";
+import {
+	buildReplyThreading,
+	normalizeRfcMessageId,
+	type ReplyThreading,
+} from "@/lib/email/threading";
+import { selectAccessibleReplySource } from "@/lib/email/reply-source";
 
 async function getUserOrgId(env: CloudflareEnv, userId: string): Promise<string | null> {
 	const db = getDb(env);
@@ -44,6 +50,7 @@ export type SendEmailInput = {
 	text?: string;
 	mailboxId?: string;
 	attachments?: OutboundAttachmentInput[];
+	replyToMessageId?: string;
 };
 
 type OutboundAttachmentSnapshot = {
@@ -61,6 +68,7 @@ type OutboundDeliverySnapshot = {
 	html?: string;
 	text?: string;
 	attachments?: OutboundAttachmentSnapshot[];
+	headers?: NonNullable<ReplyThreading["headers"]>;
 };
 
 export type OutboundQueueMessage = {
@@ -79,6 +87,39 @@ export class SenderNotAllowedError extends Error {
 		super(`Sender address is not an active mailbox for your account: ${from}`);
 		this.name = "SenderNotAllowedError";
 	}
+}
+
+export class ReplySourceNotAllowedError extends Error {
+	constructor() {
+		super("Reply source is not accessible in the selected mailbox");
+		this.name = "ReplySourceNotAllowedError";
+	}
+}
+
+async function resolveReplySource(
+	env: CloudflareEnv,
+	input: SendEmailInput,
+	authorization: SenderAuthorization,
+): Promise<{
+	threadId: string;
+	replySourceMessageId: string;
+	threading: ReplyThreading;
+} | null> {
+	if (!input.replyToMessageId) return null;
+	const db = getDb(env);
+	const source = await selectAccessibleReplySource(
+		db,
+		input.userId,
+		authorization.organizationId,
+		authorization.mailboxId,
+		input.replyToMessageId,
+	);
+	if (!source) throw new ReplySourceNotAllowedError();
+	return {
+		threadId: source.threadId ?? newId("thr"),
+		replySourceMessageId: source.id,
+		threading: buildReplyThreading(source),
+	};
 }
 
 async function cleanupAttachmentObjects(env: CloudflareEnv, keys: string[]): Promise<void> {
@@ -153,6 +194,7 @@ export async function sendEmail(
 		throw new SenderNotAllowedError(input.from);
 	}
 
+	const replySource = await resolveReplySource(env, input, authorization);
 	const authorizedInput = { ...input, mailboxId: authorization.mailboxId };
 	const sender = await getSenderContext(env, authorizedInput);
 	const fromAddr = sender.fromAddr;
@@ -183,6 +225,7 @@ export async function sendEmail(
 		html: input.html,
 		text: input.text,
 		...(attachmentSnapshots.length ? { attachments: attachmentSnapshots } : {}),
+		...(replySource?.threading.headers ? { headers: replySource.threading.headers } : {}),
 	};
 	const messageInsert = db.insert(messages).values({
 		id: messageId,
@@ -196,6 +239,10 @@ export async function sendEmail(
 		snippet,
 		status: "queued",
 		attachmentStatus: attachmentSnapshots.length ? "stored" : "none",
+		threadId: replySource?.threadId ?? newId("thr"),
+		inReplyTo: replySource?.threading.inReplyTo ?? null,
+		referencesHeader: replySource?.threading.referencesHeader ?? null,
+		replySourceMessageId: replySource?.replySourceMessageId ?? null,
 	});
 	const bodyInsert = db.insert(messageBodies).values({
 		id: newId(),
@@ -317,6 +364,7 @@ function parseDeliverySnapshot(payload: string): OutboundDeliverySnapshot | null
 			typeof value.subject !== "string" ||
 			(value.html !== undefined && typeof value.html !== "string") ||
 			(value.text !== undefined && typeof value.text !== "string") ||
+			(value.headers !== undefined && !isThreadingHeaders(value.headers)) ||
 			(value.attachments !== undefined && !isAttachmentSnapshotArray(value.attachments))
 		) {
 			return null;
@@ -327,11 +375,27 @@ function parseDeliverySnapshot(payload: string): OutboundDeliverySnapshot | null
 			subject: value.subject,
 			html: value.html as string | undefined,
 			text: value.text as string | undefined,
+			headers: value.headers as NonNullable<ReplyThreading["headers"]> | undefined,
 			attachments: value.attachments as OutboundAttachmentSnapshot[] | undefined,
 		};
 	} catch {
 		return null;
 	}
+}
+
+function isThreadingHeaders(value: unknown): value is NonNullable<ReplyThreading["headers"]> {
+	if (typeof value !== "object" || value === null) return false;
+	const headers = value as Record<string, unknown>;
+	return (
+		typeof headers["In-Reply-To"] === "string"
+		&& typeof headers.References === "string"
+		&& normalizeRfcMessageId(headers["In-Reply-To"]) === headers["In-Reply-To"]
+		&& buildReplyThreading({
+			rfcMessageId: headers["In-Reply-To"],
+			providerMessageId: null,
+			referencesHeader: headers.References,
+		}).referencesHeader === headers.References
+	);
 }
 
 function isAttachmentSnapshotArray(value: unknown): value is OutboundAttachmentSnapshot[] {
@@ -506,6 +570,7 @@ export async function processOutboundQueue(
 			subject: snapshot.subject,
 			html: snapshot.html,
 			text: snapshot.text,
+			...(snapshot.headers ? { headers: snapshot.headers } : {}),
 			...(loadedAttachments.length ? { attachments: loadedAttachments } : {}),
 		});
 		await db.batch([
@@ -524,7 +589,13 @@ export async function processOutboundQueue(
 				)),
 			db
 				.update(messages)
-				.set({ status: "sent", providerMessageId: response.providerMessageId })
+				.set({
+					status: "sent",
+					providerMessageId: response.providerMessageId,
+					...(normalizeRfcMessageId(response.providerMessageId)
+						? { rfcMessageId: response.providerMessageId }
+						: {}),
+				})
 				.where(eq(messages.id, job.messageId)),
 		]);
 		await dispatchWebhooks(env, job.userId, "message.outbound", {
