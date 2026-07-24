@@ -83,7 +83,7 @@ export default function LabelsPage() {
 	}
 
 	return (
-		<div className="space-y-8">
+		<div className="space-y-8 p-8">
 			<div>
 				<h2 className="text-xl font-semibold text-ink">Labels</h2>
 				<p className="text-sm text-ink-muted">Organise your messages with custom labels.</p>

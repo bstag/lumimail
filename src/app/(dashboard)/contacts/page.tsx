@@ -89,7 +89,7 @@ export default function ContactsPage() {
 	});
 
 	return (
-		<div className="space-y-6 p-6">
+		<div className="space-y-6 p-8">
 			<div className="flex items-center justify-between">
 				<div>
 					<h2 className="text-xl font-semibold text-ink">Contacts</h2>
