@@ -116,7 +116,7 @@ export default function RoutingPage() {
 					<CardTitle>Add rule</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div className="space-y-2">
 							<Label htmlFor="routing-domain">Domain</Label>
 							<select
@@ -144,7 +144,7 @@ export default function RoutingPage() {
 					<p className="text-xs text-ink-muted">
 						Use <span className="font-mono">*</span> for all otherwise unmatched addresses on the selected domain. Adding it enables that domain&apos;s Cloudflare catch-all for Lumimail.
 					</p>
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div className="space-y-2">
 							<Label htmlFor="routing-action">Action</Label>
 							<select

@@ -21,7 +21,7 @@ export function LanguageSwitcher() {
       <select
         value={currentLocale}
         onChange={(e) => handleChange(e.target.value as Locale)}
-        className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm font-medium text-ink-muted shadow-sm transition-colors hover:border-border-strong focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-50"
+        className="max-w-[45vw] truncate rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm font-medium text-ink-muted shadow-sm transition-colors hover:border-border-strong focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-50 sm:max-w-none"
         aria-label="Select language"
       >
         {locales.map((locale) => (

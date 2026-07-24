@@ -104,7 +104,7 @@ export default function FiltersPage() {
 						<Input placeholder="e.g. Newsletter auto-archive" value={name} onChange={(e) => setName(e.target.value)} />
 					</div>
 					<div className="text-sm font-medium text-ink-muted mt-2">Conditions (messages matching any)</div>
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div className="space-y-2">
 							<Label>From contains</Label>
 							<Input placeholder="newsletter@" value={fromContains} onChange={(e) => setFromContains(e.target.value)} />

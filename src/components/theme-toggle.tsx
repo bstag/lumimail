@@ -42,8 +42,8 @@ export function ThemeToggle() {
 				title={`Theme: ${label} — click to switch`}
 				className="flex h-10 items-center gap-2 rounded-lg border border-border bg-surface-raised px-3 text-sm font-medium text-ink-muted shadow-sm transition-colors hover:border-border-strong hover:text-ink focus:outline-none focus:ring-2 focus:ring-accent/20"
 			>
-				<Icon className="h-4 w-4" />
-				<span>{label}</span>
+				<Icon className="h-4 w-4 shrink-0" />
+				<span className="hidden sm:inline">{label}</span>
 			</button>
 		</div>
 	);
