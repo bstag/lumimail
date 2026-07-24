@@ -59,10 +59,10 @@ export function MailboxSelector() {
 			<button
 				type="button"
 				onClick={() => setOpen((value) => !value)}
-				className="flex items-center justify-between gap-3 rounded-full pr-2 pl-4 py-1.5 text-left hover:bg-surface-subtle"
+				className="flex items-center justify-between gap-3 rounded-full p-1 text-left hover:bg-surface-subtle sm:py-1.5 sm:pr-2 sm:pl-4"
 			>
 				<div className="flex min-w-0 items-center gap-3">
-					<div className="min-w-0 text-right flex flex-col justify-center">
+					<div className="hidden min-w-0 text-right flex-col justify-center sm:flex">
 						<p className="truncate text-sm font-medium text-ink">{selectedName}</p>
 						<p className="truncate text-[11px] text-ink-muted">{selectedEmail}</p>
 					</div>
