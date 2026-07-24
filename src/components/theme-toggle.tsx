@@ -13,7 +13,7 @@ function applyTheme(theme: Theme) {
 	else root.setAttribute("data-theme", theme);
 }
 
-export function ThemeToggle() {
+export function ThemeToggle({ variant = "floating" }: { variant?: "floating" | "inline" }) {
 	const [theme, setTheme] = useState<Theme>("system");
 
 	useEffect(() => {
@@ -32,6 +32,25 @@ export function ThemeToggle() {
 	const Icon = theme === "light" ? Sun : theme === "dark" ? Moon : Monitor;
 	const label =
 		theme === "system" ? "System" : theme === "light" ? "Light" : "Dark";
+
+	if (variant === "inline") {
+		return (
+			<button
+				type="button"
+				onClick={cycle}
+				aria-label={`Theme: ${label}. Click to switch.`}
+				className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-ink-muted hover:bg-surface-subtle"
+			>
+				<div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-subtle text-ink-muted">
+					<Icon className="h-4 w-4" />
+				</div>
+				<div className="min-w-0 flex-1">
+					<p className="text-sm font-medium text-ink">Theme</p>
+					<p className="text-xs text-ink-muted">{label}</p>
+				</div>
+			</button>
+		);
+	}
 
 	return (
 		<div className="fixed bottom-4 left-4 z-30">

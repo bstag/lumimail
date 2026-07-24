@@ -4,8 +4,6 @@ import { Providers } from "@/components/providers";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { rtlLocales } from "@/i18n/config";
-import { LanguageSwitcher } from "@/components/language-switcher";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import "./globals.css";
 
@@ -63,8 +61,6 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 				<NextIntlClientProvider messages={messages}>
 					<Providers>
 						<ServiceWorkerRegistration />
-						<LanguageSwitcher />
-						<ThemeToggle />
 						{children}
 					</Providers>
 				</NextIntlClientProvider>

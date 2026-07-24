@@ -1,8 +1,12 @@
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { ThemeToggle } from "@/components/theme-toggle";
 import type { AuthShellProps } from "./types";
 
 export function AuthShell({ icon: Icon, title, description, children, footer, steps }: AuthShellProps) {
 	return (
 		<div className="min-h-dvh bg-surface p-4 text-ink sm:p-6">
+			<LanguageSwitcher />
+			<ThemeToggle />
 			<div className="mx-auto flex min-h-[calc(100dvh-32px)] max-w-6xl items-center sm:min-h-[calc(100dvh-48px)]">
 				<div className="mx-auto bg-surface-raised overflow-hidden rounded-4xl shadow-lg shadow-border/50">
 

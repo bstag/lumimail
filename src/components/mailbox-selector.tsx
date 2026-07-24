@@ -8,6 +8,8 @@ import { useTranslations } from "next-intl";
 import { useAuthSession } from "@/components/auth/auth-session-context";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { useMessageCounts } from "@/hooks/use-message-counts";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { authFetch, clearClientSessionToken } from "@/lib/auth/client";
 import { isOrganizationAdminRole } from "@/lib/auth/roles";
 import { cn } from "@/lib/utils";
@@ -145,6 +147,8 @@ export function MailboxSelector() {
 								{adminActive && <Check className="ml-auto h-4 w-4 text-accent" />}
 							</Link>
 						)}
+						<ThemeToggle variant="inline" />
+						<LanguageSwitcher variant="inline" />
 						<button
 							type="button"
 							onClick={logout}

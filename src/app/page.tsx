@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { authFetch, getClientSessionToken } from "@/lib/auth/client";
 import { getHomeActions, heroMessages, sidebarItems } from "./utils";
 import { ArrowRight, Inbox, Mail, Search, ShieldCheck } from "lucide-react";
@@ -31,6 +33,8 @@ export default function HomePage() {
 
   return (
     <div className="min-h-dvh bg-surface text-ink">
+      <LanguageSwitcher />
+      <ThemeToggle />
       <header className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link
           href="/"
