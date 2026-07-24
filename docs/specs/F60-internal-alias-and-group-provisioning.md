@@ -1,6 +1,6 @@
 # F60 — Internal Alias and Group Provisioning
 
-> Status: `Ready for Production Validation`
+> Status: `Deployed — Production Validation Pending`
 > Owner area: alias admin UI/API, alias/group schema, Cloudflare Email Routing,
 > inbound target resolution
 
@@ -254,10 +254,17 @@ Tests:
   `ERR_ABORTED` redirect cases and one detached owner-menu element. The F60
   scenario passed in both focused and full runs.
 - The OpenNext production build and Wrangler deployment dry run pass.
+- Production migration `0016_add_alias_group_provisioning.sql` was applied to
+  D1 database `ffe4de32-cf15-4f56-96b5-e14dc8031b42`; Wrangler reports no
+  pending migrations. Live schema inspection confirmed
+  `aliases.cloudflare_rule_id`, `group_members.mailbox_id`, the unique
+  `(alias_id, mailbox_id)` index, and the mailbox lookup index.
+- Commit `33cb643` was built and deployed as Worker version
+  `58a71573-c187-475e-bf8c-80a8d512eceb`. Production returned HTTP 200 for
+  `/` and HTTP 401 for an unauthenticated `/api/auth/me` request.
 
 Not yet verified:
 
-- Production migration application.
 - A provider-created exact alias rule and controlled simple-alias delivery.
 - Controlled fan-out from one group address into at least two internal
   mailboxes, including a cross-domain target.
