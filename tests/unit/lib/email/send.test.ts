@@ -167,6 +167,9 @@ describe("sendEmail producer", () => {
 			rfcMessageId: "<parent@example.com>",
 			providerMessageId: "provider_123",
 			referencesHeader: "<root@example.com>",
+			fromAddr: "Sender <sender@example.com>",
+			textBody: "Plain source",
+			htmlBody: "<p><strong>Rich source</strong><script>bad()</script></p>",
 		}]);
 
 		await sendEmail(env, {
@@ -175,6 +178,8 @@ describe("sendEmail producer", () => {
 			to: "b@x.com",
 			subject: "Re: Hi",
 			replyToMessageId: "msg_parent",
+			text: "Authored <reply>",
+			html: "<img src=x onerror=bad()>client html",
 		});
 
 		expect(mock.inserts[0].values).toMatchObject({
@@ -184,11 +189,19 @@ describe("sendEmail producer", () => {
 			replySourceMessageId: "msg_parent",
 		});
 		expect(JSON.parse((mock.inserts[2].values as { payload: string }).payload)).toMatchObject({
+			text: expect.stringContaining("Authored <reply>"),
+			html: expect.stringContaining("<strong>Rich source</strong>"),
 			headers: {
 				"In-Reply-To": "<parent@example.com>",
 				References: "<root@example.com> <parent@example.com>",
 			},
 		});
+		const body = mock.inserts[1].values as { textBody: string; htmlBody: string };
+		expect(body.textBody).toContain("> Plain source");
+		expect(body.htmlBody).toContain("Authored &lt;reply&gt;");
+		expect(body.htmlBody).toContain("<blockquote><p><strong>Rich source</strong></p></blockquote>");
+		expect(body.htmlBody).not.toContain("client html");
+		expect(body.htmlBody).not.toContain("<script");
 	});
 
 	it("rejects a reply source outside the selected accessible mailbox", async () => {

@@ -1,6 +1,6 @@
 import { and, eq, ne } from "drizzle-orm";
 import type { getDb } from "@/db";
-import { messages } from "@/db/schema";
+import { messageBodies, messages } from "@/db/schema";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
 type Db = ReturnType<typeof getDb>;
@@ -19,8 +19,12 @@ export function selectAccessibleReplySource(
 			rfcMessageId: messages.rfcMessageId,
 			providerMessageId: messages.providerMessageId,
 			referencesHeader: messages.referencesHeader,
+			fromAddr: messages.fromAddr,
+			textBody: messageBodies.textBody,
+			htmlBody: messageBodies.htmlBody,
 		})
 		.from(messages)
+		.leftJoin(messageBodies, eq(messageBodies.messageId, messages.id))
 		.where(and(
 			eq(messages.id, messageId),
 			eq(messages.mailboxId, mailboxId),

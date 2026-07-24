@@ -122,18 +122,21 @@ export function ComposeForm({
 		const inReplyTo = searchParams.get("inReplyTo");
 		if (toParam) setTo(toParam);
 		if (subjectParam) setSubject(subjectParam);
-		const sourceId = forwardOf ?? inReplyTo;
-		if (!sourceId) return;
-		setReplyToMessageId(inReplyTo && !forwardOf ? inReplyTo : null);
+		if (inReplyTo && !forwardOf) {
+			setReplyToMessageId(inReplyTo);
+			return;
+		}
+		setReplyToMessageId(null);
+		if (!forwardOf) return;
 
 		let cancelled = false;
-		authFetch(`/api/messages/${sourceId}`)
+		authFetch(`/api/messages/${forwardOf}`)
 			.then((res) => (res.ok ? (res.json() as Promise<MessageWithBodyResponse>) : null))
 			.then((payload) => {
 				if (cancelled || !payload?.body) return;
 				const original = payload.body.textBody ?? "";
 				const meta = payload.message;
-				const quoted = `\n\n---------- ${forwardOf ? "Forwarded message" : "Original message"} ----------\nFrom: ${meta?.fromAddr ?? ""}\nSubject: ${meta?.subject ?? ""}\n\n${original}`;
+				const quoted = `\n\n---------- Forwarded message ----------\nFrom: ${meta?.fromAddr ?? ""}\nSubject: ${meta?.subject ?? ""}\n\n${original}`;
 				setText((current) => current + quoted);
 			})
 			.catch(() => {

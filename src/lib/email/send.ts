@@ -30,6 +30,7 @@ import {
 	type ReplyThreading,
 } from "@/lib/email/threading";
 import { selectAccessibleReplySource } from "@/lib/email/reply-source";
+import { buildReplyBodies, type ReplyBodySource } from "@/lib/email/reply-bodies";
 
 async function getUserOrgId(env: CloudflareEnv, userId: string): Promise<string | null> {
 	const db = getDb(env);
@@ -104,6 +105,7 @@ async function resolveReplySource(
 	threadId: string;
 	replySourceMessageId: string;
 	threading: ReplyThreading;
+	bodySource: ReplyBodySource;
 } | null> {
 	if (!input.replyToMessageId) return null;
 	const db = getDb(env);
@@ -119,6 +121,7 @@ async function resolveReplySource(
 		threadId: source.threadId ?? newId("thr"),
 		replySourceMessageId: source.id,
 		threading: buildReplyThreading(source),
+		bodySource: source,
 	};
 }
 
@@ -198,6 +201,9 @@ export async function sendEmail(
 	const authorizedInput = { ...input, mailboxId: authorization.mailboxId };
 	const sender = await getSenderContext(env, authorizedInput);
 	const fromAddr = sender.fromAddr;
+	const deliveryBodies = replySource
+		? buildReplyBodies(input.text ?? "", replySource.bodySource)
+		: { text: input.text, html: input.html };
 	const validatedAttachments = validateOutboundAttachments(input);
 	await upsertContactFromAddress(env, {
 		userId: input.userId,
@@ -205,7 +211,7 @@ export async function sendEmail(
 		source: "outbound",
 	});
 	const messageId = newId("msg");
-	const snippet = buildSnippet(input.text ?? null, input.html ?? null);
+	const snippet = buildSnippet(deliveryBodies.text ?? null, deliveryBodies.html ?? null);
 
 	const jobId = newId("job");
 	const attachmentSnapshots: OutboundAttachmentSnapshot[] = validatedAttachments.map((attachment) => {
@@ -222,8 +228,8 @@ export async function sendEmail(
 		from: fromAddr,
 		to: input.to,
 		subject: input.subject,
-		html: input.html,
-		text: input.text,
+		html: deliveryBodies.html,
+		text: deliveryBodies.text,
 		...(attachmentSnapshots.length ? { attachments: attachmentSnapshots } : {}),
 		...(replySource?.threading.headers ? { headers: replySource.threading.headers } : {}),
 	};
@@ -247,8 +253,8 @@ export async function sendEmail(
 	const bodyInsert = db.insert(messageBodies).values({
 		id: newId(),
 		messageId,
-		textBody: input.text ?? null,
-		htmlBody: input.html ?? null,
+		textBody: deliveryBodies.text ?? null,
+		htmlBody: deliveryBodies.html ?? null,
 	});
 	const jobInsert = db.insert(outboundJobs).values({
 		id: jobId,

@@ -199,6 +199,7 @@ test.describe("canonical API client contracts", () => {
 		await page.goto("/inbox/msg_parent");
 		await page.getByRole("button", { name: "Reply", exact: true }).click();
 		await expect(page).toHaveURL(/\/compose\?.*inReplyTo=msg_parent/);
+		await expect(page.getByLabel("Body")).toHaveValue("");
 		await page.getByLabel("Body").fill("Reply body");
 		await page.locator('button[type="submit"]').click();
 
@@ -206,7 +207,9 @@ test.describe("canonical API client contracts", () => {
 		expect(sentPayload).toMatchObject({
 			mailboxId: "mbx_1",
 			replyToMessageId: "msg_parent",
+			text: "Reply body",
 		});
+		expect(sentPayload).not.toHaveProperty("html");
 		expect(sentPayload).not.toHaveProperty("inReplyTo");
 		expect(sentPayload).not.toHaveProperty("references");
 		expect(sentPayload).not.toHaveProperty("threadId");

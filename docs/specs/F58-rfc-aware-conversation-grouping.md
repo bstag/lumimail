@@ -58,6 +58,9 @@ mailbox or an unrelated conversation.
 - Cross-mailbox or cross-organization conversations.
 - Reconstructing HTML quote boundaries whose identifying attributes were
   removed by the existing ingestion sanitizer.
+- Preserving source HTML in a newly authored reply body; production validation
+  exposed the plain-text quote flattening tracked by
+  [F59](./F59-html-preserving-replies.md).
 
 ## 4. Data Model
 
@@ -273,8 +276,12 @@ Verification:
 
 Not yet verified:
 
-- The controlled production inbound → Lumimail reply → external reply chain
-  remains pending. R-25 and F18 therefore remain in progress rather than
+- A controlled production inbound → Lumimail reply → external reply chain
+  grouped all three messages correctly. It also exposed that Lumimail's
+  outgoing reply flattened the quoted HTML source into plain text. The
+  server-derived multipart repair is tracked in
+  [F59](./F59-html-preserving-replies.md) and requires a fresh production chain
+  after deployment. R-25 and F18 therefore remain in progress rather than
   shipped.
 
 Deployment:
