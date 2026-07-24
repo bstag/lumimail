@@ -71,6 +71,42 @@ describe("resolveInboundTargets", () => {
 		]);
 	});
 
+	it("delivers a simple alias to an explicit mailbox on another organization domain", async () => {
+		mock
+			.queueSelect([{ ...activeDomain, organizationId: "org_1" }])
+			.queueSelect([{
+				id: "al_cross",
+				organizationId: "org_1",
+				domainId: "dom_1",
+				localPart: "info",
+				isGroup: false,
+				targetMailboxId: "mb_cross",
+				forwardTo: null,
+			}])
+			.queueSelect([{
+				id: "mb_cross",
+				userId: "u_cross",
+				organizationId: "org_1",
+				domainId: "dom_2",
+				localPart: "admin",
+				hostname: "other.test",
+				displayName: "Other Admin",
+			}]);
+
+		await expect(resolveInboundTargets(db, "info@example.com")).resolves.toEqual([{
+			action: "store",
+			mailbox: {
+				mailboxId: "mb_cross",
+				userId: "u_cross",
+				organizationId: "org_1",
+				domainId: "dom_2",
+				localPart: "admin",
+				hostname: "other.test",
+				displayName: "Other Admin",
+			},
+		}]);
+	});
+
 	it("expands a simple alias forward target", async () => {
 		mock
 			.queueSelect([activeDomain]) // domain
@@ -121,6 +157,117 @@ describe("resolveInboundTargets", () => {
 			},
 			{ action: "forward", forwardTo: "ext@other.com" },
 		]);
+	});
+
+	it("fans out explicit group mailbox IDs across domains in one member query", async () => {
+		mock
+			.queueSelect([{ ...activeDomain, organizationId: "org_1" }])
+			.queueSelect([{
+				id: "al_g",
+				organizationId: "org_1",
+				domainId: "dom_1",
+				localPart: "team",
+				isGroup: true,
+				targetMailboxId: null,
+				forwardTo: null,
+			}])
+			.queueSelect([
+				{
+					mailboxId: "mb_1",
+					userId: "u1",
+					organizationId: "org_1",
+					domainId: "dom_1",
+					localPart: "support",
+					hostname: "example.com",
+					displayName: "Support",
+				},
+				{
+					mailboxId: "mb_2",
+					userId: "u2",
+					organizationId: "org_1",
+					domainId: "dom_2",
+					localPart: "sales",
+					hostname: "other.test",
+					displayName: "Sales",
+				},
+			]);
+
+		await expect(resolveInboundTargets(db, "team@example.com")).resolves.toEqual([
+			{
+				action: "store",
+				mailbox: {
+					mailboxId: "mb_1",
+					userId: "u1",
+					organizationId: "org_1",
+					domainId: "dom_1",
+					localPart: "support",
+					hostname: "example.com",
+					displayName: "Support",
+				},
+			},
+			{
+				action: "store",
+				mailbox: {
+					mailboxId: "mb_2",
+					userId: "u2",
+					organizationId: "org_1",
+					domainId: "dom_2",
+					localPart: "sales",
+					hostname: "other.test",
+					displayName: "Sales",
+				},
+			},
+		]);
+		expect(mock.db.select).toHaveBeenCalledTimes(3);
+	});
+
+	it("skips a deleted explicit group mailbox and falls back to ordinary routing", async () => {
+		mock
+			.queueSelect([{ ...activeDomain, organizationId: "org_1" }])
+			.queueSelect([{
+				id: "al_g",
+				organizationId: "org_1",
+				domainId: "dom_1",
+				localPart: "team",
+				isGroup: true,
+				targetMailboxId: null,
+				forwardTo: null,
+			}])
+			.queueSelect([{ memberMailboxId: "mb_deleted", mailboxId: null }])
+			.queueSelect([{ ...activeDomain, organizationId: "org_1" }])
+			.queueSelect([])
+			.queueSelect([]);
+
+		await expect(resolveInboundTargets(db, "team@example.com")).resolves.toEqual([]);
+	});
+
+	it("keeps legacy user-backed group members readable until migration", async () => {
+		mock
+			.queueSelect([{ ...activeDomain, organizationId: "org_1" }])
+			.queueSelect([{
+				id: "al_g",
+				organizationId: "org_1",
+				domainId: "dom_1",
+				localPart: "team",
+				isGroup: true,
+				targetMailboxId: null,
+				forwardTo: null,
+			}])
+			.queueSelect([{ legacyUserId: "u1", email: null }])
+			.queueSelect([{ id: "mb_1" }])
+			.queueSelect([{
+				id: "mb_1",
+				userId: "u1",
+				organizationId: "org_1",
+				domainId: "dom_1",
+				localPart: "support",
+				hostname: "example.com",
+				displayName: null,
+			}]);
+
+		const result = await resolveInboundTargets(db, "team@example.com");
+		expect(result).toHaveLength(1);
+		expect(result[0].mailbox?.mailboxId).toBe("mb_1");
 	});
 
 	it("treats an internal group member with no mailbox as external email", async () => {

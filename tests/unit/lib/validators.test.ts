@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	addDomainSchema,
+	createAliasSchema,
 	firstRunRegisterSchema,
 	loginSchema,
 	mailboxSchema,
@@ -9,8 +10,56 @@ import {
 	routingRuleUpdateSchema,
 	sendEmailSchema,
 	updateProfileSchema,
+	updateAliasGroupSchema,
 	webhookSchema,
 } from "@/lib/validators";
+
+describe("createAliasSchema", () => {
+	it("normalizes a mailbox alias and rejects external/provider fields", () => {
+		expect(createAliasSchema.parse({
+			kind: "mailbox",
+			domainId: "dom_1",
+			localPart: " Support ",
+			targetMailboxId: "mbx_1",
+		})).toEqual({
+			kind: "mailbox",
+			domainId: "dom_1",
+			localPart: "support",
+			targetMailboxId: "mbx_1",
+		});
+		expect(createAliasSchema.safeParse({
+			kind: "mailbox",
+			domainId: "dom_1",
+			localPart: "support",
+			forwardTo: "outside@example.net",
+		}).success).toBe(false);
+	});
+
+	it("requires 2–50 unique mailbox IDs for a group", () => {
+		const valid = {
+			kind: "group",
+			domainId: "dom_1",
+			localPart: "Team",
+			mailboxIds: ["mbx_1", "mbx_2"],
+		};
+		expect(createAliasSchema.parse(valid)).toMatchObject({ localPart: "team" });
+		expect(createAliasSchema.safeParse({ ...valid, mailboxIds: ["mbx_1"] }).success).toBe(false);
+		expect(createAliasSchema.safeParse({ ...valid, mailboxIds: ["mbx_1", "mbx_1"] }).success).toBe(false);
+		expect(createAliasSchema.safeParse({
+			...valid,
+			mailboxIds: Array.from({ length: 51 }, (_, index) => `mbx_${index}`),
+		}).success).toBe(false);
+	});
+
+	it("rejects duplicate mailbox IDs in a group update", () => {
+		expect(updateAliasGroupSchema.safeParse({
+			mailboxIds: ["mbx_1", "mbx_1"],
+		}).success).toBe(false);
+		expect(updateAliasGroupSchema.safeParse({
+			mailboxIds: ["mbx_1", "mbx_2"],
+		}).success).toBe(true);
+	});
+});
 
 describe("registerSchema", () => {
 	it("accepts a valid registration", () => {

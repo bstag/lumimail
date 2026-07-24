@@ -129,18 +129,27 @@ export const aliases = sqliteTable(
     targetMailboxId: text("target_mailbox_id").references(() => mailboxes.id, { onDelete: "set null" }),
     forwardTo: text("forward_to"),
     isGroup: integer("is_group", { mode: "boolean" }).notNull().default(false),
+    cloudflareRuleId: text("cloudflare_rule_id"),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   },
   (t) => [uniqueIndex("aliases_address_idx").on(t.domainId, t.localPart)],
 );
 
-export const groupMembers = sqliteTable("group_members", {
-  id: text("id").primaryKey(),
-  aliasId: text("alias_id").notNull().references(() => aliases.id, { onDelete: "cascade" }),
-  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
-  email: text("email"),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-});
+export const groupMembers = sqliteTable(
+	"group_members",
+	{
+		id: text("id").primaryKey(),
+		aliasId: text("alias_id").notNull().references(() => aliases.id, { onDelete: "cascade" }),
+		userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+		email: text("email"),
+		mailboxId: text("mailbox_id").references(() => mailboxes.id, { onDelete: "cascade" }),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [
+		uniqueIndex("group_members_alias_mailbox_idx").on(t.aliasId, t.mailboxId),
+		index("group_members_mailbox_idx").on(t.mailboxId),
+	],
+);
 
 export const passwordResetTokens = sqliteTable("password_reset_tokens", {
   id: text("id").primaryKey(),

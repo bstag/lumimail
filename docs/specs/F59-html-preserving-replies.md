@@ -1,6 +1,6 @@
 # F59 — HTML-Preserving Replies
 
-> Status: `Deployed — Production Validation Pending`
+> Status: `Production Verified`
 > Owner area: compose reply state, authorized reply-source loading, outbound
 > message bodies, Queue snapshots, Cloudflare/Resend multipart delivery
 
@@ -194,10 +194,17 @@ Tests:
 - The focused Chromium reply contract passes.
 - The OpenNext production build and Wrangler deployment dry run pass.
 
-Not yet verified:
+Production verification:
 
-- A fresh production three-message chain after deployment. Historical flattened
-  messages remain unchanged by design.
+- Controlled thread `msg_s-nv0Beq22gB4SPkU5lLh` contains the inbound original,
+  Lumimail reply, and external follow-up as one three-message conversation.
+- DOM inspection confirms the original `<b>` and `<i>` elements survive in
+  Lumimail's semantic `blockquote` and again in the external client's nested
+  quotation.
+- Inline text color did not survive initial inbound sanitization because style
+  attributes are outside the current security allowlist; this is not reply-body
+  damage and belongs to a future rich-text composition/rendering contract.
+- Historical flattened messages remain unchanged by design.
 
 Deployment:
 

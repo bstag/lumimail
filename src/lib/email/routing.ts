@@ -25,13 +25,26 @@ type RoutingRule = typeof routingRules.$inferSelect;
 async function loadMailboxDecision(
 	db: AppDatabase,
 	mailboxId: string,
-	domainId: string,
-	hostname: string,
+	organizationId: string | null,
+	fallbackDomainId: string,
+	fallbackHostname: string,
 ): Promise<RoutingDecision | null> {
 	const [mailbox] = await db
-		.select()
+		.select({
+			id: mailboxes.id,
+			userId: mailboxes.userId,
+			organizationId: mailboxes.organizationId,
+			domainId: mailboxes.domainId,
+			localPart: mailboxes.localPart,
+			displayName: mailboxes.displayName,
+			hostname: domains.hostname,
+		})
 		.from(mailboxes)
-		.where(and(eq(mailboxes.id, mailboxId), eq(mailboxes.domainId, domainId)))
+		.innerJoin(domains, eq(mailboxes.domainId, domains.id))
+		.where(and(
+			eq(mailboxes.id, mailboxId),
+			...(organizationId ? [eq(mailboxes.organizationId, organizationId)] : []),
+		))
 		.limit(1);
 	if (!mailbox) return null;
 	return {
@@ -40,9 +53,9 @@ async function loadMailboxDecision(
 			mailboxId: mailbox.id,
 			userId: mailbox.userId,
 			organizationId: mailbox.organizationId,
-			domainId,
+			domainId: mailbox.domainId ?? fallbackDomainId,
 			localPart: mailbox.localPart,
-			hostname,
+			hostname: mailbox.hostname ?? fallbackHostname,
 			displayName: mailbox.displayName,
 		},
 	};
@@ -59,7 +72,7 @@ async function resolveRuleDecision(
 		return rule.forwardTo ? { action: "forward", forwardTo: rule.forwardTo } : null;
 	}
 	return rule.mailboxId
-		? loadMailboxDecision(db, rule.mailboxId, domainId, hostname)
+		? loadMailboxDecision(db, rule.mailboxId, rule.organizationId, domainId, hostname)
 		: null;
 }
 
@@ -92,34 +105,76 @@ export async function resolveInboundTargets(
 		.limit(1);
 
 	if (alias) {
-		let members: { mailboxId: string | null; email: string | null }[] = [];
+		const members: { mailboxId: string | null; email: string | null }[] = [];
+		const explicitDecisions: RoutingDecision[] = [];
 		if (alias.isGroup) {
 			const rows = await db
-				.select()
+				.select({
+					memberMailboxId: groupMembers.mailboxId,
+					legacyUserId: groupMembers.userId,
+					email: groupMembers.email,
+					mailboxId: mailboxes.id,
+					userId: mailboxes.userId,
+					organizationId: mailboxes.organizationId,
+					domainId: mailboxes.domainId,
+					localPart: mailboxes.localPart,
+					displayName: mailboxes.displayName,
+					hostname: domains.hostname,
+				})
 				.from(groupMembers)
+				.leftJoin(
+					mailboxes,
+					and(
+						eq(groupMembers.mailboxId, mailboxes.id),
+						eq(mailboxes.organizationId, alias.organizationId),
+					),
+				)
+				.leftJoin(domains, eq(mailboxes.domainId, domains.id))
 				.where(eq(groupMembers.aliasId, alias.id));
-			members = await Promise.all(
-				rows.map(async (row) => {
-					if (row.userId) {
-						const [mailbox] = await db
-							.select({ id: mailboxes.id })
-							.from(mailboxes)
-							.where(and(eq(mailboxes.userId, row.userId), eq(mailboxes.domainId, domain.id)))
-							.limit(1);
-						return { mailboxId: mailbox?.id ?? null, email: mailbox ? null : row.email };
-					}
-					return { mailboxId: null, email: row.email };
-				}),
-			);
+
+			for (const row of rows) {
+				if (row.mailboxId && row.userId && row.localPart && row.hostname) {
+					explicitDecisions.push({
+						action: "store",
+						mailbox: {
+							mailboxId: row.mailboxId,
+							userId: row.userId,
+							organizationId: row.organizationId,
+							domainId: row.domainId!,
+							localPart: row.localPart,
+							hostname: row.hostname,
+							displayName: row.displayName,
+						},
+					});
+					continue;
+				}
+				const legacyUserId = row.legacyUserId ?? (!row.memberMailboxId ? row.userId : null);
+				if (legacyUserId) {
+					const [mailbox] = await db
+						.select({ id: mailboxes.id })
+						.from(mailboxes)
+						.where(and(eq(mailboxes.userId, legacyUserId), eq(mailboxes.domainId, domain.id)))
+						.limit(1);
+					members.push({ mailboxId: mailbox?.id ?? null, email: mailbox ? null : row.email });
+				} else if (!row.memberMailboxId) {
+					members.push({ mailboxId: null, email: row.email });
+				}
+			}
 		}
 
 		const targets = expandAliasTargets(alias, members);
-		const decisions: RoutingDecision[] = [];
+		const decisions: RoutingDecision[] = [...explicitDecisions];
 		for (const target of targets) {
 			if (target.type === "forward") {
 				decisions.push({ action: "forward", forwardTo: target.address });
 			} else {
-				const decision = await loadMailboxDecision(db, target.mailboxId, domain.id, domain.hostname);
+				const decision = await loadMailboxDecision(
+					db,
+					target.mailboxId,
+					alias.organizationId,
+					domain.id,
+					domain.hostname,
+				);
 				if (decision) decisions.push(decision);
 			}
 		}

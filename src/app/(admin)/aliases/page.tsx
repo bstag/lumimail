@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Trash2, ArrowRight } from "lucide-react";
+import { Plus, Trash2, ArrowRight, Users } from "lucide-react";
 import { authFetch } from "@/lib/auth/client";
 import { parseApiResponse } from "@/lib/api/client-response";
 import { Button } from "@/components/ui/button";
@@ -18,10 +18,23 @@ type AliasRow = {
 	forwardTo: string | null;
 	isGroup: boolean;
 	createdAt: string;
+	members: Array<{
+		mailboxId: string;
+		localPart: string;
+		hostname: string;
+	}>;
 };
 
 type Domain = { id: string; hostname: string };
-type Mailbox = { id: string; localPart: string; domainId: string; displayName: string | null };
+type Mailbox = {
+	id: string;
+	localPart: string;
+	domainId: string;
+	hostname: string;
+	displayName: string | null;
+};
+
+type AliasKind = "mailbox" | "group";
 
 export default function AliasesPage() {
 	const [aliases, setAliases] = useState<AliasRow[]>([]);
@@ -32,20 +45,31 @@ export default function AliasesPage() {
 
 	const [domainId, setDomainId] = useState("");
 	const [localPart, setLocalPart] = useState("");
+	const [kind, setKind] = useState<AliasKind>("mailbox");
 	const [targetMailboxId, setTargetMailboxId] = useState("");
-	const [forwardTo, setForwardTo] = useState("");
+	const [groupMailboxIds, setGroupMailboxIds] = useState<string[]>([]);
+	const [groupEdits, setGroupEdits] = useState<Record<string, string[]>>({});
 	const [creating, setCreating] = useState(false);
+	const [savingGroupId, setSavingGroupId] = useState<string | null>(null);
 
 	const load = useCallback(async () => {
 		const [aRes, dRes, mRes] = await Promise.all([
 			authFetch("/api/aliases"),
 			authFetch("/api/domains"),
-			authFetch("/api/mailboxes"),
+			authFetch("/api/admin/mailboxes"),
 		]);
 		const aJson = (await aRes.json()) as { success: boolean; data?: { aliases: AliasRow[] } };
 		const dJson = (await dRes.json()) as { domains: Domain[] };
 		const mJson = (await mRes.json()) as { mailboxes: Mailbox[] };
-		if (aJson.success) setAliases(aJson.data?.aliases ?? []);
+		if (aJson.success) {
+			const nextAliases = aJson.data?.aliases ?? [];
+			setAliases(nextAliases);
+			setGroupEdits(Object.fromEntries(
+				nextAliases
+					.filter((alias) => alias.isGroup)
+					.map((alias) => [alias.id, alias.members.map((member) => member.mailboxId)]),
+			));
+		}
 		setDomains(dJson.domains ?? []);
 		setMailboxes(mJson.mailboxes ?? []);
 		setLoading(false);
@@ -55,10 +79,13 @@ export default function AliasesPage() {
 
 	async function create() {
 		if (!domainId || !localPart) return;
+		if (kind === "mailbox" && !targetMailboxId) return;
+		if (kind === "group" && groupMailboxIds.length < 2) return;
 		setCreating(true);
-		const body: Record<string, unknown> = { domainId, localPart };
-		if (targetMailboxId) body.targetMailboxId = targetMailboxId;
-		else if (forwardTo) body.forwardTo = forwardTo;
+		setError(null);
+		const body = kind === "mailbox"
+			? { kind, domainId, localPart, targetMailboxId }
+			: { kind, domainId, localPart, mailboxIds: groupMailboxIds };
 		const res = await authFetch("/api/aliases", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
@@ -68,28 +95,71 @@ export default function AliasesPage() {
 			await parseApiResponse(res);
 			setLocalPart("");
 			setTargetMailboxId("");
-			setForwardTo("");
-			void load();
+			setGroupMailboxIds([]);
+			await load();
 		} catch (requestError) {
 			setError(requestError instanceof Error ? requestError.message : "Failed to create alias");
 		}
 		setCreating(false);
 	}
 
-	async function remove(id: string) {
-		if (!confirm("Delete this alias?")) return;
-		const res = await authFetch(`/api/aliases/${id}`, { method: "DELETE" });
-		if (res.ok) void load();
+	function toggleMailbox(
+		current: string[],
+		mailboxId: string,
+		checked: boolean,
+	): string[] {
+		return checked
+			? [...current, mailboxId]
+			: current.filter((id) => id !== mailboxId);
 	}
 
-	const domainHostname = (id: string) => domains.find((d) => d.id === id)?.hostname ?? "";
+	async function saveGroup(aliasId: string) {
+		const mailboxIds = groupEdits[aliasId] ?? [];
+		if (mailboxIds.length < 2) {
+			setError("A group needs at least two mailboxes.");
+			return;
+		}
+		setSavingGroupId(aliasId);
+		setError(null);
+		const res = await authFetch(`/api/aliases/${aliasId}`, {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ mailboxIds }),
+		});
+		try {
+			await parseApiResponse(res);
+			await load();
+		} catch (requestError) {
+			setError(requestError instanceof Error ? requestError.message : "Failed to update group");
+		}
+		setSavingGroupId(null);
+	}
+
+	async function remove(id: string) {
+		if (!confirm("Delete this alias?")) return;
+		setError(null);
+		const res = await authFetch(`/api/aliases/${id}`, { method: "DELETE" });
+		try {
+			await parseApiResponse(res);
+			await load();
+		} catch (requestError) {
+			setError(requestError instanceof Error ? requestError.message : "Failed to delete alias");
+		}
+	}
+
+	const mailboxAddress = (id: string | null) => {
+		const mailbox = mailboxes.find((candidate) => candidate.id === id);
+		return mailbox ? `${mailbox.localPart}@${mailbox.hostname}` : "missing mailbox";
+	};
 
 	if (loading) return <div className="p-8 text-sm text-ink-muted">Loading…</div>;
 
 	return (
 		<div className="space-y-6 max-w-3xl">
 			<h1 className="text-2xl font-semibold text-ink">Aliases</h1>
-			<p className="text-sm text-ink-muted">Create email aliases that forward to mailboxes or external addresses.</p>
+			<p className="text-sm text-ink-muted">
+				Create internal mailbox aliases and groups across your managed domains.
+			</p>
 
 			{error && <p className="text-sm text-danger">{error}</p>}
 
@@ -98,19 +168,33 @@ export default function AliasesPage() {
 					<CardTitle>Create alias</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-4">
+					<div className="space-y-2">
+						<Label htmlFor="alias-type">Alias type</Label>
+						<select
+							id="alias-type"
+							className="w-full h-10 rounded-md border border-border bg-surface px-3 text-sm"
+							value={kind}
+							onChange={(event) => setKind(event.target.value as AliasKind)}
+						>
+							<option value="mailbox">Mailbox alias</option>
+							<option value="group">Group alias</option>
+						</select>
+					</div>
 					<div className="grid grid-cols-2 gap-4">
 						<div className="space-y-2">
-							<Label>Local part</Label>
+							<Label htmlFor="alias-local-part">Local part</Label>
 							<Input
+								id="alias-local-part"
 								placeholder="support"
 								value={localPart}
 								onChange={(e) => setLocalPart(e.target.value)}
 							/>
 						</div>
 						<div className="space-y-2">
-							<Label>Domain</Label>
+							<Label htmlFor="alias-domain">Domain</Label>
 							<select
-								className="w-full h-10 rounded-md border border-border px-3 text-sm"
+								id="alias-domain"
+								className="w-full h-10 rounded-md border border-border bg-surface px-3 text-sm"
 								value={domainId}
 								onChange={(e) => setDomainId(e.target.value)}
 							>
@@ -121,34 +205,47 @@ export default function AliasesPage() {
 							</select>
 						</div>
 					</div>
-					<div className="space-y-2">
-						<Label>Deliver to mailbox</Label>
-						<select
-							className="w-full h-10 rounded-md border border-border px-3 text-sm"
-							value={targetMailboxId}
-							onChange={(e) => { setTargetMailboxId(e.target.value); setForwardTo(""); }}
-						>
-							<option value="">— or forward to address below —</option>
-							{mailboxes.map((m) => (
-								<option key={m.id} value={m.id}>
-									{m.localPart}@{domainHostname(m.domainId)}{m.displayName ? ` (${m.displayName})` : ""}
-								</option>
-							))}
-						</select>
-					</div>
-					<div className="space-y-2">
-						<Label>Forward to external address</Label>
-						<Input
-							type="email"
-							placeholder="user@example.com"
-							value={forwardTo}
-							disabled={!!targetMailboxId}
-							onChange={(e) => setForwardTo(e.target.value)}
+					{kind === "mailbox" ? (
+						<div className="space-y-2">
+							<Label htmlFor="alias-target">Deliver to mailbox</Label>
+							<select
+								id="alias-target"
+								className="w-full h-10 rounded-md border border-border bg-surface px-3 text-sm"
+								value={targetMailboxId}
+								onChange={(event) => setTargetMailboxId(event.target.value)}
+							>
+								<option value="">Select mailbox</option>
+								{mailboxes.map((mailbox) => (
+									<option key={mailbox.id} value={mailbox.id}>
+										{mailboxAddress(mailbox.id)}
+										{mailbox.displayName ? ` (${mailbox.displayName})` : ""}
+									</option>
+								))}
+							</select>
+						</div>
+					) : (
+						<MailboxChecklist
+							mailboxes={mailboxes}
+							selected={groupMailboxIds}
+							onChange={(mailboxId, checked) => {
+								setGroupMailboxIds((current) => toggleMailbox(current, mailboxId, checked));
+							}}
 						/>
-					</div>
-					<Button onClick={create} disabled={creating || !domainId || !localPart}>
+					)}
+					<p className="text-xs text-ink-faint">
+						External forwarding is planned but is not enabled in this MVP.
+					</p>
+					<Button
+						onClick={create}
+						disabled={
+							creating ||
+							!domainId ||
+							!localPart ||
+							(kind === "mailbox" ? !targetMailboxId : groupMailboxIds.length < 2)
+						}
+					>
 						<Plus className="h-4 w-4 mr-2" />
-						Create alias
+						{kind === "group" ? "Create group" : "Create alias"}
 					</Button>
 				</CardContent>
 			</Card>
@@ -163,24 +260,60 @@ export default function AliasesPage() {
 					) : (
 						<ul className="divide-y divide-border">
 							{aliases.map((a) => (
-								<li key={a.id} className="flex items-center justify-between py-3">
-									<div className="flex items-center gap-2 text-sm">
-										<span className="font-mono font-medium">
-											{a.localPart}@{a.domainHostname}
-										</span>
-										<ArrowRight className="h-3 w-3 text-ink-faint" />
-										<span className="text-ink-muted">
-											{a.forwardTo ?? (a.targetMailboxId ? "mailbox" : "group")}
-										</span>
+								<li key={a.id} className="space-y-3 py-4">
+									<div className="flex flex-wrap items-center justify-between gap-3">
+										<div className="flex items-center gap-2 text-sm">
+											<span className="font-mono font-medium">
+												{a.localPart}@{a.domainHostname}
+											</span>
+											<ArrowRight className="h-3 w-3 text-ink-faint" />
+											<span className="text-ink-muted">
+												{a.isGroup
+													? `${a.members.length} mailbox group`
+													: a.forwardTo
+														? "legacy external forwarding is unavailable"
+														: mailboxAddress(a.targetMailboxId)}
+											</span>
+										</div>
+										<Button
+											variant="ghost"
+											size="sm"
+											onClick={() => remove(a.id)}
+											className="text-danger hover:text-danger"
+											aria-label={`Delete ${a.localPart}@${a.domainHostname}`}
+										>
+											<Trash2 className="h-4 w-4" />
+										</Button>
 									</div>
-									<Button
-										variant="ghost"
-										size="sm"
-										onClick={() => remove(a.id)}
-										className="text-danger hover:text-danger"
-									>
-										<Trash2 className="h-4 w-4" />
-									</Button>
+									{a.isGroup && (
+										<div className="rounded-md border border-border p-3 space-y-3">
+											<div className="flex items-center gap-2 text-sm font-medium text-ink">
+												<Users className="h-4 w-4" />
+												Group members
+											</div>
+											<MailboxChecklist
+												mailboxes={mailboxes}
+												selected={groupEdits[a.id] ?? []}
+												onChange={(mailboxId, checked) => {
+													setGroupEdits((current) => ({
+														...current,
+														[a.id]: toggleMailbox(current[a.id] ?? [], mailboxId, checked),
+													}));
+												}}
+												label={`Members for ${a.localPart}@${a.domainHostname}`}
+											/>
+											<Button
+												size="sm"
+												onClick={() => saveGroup(a.id)}
+												disabled={
+													savingGroupId === a.id ||
+													(groupEdits[a.id]?.length ?? 0) < 2
+												}
+											>
+												Save members
+											</Button>
+										</div>
+									)}
 								</li>
 							))}
 						</ul>
@@ -188,5 +321,43 @@ export default function AliasesPage() {
 				</CardContent>
 			</Card>
 		</div>
+	);
+}
+
+function MailboxChecklist({
+	mailboxes,
+	selected,
+	onChange,
+	label = "Group mailboxes",
+}: {
+	mailboxes: Mailbox[];
+	selected: string[];
+	onChange: (mailboxId: string, checked: boolean) => void;
+	label?: string;
+}) {
+	return (
+		<fieldset className="space-y-2 rounded-md border border-border p-3">
+			<legend className="px-1 text-sm font-medium text-ink">{label}</legend>
+			{mailboxes.length === 0 ? (
+				<p className="text-sm text-ink-faint">No organization mailboxes are available.</p>
+			) : (
+				<div className="grid gap-2 sm:grid-cols-2">
+					{mailboxes.map((mailbox) => {
+						const address = `${mailbox.localPart}@${mailbox.hostname}`;
+						return (
+							<label key={mailbox.id} className="flex items-center gap-2 text-sm text-ink">
+								<input
+									type="checkbox"
+									aria-label={address}
+									checked={selected.includes(mailbox.id)}
+									onChange={(event) => onChange(mailbox.id, event.target.checked)}
+								/>
+								<span>{address}</span>
+							</label>
+						);
+					})}
+				</div>
+			)}
+		</fieldset>
 	);
 }

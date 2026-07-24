@@ -117,6 +117,50 @@ test.describe("canonical API client contracts", () => {
 		await expect(page.getByText('"enabled": false')).toBeVisible();
 	});
 
+	test("creates a provisioned internal group without claiming external forwarding", async ({ page }) => {
+		await mockAuthenticatedShell(page);
+		await page.route("**/api/domains", (route) =>
+			route.fulfill({ json: { domains: [{ id: "dom_1", hostname: "example.com" }] } }),
+		);
+		await page.route("**/api/admin/mailboxes", (route) =>
+			route.fulfill({
+				json: {
+					mailboxes: [
+						{ id: "mbx_1", localPart: "owner", hostname: "example.com", domainId: "dom_1" },
+						{ id: "mbx_2", localPart: "support", hostname: "other.test", domainId: "dom_2" },
+					],
+				},
+			}),
+		);
+		let createPayload: Record<string, unknown> | null = null;
+		await page.route("**/api/aliases", async (route) => {
+			if (route.request().method() === "POST") {
+				createPayload = route.request().postDataJSON() as Record<string, unknown>;
+				return route.fulfill({
+					json: { success: true, data: { id: "alias_1", address: "team@example.com" } },
+				});
+			}
+			return route.fulfill({ json: { success: true, data: { aliases: [] } } });
+		});
+
+		await page.goto("/aliases");
+		await expect(page.getByText("Forward to external address")).toHaveCount(0);
+		await page.getByLabel("Alias type").selectOption("group");
+		await page.getByLabel("Local part").fill("team");
+		await page.getByLabel("Domain").selectOption("dom_1");
+		await page.getByLabel("owner@example.com").check();
+		await page.getByLabel("support@other.test").check();
+		await page.getByRole("button", { name: "Create group" }).click();
+
+		await expect.poll(() => createPayload).not.toBeNull();
+		expect(createPayload).toEqual({
+			kind: "group",
+			domainId: "dom_1",
+			localPart: "team",
+			mailboxIds: ["mbx_1", "mbx_2"],
+		});
+	});
+
 	test("submits selected attachments atomically with the send request", async ({ page }) => {
 		await mockAuthenticatedShell(page);
 		let sendIncludedAttachment = false;

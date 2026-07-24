@@ -1,6 +1,6 @@
 # F58 — RFC-Aware Conversation Grouping
 
-> Status: `In Progress`
+> Status: `Production Verified`
 > Owner area: MIME parsing, inbound Queue consumer, compose/reply state,
 > drafts, outbound snapshots/providers, message thread API and detail UI
 
@@ -276,13 +276,9 @@ Verification:
 
 Not yet verified:
 
-- A controlled production inbound → Lumimail reply → external reply chain
-  grouped all three messages correctly. It also exposed that Lumimail's
-  outgoing reply flattened the quoted HTML source into plain text. The
-  server-derived multipart repair is tracked in
-  [F59](./F59-html-preserving-replies.md) and requires a fresh production chain
-  after deployment. R-25 and F18 therefore remain in progress rather than
-  shipped.
+- None within the bounded F58/F59 contract. A fresh controlled production
+  inbound → Lumimail reply → external reply chain grouped all three messages
+  correctly after F59 deployment.
 
 Deployment:
 

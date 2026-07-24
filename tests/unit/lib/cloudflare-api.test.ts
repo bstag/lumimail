@@ -7,6 +7,7 @@ import {
 	disableEmailRouting,
 	enableEmailRouting,
 	ensureEmailRoutingRuleToWorker,
+	ensureOwnedEmailRoutingRuleToWorker,
 	ensureSendingDomain,
 	findZoneByHostname,
 	findSendingDomain,
@@ -220,6 +221,39 @@ describe("ensureEmailRoutingRuleToWorker", () => {
 		const result = await ensureEmailRoutingRuleToWorker(env, "z1", "a@x.com");
 		expect(result).toMatchObject({ id: "r-new" });
 		expect(fetchMock).toHaveBeenCalledTimes(2); // list + create
+	});
+});
+
+describe("ensureOwnedEmailRoutingRuleToWorker", () => {
+	it("reports that a matching manual rule was reused", async () => {
+		fetchMock.mockResolvedValue(ok([{
+			id: "manual-rule",
+			enabled: true,
+			matchers: [{ type: "literal", field: "to", value: "TEAM@EXAMPLE.COM" }],
+			actions: [{ type: "worker", value: ["lumimail"] }],
+		}]));
+
+		await expect(
+			ensureOwnedEmailRoutingRuleToWorker(env, "z1", "Team@Example.com"),
+		).resolves.toEqual({
+			rule: expect.objectContaining({ id: "manual-rule" }),
+			created: false,
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("normalizes and reports a newly created owned rule", async () => {
+		fetchMock
+			.mockResolvedValueOnce(ok([]))
+			.mockResolvedValueOnce(ok({ id: "owned-rule", enabled: true }));
+
+		await expect(
+			ensureOwnedEmailRoutingRuleToWorker(env, "z1", "Team@Example.com"),
+		).resolves.toEqual({
+			rule: expect.objectContaining({ id: "owned-rule" }),
+			created: true,
+		});
+		expect(JSON.parse(fetchMock.mock.calls[1][1].body).matchers[0].value).toBe("team@example.com");
 	});
 });
 

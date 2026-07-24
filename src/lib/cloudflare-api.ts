@@ -272,7 +272,15 @@ export async function ensureEmailRoutingRuleToWorker(
 	zoneId: string,
 	address: string,
 ) {
-	const normalized = address.toLowerCase();
+	return (await ensureOwnedEmailRoutingRuleToWorker(env, zoneId, address)).rule;
+}
+
+export async function ensureOwnedEmailRoutingRuleToWorker(
+	env: CloudflareEnv,
+	zoneId: string,
+	address: string,
+): Promise<{ rule: CfEmailRoutingRule; created: boolean }> {
+	const normalized = address.toLowerCase().trim();
 	const workerName = getEmailWorkerName(env);
 	const rules = await listEmailRoutingRules(env, zoneId);
 	const existing = rules.find((rule) => {
@@ -285,7 +293,10 @@ export async function ensureEmailRoutingRuleToWorker(
 		return rule.enabled && routesAddress && sendsToWorker;
 	});
 
-	if (existing) return existing;
+	if (existing) return { rule: existing, created: false };
 
-	return createEmailRoutingRuleToWorker(env, zoneId, normalized);
+	return {
+		rule: await createEmailRoutingRuleToWorker(env, zoneId, normalized),
+		created: true,
+	};
 }

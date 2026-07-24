@@ -131,12 +131,50 @@ export const webhookSchema = z.object({
 	events: z.array(z.string()).min(1),
 });
 
-export const createAliasSchema = z.object({
+const aliasLocalPart = z.string()
+	.trim()
+	.min(1)
+	.max(64)
+	.regex(/^[a-zA-Z0-9._+-]+$/)
+	.transform((value) => value.toLowerCase());
+
+const mailboxAliasSchema = z.object({
+	kind: z.literal("mailbox"),
 	domainId: z.string().min(1),
-	localPart: z.string().min(1).max(64).regex(/^[a-zA-Z0-9._+-]+$/),
-	targetMailboxId: z.string().optional(),
-	forwardTo: z.string().email().optional(),
-	isGroup: z.boolean().default(false),
+	localPart: aliasLocalPart,
+	targetMailboxId: z.string().min(1),
+}).strict();
+
+const groupAliasSchema = z.object({
+	kind: z.literal("group"),
+	domainId: z.string().min(1),
+	localPart: aliasLocalPart,
+	mailboxIds: z.array(z.string().min(1)).min(2).max(50),
+}).strict().superRefine((value, ctx) => {
+	if (new Set(value.mailboxIds).size !== value.mailboxIds.length) {
+		ctx.addIssue({
+			code: "custom",
+			path: ["mailboxIds"],
+			message: "Group mailbox IDs must be unique",
+		});
+	}
+});
+
+export const createAliasSchema = z.discriminatedUnion("kind", [
+	mailboxAliasSchema,
+	groupAliasSchema,
+]);
+
+export const updateAliasGroupSchema = z.object({
+	mailboxIds: z.array(z.string().min(1)).min(2).max(50),
+}).strict().superRefine((value, ctx) => {
+	if (new Set(value.mailboxIds).size !== value.mailboxIds.length) {
+		ctx.addIssue({
+			code: "custom",
+			path: ["mailboxIds"],
+			message: "Group mailbox IDs must be unique",
+		});
+	}
 });
 
 export const createLabelSchema = z.object({
