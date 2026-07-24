@@ -1,6 +1,6 @@
 # F59 — HTML-Preserving Replies
 
-> Status: `Ready for Production Validation`
+> Status: `Deployed — Production Validation Pending`
 > Owner area: compose reply state, authorized reply-source loading, outbound
 > message bodies, Queue snapshots, Cloudflare/Resend multipart delivery
 
@@ -198,3 +198,10 @@ Not yet verified:
 
 - A fresh production three-message chain after deployment. Historical flattened
   messages remain unchanged by design.
+
+Deployment:
+
+- Commit `7deecf3` was deployed as Cloudflare Worker version
+  `540fc496-94c5-46f0-b36f-e644ddf2390b`.
+- The production root returned HTTP 200 and the unauthenticated session endpoint
+  returned the expected HTTP 401 after deployment.
