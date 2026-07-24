@@ -41,7 +41,7 @@ function MessageListRow({ message, config, selected, onSelectedChange, onStarTog
 	const { openDraftComposer } = useCompose();
 	const unread = message.direction === "inbound" && !message.read;
 	const className =
-		`grid min-h-12 w-full grid-cols-[24px_32px_minmax(160px,240px)_1fr_auto_auto] items-center gap-3 px-6 text-left text-sm hover:relative hover:z-10 hover:bg-surface-subtle hover:shadow-sm ${
+		`grid min-h-12 w-full grid-cols-[24px_32px_minmax(96px,180px)_1fr_auto_auto] items-center gap-2 px-4 text-left text-sm sm:grid-cols-[24px_32px_minmax(160px,240px)_1fr_auto_auto] sm:gap-3 sm:px-6 hover:relative hover:z-10 hover:bg-surface-subtle hover:shadow-sm ${
 			selected ? "bg-accent-muted" : ""
 		}`;
 
@@ -70,7 +70,7 @@ function MessageListRow({ message, config, selected, onSelectedChange, onStarTog
 			<span className={getMessagePartyClassName(message, config.folder)}>
 				{getMessageParty(message, config.folder)}
 			</span>
-			<span className="truncate text-ink-muted">
+			<span className="min-w-0 truncate text-ink-muted">
 				<span className={unread ? "font-bold text-ink" : ""}>
 					{message.subject ?? t("noSubject")}
 				</span>
