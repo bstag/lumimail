@@ -1,6 +1,15 @@
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { domains, mailboxMemberships, mailboxes, messageBodies, messages, outboundJobs, users } from "@/db/schema";
+import {
+	attachments,
+	domains,
+	mailboxMemberships,
+	mailboxes,
+	messageBodies,
+	messages,
+	outboundJobs,
+	users,
+} from "@/db/schema";
 import { newId } from "@/lib/ids";
 import { buildSnippet } from "@/lib/email/parse";
 import { dispatchWebhooks } from "@/lib/email/webhooks";
@@ -10,6 +19,11 @@ import { OutboundProviderError } from "@/lib/email/providers/types";
 import { upsertContactFromAddress } from "@/lib/contacts/service";
 import { formatEmailAddress, getEmailAddress } from "@/lib/email/address";
 import { parseAddress } from "@/lib/utils";
+import {
+	validateOutboundAttachments,
+	type OutboundAttachmentInput,
+	type ValidatedOutboundAttachment,
+} from "@/lib/email/outbound-attachments";
 
 async function getUserOrgId(env: CloudflareEnv, userId: string): Promise<string | null> {
 	const db = getDb(env);
@@ -29,6 +43,15 @@ export type SendEmailInput = {
 	html?: string;
 	text?: string;
 	mailboxId?: string;
+	attachments?: OutboundAttachmentInput[];
+};
+
+type OutboundAttachmentSnapshot = {
+	id: string;
+	filename: string;
+	contentType: string;
+	size: number;
+	r2Key: string;
 };
 
 type OutboundDeliverySnapshot = {
@@ -37,6 +60,7 @@ type OutboundDeliverySnapshot = {
 	subject: string;
 	html?: string;
 	text?: string;
+	attachments?: OutboundAttachmentSnapshot[];
 };
 
 export type OutboundQueueMessage = {
@@ -55,6 +79,16 @@ export class SenderNotAllowedError extends Error {
 		super(`Sender address is not an active mailbox for your account: ${from}`);
 		this.name = "SenderNotAllowedError";
 	}
+}
+
+async function cleanupAttachmentObjects(env: CloudflareEnv, keys: string[]): Promise<void> {
+	await Promise.all(keys.map(async (key) => {
+		try {
+			await env.BUCKET.delete(key);
+		} catch {
+			console.error("Failed to clean up an outbound attachment object");
+		}
+	}));
 }
 
 async function resolveSenderAuthorization(
@@ -122,6 +156,7 @@ export async function sendEmail(
 	const authorizedInput = { ...input, mailboxId: authorization.mailboxId };
 	const sender = await getSenderContext(env, authorizedInput);
 	const fromAddr = sender.fromAddr;
+	const validatedAttachments = validateOutboundAttachments(input);
 	await upsertContactFromAddress(env, {
 		userId: input.userId,
 		address: input.to,
@@ -131,12 +166,23 @@ export async function sendEmail(
 	const snippet = buildSnippet(input.text ?? null, input.html ?? null);
 
 	const jobId = newId("job");
+	const attachmentSnapshots: OutboundAttachmentSnapshot[] = validatedAttachments.map((attachment) => {
+		const id = newId("att");
+		return {
+			id,
+			filename: attachment.filename,
+			contentType: attachment.contentType,
+			size: attachment.size,
+			r2Key: `attachments/${input.userId}/${messageId}/${id}`,
+		};
+	});
 	const snapshot: OutboundDeliverySnapshot = {
 		from: fromAddr,
 		to: input.to,
 		subject: input.subject,
 		html: input.html,
 		text: input.text,
+		...(attachmentSnapshots.length ? { attachments: attachmentSnapshots } : {}),
 	};
 	const messageInsert = db.insert(messages).values({
 		id: messageId,
@@ -164,8 +210,37 @@ export async function sendEmail(
 		status: "queued",
 		payload: JSON.stringify(snapshot),
 	});
+	const attachmentInsert = attachmentSnapshots.length
+		? db.insert(attachments).values(attachmentSnapshots.map((attachment) => ({
+			id: attachment.id,
+			messageId,
+			filename: attachment.filename,
+			contentType: attachment.contentType,
+			size: attachment.size,
+			r2Key: attachment.r2Key,
+		})))
+		: null;
 
-	await db.batch([messageInsert, bodyInsert, jobInsert]);
+	const writtenKeys: string[] = [];
+	try {
+		for (let index = 0; index < validatedAttachments.length; index += 1) {
+			const attachment = validatedAttachments[index];
+			const metadata = attachmentSnapshots[index];
+			writtenKeys.push(metadata.r2Key);
+			await env.BUCKET.put(metadata.r2Key, attachment.content, {
+				httpMetadata: { contentType: attachment.contentType },
+			});
+		}
+		await db.batch([
+			messageInsert,
+			bodyInsert,
+			jobInsert,
+			...(attachmentInsert ? [attachmentInsert] : []),
+		]);
+	} catch (error) {
+		await cleanupAttachmentObjects(env, writtenKeys);
+		throw error;
+	}
 
 	try {
 		await env.OUTBOUND_QUEUE.send({ kind: "outbound", jobId });
@@ -240,7 +315,8 @@ function parseDeliverySnapshot(payload: string): OutboundDeliverySnapshot | null
 			typeof value.to !== "string" ||
 			typeof value.subject !== "string" ||
 			(value.html !== undefined && typeof value.html !== "string") ||
-			(value.text !== undefined && typeof value.text !== "string")
+			(value.text !== undefined && typeof value.text !== "string") ||
+			(value.attachments !== undefined && !isAttachmentSnapshotArray(value.attachments))
 		) {
 			return null;
 		}
@@ -250,10 +326,49 @@ function parseDeliverySnapshot(payload: string): OutboundDeliverySnapshot | null
 			subject: value.subject,
 			html: value.html as string | undefined,
 			text: value.text as string | undefined,
+			attachments: value.attachments as OutboundAttachmentSnapshot[] | undefined,
 		};
 	} catch {
 		return null;
 	}
+}
+
+function isAttachmentSnapshotArray(value: unknown): value is OutboundAttachmentSnapshot[] {
+	return Array.isArray(value) && value.length <= 10 && value.every((attachment) =>
+		typeof attachment === "object" &&
+		attachment !== null &&
+		typeof attachment.id === "string" &&
+		typeof attachment.filename === "string" &&
+		typeof attachment.contentType === "string" &&
+		typeof attachment.size === "number" &&
+		Number.isInteger(attachment.size) &&
+		attachment.size >= 0 &&
+		typeof attachment.r2Key === "string"
+	);
+}
+
+async function loadOutboundAttachments(
+	env: CloudflareEnv,
+	snapshots: OutboundAttachmentSnapshot[] | undefined,
+	userId: string,
+	messageId: string,
+): Promise<ValidatedOutboundAttachment[] | null> {
+	if (!snapshots?.length) return [];
+	const loaded: ValidatedOutboundAttachment[] = [];
+	for (const snapshot of snapshots) {
+		if (snapshot.r2Key !== `attachments/${userId}/${messageId}/${snapshot.id}`) return null;
+		const object = await env.BUCKET.get(snapshot.r2Key);
+		if (!object || object.size !== snapshot.size) return null;
+		const content = await object.arrayBuffer();
+		if (content.byteLength !== snapshot.size) return null;
+		loaded.push({
+			filename: snapshot.filename,
+			contentType: snapshot.contentType,
+			size: snapshot.size,
+			content,
+		});
+	}
+	return loaded;
 }
 
 function providerFailureMessage(error: unknown): string {
@@ -354,8 +469,44 @@ export async function processOutboundQueue(
 		return { action: "ack" };
 	}
 
+	let loadedAttachments: ValidatedOutboundAttachment[] | null;
 	try {
-		const response = await selectOutboundProvider(env).send(snapshot);
+		loadedAttachments = await loadOutboundAttachments(
+			env,
+			snapshot.attachments,
+			job.userId,
+			job.messageId,
+		);
+	} catch {
+		await db
+			.update(outboundJobs)
+			.set({
+				status: "queued",
+				error: "Attachment storage unavailable",
+				deliveryToken: null,
+				updatedAt: new Date(),
+			})
+			.where(and(
+				eq(outboundJobs.id, job.id),
+				eq(outboundJobs.status, "processing"),
+				eq(outboundJobs.deliveryToken, deliveryToken),
+			));
+		return { action: "retry", delaySeconds: 30 };
+	}
+	if (!loadedAttachments) {
+		await markOutboundFailed(env, job.id, "Stored outbound attachment is missing or corrupt");
+		return { action: "ack" };
+	}
+
+	try {
+		const response = await selectOutboundProvider(env).send({
+			from: snapshot.from,
+			to: snapshot.to,
+			subject: snapshot.subject,
+			html: snapshot.html,
+			text: snapshot.text,
+			...(loadedAttachments.length ? { attachments: loadedAttachments } : {}),
+		});
 		await db.batch([
 			db
 				.update(outboundJobs)

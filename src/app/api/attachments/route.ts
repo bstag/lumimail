@@ -6,6 +6,11 @@ import { guardUser } from "@/lib/auth/cookies";
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { newId } from "@/lib/ids";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
+import {
+	AttachmentValidationError,
+	MAX_ATTACHMENT_BYTES,
+	validateOutboundAttachments,
+} from "@/lib/email/outbound-attachments";
 
 export async function POST(request: Request) {
 	const env = getEnv();
@@ -17,33 +22,55 @@ export async function POST(request: Request) {
 	const messageId = formData.get("messageId") as string | null;
 
 	if (!file || !messageId) return apiError("file and messageId required", 400);
-	if (file.size > 25 * 1024 * 1024) return apiError("File too large (max 25MB)", 400);
-
 	const db = getDb(env);
 	const [msg] = await db
-		.select({ id: messages.id })
+		.select({ id: messages.id, status: messages.status })
 		.from(messages)
 		.where(and(eq(messages.id, messageId), messageAccessCondition(db, user.id, user.organizationId, "send")))
 		.limit(1);
 
 	if (!msg) return apiError("Message not found", 404);
+	if (msg.status !== "draft") return apiError("Attachments can only be added to drafts", 409);
+	if (file.size > MAX_ATTACHMENT_BYTES) return apiError("Attachment too large (max 3 MiB)", 400);
 
 	const id = newId("att");
-	const r2Key = `attachments/${user.id}/${messageId}/${id}/${file.name}`;
-
 	const buffer = await file.arrayBuffer();
-	await env.BUCKET.put(r2Key, buffer, {
-		httpMetadata: { contentType: file.type || "application/octet-stream" },
+	let normalized;
+	try {
+		[normalized] = validateOutboundAttachments({
+			subject: "",
+			attachments: [{
+				filename: file.name,
+				contentType: file.type,
+				content: buffer,
+			}],
+		});
+	} catch (error) {
+		return apiError((error as AttachmentValidationError).message, 400);
+	}
+	const r2Key = `attachments/${user.id}/${messageId}/${id}`;
+	await env.BUCKET.put(r2Key, normalized.content, {
+		httpMetadata: { contentType: normalized.contentType },
 	});
 
-	await db.insert(attachments).values({
+	try {
+		await db.insert(attachments).values({
+			id,
+			messageId,
+			filename: normalized.filename,
+			contentType: normalized.contentType,
+			size: normalized.size,
+			r2Key,
+		});
+	} catch (error) {
+		await env.BUCKET.delete(r2Key);
+		throw error;
+	}
+
+	return apiSuccess({
 		id,
-		messageId,
-		filename: file.name,
-		contentType: file.type || "application/octet-stream",
-		size: file.size,
-		r2Key,
+		filename: normalized.filename,
+		size: normalized.size,
+		contentType: normalized.contentType,
 	});
-
-	return apiSuccess({ id, filename: file.name, size: file.size, contentType: file.type });
 }

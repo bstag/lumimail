@@ -3,6 +3,10 @@
 > Status: Shipped
 > Owner area: `src/lib/email/providers/`, `src/lib/email/send.ts`
 
+> Lifecycle note: F54 supersedes the original synchronous send lifecycle with
+> durable queue delivery; F55 extends the normalized provider message with
+> outbound attachments.
+
 ## 1. Problem & User Job
 
 Outbound sending was hard-wired to the Cloudflare `send_email` binding

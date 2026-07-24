@@ -117,21 +117,25 @@ test.describe("canonical API client contracts", () => {
 		await expect(page.getByText('"enabled": false')).toBeVisible();
 	});
 
-	test("uploads selected attachments with the canonical send message id", async ({ page }) => {
+	test("submits selected attachments atomically with the send request", async ({ page }) => {
 		await mockAuthenticatedShell(page);
-		let uploadedMessageId: string | null = null;
+		let sendIncludedAttachment = false;
+		let legacyAttachmentRequests = 0;
 		await page.route("**/api/drafts", (route) =>
 			route.fulfill({ json: { draft: { id: "draft_1" } } }),
 		);
-		await page.route("**/api/send", (route) =>
-			route.fulfill({
+		await page.route("**/api/send", async (route) => {
+			const body = await route.request().postDataBuffer();
+			sendIncludedAttachment =
+				body?.toString().includes("contract.txt") === true &&
+				body.toString().includes("attachment") === true;
+			return route.fulfill({
 				status: 202,
 				json: { success: true, data: { messageId: "msg_1", status: "queued" } },
-			}),
-		);
+			});
+		});
 		await page.route("**/api/attachments", async (route) => {
-			const body = await route.request().postDataBuffer();
-			uploadedMessageId = body?.toString().includes("msg_1") ? "msg_1" : null;
+			legacyAttachmentRequests += 1;
 			await route.fulfill({ json: { success: true, data: { id: "att_1" } } });
 		});
 
@@ -146,7 +150,8 @@ test.describe("canonical API client contracts", () => {
 		});
 		await page.locator('button[type="submit"]').click();
 
-		await expect.poll(() => uploadedMessageId).toBe("msg_1");
+		await expect.poll(() => sendIncludedAttachment).toBe(true);
+		expect(legacyAttachmentRequests).toBe(0);
 		await expect(page.getByText("Message queued for sending")).toBeVisible();
 	});
 

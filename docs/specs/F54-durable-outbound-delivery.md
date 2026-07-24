@@ -178,8 +178,8 @@ existing mailbox-scoped message APIs.
 ## 10. Decisions
 
 - Use the existing Cloudflare Queue rather than adding a library or Workflow.
-- Keep provider delivery as a single queue step; attachments will extend the stored
-  job snapshot under F20.
+- Keep provider delivery as a single queue step; F55 extends the stored job
+  snapshot with attachment metadata and loads exact R2 bytes inside that step.
 - Prefer duplicate prevention over automatic retry after an ambiguous provider
   acceptance.
 - Configure a dedicated outbound DLQ and consume it with the same Worker.

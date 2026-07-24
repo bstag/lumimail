@@ -16,7 +16,7 @@ import {
 import { authFetch } from "@/lib/auth/client";
 import { formatEmailAddress } from "@/lib/email/address";
 import { cn } from "@/lib/utils";
-import { fetchDraft, submitMessage, uploadMessageAttachment } from "./utils";
+import { fetchDraft, submitMessage } from "./utils";
 
 type Toast = { type: "success" | "error"; message: string } | null;
 
@@ -57,7 +57,6 @@ export function ComposeForm({
 	const [loadingDraft, setLoadingDraft] = useState(false);
 	const [loadedDraftMailboxId, setLoadedDraftMailboxId] = useState<string | null>(null);
 	const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
-	const [uploadingAttachments, setUploadingAttachments] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -180,21 +179,31 @@ export function ComposeForm({
 
 	function handleFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
 		const files = Array.from(event.target.files ?? []);
-		const MAX_SIZE = 25 * 1024 * 1024;
+		const MAX_SIZE = 3 * 1024 * 1024;
+		const MAX_COUNT = 10;
 		const oversized = files.filter((f) => f.size > MAX_SIZE);
 
 		if (oversized.length > 0) {
 			setToast({
 				type: "error",
-				message: `File(s) exceed 25MB: ${oversized.map((f) => f.name).join(", ")}`,
+				message: `File(s) exceed 3 MiB: ${oversized.map((f) => f.name).join(", ")}`,
 			});
 		}
 
 		const valid = files.filter((f) => f.size <= MAX_SIZE);
-		setAttachedFiles((prev) => [
-			...prev,
-			...valid.map((file) => ({ file, id: `${file.name}-${file.size}-${Date.now()}` })),
-		]);
+		setAttachedFiles((prev) => {
+			const available = Math.max(0, MAX_COUNT - prev.length);
+			if (valid.length > available) {
+				setToast({ type: "error", message: `You can attach up to ${MAX_COUNT} files.` });
+			}
+			return [
+				...prev,
+				...valid.slice(0, available).map((file) => ({
+					file,
+					id: `${file.name}-${file.size}-${Date.now()}-${crypto.randomUUID()}`,
+				})),
+			];
+		});
 
 		// Reset input so the same file can be re-added if removed
 		if (fileInputRef.current) fileInputRef.current.value = "";
@@ -204,35 +213,18 @@ export function ComposeForm({
 		setAttachedFiles((prev) => prev.filter((a) => a.id !== id));
 	}
 
-	async function uploadAttachments(messageId: string) {
-		for (const attached of attachedFiles) {
-			await uploadMessageAttachment(messageId, attached.file);
-		}
-	}
-
 	async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		setLoading(true);
 		try {
-			const data = await submitMessage({
+			await submitMessage({
 				from: fromAddr,
 				to,
 				subject,
 				text,
 				mailboxId: selectedMailbox?.id,
-			});
+			}, attachedFiles.map((attachment) => attachment.file));
 			setLoading(false);
-
-			if (attachedFiles.length > 0) {
-				setUploadingAttachments(true);
-				try {
-					await uploadAttachments(data.messageId);
-				} catch {
-					setToast({ type: "error", message: "Message sent but some attachments failed to upload." });
-				} finally {
-					setUploadingAttachments(false);
-				}
-			}
 		} catch (error) {
 			setLoading(false);
 			setToast({ type: "error", message: error instanceof Error ? error.message : t("sendFailed") });
@@ -258,7 +250,7 @@ export function ComposeForm({
 			? "fixed bottom-4 right-4 z-40 flex h-[min(520px,calc(100vh-88px))] w-[min(560px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg border border-border bg-surface-raised shadow-2xl"
 			: "flex h-full min-h-[720px] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-surface-raised shadow-sm";
 
-	const isSending = loading || uploadingAttachments;
+	const isSending = loading;
 
 	return (
 		<>
@@ -373,9 +365,7 @@ export function ComposeForm({
 					</button>
 					<span className="flex-1" />
 					<p className="text-xs text-ink-muted">
-						{uploadingAttachments
-							? "Uploading attachments…"
-							: draftId
+						{draftId
 								? t("savedToDrafts")
 								: t("autosaveDraft")}
 					</p>

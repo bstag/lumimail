@@ -20,6 +20,11 @@ export type OutboundMessage = {
 	subject: string;
 	html?: string;
 	text?: string;
+	attachments?: Array<{
+		filename: string;
+		contentType: string;
+		content: ArrayBuffer;
+	}>;
 };
 
 /** Normalized result of a successful send. */

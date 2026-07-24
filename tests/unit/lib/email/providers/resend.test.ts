@@ -85,6 +85,27 @@ describe("createResendProvider", () => {
 		});
 	});
 
+	it("encodes attachment bytes as base64", async () => {
+		fetchMock.mockResolvedValue(jsonResponse({ id: "re-att" }));
+		const provider = createResendProvider({ RESEND_API_KEY: "re_secret" } as CloudflareEnv);
+
+		await provider.send({
+			...message,
+			attachments: [{
+				filename: "report.txt",
+				contentType: "text/plain",
+				content: new TextEncoder().encode("hello").buffer,
+			}],
+		});
+
+		const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+		expect(body.attachments).toEqual([{
+			filename: "report.txt",
+			content_type: "text/plain",
+			content: "aGVsbG8=",
+		}]);
+	});
+
 	it.each([429, 500, 503])("classifies HTTP %s as retryable", async (status) => {
 		fetchMock.mockResolvedValue(jsonResponse("temporary detail", { ok: false, status }));
 		const provider = createResendProvider({ RESEND_API_KEY: "re_secret" } as CloudflareEnv);

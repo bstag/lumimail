@@ -4,6 +4,7 @@ import {
 	type OutboundProvider,
 	type OutboundSendResult,
 } from "./types";
+import { encodeBase64Attachment } from "@/lib/email/outbound-attachments";
 
 const DEFAULT_BASE_URL = "https://api.resend.com";
 
@@ -45,6 +46,15 @@ export function createResendProvider(env: CloudflareEnv): OutboundProvider {
 						subject: message.subject,
 						html: message.html,
 						text: message.text,
+						...(message.attachments?.length
+							? {
+								attachments: message.attachments.map((attachment) => ({
+									filename: attachment.filename,
+									content_type: attachment.contentType,
+									content: encodeBase64Attachment(attachment.content),
+								})),
+							}
+							: {}),
 					}),
 				});
 			} catch (error) {

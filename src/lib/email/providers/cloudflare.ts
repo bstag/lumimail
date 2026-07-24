@@ -39,6 +39,16 @@ export function createCloudflareProvider(env: CloudflareEnv): OutboundProvider {
 					subject: message.subject,
 					html: message.html,
 					text: message.text,
+					...(message.attachments?.length
+						? {
+							attachments: message.attachments.map((attachment) => ({
+								filename: attachment.filename,
+								type: attachment.contentType,
+								disposition: "attachment" as const,
+								content: attachment.content,
+							})),
+						}
+						: {}),
 				});
 				return { providerMessageId: result.messageId };
 			} catch (error) {

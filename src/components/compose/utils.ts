@@ -23,19 +23,19 @@ export type SubmitMessageInput = {
 
 export async function submitMessage(
 	input: SubmitMessageInput,
+	attachments: File[] = [],
 ): Promise<{ messageId: string; status: "queued" }> {
+	if (attachments.length > 0) {
+		const formData = new FormData();
+		formData.set("payload", JSON.stringify(input));
+		for (const attachment of attachments) formData.append("attachment", attachment);
+		const response = await authFetch("/api/send", { method: "POST", body: formData });
+		return parseApiResponse<{ messageId: string; status: "queued" }>(response);
+	}
 	const response = await authFetch("/api/send", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(input),
 	});
 	return parseApiResponse<{ messageId: string; status: "queued" }>(response);
-}
-
-export async function uploadMessageAttachment(messageId: string, file: File): Promise<void> {
-	const formData = new FormData();
-	formData.append("file", file);
-	formData.append("messageId", messageId);
-	const response = await authFetch("/api/attachments", { method: "POST", body: formData });
-	await parseApiResponse(response);
 }

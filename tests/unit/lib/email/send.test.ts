@@ -29,9 +29,13 @@ const ensureRule = vi.mocked(ensureEmailRoutingRuleToWorker);
 const upsertContact = vi.mocked(upsertContactFromAddress);
 const providerSend = vi.fn();
 const queueSend = vi.fn();
+const bucketPut = vi.fn();
+const bucketGet = vi.fn();
+const bucketDelete = vi.fn();
 
 const env = {
 	OUTBOUND_QUEUE: { send: queueSend },
+	BUCKET: { put: bucketPut, get: bucketGet, delete: bucketDelete },
 } as unknown as CloudflareEnv;
 let mock: DbMock;
 
@@ -42,6 +46,11 @@ beforeEach(() => {
 	providerSend.mockReset();
 	queueSend.mockReset();
 	queueSend.mockResolvedValue(undefined);
+	bucketPut.mockReset();
+	bucketGet.mockReset();
+	bucketDelete.mockReset();
+	bucketPut.mockResolvedValue(undefined);
+	bucketDelete.mockResolvedValue(undefined);
 	selectProvider.mockReturnValue({ id: "test", send: providerSend } as unknown as ReturnType<typeof selectOutboundProvider>);
 });
 
@@ -230,6 +239,101 @@ describe("sendEmail producer", () => {
 		).rejects.toThrow("D1 unavailable");
 		expect(queueSend).not.toHaveBeenCalled();
 	});
+
+	it("stores attachment bytes before persisting metadata and enqueueing", async () => {
+		queueAuthorization();
+		const content = new TextEncoder().encode("exact bytes").buffer;
+
+		await sendEmail(env, {
+			userId: "u1",
+			from: "a@example.com",
+			to: "b@x.com",
+			subject: "Hi",
+			attachments: [{ filename: "../report.txt", contentType: "text/plain", content }],
+		});
+
+		expect(bucketPut).toHaveBeenCalledWith(
+			"attachments/u1/msg_id/att_id",
+			content,
+			{ httpMetadata: { contentType: "text/plain" } },
+		);
+		expect(mock.inserts).toHaveLength(4);
+		expect(mock.inserts[3].values).toEqual([expect.objectContaining({
+			messageId: "msg_id",
+			filename: "report.txt",
+			size: 11,
+			r2Key: "attachments/u1/msg_id/att_id",
+		})]);
+		const payload = JSON.parse((mock.inserts[2].values as { payload: string }).payload);
+		expect(payload.attachments).toEqual([{
+			id: "att_id",
+			filename: "report.txt",
+			contentType: "text/plain",
+			size: 11,
+			r2Key: "attachments/u1/msg_id/att_id",
+		}]);
+		expect(payload.attachments[0]).not.toHaveProperty("content");
+	});
+
+	it("removes stored objects when D1 persistence fails", async () => {
+		queueAuthorization();
+		mock.db.batch.mockRejectedValueOnce(new Error("D1 unavailable"));
+
+		await expect(sendEmail(env, {
+			userId: "u1",
+			from: "a@example.com",
+			to: "b@x.com",
+			subject: "Hi",
+			attachments: [{
+				filename: "report.txt",
+				contentType: "text/plain",
+				content: new TextEncoder().encode("x").buffer,
+			}],
+		})).rejects.toThrow("D1 unavailable");
+
+		expect(bucketDelete).toHaveBeenCalledWith("attachments/u1/msg_id/att_id");
+		expect(queueSend).not.toHaveBeenCalled();
+	});
+
+	it("does not enqueue after a partial R2 upload failure", async () => {
+		queueAuthorization();
+		bucketPut.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("R2 unavailable"));
+
+		await expect(sendEmail(env, {
+			userId: "u1",
+			from: "a@example.com",
+			to: "b@x.com",
+			subject: "Hi",
+			attachments: [
+				{ filename: "one.txt", contentType: "text/plain", content: new ArrayBuffer(1) },
+				{ filename: "two.txt", contentType: "text/plain", content: new ArrayBuffer(1) },
+			],
+		})).rejects.toThrow("R2 unavailable");
+
+		expect(bucketDelete).toHaveBeenCalledTimes(2);
+		expect(queueSend).not.toHaveBeenCalled();
+	});
+
+	it("does not hide the original failure when R2 cleanup also fails", async () => {
+		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		queueAuthorization();
+		mock.db.batch.mockRejectedValueOnce(new Error("D1 unavailable"));
+		bucketDelete.mockRejectedValue(new Error("cleanup unavailable"));
+
+		await expect(sendEmail(env, {
+			userId: "u1",
+			from: "a@example.com",
+			to: "b@x.com",
+			subject: "Hi",
+			attachments: [{
+				filename: "one.txt",
+				contentType: "text/plain",
+				content: new ArrayBuffer(1),
+			}],
+		})).rejects.toThrow("D1 unavailable");
+		expect(consoleError).toHaveBeenCalledWith("Failed to clean up an outbound attachment object");
+		consoleError.mockRestore();
+	});
 });
 
 const storedJob = {
@@ -272,6 +376,149 @@ describe("processOutboundQueue consumer", () => {
 			providerMessageId: "provider_1",
 			to: "b@x.com",
 		});
+	});
+
+	it("loads exact attachment bytes from R2 before provider delivery", async () => {
+		const content = new TextEncoder().encode("exact").buffer;
+		mock.queueSelect([{
+			...storedJob,
+			payload: JSON.stringify({
+				from: "a@example.com",
+				to: "b@x.com",
+				subject: "Hi",
+				attachments: [{
+					id: "att_1",
+					filename: "report.txt",
+					contentType: "text/plain",
+					size: 5,
+					r2Key: "attachments/u1/msg_1/att_1",
+				}],
+			}),
+		}]);
+		bucketGet.mockResolvedValue({ size: 5, arrayBuffer: async () => content });
+		providerSend.mockResolvedValue({ providerMessageId: "provider_1" });
+
+		await expect(processOutboundQueue(
+			env,
+			{ kind: "outbound", jobId: "job_1" },
+			"delivery_1",
+		)).resolves.toEqual({ action: "ack" });
+
+		expect(providerSend).toHaveBeenCalledWith(expect.objectContaining({
+			attachments: [{
+				filename: "report.txt",
+				contentType: "text/plain",
+				size: 5,
+				content,
+			}],
+		}));
+	});
+
+	it("fails without provider delivery when an attachment object is missing", async () => {
+		mock
+			.queueSelect([{
+				...storedJob,
+				payload: JSON.stringify({
+					from: "a@example.com",
+					to: "b@x.com",
+					subject: "Hi",
+					attachments: [{
+						id: "att_1",
+						filename: "report.txt",
+						contentType: "text/plain",
+						size: 5,
+						r2Key: "attachments/u1/msg_1/att_1",
+					}],
+				}),
+			}])
+			.queueSelect([{ id: "job_1", userId: "u1", messageId: "msg_1" }]);
+		bucketGet.mockResolvedValue(null);
+
+		await processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1");
+
+		expect(providerSend).not.toHaveBeenCalled();
+		expect(dispatch).toHaveBeenCalledWith(env, "u1", "message.failed", {
+			messageId: "msg_1",
+			error: "Stored outbound attachment is missing or corrupt",
+		});
+	});
+
+	it("retries when R2 is temporarily unavailable", async () => {
+		mock.queueSelect([{
+			...storedJob,
+			payload: JSON.stringify({
+				from: "a@example.com",
+				to: "b@x.com",
+				subject: "Hi",
+				attachments: [{
+					id: "att_1",
+					filename: "report.txt",
+					contentType: "text/plain",
+					size: 5,
+					r2Key: "attachments/u1/msg_1/att_1",
+				}],
+			}),
+		}]);
+		bucketGet.mockRejectedValue(new Error("R2 unavailable"));
+
+		await expect(processOutboundQueue(
+			env,
+			{ kind: "outbound", jobId: "job_1" },
+			"delivery_1",
+		)).resolves.toEqual({ action: "retry", delaySeconds: 30 });
+		expect(providerSend).not.toHaveBeenCalled();
+		expect(mock.updates.at(-1)?.set).toMatchObject({
+			status: "queued",
+			error: "Attachment storage unavailable",
+		});
+	});
+
+	it("fails a snapshot that references a non-canonical R2 key", async () => {
+		mock
+			.queueSelect([{
+				...storedJob,
+				payload: JSON.stringify({
+					from: "a@example.com",
+					to: "b@x.com",
+					subject: "Hi",
+					attachments: [{
+						id: "att_1",
+						filename: "report.txt",
+						contentType: "text/plain",
+						size: 5,
+						r2Key: "attachments/another-user/secret",
+					}],
+				}),
+			}])
+			.queueSelect([{ id: "job_1", userId: "u1", messageId: "msg_1" }]);
+
+		await processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1");
+		expect(bucketGet).not.toHaveBeenCalled();
+		expect(providerSend).not.toHaveBeenCalled();
+	});
+
+	it("fails when the retrieved attachment bytes do not match stored size", async () => {
+		mock
+			.queueSelect([{
+				...storedJob,
+				payload: JSON.stringify({
+					from: "a@example.com",
+					to: "b@x.com",
+					subject: "Hi",
+					attachments: [{
+						id: "att_1",
+						filename: "report.txt",
+						contentType: "text/plain",
+						size: 5,
+						r2Key: "attachments/u1/msg_1/att_1",
+					}],
+				}),
+			}])
+			.queueSelect([{ id: "job_1", userId: "u1", messageId: "msg_1" }]);
+		bucketGet.mockResolvedValue({ size: 5, arrayBuffer: async () => new ArrayBuffer(4) });
+
+		await processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1");
+		expect(providerSend).not.toHaveBeenCalled();
 	});
 
 	it.each(["sent", "failed"])("acknowledges an already %s job without sending", async (status) => {

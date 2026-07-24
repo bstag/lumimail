@@ -4,7 +4,9 @@ import { createDbMock, type DbMock } from "../../../helpers/db";
 
 const m = vi.hoisted(() => ({
 	db: null as unknown,
-	env: { BUCKET: { put: vi.fn() } } as { BUCKET: { put: ReturnType<typeof vi.fn> } },
+	env: { BUCKET: { put: vi.fn(), delete: vi.fn() } } as {
+		BUCKET: { put: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
+	},
 	guardUser: vi.fn(),
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => m.env }));
@@ -21,6 +23,7 @@ beforeEach(() => {
 	mock = createDbMock();
 	m.db = mock.db;
 	m.env.BUCKET.put = vi.fn();
+	m.env.BUCKET.delete = vi.fn();
 	m.guardUser.mockReset();
 });
 
@@ -57,10 +60,11 @@ describe("POST /api/attachments", () => {
 
 	it("returns 400 when the file is too large", async () => {
 		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
-		const big = makeFile(25 * 1024 * 1024 + 1);
+		mock.queueSelect([{ id: "msg1", status: "draft" }]);
+		const big = makeFile(3 * 1024 * 1024 + 1);
 		const res = await POST(formReq({ file: big, messageId: "msg1" }));
 		expect(res.status).toBe(400);
-		expect((await res.json()) as any).toMatchObject({ error: { message: "File too large (max 25MB)" } });
+		expect((await res.json()) as any).toMatchObject({ error: { message: "Attachment too large (max 3 MiB)" } });
 	});
 
 	it("returns 404 when the message is not owned by the user", async () => {
@@ -73,7 +77,7 @@ describe("POST /api/attachments", () => {
 
 	it("stores the attachment and records it", async () => {
 		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
-		mock.queueSelect([{ id: "msg1" }]);
+		mock.queueSelect([{ id: "msg1", status: "draft" }]);
 		const res = await POST(formReq({ file: makeFile(10, "doc.pdf", "application/pdf"), messageId: "msg1" }));
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({
@@ -82,7 +86,7 @@ describe("POST /api/attachments", () => {
 		});
 		expect(m.env.BUCKET.put).toHaveBeenCalledTimes(1);
 		const [key, , opts] = m.env.BUCKET.put.mock.calls[0];
-		expect(key).toBe("attachments/u1/msg1/att_1/doc.pdf");
+		expect(key).toBe("attachments/u1/msg1/att_1");
 		expect(opts).toMatchObject({ httpMetadata: { contentType: "application/pdf" } });
 		expect(mock.inserts[0].values).toMatchObject({
 			id: "att_1",
@@ -90,24 +94,39 @@ describe("POST /api/attachments", () => {
 			filename: "doc.pdf",
 			contentType: "application/pdf",
 			size: 10,
-			r2Key: "attachments/u1/msg1/att_1/doc.pdf",
+			r2Key: "attachments/u1/msg1/att_1",
 		});
 	});
 
-	it("falls back to octet-stream when the parsed file has no content-type", async () => {
-		// Multipart parsing defaults an empty part type to "application/octet-stream",
-		// so to exercise the `file.type || ...` fallback we hand the handler a
-		// request whose formData() yields a file with a genuinely empty type.
+	it("rejects unsupported content types", async () => {
 		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
-		mock.queueSelect([{ id: "msg1" }]);
+		mock.queueSelect([{ id: "msg1", status: "draft" }]);
 		const fakeFile = { name: "noext", size: 5, type: "", arrayBuffer: async () => new ArrayBuffer(5) };
 		const fakeReq = {
 			formData: async () => ({ get: (k: string) => (k === "file" ? fakeFile : "msg1") }),
 		} as unknown as Request;
 		const res = await POST(fakeReq);
-		expect(res.status).toBe(200);
-		const [, , opts] = m.env.BUCKET.put.mock.calls[0];
-		expect(opts).toMatchObject({ httpMetadata: { contentType: "application/octet-stream" } });
-		expect(mock.inserts[0].values).toMatchObject({ contentType: "application/octet-stream" });
+		expect(res.status).toBe(400);
+		expect(m.env.BUCKET.put).not.toHaveBeenCalled();
+	});
+
+	it("rejects adding attachments after a message leaves draft state", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		mock.queueSelect([{ id: "msg1", status: "sent" }]);
+		const res = await POST(formReq({ file: makeFile(), messageId: "msg1" }));
+		expect(res.status).toBe(409);
+		expect(m.env.BUCKET.put).not.toHaveBeenCalled();
+	});
+
+	it("removes the R2 object when metadata persistence fails", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		mock.queueSelect([{ id: "msg1", status: "draft" }]);
+		mock.db.insert = vi.fn(() => ({
+			values: vi.fn(() => Promise.reject(new Error("D1 unavailable"))),
+		}));
+		m.env.BUCKET.delete.mockResolvedValue(undefined);
+
+		await expect(POST(formReq({ file: makeFile(), messageId: "msg1" }))).rejects.toThrow("D1 unavailable");
+		expect(m.env.BUCKET.delete).toHaveBeenCalledWith("attachments/u1/msg1/att_1");
 	});
 });

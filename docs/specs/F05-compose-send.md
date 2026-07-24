@@ -1,6 +1,6 @@
 # F05 — Compose, Send & Drafts
 
-> Status: Shipped
+> Status: In Progress (core flow shipped; registry reconciliation required)
 > Owner area: `src/components/compose/`, `src/app/api/send/`, `src/app/api/drafts/`, `src/app/api/v1/send/`
 
 ## 1. Problem & User Job
@@ -21,7 +21,12 @@ browser sessions. Send is available via both the UI and a public API (API keys).
 
 **In scope:** Compose form (popup + full page), Tiptap WYSIWYG editor, auto-save drafts, load/delete drafts, send via UI, send via API key.
 
-**Out of scope:** Attachments, reply/forward (UI exists but no compose integration), email templates, scheduled send.
+**In scope through later contracts:** outbound attachments are defined by
+[F55](F55-outbound-attachment-delivery.md); reply/forward composition is tracked
+separately in the feature registry.
+
+**Out of scope:** email templates, scheduled send, selected-file persistence in
+draft autosave, and automatic forwarding of original attachments.
 
 ## 4. Data Model
 
@@ -37,8 +42,8 @@ browser sessions. Send is available via both the UI and a public API (API keys).
 
 | Method | Route | Auth | Request | Response | Errors |
 |--------|-------|------|---------|----------|--------|
-| POST | `/api/send` | `guardUser` | `{ from, to, subject, html?, text?, mailboxId? }` | `{ messageId, providerMessageId }` | 400, 429 (rate limit), 500 |
-| POST | `/api/v1/send` | API key (`send` scope) | same | same | 401, 403 (scope), 400, 429 |
+| POST | `/api/send` | `guardUser` | JSON without files, or multipart `payload` + `attachment` fields | `{ messageId, status: "queued" }` | 400, 404, 415, 429, 500 |
+| POST | `/api/v1/send` | API key (`send` scope) | JSON with optional Base64 `attachments` | same | 401, 400, 404, 500 |
 
 ### Drafts
 
@@ -62,7 +67,11 @@ browser sessions. Send is available via both the UI and a public API (API keys).
 ## 7. Current Behavior
 
 - `sendEmailSchema` accepts `html` and `text` fields
-- `sendEmail()` validates sender domain is active, creates outbound job, sends via the configured outbound provider (`selectOutboundProvider(env)` — Cloudflare by default, Resend when `MAIL_PROVIDER=resend`). See [F33](F33-outbound-mail-providers.md).
+- `sendEmail()` authorizes the selected sender, persists a durable job snapshot,
+  stores attachment bytes in R2 when present, and enqueues the job. The queue
+  consumer selects Cloudflare or Resend and records the final state. See
+  [F33](F33-outbound-mail-providers.md), [F54](F54-durable-outbound-delivery.md),
+  and [F55](F55-outbound-attachment-delivery.md).
 - Auto-save uses `useEffect` with 900ms debounce
 - Drafts POST/PATCH both accept `html` field
 - On send success, associated draft is deleted

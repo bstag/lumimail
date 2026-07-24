@@ -49,6 +49,28 @@ describe("createCloudflareProvider", () => {
 		});
 	});
 
+	it("passes binary attachments to the Cloudflare binding", async () => {
+		const send = vi.fn().mockResolvedValue({ messageId: "cf-att" });
+		const provider = createCloudflareProvider(makeEnv(send));
+		const content = new TextEncoder().encode("exact").buffer;
+
+		await provider.send({
+			from: "a@example.com",
+			to: "b@example.com",
+			subject: "S",
+			attachments: [{ filename: "report.txt", contentType: "text/plain", content }],
+		});
+
+		expect(send).toHaveBeenCalledWith(expect.objectContaining({
+			attachments: [{
+				filename: "report.txt",
+				type: "text/plain",
+				disposition: "attachment",
+				content,
+			}],
+		}));
+	});
+
 	it.each([
 		["E_RATE_LIMIT_EXCEEDED", true],
 		["E_DELIVERY_FAILED", true],

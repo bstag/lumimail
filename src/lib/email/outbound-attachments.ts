@@ -1,0 +1,118 @@
+export const MAX_ATTACHMENT_COUNT = 10;
+export const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
+export const MAX_ENCODED_MESSAGE_BYTES = 4.5 * 1024 * 1024;
+
+const MIME_OVERHEAD_BYTES = 2048;
+const SAFE_CONTENT_TYPES = new Set([
+	"image/jpeg",
+	"image/png",
+	"image/gif",
+	"image/webp",
+	"application/pdf",
+	"text/plain",
+	"text/csv",
+	"application/msword",
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	"application/vnd.ms-excel",
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	"application/zip",
+]);
+const DANGEROUS_EXTENSION = /\.(?:exe|bat|cmd|com|scr|vbs|js|jar|ps1|msi)$/i;
+
+export type OutboundAttachmentInput = {
+	filename: string;
+	contentType: string;
+	content: ArrayBuffer;
+};
+
+export type ValidatedOutboundAttachment = OutboundAttachmentInput & {
+	size: number;
+};
+
+export class AttachmentValidationError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "AttachmentValidationError";
+	}
+}
+
+function sanitizeFilename(value: string): string {
+	const pieces = value.replace(/\\/g, "/").split("/");
+	const leaf = pieces[pieces.length - 1];
+	const cleaned = leaf.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+	return (cleaned || "attachment").slice(0, 255);
+}
+
+function encodedLength(size: number): number {
+	return 4 * Math.ceil(size / 3);
+}
+
+export function validateOutboundAttachments(input: {
+	subject: string;
+	html?: string;
+	text?: string;
+	attachments?: OutboundAttachmentInput[];
+}): ValidatedOutboundAttachment[] {
+	const values = input.attachments ?? [];
+	if (values.length > MAX_ATTACHMENT_COUNT) {
+		throw new AttachmentValidationError(`Too many attachments (max ${MAX_ATTACHMENT_COUNT})`);
+	}
+
+	const normalized = values.map((attachment) => {
+		const filename = sanitizeFilename(attachment.filename);
+		const contentType = attachment.contentType.toLowerCase().trim() || "application/octet-stream";
+		const size = attachment.content.byteLength;
+		if (size > MAX_ATTACHMENT_BYTES) {
+			throw new AttachmentValidationError("Attachment too large (max 3 MiB)");
+		}
+		if (DANGEROUS_EXTENSION.test(filename)) {
+			throw new AttachmentValidationError("Executable or script attachments are not allowed");
+		}
+		if (!SAFE_CONTENT_TYPES.has(contentType)) {
+			throw new AttachmentValidationError(`Unsupported attachment type: ${contentType}`);
+		}
+		return { ...attachment, filename, contentType, size };
+	});
+
+	const encoder = new TextEncoder();
+	let estimate =
+		encoder.encode(input.subject).byteLength +
+		encoder.encode(input.html ?? "").byteLength +
+		encoder.encode(input.text ?? "").byteLength;
+	for (const attachment of normalized) {
+		estimate += encodedLength(attachment.size) + MIME_OVERHEAD_BYTES;
+	}
+	if (estimate > MAX_ENCODED_MESSAGE_BYTES) {
+		throw new AttachmentValidationError("Message and attachments are too large");
+	}
+	return normalized;
+}
+
+export function decodeBase64Attachment(value: string): ArrayBuffer {
+	if (
+		value.length % 4 !== 0 ||
+		!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)
+	) {
+		throw new AttachmentValidationError("Attachment content must be valid Base64");
+	}
+	try {
+		const decoded = atob(value);
+		const bytes = new Uint8Array(decoded.length);
+		for (let index = 0; index < decoded.length; index += 1) {
+			bytes[index] = decoded.charCodeAt(index);
+		}
+		return bytes.buffer;
+	} catch {
+		throw new AttachmentValidationError("Attachment content must be valid Base64");
+	}
+}
+
+export function encodeBase64Attachment(content: ArrayBuffer): string {
+	const bytes = new Uint8Array(content);
+	let binary = "";
+	const chunkSize = 32_768;
+	for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+		binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+	}
+	return btoa(binary);
+}
