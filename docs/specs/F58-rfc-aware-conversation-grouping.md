@@ -273,9 +273,18 @@ Verification:
 
 Not yet verified:
 
-- The OpenNext build cannot complete in this non-interactive shell because the
-  existing development binding initialization requests a remote Cloudflare
-  proxy and no `CLOUDFLARE_API_TOKEN` environment variable is available.
-- Production migration, deployment, and the controlled inbound → Lumimail reply
-  → external reply chain remain pending. R-25 and F18 therefore remain in
-  progress rather than shipped.
+- The controlled production inbound → Lumimail reply → external reply chain
+  remains pending. R-25 and F18 therefore remain in progress rather than
+  shipped.
+
+Deployment:
+
+- The OpenNext production build and Wrangler dry run passed. The build used
+  local development binding proxies because this non-interactive shell has no
+  API-token environment variable; the committed production configuration was
+  restored before the dry run and deployment.
+- Migration `0015_add_rfc_threading.sql` applied successfully to production D1,
+  and Wrangler reports no pending migrations.
+- Worker `c6e78f82-d416-438f-962c-32acb29299ac` is deployed to
+  `mail.henriksen.dev`; the root returns HTTP 200 and unauthenticated
+  `/api/auth/me` fails closed with HTTP 401.
