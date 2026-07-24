@@ -1,6 +1,6 @@
 /* global caches, fetch, Response, self */
 
-const VERSION = "lumimail-pwa-v1";
+const VERSION = "lumimail-pwa-v2";
 const PRECACHE_CACHE = `${VERSION}-precache`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const OFFLINE_URL = "/offline.html";
@@ -105,9 +105,13 @@ function pathMatchesPrefix(pathname, prefix) {
 }
 
 function isCacheableStaticAsset(url) {
-	if (PUBLIC_ASSET_PATHS.has(url.pathname)) return true;
-	if (LOCAL_HOSTS.has(self.location.hostname)) return false;
-	return url.pathname.startsWith("/_next/static/");
+	// Only cache our own precached public assets (icons, manifest, offline page).
+	// Next.js build output under /_next/static/ is content-hashed and served with
+	// immutable HTTP cache headers, so the browser cache handles it correctly. The
+	// SW must NOT cache-first those chunks: a constant runtime-cache name meant old
+	// chunks were never purged, so a stale bundle could be served indefinitely after
+	// a deploy. Let /_next/static/ fall through to the network / HTTP cache.
+	return PUBLIC_ASSET_PATHS.has(url.pathname);
 }
 
 async function networkOnlyWithOfflineFallback(request) {
