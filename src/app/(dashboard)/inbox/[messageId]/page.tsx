@@ -200,11 +200,11 @@ export default function MessageDetailPage() {
 	);
 
 	return (
-		<div className="h-full overflow-auto">
+		<div className="h-full overflow-y-auto overflow-x-hidden">
 			{message.direction === "inbound" && !message.read && (
 				<MarkAsRead messageId={message.id} />
 			)}
-			<div className="flex py-2 items-center justify-between px-2">
+			<div className="flex py-2 items-center justify-between gap-2 px-2 overflow-x-auto">
 				<div className="flex items-center flex-row gap-6">
 					<Link
 						href={getMessageBackHref(message.direction, message.status)}
