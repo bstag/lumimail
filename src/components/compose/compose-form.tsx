@@ -273,10 +273,10 @@ export function ComposeForm({
 				</div>
 			)}
 			<form onSubmit={onSubmit} className={frameClass}>
-				<div className="flex h-9 items-center justify-between bg-surface-inverse px-4 text-sm font-medium text-ink-inverse">
+				<div className="flex h-9 items-center justify-between border-b border-border bg-surface-subtle px-4 text-sm font-medium text-ink">
 					<span>{loadingDraft ? t("loadingDraft") : draftId ? t("draftSaved") : t("newMessage")}</span>
 					{mode === "popup" && (
-						<div className="flex items-center gap-3 text-ink-faint">
+						<div className="flex items-center gap-3 text-ink-muted">
 							<Minimize2 className="h-4 w-4" />
 							<button type="button" onClick={onClose}>
 								<X className="h-4 w-4" />
