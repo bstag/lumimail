@@ -1,6 +1,6 @@
 # F55 — Outbound Attachment Delivery
 
-> Status: `Implemented — production validation pending`
+> Status: `Shipped`
 > Owner area: compose, `/api/send`, `/api/v1/send`, R2 attachment storage,
 > outbound queue snapshots, Cloudflare/Resend providers
 
@@ -280,8 +280,21 @@ Verification:
 - Wrangler 4.113.0 dry run passed with the production Email, inbound/outbound
   Queue, D1, R2, Images, Assets, and service bindings.
 
-Not yet verified:
+Production evidence:
 
-- No production deployment or controlled external-recipient attachment delivery
-  has been performed for F55. Exact received filename, content type, and bytes
-  remain the release acceptance step.
+- Commit `776f4ee` deployed as Worker
+  `9761795a-0f91-49cc-91bc-494be8daa441` with 49 ms startup.
+- A controlled compose send from `admin@lucidkith.com` to the operator's external
+  recipient accepted `f55-production-attachment.txt` as `text/plain`, 134 bytes,
+  stored one attachment row under the canonical opaque R2 key, and completed
+  message/job state `sent` with one provider attempt, a provider message ID, and
+  no error.
+- The object downloaded directly from production R2 matched the source SHA-256
+  `ECCB95071583A3912D3440957556A5C141DCD0EEEE083F7798F2FD35ADC272D4`.
+  The sent-message UI displayed the expected filename and size, and the operator
+  confirmed the external recipient received and displayed the attachment.
+- During validation, the outbound queue accepted the job but delivery was
+  administratively paused. After `wrangler queues resume-delivery
+  lumimail-outbound-prod`, the existing queued job completed without a second
+  producer submission. Queue pause detection/alerting is operational follow-up
+  work; it does not change F54/F55 delivery semantics.
