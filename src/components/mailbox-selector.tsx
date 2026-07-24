@@ -72,7 +72,7 @@ export function MailboxSelector() {
 				</div>
 			</button>
 			{open && (
-				<div className="absolute right-0 top-12 z-50 w-80 overflow-hidden rounded-2xl border border-border bg-surface-raised py-2 shadow-xl">
+				<div className="absolute right-0 top-12 z-50 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border bg-surface-raised py-2 shadow-xl">
 					<div className="px-4 pt-3 pb-2">
 						<p className="text-sm font-medium text-ink">{t("mailboxes")}</p>
 						<p className="text-xs text-ink-muted">{t("chooseMailbox")}</p>
