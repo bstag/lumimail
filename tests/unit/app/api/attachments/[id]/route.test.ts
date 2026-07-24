@@ -68,6 +68,7 @@ describe("GET /api/attachments/[id]", () => {
 		expect(res.headers.get("Content-Type")).toBe("application/pdf");
 		expect(res.headers.get("Content-Length")).toBe("1234");
 		expect(res.headers.get("Cache-Control")).toBe("private, max-age=3600");
+		expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
 		const cd = res.headers.get("Content-Disposition");
 		expect(cd).toContain("attachment;");
 		expect(cd).toContain(encodeURIComponent("my file.pdf"));
@@ -80,5 +81,15 @@ describe("GET /api/attachments/[id]", () => {
 		const res = await GET(req("?disposition=inline"), params());
 		expect(res.status).toBe(200);
 		expect(res.headers.get("Content-Disposition")).toContain("inline;");
+		expect(res.headers.get("Content-Security-Policy")).toContain("sandbox");
+	});
+
+	it("forces active content to download even when inline is requested", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		mock.queueSelect([{ ...row, filename: "page.html", contentType: "text/html" }]);
+		m.env.BUCKET.get.mockResolvedValue({ body: "stream-body" });
+		const res = await GET(req("?disposition=inline"), params());
+		expect(res.headers.get("Content-Disposition")).toContain("attachment;");
+		expect(res.headers.get("Content-Security-Policy")).toBeNull();
 	});
 });

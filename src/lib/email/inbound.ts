@@ -1,6 +1,13 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { messageBodies, messages, messageFilters, messageLabels, vacationResponders } from "@/db/schema";
+import {
+	attachments,
+	messageBodies,
+	messages,
+	messageFilters,
+	messageLabels,
+	vacationResponders,
+} from "@/db/schema";
 import { newId } from "@/lib/ids";
 import { buildSnippet, parseRawMime } from "@/lib/email/parse";
 import { resolveInboundTargets, type ResolvedMailbox } from "@/lib/email/routing";
@@ -8,6 +15,7 @@ import { dispatchWebhooks } from "@/lib/email/webhooks";
 import { getMessageContactNames, upsertContactFromAddress } from "@/lib/contacts/service";
 import { formatEmailAddress, getEmailAddress } from "@/lib/email/address";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
+import { prepareInboundAttachments } from "@/lib/email/inbound-attachments";
 
 export type InboundQueueMessage = {
 	from: string;
@@ -66,6 +74,7 @@ async function deliverToMailbox(
 ): Promise<void> {
 	const messageId = newId("msg");
 	const snippet = buildSnippet(parsed.text, parsed.html);
+	const prepared = prepareInboundAttachments(parsed.attachments);
 	const mailboxAddress = `${mailbox.localPart}@${mailbox.hostname}`;
 	const mailboxHeader = formatEmailAddress(mailboxAddress, mailbox.displayName ?? mailbox.localPart);
 	const toAddr = parsed.toAddr && getEmailAddress(parsed.toAddr).toLowerCase() !== mailboxAddress.toLowerCase()
@@ -78,7 +87,19 @@ async function deliverToMailbox(
 		source: "inbound",
 	});
 
-	await db.insert(messages).values({
+	const attachmentRows = prepared.attachments.map((attachment) => {
+		const id = newId("att");
+		return {
+			id,
+			messageId,
+			filename: attachment.filename,
+			contentType: attachment.contentType,
+			size: attachment.size,
+			r2Key: `attachments/${mailbox.userId}/${messageId}/${id}`,
+			content: attachment.content,
+		};
+	});
+	const messageInsert = db.insert(messages).values({
 		id: messageId,
 		userId: mailbox.userId,
 		organizationId: mailbox.organizationId,
@@ -91,15 +112,47 @@ async function deliverToMailbox(
 		snippet,
 		status: "received",
 		threadId: parsed.messageId,
+		attachmentStatus: prepared.status,
+		attachmentError: prepared.error,
 	});
 
-	await db.insert(messageBodies).values({
+	const bodyInsert = db.insert(messageBodies).values({
 		id: newId(),
 		messageId,
 		textBody: parsed.text,
 		htmlBody: parsed.html,
 		rawR2Key: payload.rawR2Key,
 	});
+	const attachmentInsert = attachmentRows.length
+		? db.insert(attachments).values(
+			attachmentRows.map((row) => ({
+				id: row.id,
+				messageId: row.messageId,
+				filename: row.filename,
+				contentType: row.contentType,
+				size: row.size,
+				r2Key: row.r2Key,
+			})),
+		)
+		: null;
+
+	const attemptedKeys: string[] = [];
+	try {
+		for (const attachment of attachmentRows) {
+			attemptedKeys.push(attachment.r2Key);
+			await env.BUCKET.put(attachment.r2Key, attachment.content, {
+				httpMetadata: { contentType: attachment.contentType },
+			});
+		}
+		await db.batch([
+			messageInsert,
+			bodyInsert,
+			...(attachmentInsert ? [attachmentInsert] : []),
+		]);
+	} catch (error) {
+		await cleanupInboundAttachmentObjects(env, attemptedKeys);
+		throw error;
+	}
 
 	await applyMessageFilters(db, mailbox.userId, messageId, fromAddr, toAddr, parsed.subject ?? undefined);
 
@@ -111,6 +164,18 @@ async function deliverToMailbox(
 	});
 
 	await maybeVacationRespond(env, mailbox.userId, fromAddr, toAddr, parsed.subject ?? undefined);
+}
+
+async function cleanupInboundAttachmentObjects(
+	env: CloudflareEnv,
+	keys: string[],
+): Promise<void> {
+	if (keys.length === 0) return;
+	try {
+		await env.BUCKET.delete(keys.length === 1 ? keys[0] : keys);
+	} catch {
+		console.error("Failed to clean up inbound attachment objects");
+	}
 }
 
 async function applyMessageFilters(

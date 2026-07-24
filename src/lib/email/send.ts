@@ -195,6 +195,7 @@ export async function sendEmail(
 		subject: input.subject,
 		snippet,
 		status: "queued",
+		attachmentStatus: attachmentSnapshots.length ? "stored" : "none",
 	});
 	const bodyInsert = db.insert(messageBodies).values({
 		id: newId(),

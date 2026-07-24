@@ -41,7 +41,7 @@ describe("GET /api/messages/[messageId]/attachments", () => {
 
 	it("returns the attachments for a message", async () => {
 		m.guardUser.mockResolvedValue({ user: { id: "u1" }, errorResponse: null });
-		mock.queueSelect([{ id: "m1" }]); // message exists
+		mock.queueSelect([{ id: "m1", attachmentStatus: "stored", attachmentError: null }]); // message exists
 		mock.queueSelect([
 			{ id: "a1", filename: "f.pdf", contentType: "application/pdf", size: 10 },
 		]); // attachments
@@ -50,9 +50,30 @@ describe("GET /api/messages/[messageId]/attachments", () => {
 		expect((await res.json()) as any).toEqual({
 			success: true,
 			data: {
+				attachmentStatus: "stored",
+				attachmentError: null,
 				attachments: [
 					{ id: "a1", filename: "f.pdf", contentType: "application/pdf", size: 10 },
 				],
+			},
+		});
+	});
+
+	it("returns an omission reason even when no attachment rows exist", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1" }, errorResponse: null });
+		mock.queueSelect([{
+			id: "m1",
+			attachmentStatus: "omitted",
+			attachmentError: "Attachments were omitted.",
+		}]);
+		mock.queueSelect([]);
+		const res = await get();
+		expect((await res.json()) as any).toEqual({
+			success: true,
+			data: {
+				attachmentStatus: "omitted",
+				attachmentError: "Attachments were omitted.",
+				attachments: [],
 			},
 		});
 	});

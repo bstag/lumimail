@@ -10,10 +10,30 @@ export type ParsedEmail = {
 	messageId: string | null;
 	fromAddr: string | null;
 	toAddr: string | null;
+	attachments: ParsedAttachment[];
 };
 
+export type ParsedAttachment = {
+	filename: string | null;
+	contentType: string;
+	disposition: "attachment" | "inline" | null;
+	contentId: string | null;
+	content: ArrayBuffer;
+};
+
+function toArrayBuffer(
+	content: ArrayBuffer | Uint8Array | string,
+): ArrayBuffer {
+	if (content instanceof ArrayBuffer) return content;
+	if (typeof content === "string") return new TextEncoder().encode(content).buffer;
+	return content.buffer.slice(
+		content.byteOffset,
+		content.byteOffset + content.byteLength,
+	) as ArrayBuffer;
+}
+
 export async function parseRawMime(raw: ArrayBuffer): Promise<ParsedEmail> {
-	const email = await PostalMime.parse(raw);
+	const email = await PostalMime.parse(raw, { attachmentEncoding: "arraybuffer" });
 	return {
 		subject: email.subject ?? null,
 		text: email.text ?? null,
@@ -21,6 +41,13 @@ export async function parseRawMime(raw: ArrayBuffer): Promise<ParsedEmail> {
 		messageId: email.messageId ?? null,
 		fromAddr: formatPostalAddress(email.from, null),
 		toAddr: formatPostalAddressList(email.to, null),
+		attachments: (email.attachments ?? []).map((attachment) => ({
+			filename: attachment.filename ?? null,
+			contentType: attachment.mimeType ?? "",
+			disposition: attachment.disposition ?? null,
+			contentId: attachment.contentId ?? null,
+			content: toArrayBuffer(attachment.content),
+		})),
 	};
 }
 

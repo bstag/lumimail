@@ -21,8 +21,10 @@ import { parseRawMime as parseRawMimeImport } from "@/lib/email/parse";
 import { dispatchWebhooks as dispatchWebhooksImport } from "@/lib/email/webhooks";
 import { upsertContactFromAddress as upsertImport, getMessageContactNames as contactNamesImport } from "@/lib/contacts/service";
 import { sendEmail as sendEmailImport } from "@/lib/email/send";
+import { newId as newIdImport } from "@/lib/ids";
 import type { RoutingDecision, ResolvedMailbox } from "@/lib/email/routing";
 import type { ParsedEmail } from "@/lib/email/parse";
+import { INBOUND_ATTACHMENT_OMISSION_MESSAGE } from "@/lib/email/inbound-attachments";
 
 const resolveInboundTargets = vi.mocked(resolveInboundTargetsImport);
 const parseRawMime = vi.mocked(parseRawMimeImport);
@@ -30,6 +32,7 @@ const dispatchWebhooks = vi.mocked(dispatchWebhooksImport);
 const upsertContactFromAddress = vi.mocked(upsertImport);
 const getMessageContactNames = vi.mocked(contactNamesImport);
 const sendEmail = vi.mocked(sendEmailImport);
+const newId = vi.mocked(newIdImport);
 
 let mock: DbMock;
 
@@ -50,6 +53,7 @@ const parsed: ParsedEmail = {
 	messageId: "<mid@x>",
 	fromAddr: "sender@other.com",
 	toAddr: "a@example.com",
+	attachments: [],
 };
 
 const storeDecisions: RoutingDecision[] = [{ action: "store", mailbox }];
@@ -59,7 +63,13 @@ function makeR2() {
 }
 
 function makeEnv(bucketGet: unknown): CloudflareEnv {
-	return { BUCKET: { get: vi.fn(async () => bucketGet) } } as unknown as CloudflareEnv;
+	return {
+		BUCKET: {
+			get: vi.fn(async () => bucketGet),
+			put: vi.fn(async () => undefined),
+			delete: vi.fn(async () => undefined),
+		},
+	} as unknown as CloudflareEnv;
 }
 
 let warnSpy: ReturnType<typeof vi.fn>;
@@ -139,7 +149,7 @@ describe("processInboundMessage", () => {
 		});
 
 		expect(mock.inserts).toHaveLength(2); // messages, messageBodies
-			expect(mock.inserts[0].values).toMatchObject({
+		expect(mock.inserts[0].values).toMatchObject({
 			id: "msg_id",
 			userId: "u1",
 			organizationId: "org_1",
@@ -150,6 +160,8 @@ describe("processInboundMessage", () => {
 			subject: "Hello",
 			status: "received",
 			threadId: "<mid@x>",
+			attachmentStatus: "none",
+			attachmentError: null,
 		});
 		// toAddr: parsed.toAddr address == mailbox address -> uses mailbox header
 		expect(mock.inserts[0].values).toMatchObject({ toAddr: '"Agent A" <a@example.com>' });
@@ -168,6 +180,164 @@ describe("processInboundMessage", () => {
 		});
 		// vacation disabled -> no send
 		expect(sendEmail).not.toHaveBeenCalled();
+	});
+
+	it("stores exact attachment bytes before atomically batching message metadata", async () => {
+		resolveInboundTargets.mockResolvedValue(storeDecisions);
+		const bytes = new Uint8Array([0, 10, 128, 255]);
+		parseRawMime.mockResolvedValue({
+			...parsed,
+			attachments: [{
+				filename: "report.bin",
+				contentType: "application/octet-stream",
+				disposition: "attachment",
+				contentId: null,
+				content: bytes.buffer,
+			}],
+		});
+		const env = makeEnv(makeR2());
+		mock.queueSelect([]).queueSelect([{ enabled: false }]);
+
+		await processInboundMessage(env, payload);
+
+		expect(env.BUCKET.put).toHaveBeenCalledWith(
+			"attachments/u1/msg_id/att_id",
+			bytes.buffer,
+			{ httpMetadata: { contentType: "application/octet-stream" } },
+		);
+		expect(mock.inserts).toHaveLength(3);
+		expect(mock.inserts[0].values).toMatchObject({
+			attachmentStatus: "stored",
+			attachmentError: null,
+		});
+		expect(mock.inserts[2].values).toEqual([expect.objectContaining({
+			id: "att_id",
+			messageId: "msg_id",
+			filename: "report.bin",
+			contentType: "application/octet-stream",
+			size: 4,
+			r2Key: "attachments/u1/msg_id/att_id",
+		})]);
+		expect(mock.db.batch).toHaveBeenCalledTimes(1);
+		expect(
+			vi.mocked(env.BUCKET.put).mock.invocationCallOrder[0],
+		).toBeLessThan(mock.db.batch.mock.invocationCallOrder[0]);
+	});
+
+	it("stores a truthful omission status without writing partial attachment objects", async () => {
+		resolveInboundTargets.mockResolvedValue(storeDecisions);
+		parseRawMime.mockResolvedValue({
+			...parsed,
+			attachments: Array.from({ length: 51 }, () => ({
+				filename: "x",
+				contentType: "text/plain",
+				disposition: "attachment" as const,
+				contentId: null,
+				content: new ArrayBuffer(0),
+			})),
+		});
+		const env = makeEnv(makeR2());
+		mock.queueSelect([]).queueSelect([{ enabled: false }]);
+
+		await processInboundMessage(env, payload);
+
+		expect(env.BUCKET.put).not.toHaveBeenCalled();
+		expect(mock.inserts).toHaveLength(2);
+		expect(mock.inserts[0].values).toMatchObject({
+			attachmentStatus: "omitted",
+			attachmentError: INBOUND_ATTACHMENT_OMISSION_MESSAGE,
+		});
+	});
+
+	it("removes written objects and rethrows when the D1 batch fails", async () => {
+		resolveInboundTargets.mockResolvedValue(storeDecisions);
+		parseRawMime.mockResolvedValue({
+			...parsed,
+			attachments: [{
+				filename: "one.txt",
+				contentType: "text/plain",
+				disposition: "attachment",
+				contentId: null,
+				content: new Uint8Array([1]).buffer,
+			}],
+		});
+		const env = makeEnv(makeR2());
+		mock.db.batch.mockRejectedValueOnce(new Error("d1 unavailable"));
+
+		await expect(processInboundMessage(env, payload)).rejects.toThrow("d1 unavailable");
+		expect(env.BUCKET.delete).toHaveBeenCalledWith(
+			"attachments/u1/msg_id/att_id",
+		);
+		expect(dispatchWebhooks).not.toHaveBeenCalled();
+	});
+
+	it("preserves the original failure when attachment cleanup also fails", async () => {
+		resolveInboundTargets.mockResolvedValue(storeDecisions);
+		parseRawMime.mockResolvedValue({
+			...parsed,
+			attachments: [{
+				filename: "one.txt",
+				contentType: "text/plain",
+				disposition: "attachment",
+				contentId: null,
+				content: new Uint8Array([1]).buffer,
+			}],
+		});
+		const env = makeEnv(makeR2());
+		mock.db.batch.mockRejectedValueOnce(new Error("d1 unavailable"));
+		vi.mocked(env.BUCKET.delete).mockRejectedValueOnce(new Error("cleanup unavailable"));
+
+		await expect(processInboundMessage(env, payload)).rejects.toThrow("d1 unavailable");
+		expect(errorSpy).toHaveBeenCalledWith(
+			"Failed to clean up inbound attachment objects",
+		);
+	});
+
+	it("rethrows a D1 failure without cleanup when the message has no attachments", async () => {
+		resolveInboundTargets.mockResolvedValue(storeDecisions);
+		const env = makeEnv(makeR2());
+		mock.db.batch.mockRejectedValueOnce(new Error("d1 unavailable"));
+
+		await expect(processInboundMessage(env, payload)).rejects.toThrow("d1 unavailable");
+		expect(env.BUCKET.delete).not.toHaveBeenCalled();
+	});
+
+	it("removes attempted objects and rethrows when an R2 write fails", async () => {
+		resolveInboundTargets.mockResolvedValue(storeDecisions);
+		parseRawMime.mockResolvedValue({
+			...parsed,
+			attachments: [
+				{
+					filename: "one.txt",
+					contentType: "text/plain",
+					disposition: "attachment",
+					contentId: null,
+					content: new Uint8Array([1]).buffer,
+				},
+				{
+					filename: "two.txt",
+					contentType: "text/plain",
+					disposition: "attachment",
+					contentId: null,
+					content: new Uint8Array([2]).buffer,
+				},
+			],
+		});
+		newId
+			.mockImplementationOnce(() => "msg_unique")
+			.mockImplementationOnce(() => "att_one")
+			.mockImplementationOnce(() => "att_two");
+		const env = makeEnv(makeR2());
+		vi.mocked(env.BUCKET.put)
+			.mockResolvedValueOnce({} as R2Object)
+			.mockRejectedValueOnce(new Error("r2 unavailable"));
+
+		await expect(processInboundMessage(env, payload)).rejects.toThrow("r2 unavailable");
+		expect(env.BUCKET.delete).toHaveBeenCalledWith([
+			"attachments/u1/msg_unique/att_one",
+			"attachments/u1/msg_unique/att_two",
+		]);
+		expect(mock.db.batch).not.toHaveBeenCalled();
 	});
 
 	it("falls back to the localPart when the mailbox has no displayName", async () => {
@@ -416,6 +586,52 @@ describe("processInboundMessage multiple mailbox targets", () => {
 			.queueSelect([{ enabled: false }]); // mb2 vacation
 		await processInboundMessage(makeEnv(makeR2()), payload);
 		expect(mock.inserts.filter((i) => (i.values as { direction?: string }).direction === "inbound")).toHaveLength(2);
+	});
+
+	it("creates independent attachment objects for every mailbox delivery", async () => {
+		const mb2 = { ...mailbox, mailboxId: "mb_2", userId: "u2", localPart: "b" };
+		resolveInboundTargets.mockResolvedValue([
+			{ action: "store", mailbox },
+			{ action: "store", mailbox: mb2 },
+		] as RoutingDecision[]);
+		parseRawMime.mockResolvedValue({
+			...parsed,
+			attachments: [{
+				filename: "shared.txt",
+				contentType: "text/plain",
+				disposition: "attachment",
+				contentId: null,
+				content: new Uint8Array([7]).buffer,
+			}],
+		});
+		newId
+			.mockImplementationOnce(() => "msg_1")
+			.mockImplementationOnce(() => "att_1")
+			.mockImplementationOnce(() => "body_1")
+			.mockImplementationOnce(() => "msg_2")
+			.mockImplementationOnce(() => "att_2")
+			.mockImplementationOnce(() => "body_2");
+		mock
+			.queueSelect([])
+			.queueSelect([{ enabled: false }])
+			.queueSelect([])
+			.queueSelect([{ enabled: false }]);
+		const env = makeEnv(makeR2());
+
+		await processInboundMessage(env, payload);
+
+		expect(env.BUCKET.put).toHaveBeenNthCalledWith(
+			1,
+			"attachments/u1/msg_1/att_1",
+			expect.any(ArrayBuffer),
+			expect.any(Object),
+		);
+		expect(env.BUCKET.put).toHaveBeenNthCalledWith(
+			2,
+			"attachments/u2/msg_2/att_2",
+			expect.any(ArrayBuffer),
+			expect.any(Object),
+		);
 	});
 });
 

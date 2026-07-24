@@ -17,7 +17,11 @@ export async function GET(
 
 	const db = getDb(env);
 	const [msg] = await db
-		.select({ id: messages.id })
+		.select({
+			id: messages.id,
+			attachmentStatus: messages.attachmentStatus,
+			attachmentError: messages.attachmentError,
+		})
 		.from(messages)
 		.where(and(eq(messages.id, messageId), messageAccessCondition(db, user.id, user.organizationId, "read")))
 		.limit(1);
@@ -34,5 +38,9 @@ export async function GET(
 		.from(attachments)
 		.where(eq(attachments.messageId, messageId));
 
-	return apiSuccess({ attachments: rows });
+	return apiSuccess({
+		attachmentStatus: msg.attachmentStatus,
+		attachmentError: msg.attachmentError,
+		attachments: rows,
+	});
 }

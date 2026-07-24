@@ -209,6 +209,10 @@ export const messages = sqliteTable(
 		subject: text("subject"),
 		snippet: text("snippet"),
 		status: text("status").notNull().default("received"),
+		attachmentStatus: text("attachment_status", {
+			enum: ["none", "stored", "omitted"],
+		}).notNull().default("none"),
+		attachmentError: text("attachment_error"),
 		read: integer("read", { mode: "boolean" }).notNull().default(false),
 		starred: integer("starred", { mode: "boolean" }).notNull().default(false),
 		threadId: text("thread_id"),
