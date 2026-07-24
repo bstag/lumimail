@@ -234,3 +234,6 @@ Verification:
 - All 36 Chromium E2E scenarios passed, including the popup composer layering
   scenario. The runner remained open until command timeout because of the known
   local Wrangler remote-proxy shutdown/auth limitation after the scenarios completed.
+- Commit `bee7d53` deployed as Worker `73a3d71a-411b-4de7-8ada-0e1decdf39e1`.
+  After reloading production, the same saved draft's Send action was clickable and
+  completed successfully while the language selector occupied the same screen area.

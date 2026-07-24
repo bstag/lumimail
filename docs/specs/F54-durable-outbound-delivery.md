@@ -1,6 +1,6 @@
 # F54 — Durable Outbound Delivery
 
-> Status: `Implemented locally; production migration and traced delivery validation pending`
+> Status: `Shipped`
 > Owner area: `src/lib/email/send.ts`, `worker.ts`, outbound queue configuration, sent-message UI
 
 ## 1. Problem and user job
@@ -219,11 +219,24 @@ Verification:
 - Wrangler 4.113.0 dry run passed with the production Email, inbound/outbound Queue,
   D1, R2, Images, Assets, and service bindings.
 
-Pending production evidence:
-- Apply migration `0012_add_outbound_delivery_claims.sql`.
-- Deploy the Worker and outbound DLQ consumer configuration.
-- Trace a controlled outbound send from HTTP 202 through queued and sent state.
-- Exercise one controlled retryable failure and confirm no duplicate provider send.
+Production evidence:
+- Migration `0012_add_outbound_delivery_claims.sql` applied successfully to
+  `lumimail-prod`; the remote migration ledger reports no pending migrations and
+  schema inspection confirms all claim/attempt columns.
+- Created `lumimail-outbound-dlq-prod` and deployed one consumer each for the inbound,
+  outbound, and outbound-DLQ queues.
+- Worker `70e646ad-809e-45b2-8d13-4e0b03c28563` introduced durable delivery; follow-up
+  Worker `73a3d71a-411b-4de7-8ada-0e1decdf39e1` retained the same queue topology while
+  correcting a floating language-control overlap found during the send trace.
+- A controlled message from `admin@lucidkith.com` to the operator's established test
+  recipient was accepted through the production composer, removed its saved draft,
+  and reached message/job state `sent` with one provider attempt, a stored provider
+  message ID, and no error.
+- Duplicate delivery, transient/permanent provider failures, retry delay, ambiguous
+  outcomes, and DLQ finalization remain covered by deterministic unit/worker tests.
+  A live duplicate injection was not performed because Wrangler 4.113 has no queue
+  message-push command and extracting an API credential solely for direct HTTP
+  injection would expand the validation's credential-handling risk.
 
 ### 2026-07-24 — Durable outbound delivery specification
 

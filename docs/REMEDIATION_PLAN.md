@@ -103,10 +103,10 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Specify loop prevention, sender rewriting, authentication/deliverability behavior, failure handling, and audit visibility before implementation.
   - Acceptance: a controlled external recipient receives the forwarded message and failures are observable and retry-safe.
 
-- [ ] **R-10 Connect outbound sending to the configured queue.**
+- [x] **R-10 Connect outbound sending to the configured queue.**
   - Define synchronous acknowledgement, retry policy, idempotency, dead-letter handling, and user-visible delivery states.
   - Acceptance: HTTP requests enqueue rather than perform provider delivery inline, and duplicate queue delivery cannot send duplicate mail.
-  - Local evidence 2026-07-24: F54 implements HTTP 202 queue acknowledgement, job-ID-only queue payloads, conditional D1 at-most-once claims, provider-specific transient/permanent classification, bounded retry delay, fail-closed ambiguous outcomes, dedicated DLQ finalization, and visible queued/sent/failed states. `npm run verify` passes with 1,153 application tests at 100% coverage plus 16 bridge tests; all 35 Chromium scenarios passed before the known Wrangler teardown timeout; the final OpenNext build and Wrangler dry run pass. Production migration/deployment and controlled traced retry/no-duplicate validation remain.
+  - Evidence 2026-07-24: F54 implements HTTP 202 queue acknowledgement, job-ID-only queue payloads, conditional D1 at-most-once claims, provider-specific transient/permanent classification, bounded retry delay, fail-closed ambiguous outcomes, dedicated DLQ finalization, and visible queued/sent/failed states. `npm run verify` passes with 1,153 application tests at 100% coverage plus 16 bridge tests; all 35 Chromium scenarios passed before the known Wrangler teardown timeout; the final OpenNext build and Wrangler dry run pass. Migration `0012` applied to `lumimail-prod`; the outbound DLQ and all three consumers are active. A controlled production composer send completed through Worker `73a3d71a-411b-4de7-8ada-0e1decdf39e1` with message/job state `sent`, one attempt, a provider message ID, and no error. Duplicate delivery, classified retry, ambiguous-result, and DLQ paths are covered by deterministic tests; live queue injection was not added solely for validation because Wrangler 4.113 exposes no message-push command.
 
 - [ ] **R-11 Prevent orphaned raw inbound objects.**
   - Define retention for unroutable, rejected, failed, and successfully processed messages.
@@ -233,6 +233,7 @@ Add one entry per completed item. Do not record secrets, email contents, reset t
 | 2026-07-22 | R-28 | 30 focused tests, 919-test verification at 100% configured coverage, 2 Chromium scenarios, build/dry run, migration `0009`, remote schema inspection, Worker `158f8558-5c94-4849-aceb-730e7e56fae5`, HTTP smoke checks, controlled UI revocation | Local + production | Passed |
 | 2026-07-22 | R-07 | 88 focused contracts, 936-test verification at 100% configured coverage, 3 Chromium scenarios, provider/DNS inspection, build/dry run, Worker `d82e393c-1abb-4f68-9719-284eb31c73af`, production reconciliation and smoke checks, prior controlled outbound send | Local + production | Passed |
 | 2026-07-22 | R-08 | 985-test verification at 100% configured coverage, 2 Chromium scenarios, build/dry run, Worker `3a99cabe-fbf6-4d1d-b5cb-5df76458b6c2`, provider/D1 inspection, and controlled exact/catch-all delivery across LucidKith and Henriksen | Local + production | Passed |
+| 2026-07-24 | R-10 | 1,153-test verification at 100% configured coverage, 35 Chromium scenarios, migration `0012`, outbound DLQ topology, Workers `70e646ad-809e-45b2-8d13-4e0b03c28563` / `73a3d71a-411b-4de7-8ada-0e1decdf39e1`, and a controlled one-attempt queued-to-sent provider delivery | Local + production | Passed |
 
 ## Newly discovered work
 
