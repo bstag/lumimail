@@ -29,6 +29,9 @@ follows my OS light/dark preference, so form-based screens are legible and usabl
 - Given any page/component, When it needs a color, Then it references a semantic token
   utility (e.g. `bg-surface-raised`, `text-ink-muted`, `bg-accent`) rather than a raw
   Tailwind palette color or hex literal.
+- Given the popup composer is open, When a global language or theme control shares
+  its screen area, Then the composer is layered above that control so Send, attachment,
+  and other composer actions remain clickable.
 
 ## 3. Scope Boundaries
 
@@ -119,6 +122,7 @@ New tokens added by this feature:
 | Static | `npm run lint` | className strings remain valid |
 | Unit | `npm run test` | existing suites unaffected (no logic change) |
 | Manual/E2E | dashboard + a form screen in light and dark OS mode | coherent single theme, legible forms |
+| Unit | `tests/unit/components/floating-controls-layering.test.ts` | global preference controls remain below the popup composer |
 
 Coverage target: unchanged; this feature edits only className strings, not covered logic.
 
@@ -182,3 +186,51 @@ Reason:
   manual theme-selector, typography, responsive-layout, and stale-service-worker fixes.
 - The resulting interface was confirmed materially more usable, closing the remaining
   manual validation boundary for this feature.
+
+### 2026-07-24 — Floating language selector blocked popup Send
+
+Type: `Bug`
+
+Current behavior:
+- `LanguageSwitcher` is fixed at the bottom-right with `z-50`.
+- The popup composer occupies the same corner at `z-40`, allowing the language
+  selector to cover and intercept clicks intended for Send.
+- The theme control has the same global `z-50` layering and can produce the same
+  obstruction when the popup spans a narrow viewport.
+
+Desired behavior:
+- Global language and theme controls remain below popup/dialog content.
+- Closing the popup restores normal access to the global controls.
+
+Edge cases:
+- Desktop popup composer in the bottom-right corner.
+- Narrow viewports where the popup spans nearly the full width.
+- Keyboard access remains available and DOM order is unchanged.
+
+Error states:
+- This is a layout-only correction; no new runtime error state is introduced.
+
+Test plan:
+- Add a static component regression test asserting both global controls use a lower
+  layer than the popup composer.
+- Run `npm run verify`.
+- Rebuild/deploy and confirm Send is clickable with the language selector present.
+
+Decision:
+- Preserve control placement and lower the global controls from `z-50` to `z-30`.
+  The composer already uses `z-40`, so this is the smallest reversible fix and avoids
+  viewport-specific positioning rules.
+
+Final behavior:
+- The language and theme controls use `z-30`.
+- The popup composer remains at `z-40`, keeping all composer actions above both
+  floating controls without changing DOM order or keyboard access.
+
+Verification:
+- The new unit regression test failed before implementation and passed afterward.
+- `npm run verify` passed with 140 application test files, 1,154 tests, 100% statement,
+  branch, function, and line coverage, 16 bridge tests, and 35 pre-existing lint
+  warnings with zero errors.
+- All 36 Chromium E2E scenarios passed, including the popup composer layering
+  scenario. The runner remained open until command timeout because of the known
+  local Wrangler remote-proxy shutdown/auth limitation after the scenarios completed.

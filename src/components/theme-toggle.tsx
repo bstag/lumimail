@@ -34,7 +34,7 @@ export function ThemeToggle() {
 		theme === "system" ? "System" : theme === "light" ? "Light" : "Dark";
 
 	return (
-		<div className="fixed bottom-4 left-4 z-50">
+		<div className="fixed bottom-4 left-4 z-30">
 			<button
 				type="button"
 				onClick={cycle}

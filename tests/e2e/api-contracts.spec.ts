@@ -150,6 +150,37 @@ test.describe("canonical API client contracts", () => {
 		await expect(page.getByText("Message queued for sending")).toBeVisible();
 	});
 
+	test("keeps the popup composer Send action above floating preference controls", async ({ page }) => {
+		await mockAuthenticatedShell(page);
+		await page.route("**/api/labels", (route) =>
+			route.fulfill({ json: { success: true, data: [] } }),
+		);
+		await page.route("**/api/messages?**", (route) =>
+			route.fulfill({ json: { messages: [], total: 0, limit: 25, offset: 0 } }),
+		);
+		await page.route("**/api/drafts", (route) =>
+			route.fulfill({ json: { draft: { id: "draft_popup" } } }),
+		);
+		let sendRequests = 0;
+		await page.route("**/api/send", (route) => {
+			sendRequests += 1;
+			return route.fulfill({
+				status: 202,
+				json: { success: true, data: { messageId: "msg_popup", status: "queued" } },
+			});
+		});
+
+		await page.goto("/inbox");
+		await page.getByRole("button", { name: "Compose" }).click();
+		await page.getByLabel("To", { exact: true }).fill("recipient@example.net");
+		await page.getByLabel("Subject").fill("Popup layering");
+		await page.getByLabel("Body").fill("The Send button remains interactive.");
+		await page.locator('button[type="submit"]').click();
+
+		await expect.poll(() => sendRequests).toBe(1);
+		await expect(page.getByText("Message queued for sending")).toBeVisible();
+	});
+
 	test("shows and refreshes queued and failed outbound delivery states", async ({ page }) => {
 		await mockAuthenticatedShell(page);
 		await page.route("**/api/labels", (route) =>
