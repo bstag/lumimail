@@ -51,7 +51,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 									<button
 										type="button"
 										aria-label="Open navigation"
-										className="flex h-10 w-10 items-center justify-center rounded-full text-ink-muted hover:bg-surface-subtle md:hidden"
+										className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-muted hover:bg-surface-subtle md:hidden"
 										onClick={() => setNavOpen(true)}
 									>
 										<Menu className="h-5 w-5" />
@@ -59,7 +59,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 									<MailSearchInput />
 									<Link
 										href="/settings"
-										className="flex h-10 w-10 items-center justify-center rounded-full text-ink-muted hover:bg-surface-subtle"
+										className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-muted hover:bg-surface-subtle"
 									>
 										<HelpCircle className="h-5 w-5" />
 									</Link>

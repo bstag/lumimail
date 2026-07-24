@@ -52,18 +52,18 @@ export default function DashboardLayout({
                 <button
                   type="button"
                   aria-label="Open navigation"
-                  className="flex h-10 w-10 items-center justify-center rounded-full text-ink-muted hover:bg-surface-subtle md:hidden"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-muted hover:bg-surface-subtle md:hidden"
                   onClick={() => setNavOpen(true)}
                 >
                   <Menu className="h-5 w-5" />
                 </button>
-                <div className="flex h-12 flex-1 max-w-3xl items-center gap-3 rounded-full bg-surface-subtle px-4 text-ink-muted">
-                  <Search className="h-5 w-5" />
-                  <span className="text-[15px]">Search mail</span>
+                <div className="flex h-12 min-w-0 flex-1 max-w-3xl items-center gap-3 rounded-full bg-surface-subtle px-4 text-ink-muted">
+                  <Search className="h-5 w-5 shrink-0" />
+                  <span className="truncate text-[15px]">Search mail</span>
                 </div>
                 <Link
                   href="/settings"
-                  className="flex h-10 w-10 items-center justify-center rounded-full text-ink-muted hover:bg-surface-subtle"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-muted hover:bg-surface-subtle"
                 >
                   <HelpCircle className="h-5 w-5" />
                 </Link>

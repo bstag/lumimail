@@ -55,7 +55,7 @@ export function MailboxSelector() {
 	}
 
 	return (
-		<div ref={ref} className="relative">
+		<div ref={ref} className="relative shrink-0">
 			<button
 				type="button"
 				onClick={() => setOpen((value) => !value)}
