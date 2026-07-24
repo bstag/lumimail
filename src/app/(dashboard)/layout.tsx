@@ -46,7 +46,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 								</button>
 								<DashboardNav onNavigate={() => setNavOpen(false)} />
 							</aside>
-							<div className="flex min-h-screen flex-col">
+							<div className="flex min-h-screen min-w-0 flex-col">
 								<header className="flex h-16 items-center gap-2 px-2 text-sm sm:gap-4 sm:pr-4">
 									<button
 										type="button"
