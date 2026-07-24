@@ -69,7 +69,7 @@ export default function DashboardLayout({
                 </Link>
                 <MailboxSelector />
               </header>
-              <main className="flex-1 overflow-auto rounded-t-3xl bg-surface-raised px-4 py-6 sm:px-12 sm:py-8 md:w-fit md:min-w-172">
+              <main className="min-w-0 flex-1 overflow-auto rounded-t-3xl bg-surface-raised px-4 py-6 sm:px-12 sm:py-8">
                 {children}
               </main>
             </div>
