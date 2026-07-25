@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import type { AppDatabase } from "@/db";
 import { contacts, domains, vacationReplyLog } from "@/db/schema";
+import { normalizeEmailAddress } from "@/lib/email/address";
 
 /**
  * One auto-reply per correspondent per this many days. Long enough that a loop
@@ -56,8 +57,19 @@ function hasListHeader(headers: Record<string, string>): boolean {
 	return Object.keys(headers).some((key) => key.toLowerCase().startsWith("list-"));
 }
 
+/**
+ * Reduces a From header to the bare lowercase address.
+ *
+ * Uses the same helper the contacts table is keyed by, so an audience lookup can
+ * actually match. A hand-rolled version here previously left display-name forms
+ * like `"admin" <admin@example.com` intact, which no contact row could equal.
+ */
 function normalizeAddress(address: string): string {
-	return address.trim().toLowerCase().replace(/^<|>$/g, "");
+	const trimmed = address.trim();
+	// `<>` is the RFC 5321 null sender used by bounces. The generic parser keeps it
+	// as a token, so it is collapsed here to keep the null-sender rule working.
+	if (!trimmed || trimmed === "<>") return "";
+	return normalizeEmailAddress(trimmed);
 }
 
 /**

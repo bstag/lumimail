@@ -83,6 +83,14 @@ describe("shouldSuppressVacationReply", () => {
 	it("never replies to itself", () => {
 		expect(suppress({ from: "owner@example.com", to: "Owner@example.com" })).toBe("self");
 	});
+
+	it("reduces a display-name sender to its bare address", () => {
+		// Production stored `"admin" <admin@henriksen.dev` because a hand-rolled
+		// normalizer only stripped the angle brackets. Every downstream comparison
+		// then failed, including the contacts audience.
+		expect(suppress({ from: '"Owner" <owner@example.com>', to: "owner@example.com" })).toBe("self");
+		expect(suppress({ from: '"No Reply" <noreply@example.net>' })).toBe("automated_sender");
+	});
 });
 
 describe("withinVacationReplyWindow", () => {
@@ -120,6 +128,16 @@ describe("withinVacationReplyWindow", () => {
 			withinVacationReplyWindow(mock.db, "mb_1", "  Correspondent@Example.NET ", now),
 		).resolves.toBe(true);
 	});
+
+	it("keys on the bare address, not the display-name form", async () => {
+		// Otherwise the same person writing with a changed display name starts a
+		// fresh window and receives a duplicate notice.
+		mock.queueSelect([{ lastRepliedAt: new Date("2026-07-24T12:00:00Z") }]);
+
+		await expect(
+			withinVacationReplyWindow(mock.db, "mb_1", '"Corr" <correspondent@example.net>', now),
+		).resolves.toBe(true);
+	});
 });
 
 describe("isVacationAudienceAllowed", () => {
@@ -149,6 +167,19 @@ describe("isVacationAudienceAllowed", () => {
 
 		await expect(
 			allowed({ replyToContacts: true, replyToOrganization: false }),
+		).resolves.toBe(true);
+	});
+
+	it("matches a display-name sender against the stored contact address", async () => {
+		// contacts.email holds a bare lowercase address, so the lookup must use the
+		// same form or the contacts audience refuses everyone.
+		mock.queueSelect([{ id: "c1" }]);
+
+		await expect(
+			allowed(
+				{ replyToContacts: true, replyToOrganization: false },
+				'"Corr" <Correspondent@Example.NET>',
+			),
 		).resolves.toBe(true);
 	});
 
