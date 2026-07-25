@@ -1,6 +1,6 @@
 # F63 — R2 Retention and Orphan Cleanup
 
-> Status: In Progress — implemented and locally verified; not yet deployed
+> Status: In Progress — deployed with the sweep disabled; backlog not yet reviewed
 > Owner area: `src/lib/email/inbound.ts`, `src/lib/r2-retention.ts`, `worker.ts` scheduled handler, `/api/admin/r2-retention`
 
 ## 1. Problem & User Job
@@ -170,4 +170,6 @@ Notes:
 - Four inbound filter assertions asserted "no updates happened" and were scoped to the messages table, because clearing the raw key is now an expected additional update.
 - `raw_r2_key` was documented on `messages` in the first draft of this spec; it is on `message_bodies`. Corrected before implementation.
 - The first full run failed the branch gate at 99.9%: the nullable-key guard and the default-clock fallback were unexercised. Both are now covered by tests rather than suppressed with ignore comments.
-- Not deployed. The report has not been run against production, so the size of the existing backlog is still unknown.
+- Deployed 2026-07-25 as version `ace31e0c-69b6-4cfa-9c06-d1dd8fb70453` with 55 ms startup and all queue, cron, and domain triggers intact. No migration was required. `GET /` returned 200 and both `GET` and `POST /api/admin/r2-retention` returned 401 unauthenticated.
+- `R2_SWEEP_ENABLED` is unset in production, so the scheduled sweep is deployed but inert. Raw deletion after successful processing is live and unconditional.
+- The report has not been run, so the size of the existing backlog is still unknown. Until it is reviewed, deleted, and the sweep enabled, objects written before this release remain in the state F63 exists to fix.
