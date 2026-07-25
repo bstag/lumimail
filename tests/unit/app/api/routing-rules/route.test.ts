@@ -141,6 +141,10 @@ describe("POST /api/routing-rules", () => {
 	it("creates a normalized named forward rule without touching provider catch-all", async () => {
 		m.guardUser.mockResolvedValue(authed);
 		mock.queueSelect([domain]);
+		// authorizeForwardDestination: destination is outside every managed domain
+		// and this organization owns a verified registration for it.
+		mock.queueSelect([]);
+		mock.queueSelect([{ id: "fwd_1", address: "outside@example.net", verifiedAt: new Date() }]);
 		const res = await POST(post({
 			domainId: "dom_1",
 			pattern: " Sales@X.TEST ",
@@ -155,6 +159,57 @@ describe("POST /api/routing-rules", () => {
 			forwardTo: "outside@example.net",
 		});
 		expect(m.ensureCatchAll).not.toHaveBeenCalled();
+	});
+
+	it("refuses a forward rule whose destination is not registered", async () => {
+		m.guardUser.mockResolvedValue(authed);
+		mock.queueSelect([domain]);
+		mock.queueSelect([]);
+		mock.queueSelect([]); // no ownership row
+		const res = await POST(post({
+			domainId: "dom_1",
+			pattern: "sales@x.test",
+			action: "forward",
+			forwardTo: "outside@example.net",
+			priority: 2,
+		}));
+		expect(res.status).toBe(422);
+		// The rule must not be persisted, or matching mail would be silently dropped.
+		expect(mock.inserts).toHaveLength(0);
+	});
+
+	it("refuses a forward rule whose destination is registered but unverified", async () => {
+		m.guardUser.mockResolvedValue(authed);
+		mock.queueSelect([domain]);
+		mock.queueSelect([]);
+		mock.queueSelect([{ id: "fwd_1", address: "outside@example.net", verifiedAt: null }]);
+		const res = await POST(post({
+			domainId: "dom_1",
+			pattern: "sales@x.test",
+			action: "forward",
+			forwardTo: "outside@example.net",
+			priority: 2,
+		}));
+		expect(res.status).toBe(422);
+		expect((await res.json()) as { error: string }).toEqual({
+			error: "That destination has not confirmed Cloudflare's verification email yet",
+		});
+		expect(mock.inserts).toHaveLength(0);
+	});
+
+	it("refuses a forward rule pointing back into a managed domain", async () => {
+		m.guardUser.mockResolvedValue(authed);
+		mock.queueSelect([domain]);
+		mock.queueSelect([{ id: "dom_1" }]); // destination hostname is managed
+		const res = await POST(post({
+			domainId: "dom_1",
+			pattern: "sales@x.test",
+			action: "forward",
+			forwardTo: "loop@x.test",
+			priority: 2,
+		}));
+		expect(res.status).toBe(422);
+		expect(mock.inserts).toHaveLength(0);
 	});
 });
 

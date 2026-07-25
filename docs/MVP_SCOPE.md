@@ -41,6 +41,8 @@ gates later in this document must also pass.
 | F53 | Theme token consistency (light + dark) | Shipped | [F53](specs/F53-theme-token-consistency.md) | `src/app/globals.css`, all pages/components | Semantic tokens, persistent System/Light/Dark selection, responsive repairs, and production usability validation are complete. |
 | F54 | Durable outbound delivery | Shipped | [F54](specs/F54-durable-outbound-delivery.md) | `/api/send`, `/api/v1/send`, `OUTBOUND_QUEUE`, Sent UI | Queue producer/consumer, idempotent claim, classified retries, DLQ finalization, and queued/failed UI are verified; migration `0012`, all queue consumers, and a one-attempt production queued-to-sent provider delivery are confirmed. |
 | F55 | Outbound attachment delivery | Shipped | [F55](specs/F55-outbound-attachment-delivery.md) | compose, `/api/send`, `/api/v1/send`, R2, `OUTBOUND_QUEUE`, Cloudflare/Resend providers | Atomic acceptance, compensation, immutable metadata, exact-byte loading, and both provider adapters pass full verification; controlled production delivery preserved the filename, type, size, and exact R2 bytes and arrived at the external recipient. |
+| F62 | External forwarding via Cloudflare Email Routing | In Progress | [F62](specs/F62-external-forwarding.md) | `worker.ts` `email()`, `/api/forwarding-destinations`, `/routing`, `/api/routing-rules` | Forwarding is performed by `message.forward()` at receive time and authorized by organization-owned, Cloudflare-verified destinations; rules naming an unowned or unverified destination are refused, and an undeliverable forward is rejected at SMTP rather than dropped. Migration `0018`, deployment, and controlled external delivery remain. |
+| F61 | Operator-confirmed outbound delivery recovery | In Progress | [F61](specs/F61-outbound-delivery-recovery.md) | `/api/messages/[messageId]/retry`, Sent UI, `OUTBOUND_QUEUE` | A failed outbound job can be returned to the queue by a send-capable user after explicit confirmation. Recovery reuses the existing at-most-once claim, so duplicate enqueueing is impossible; an *ambiguous* provider failure can still duplicate, which is disclosed rather than prevented. Migration `0017` and controlled production recovery remain. |
 | F56 | Scheduled queue health monitoring | Shipped | [F56](specs/F56-queue-health-monitoring.md) | Worker Cron Trigger, Queue metrics, `/queue-health`, `/api/admin/queue-health` | Owner-only platform status, one-minute snapshots, dead-letter visibility, stale-job detection, and manual checks are locally and production-verified. Exact administrative pause state and automatic resume are deliberately excluded. |
 | F57 | Inbound attachment ingestion | Shipped | [F57](specs/F57-inbound-attachment-ingestion.md) | PostalMime, inbound queue, R2, message attachment APIs/UI | Bounded exact-byte ingestion, atomic D1 metadata, R2 compensation, omission status, safe previews, and controlled production receipt/download are verified. |
 | F13 | IMAP/SMTP bridge for email clients | In Progress | [F13](specs/F13-imap-smtp-bridge.md), [F52](specs/F52-imap-smtp-bridge-contract-repair.md) | `/api/v1/session`, `/api/v1/messages*`, `/api/v1/send`, separate `imap-bridge` service | The mailbox-scoped API, persistent UID, truthful protocol, TLS, sender-binding, personal-key UI, and automated bridge contracts pass locally. Production bridge hosting, TLS, and controlled Thunderbird isolation/send validation remain required. |
@@ -108,18 +110,39 @@ multi-domain, multi-user email replacement.
 
 All of these must be checked before a general production launch:
 
-- [ ] Hostile HTML, links, and inline content are rendered without executable content or credential leakage.
-- [ ] A fresh D1 database and an upgraded production-like database both pass automated schema verification.
+- [x] Hostile HTML, links, and inline content are rendered without executable content or credential leakage.
+- [x] A fresh D1 database and an upgraded production-like database both pass automated schema verification.
 - [x] Exact-address and catch-all inbound delivery pass across at least two domains, including precedence and no-match cases.
-- [ ] Outbound, reply, drafts, and attachments reach controlled recipients with observable delivery/failure state.
+- [x] Outbound, reply, drafts, and attachments reach controlled recipients with observable delivery/failure state.
 - [ ] Retried queue events cannot send duplicate mail, and terminal failures are recoverable.
-- [ ] Restricted users cannot enumerate, read, search, download from, or send as unauthorized mailboxes.
-- [ ] Two or more users can share one mailbox without receiving access to unrelated mailboxes.
+- [x] Restricted users cannot enumerate, read, search, download from, or send as unauthorized mailboxes.
+- [x] Two or more users can share one mailbox without receiving access to unrelated mailboxes.
 - [x] Password recovery works end to end in production without exposing reset tokens.
 - [ ] Backup, restore, retention, cleanup, and rollback procedures have been exercised.
 - [ ] Logs, webhooks, and third-party providers have a documented data-egress inventory with no unexpected message or credential export.
 - [ ] Multiple-domain load and D1 query plans meet documented performance targets.
 - [ ] `npm run verify`, the required E2E suite, deployment smoke tests, and traced mail-flow tests pass.
+
+### Gate reconciliation 2026-07-24
+
+Five gates were checked after re-reading their evidence against current code rather
+than against remediation-item status alone. Each remediation item that closed a gate
+predates later features, so the newer surfaces were re-audited:
+
+| Gate | Basis | Re-audit performed |
+|------|-------|--------------------|
+| Hostile HTML/links/inline content | R-19 adversarial sanitizer tests plus controlled production remote-image and safe-formatting messages | `src/lib/email/sanitize.ts` drops `form`, `img`, `iframe`, `style`, `svg`, `object`, and `input` subtrees, so neither remote-resource beaconing nor credential-collecting markup survives. F31 inline previews add `sandbox` CSP and `nosniff`. |
+| Outbound, reply, drafts, attachments | R-10 queued-to-sent provider delivery, R-20 controlled attachment receipt with matching R2 SHA-256, R-25 three-message production reply chain, R-29 shared-draft production validation | Delivery state remains visible as queued/sent/failed. |
+| Restricted-user isolation | R-13 controlled production validation | Every mailbox-scoped read path added after R-13 was re-audited: message list, counts, search, thread (F58), bulk, starred, labels, attachment listing and download (F55/F57), and the `/api/v1` bridge routes all apply `messageAccessCondition`. Draft paths require the `send` capability. |
+| Shared mailbox without unrelated access | R-13 and R-29 controlled production validation | Same membership condition; no bypassing path found. |
+| Fresh and upgraded schema verification | R-06 fresh-database contract, extended by R-33 | The reconciliation found only fresh databases were verified, so F42 gained a staged-upgrade contract. Applying `0014`–`0016` to a database already at `0013` now reaches exact Drizzle parity, and an edit to an already-applied migration is detected. |
+
+One gate remains deliberately unchecked because the evidence does not support it:
+
+- **Terminal failure recoverability** is unimplemented. Duplicate suppression and
+  classified retry are covered by deterministic tests, but `processOutboundDeadLetter`
+  only marks a job `failed`; no requeue, resend, or operator recovery path exists in
+  `src/`. Tracked as [R-34](REMEDIATION_PLAN.md#phase-2--sending-and-routing-correctness).
 
 ## Specification coverage debt
 

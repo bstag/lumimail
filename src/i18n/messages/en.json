@@ -169,6 +169,8 @@
   "messages": {
     "loading": "Loading...",
     "noSubject": "(no subject)",
+    "retryDelivery": "Retry delivery",
+    "retryDeliveryConfirm": "Retry delivery to {recipient}? If the earlier attempt reached the mail provider before failing, this can deliver the message twice.",
     "noRecipient": "No recipient",
     "unknownSender": "Unknown sender",
     "noContent": "No content",

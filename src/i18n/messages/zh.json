@@ -169,6 +169,8 @@
   "messages": {
     "loading": "加载中...",
     "noSubject": "（无主题）",
+    "retryDelivery": "重试投递",
+    "retryDeliveryConfirm": "重试向 {recipient} 投递？如果先前的尝试在失败前已到达邮件服务商，邮件可能会被投递两次。",
     "noRecipient": "无收件人",
     "unknownSender": "未知发件人",
     "noContent": "无内容",

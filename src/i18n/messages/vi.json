@@ -169,6 +169,8 @@
   "messages": {
     "loading": "Đang tải...",
     "noSubject": "(không có chủ đề)",
+    "retryDelivery": "Thử gửi lại",
+    "retryDeliveryConfirm": "Thử gửi lại tới {recipient}? Nếu lần thử trước đã đến nhà cung cấp email trước khi gặp lỗi, tin nhắn có thể được gửi hai lần.",
     "noRecipient": "Không có người nhận",
     "unknownSender": "Người gửi không xác định",
     "noContent": "Không có nội dung",

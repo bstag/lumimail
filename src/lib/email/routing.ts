@@ -18,6 +18,12 @@ export type RoutingDecision = {
 	action: "store" | "forward" | "reject";
 	mailbox?: ResolvedMailbox;
 	forwardTo?: string;
+	/**
+	 * Owning organization of a forward decision. Cloudflare destination addresses
+	 * are account-level, so forwarding must be authorized against the organization
+	 * that registered the destination rather than against verification alone.
+	 */
+	organizationId?: string | null;
 };
 
 type RoutingRule = typeof routingRules.$inferSelect;
@@ -69,7 +75,9 @@ async function resolveRuleDecision(
 ): Promise<RoutingDecision | null> {
 	if (rule.action === "reject") return { action: "reject" };
 	if (rule.action === "forward") {
-		return rule.forwardTo ? { action: "forward", forwardTo: rule.forwardTo } : null;
+		return rule.forwardTo
+			? { action: "forward", forwardTo: rule.forwardTo, organizationId: rule.organizationId }
+			: null;
 	}
 	return rule.mailboxId
 		? loadMailboxDecision(db, rule.mailboxId, rule.organizationId, domainId, hostname)
@@ -166,7 +174,11 @@ export async function resolveInboundTargets(
 		const decisions: RoutingDecision[] = [...explicitDecisions];
 		for (const target of targets) {
 			if (target.type === "forward") {
-				decisions.push({ action: "forward", forwardTo: target.address });
+				decisions.push({
+					action: "forward",
+					forwardTo: target.address,
+					organizationId: alias.organizationId,
+				});
 			} else {
 				const decision = await loadMailboxDecision(
 					db,

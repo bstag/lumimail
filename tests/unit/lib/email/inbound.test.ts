@@ -103,7 +103,7 @@ describe("processInboundMessage", () => {
 		expect(env.BUCKET.get).not.toHaveBeenCalled();
 	});
 
-	it("logs reject and forward decisions and returns when there are no mailbox targets", async () => {
+	it("logs reject decisions and returns when there are no mailbox targets", async () => {
 		resolveInboundTargets.mockResolvedValue([
 			{ action: "reject" },
 			{ action: "forward", forwardTo: "ext@x.com" },
@@ -111,7 +111,10 @@ describe("processInboundMessage", () => {
 		const env = makeEnv(makeR2());
 		await processInboundMessage(env, payload);
 		expect(warnSpy).toHaveBeenCalledWith("Rejected inbound: a@example.com");
-		expect(infoSpy).toHaveBeenCalledWith("Forward a@example.com -> ext@x.com");
+		// Forwarding now happens at receive time in the Worker's email() handler, so
+		// this consumer must neither act on nor log the forward decision. It also no
+		// longer records the recipient address of a forward target.
+		expect(infoSpy).not.toHaveBeenCalled();
 		expect(env.BUCKET.get).not.toHaveBeenCalled();
 	});
 

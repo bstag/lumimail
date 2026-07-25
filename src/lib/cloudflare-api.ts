@@ -1,4 +1,5 @@
 import type {
+	CfDestinationAddress,
 	CfDnsRecord,
 	CfEmailRoutingRule,
 	CfResponse,
@@ -6,6 +7,7 @@ import type {
 } from "@/lib/cloudflare-api.types";
 import {
 	formatCloudflareError,
+	getCloudflareAccountId,
 	getCloudflareAuth,
 	getCloudflareAuthHeaders,
 	getCloudflareAuthHint,
@@ -37,6 +39,44 @@ async function cfRequest<T>(
 		);
 	}
 	return json.result;
+}
+
+export async function listDestinationAddresses(
+	env: CloudflareEnv,
+): Promise<CfDestinationAddress[]> {
+	return cfRequest<CfDestinationAddress[]>(
+		env,
+		`/accounts/${getCloudflareAccountId(env)}/email/routing/addresses`,
+	);
+}
+
+/**
+ * Registers an account-level destination. Cloudflare sends a verification email to
+ * the address; it cannot receive forwarded mail until the recipient confirms.
+ */
+export async function createDestinationAddress(
+	env: CloudflareEnv,
+	address: string,
+): Promise<CfDestinationAddress> {
+	return cfRequest<CfDestinationAddress>(
+		env,
+		`/accounts/${getCloudflareAccountId(env)}/email/routing/addresses`,
+		{
+			method: "POST",
+			body: JSON.stringify({ email: address.trim().toLowerCase() }),
+		},
+	);
+}
+
+export async function deleteDestinationAddress(
+	env: CloudflareEnv,
+	identifier: string,
+): Promise<CfDestinationAddress> {
+	return cfRequest<CfDestinationAddress>(
+		env,
+		`/accounts/${getCloudflareAccountId(env)}/email/routing/addresses/${identifier}`,
+		{ method: "DELETE" },
+	);
 }
 
 export async function findZoneByHostname(

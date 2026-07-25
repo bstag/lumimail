@@ -135,6 +135,37 @@ export const aliases = sqliteTable(
   (t) => [uniqueIndex("aliases_address_idx").on(t.domainId, t.localPart)],
 );
 
+/**
+ * Organization ownership of an external forwarding destination.
+ *
+ * Cloudflare destination addresses are account-level and therefore shared by every
+ * Lumimail tenant on the same Cloudflare account. Verification status alone must
+ * never authorize a forward, or one organization could forward to an address a
+ * different organization verified. A forward is permitted only when a row exists
+ * here for the requesting organization AND Cloudflare reports the address verified.
+ */
+export const forwardingDestinations = sqliteTable(
+	"forwarding_destinations",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id")
+			.notNull()
+			.references(() => organizations.id, { onDelete: "cascade" }),
+		address: text("address").notNull(),
+		verifiedAt: integer("verified_at", { mode: "timestamp" }),
+		lastCheckedAt: integer("last_checked_at", { mode: "timestamp" }),
+		createdAt: integer("created_at", { mode: "timestamp" })
+			.notNull()
+			.$defaultFn(() => new Date()),
+		updatedAt: integer("updated_at", { mode: "timestamp" })
+			.notNull()
+			.$defaultFn(() => new Date()),
+	},
+	(t) => [
+		uniqueIndex("forwarding_destinations_org_address_idx").on(t.organizationId, t.address),
+	],
+);
+
 export const groupMembers = sqliteTable(
 	"group_members",
 	{
@@ -272,6 +303,8 @@ export const outboundJobs = sqliteTable("outbound_jobs", {
 	attempts: integer("attempts").notNull().default(0),
 	deliveryToken: text("delivery_token"),
 	lastAttemptAt: integer("last_attempt_at", { mode: "timestamp" }),
+	recoveredAt: integer("recovered_at", { mode: "timestamp" }),
+	recoveryCount: integer("recovery_count").notNull().default(0),
 	createdAt: integer("created_at", { mode: "timestamp" })
 		.notNull()
 		.$defaultFn(() => new Date()),
@@ -438,6 +471,7 @@ export const schema = {
 	mailboxMemberships,
 	aliases,
 	groupMembers,
+	forwardingDestinations,
 	passwordResetTokens,
 	contacts,
 	apiKeys,

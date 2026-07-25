@@ -22,8 +22,11 @@ import {
 	getMessageParty,
 	getMessagePartyClassName,
 	getMessagePreview,
+	retryMessageDelivery,
 	runBulkMessageAction,
 } from "./utils";
+import { canRecoverMessage } from "./message-folder-utils";
+import { canMailboxSend } from "@/components/mailbox-provider-utils";
 
 const pageSize = 25;
 
@@ -35,11 +38,46 @@ async function fetchLabels(): Promise<Label[]> {
 	return json.data ?? [];
 }
 
-function MessageListRow({ message, config, selected, onSelectedChange, onStarToggle }: MessageListRowProps) {
+function MessageListRow({
+	message,
+	config,
+	selected,
+	onSelectedChange,
+	onStarToggle,
+	canSend = false,
+}: MessageListRowProps) {
 	const t = useTranslations("messages");
 	const Icon = config.icon;
 	const { openDraftComposer } = useCompose();
+	const [retrying, setRetrying] = useState(false);
 	const unread = message.direction === "inbound" && !message.read;
+	const showRetry = canRecoverMessage(config.folder, message.status, canSend);
+
+	async function handleRetryClick(event: React.MouseEvent) {
+		event.preventDefault();
+		event.stopPropagation();
+		// A failure can be ambiguous: the provider may have accepted the message
+		// before the error surfaced. The operator decides whether to accept that.
+		if (!window.confirm(t("retryDeliveryConfirm", { recipient: message.toAddr ?? "" }))) return;
+
+		setRetrying(true);
+		try {
+			await retryMessageDelivery(message.id);
+		} finally {
+			setRetrying(false);
+		}
+	}
+
+	const retryButton = showRetry ? (
+		<button
+			type="button"
+			onClick={handleRetryClick}
+			disabled={retrying}
+			className="rounded px-2 py-1 text-xs font-medium text-accent hover:bg-surface-subtle disabled:opacity-50"
+		>
+			{t("retryDelivery")}
+		</button>
+	) : null;
 	const className =
 		`grid min-h-12 w-full grid-cols-[24px_32px_minmax(96px,180px)_1fr_auto_auto] items-center gap-2 px-4 text-left text-sm sm:grid-cols-[24px_32px_minmax(160px,240px)_1fr_auto_auto] sm:gap-3 sm:px-6 hover:relative hover:z-10 hover:bg-surface-subtle hover:shadow-sm ${
 			selected ? "bg-accent-muted" : ""
@@ -114,6 +152,7 @@ function MessageListRow({ message, config, selected, onSelectedChange, onStarTog
 			<Link href={`${config.hrefPrefix}/${message.id}`} className="contents">
 				{content}
 			</Link>
+			{retryButton}
 			{starButton}
 		</div>
 	);
@@ -298,6 +337,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 						selected={selectedIds.includes(message.id)}
 						onSelectedChange={updateSelectedMessage}
 						onStarToggle={handleStarToggle}
+						canSend={selectedMailbox ? canMailboxSend(selectedMailbox) : false}
 					/>
 				))}
 				{isLoading && <p className="px-6 py-4 text-sm text-ink-muted">{t("loading")}</p>}

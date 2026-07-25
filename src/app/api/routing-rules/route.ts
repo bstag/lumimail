@@ -8,6 +8,8 @@ import { newId } from "@/lib/ids";
 import { routingRuleSchema } from "@/lib/validators";
 import { normalizeRoutingPattern } from "@/lib/email/routing-pattern";
 import { ensureEmailRoutingCatchAllToWorker } from "@/lib/cloudflare-api";
+import { authorizeForwardDestination } from "@/lib/email/forwarding";
+import { forwardRefusalMessage } from "./utils";
 
 export async function GET(request: Request) {
 	const env = getEnv();
@@ -83,6 +85,19 @@ export async function POST(request: Request) {
 	const id = newId("rule");
 	const mailboxId = parsed.data.action === "store" ? parsed.data.mailboxId! : null;
 	const forwardTo = parsed.data.action === "forward" ? parsed.data.forwardTo! : null;
+
+	// Fail closed: a forward rule whose destination is unowned or unverified would
+	// silently discard every matching message, which is the defect F62 removes.
+	if (forwardTo) {
+		const authorization = await authorizeForwardDestination(db, user.organizationId, forwardTo);
+		if (!authorization.allowed) {
+			return NextResponse.json(
+				{ error: forwardRefusalMessage(authorization.reason) },
+				{ status: 422 },
+			);
+		}
+	}
+
 	await db.insert(routingRules).values({
 		id,
 		userId: user.id,

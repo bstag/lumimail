@@ -19,6 +19,7 @@ export type MessageListRowProps = {
 	selected: boolean;
 	onSelectedChange: (messageId: string, selected: boolean) => void;
 	onStarToggle: (messageId: string, starred: boolean) => void;
+	canSend?: boolean;
 };
 
 export type BulkMessageToolbarProps = {

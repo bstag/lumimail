@@ -25,6 +25,7 @@ type RoutingRule = {
 	domainId: string;
 };
 
+type ForwardingDestination = { id: string; address: string; verified: boolean };
 type Domain = { id: string; hostname: string };
 type Mailbox = { id: string; localPart: string; domainId: string; displayName: string | null };
 
@@ -35,6 +36,7 @@ export default function RoutingPage() {
 	const [action, setAction] = useState<"store" | "forward" | "reject">("store");
 	const [mailboxId, setMailboxId] = useState("");
 	const [forwardTo, setForwardTo] = useState("");
+	const [newDestination, setNewDestination] = useState("");
 	const [priority, setPriority] = useState(10);
 
 	const domains = useQuery({
@@ -90,6 +92,42 @@ export default function RoutingPage() {
 		},
 		onSuccess: () => qc.invalidateQueries({ queryKey: ["routing-rules"] }),
 	});
+
+	const destinations = useQuery({
+		queryKey: ["forwarding-destinations"],
+		queryFn: async () => {
+			const res = await authFetch("/api/forwarding-destinations");
+			const json = (await res.json()) as { success: boolean; data?: ForwardingDestination[] };
+			return json.data ?? [];
+		},
+	});
+
+	const addDestination = useMutation({
+		mutationFn: async () => {
+			const res = await authFetch("/api/forwarding-destinations", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ address: newDestination }),
+			});
+			await readRoutingResponse(res);
+		},
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["forwarding-destinations"] });
+			setNewDestination("");
+		},
+	});
+
+	const refreshDestination = useMutation({
+		mutationFn: async (id: string) => {
+			const res = await authFetch(`/api/forwarding-destinations/${id}/refresh`, { method: "POST" });
+			await readRoutingResponse(res);
+		},
+		onSuccess: () => qc.invalidateQueries({ queryKey: ["forwarding-destinations"] }),
+	});
+
+	const allDestinations = destinations.data ?? [];
+	const verifiedDestinations = allDestinations.filter((d) => d.verified);
+	const pendingDestinations = allDestinations.filter((d) => !d.verified);
 
 	const domainHostname = (id: string) =>
 		domains.data?.domains.find((d) => d.id === id)?.hostname ?? "";
@@ -191,13 +229,31 @@ export default function RoutingPage() {
 					{action === "forward" && (
 						<div className="space-y-2">
 							<Label htmlFor="routing-forward">Forward to</Label>
-							<Input
-								id="routing-forward"
-								type="email"
-								placeholder="destination@example.com"
-								value={forwardTo}
-								onChange={(e) => setForwardTo(e.target.value)}
-							/>
+							{verifiedDestinations.length > 0 ? (
+								<select
+									id="routing-forward"
+									className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink"
+									value={forwardTo}
+									onChange={(e) => setForwardTo(e.target.value)}
+								>
+									<option value="">Select a verified destination</option>
+									{verifiedDestinations.map((destination) => (
+										<option key={destination.id} value={destination.address}>
+											{destination.address}
+										</option>
+									))}
+								</select>
+							) : (
+								<p className="text-sm text-ink-muted">
+									Add and verify a destination below before forwarding. Mail cannot be
+									forwarded to an unverified address.
+								</p>
+							)}
+							{pendingDestinations.length > 0 && (
+								<p className="text-sm text-ink-muted">
+									Awaiting verification: {pendingDestinations.map((d) => d.address).join(", ")}
+								</p>
+							)}
 						</div>
 					)}
 
@@ -214,6 +270,63 @@ export default function RoutingPage() {
 					{remove.isError && (
 						<p className="text-sm text-danger">{remove.error instanceof Error ? remove.error.message : "Failed to remove rule"}</p>
 					)}
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Forwarding destinations</CardTitle>
+				</CardHeader>
+				<CardContent className="space-y-4">
+					<p className="text-sm text-ink-muted">
+						Cloudflare emails each destination a verification link. Until the recipient
+						confirms it, mail cannot be forwarded there and rules using it are refused.
+					</p>
+					<div className="flex gap-2">
+						<Input
+							id="new-forwarding-destination"
+							type="email"
+							placeholder="destination@example.com"
+							value={newDestination}
+							onChange={(e) => setNewDestination(e.target.value)}
+						/>
+						<Button
+							onClick={() => addDestination.mutate()}
+							disabled={!newDestination.trim() || addDestination.isPending}
+						>
+							<Plus className="h-4 w-4 mr-2" />
+							Add
+						</Button>
+					</div>
+					{addDestination.isError && (
+						<p className="text-sm text-danger">
+							{addDestination.error instanceof Error ? addDestination.error.message : "Failed to add destination"}
+						</p>
+					)}
+					{allDestinations.length === 0 && (
+						<p className="text-sm text-ink-muted">No forwarding destinations yet.</p>
+					)}
+					<ul className="divide-y divide-border">
+						{allDestinations.map((destination) => (
+							<li key={destination.id} className="flex items-center justify-between py-2">
+								<span className="text-sm text-ink">{destination.address}</span>
+								<span className="flex items-center gap-3">
+									<span className={`text-xs ${destination.verified ? "text-success" : "text-ink-muted"}`}>
+										{destination.verified ? "Verified" : "Pending verification"}
+									</span>
+									{!destination.verified && (
+										<Button
+											variant="outline"
+											onClick={() => refreshDestination.mutate(destination.id)}
+											disabled={refreshDestination.isPending}
+										>
+											Check again
+										</Button>
+									)}
+								</span>
+							</li>
+						))}
+					</ul>
 				</CardContent>
 			</Card>
 
