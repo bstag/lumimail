@@ -9,6 +9,7 @@ import {
 	findR2Orphans,
 	reportR2Retention,
 	RETENTION_DAYS,
+	shouldRunSweep,
 } from "@/lib/r2-retention";
 
 const now = new Date("2026-07-25T00:00:00Z");
@@ -217,5 +218,14 @@ describe("deleteR2Orphans", () => {
 describe("retention age", () => {
 	it("is the seven days the policy documents", () => {
 		expect(RETENTION_DAYS).toBe(7);
+	});
+});
+
+describe("shouldRunSweep", () => {
+	it("runs at the top of the hour and skips every other minute", () => {
+		expect(shouldRunSweep(Date.parse("2026-07-25T04:00:00Z"))).toBe(true);
+		expect(shouldRunSweep(Date.parse("2026-07-25T00:00:00Z"))).toBe(true);
+		expect(shouldRunSweep(Date.parse("2026-07-25T04:01:00Z"))).toBe(false);
+		expect(shouldRunSweep(Date.parse("2026-07-25T04:59:00Z"))).toBe(false);
 	});
 });

@@ -134,6 +134,7 @@ the terminal state for objects that were written correctly and later became unre
 - Decision: retain unstored raw for 7 days, so a "my mail vanished" report stays diagnosable for a week. — 2026-07-25
 - Decision: derive age and referencedness from R2 and existing D1 columns instead of a retention ledger, to keep an extra write out of the inbound hot path. — 2026-07-25
 - Decision: the scheduled sweep ships disabled and deletes nothing until an operator has seen the report, because the existing production backlog would otherwise be removed automatically on the first run. — 2026-07-25
+- Decision: the sweep runs at the top of each hour rather than on every one-minute queue-health tick. Retention is measured in days, so a full bucket listing and its D1 lookups every minute would be pure waste. — 2026-07-25
 
 ## 13. Bug / Change Log
 
@@ -146,7 +147,7 @@ Summary:
 - Delete the raw inbound object after successful processing and clear `message_bodies.raw_r2_key` first, so no row names a missing object.
 - Add `src/lib/r2-retention.ts`: find, report, and delete objects that are unreferenced in D1 *and* older than the 7-day retention age, paging through R2 cursors under only the `inbound/` and `attachments/` prefixes.
 - Add owner-only `/api/admin/r2-retention` with a dry-run report and a delete guarded by an exact `confirm` value.
-- Add a scheduled sweep to the existing cron, gated by `R2_SWEEP_ENABLED` and shipped disabled.
+- Add a scheduled sweep to the existing cron, gated by `R2_SWEEP_ENABLED` and shipped disabled, running at the top of each hour rather than on every one-minute tick.
 
 Reason:
 

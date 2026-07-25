@@ -17,6 +17,15 @@ const DEFAULT_MAX_OBJECTS = 1000;
 const LIST_PAGE_SIZE = 500;
 const SAMPLE_SIZE = 20;
 
+/**
+ * The sweep shares the one-minute queue-health cron, but retention is measured in
+ * days, so running a full bucket listing every tick is pure waste. Restrict it to
+ * the top of each hour.
+ */
+export function shouldRunSweep(scheduledTime: number): boolean {
+	return new Date(scheduledTime).getUTCMinutes() === 0;
+}
+
 export type R2OrphanCandidate = { key: string; size: number; uploaded: Date };
 
 export type RetentionReport = {

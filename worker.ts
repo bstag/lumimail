@@ -15,7 +15,7 @@ import {
 	isOutboundQueueMessage,
 } from "./worker-utils";
 import { runQueueHealthCheck } from "./src/lib/queue-health";
-import { deleteR2Orphans } from "./src/lib/r2-retention";
+import { deleteR2Orphans, shouldRunSweep } from "./src/lib/r2-retention";
 import { getDb } from "./src/db";
 import { resolveInboundTargets } from "./src/lib/email/routing";
 import {
@@ -105,14 +105,14 @@ export default {
 	},
 
 	async scheduled(
-		_controller: ScheduledController,
+		controller: ScheduledController,
 		env: CloudflareEnv,
 	): Promise<void> {
 		await runQueueHealthCheck(env);
 
 		// Ships disabled. The existing production backlog would otherwise be removed
 		// on the first run, before an operator has seen the report (F63).
-		if (env.R2_SWEEP_ENABLED === "true") {
+		if (env.R2_SWEEP_ENABLED === "true" && shouldRunSweep(controller.scheduledTime)) {
 			const result = await deleteR2Orphans(env, { limit: 100 });
 			if (result.deleted > 0 || result.remaining > 0) {
 				console.info("R2 retention sweep", result);
