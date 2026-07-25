@@ -141,7 +141,46 @@ performs a routing-rule scan per message and a filter scan per stored message.
 - Decision: delete existing sessions rather than supporting a legacy scan path. A fallback would preserve the very cost this removes, and signing in again is a small one-time cost. — 2026-07-25
 - Decision: assert query plans rather than durations, so the contract is stable across machines and CI. — 2026-07-25
 - Decision: measure locally against a seeded database. Production timing under real load is R-18's exercise, and this item should not wait on it. — 2026-07-25
-- Decision: no synthetic seed harness is built. Volume arrives as real domains are onboarded, and a fabricated distribution would characterise data the product does not have. Plan assertions hold regardless of size, because a full table scan is a scan at any row count; what they cannot show is absolute latency, which R-18 must measure against real data. — 2026-07-25
+- Decision: no synthetic seed harness is built for *production shape*. Volume arrives as real domains are onboarded, and a fabricated distribution would characterise data the product does not have. — 2026-07-25
+- Revision 2026-07-25: a local volume harness **was** built after all, once a restored production copy existed to seed on top of. Seeding 25,000 messages onto real schema and real mailboxes is not the fabricated distribution that was rejected — it is real structure at volume, and it immediately exposed a missing index that plan inspection alone had missed. Absolute production latency still belongs to R-18. — 2026-07-25
+
+## 14. Performance targets
+
+Measured against a local restore seeded to **25,000 messages** across four mailboxes
+and two domains. These are **database** costs — the SQL the application issues, run
+against SQLite — not end-to-end latency. Network, Worker startup, and rendering are
+excluded deliberately: the gate concerns query plans, and a developer machine says
+nothing useful about Cloudflare's network.
+
+Reproduce with `node scripts/measure-query-cost.mjs`, which reports the median of 25
+runs alongside each plan.
+
+| Query | Target | Measured | Plan |
+|---|---|---|---|
+| Folder listing, first page | < 1 ms | 0.054 ms | `messages_mailbox_created_idx` |
+| Folder listing, page 200 | < 10 ms | 4.33 ms | index; `OFFSET` walks skipped rows |
+| Unread counts | < 10 ms | 4.27 ms | index scan over the mailbox |
+| Search by subject/snippet | < 10 ms | 5.10 ms | index scan; `LIKE` cannot use an index |
+| Thread fetch | < 1 ms | 0.010 ms | `messages_thread_created_idx` |
+| Mailbox access subquery | < 1 ms | 0.004 ms | covering index |
+| Session lookup | < 1 ms | 0.002 ms | `sessions_token_lookup_idx` |
+| Routing rules for a domain | < 1 ms | 0.002 ms | `routing_rules_domain_idx` |
+
+Three of these deserve explanation rather than a number alone:
+
+**Deep pagination** costs what it costs. `OFFSET 5000` walks five thousand index entries
+before returning anything; that is inherent to offset paging, not a missing index. If
+deep paging ever matters, the fix is keyset pagination — ordering by `(created_at, id)`
+and passing the last row's values — not another index.
+
+**Search and counts** scan the mailbox's messages. `LIKE '%term%'` cannot use a B-tree
+index at all, so its cost grows with mailbox size. At 25,000 messages it is ~5 ms, which
+is acceptable; if a single mailbox reaches hundreds of thousands, the answer is a
+full-text index (FTS5), not tuning.
+
+**Thread fetch** was the finding. It scanned the table and sorted into a temporary
+B-tree at 4.658 ms; with `messages_thread_created_idx` it is 0.010 ms, and it now scales
+with the size of the conversation rather than the size of the table.
 
 ## 13. Bug / Change Log
 
@@ -179,3 +218,26 @@ Notes:
 - One assertion was initially over-specific: SQLite chose `mailbox_memberships_mailbox_role_idx` where `..._mailbox_user_idx` was expected, both leading on `mailbox_id`. The assertion was relaxed to require an index rather than a particular one; the schema was not changed to satisfy a test.
 - `deleteSession` was worse than the spec's original description: it scanned *and* continued after matching.
 - Not deployed. Production timing under real load remains R-18's exercise; this item establishes plans and complexity only.
+
+### 2026-07-25 — Index the thread query, found by measuring at volume
+
+Type: Bug Fix
+
+Summary:
+
+- Add `messages_thread_created_idx` on `(thread_id, created_at)` in migration `0025`.
+- Add a query-plan assertion so it cannot regress.
+- Add `scripts/measure-query-cost.mjs` and record measured targets in §14.
+
+Reason:
+
+- Fetching a conversation scanned the whole `messages` table and sorted into a temporary B-tree. The earlier audit missed it because it looked for tables carrying *no* index; `messages` had several, just none serving this shape. Seeding a restored copy to 25,000 messages made it obvious in one run.
+
+Impact:
+
+- Thread fetch drops from 4.658 ms to 0.010 ms and now scales with conversation size rather than table size. It is on the message-view path, so every opened conversation paid the old cost.
+
+Notes:
+
+- The lesson generalises: "does this table have an index" is a weaker question than "is there an index for the query this code issues". Plan inspection catches the first; volume catches the second.
+- Deep pagination, search, and counts were measured and left alone. Their costs are inherent — `OFFSET` walks skipped rows, `LIKE '%x%'` cannot use a B-tree — and the honest fixes are keyset paging and FTS5 respectively, neither warranted at current scale. §14 records that rather than leaving them looking like oversights.

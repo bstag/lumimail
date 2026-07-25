@@ -89,6 +89,20 @@ describe("hot query plans", () => {
 		expect(detail).not.toContain("SCAN api_keys");
 	});
 
+	it("fetches a conversation by index rather than scanning", () => {
+		// Found by measuring at 25,000 messages: this scanned the table and sorted
+		// into a temporary B-tree, costing 4.7ms where an index costs 0.01ms. The
+		// earlier audit missed it because `messages` had indexes — just none serving
+		// this shape.
+		const detail = plan(
+			"SELECT * FROM messages WHERE thread_id = 't' ORDER BY created_at ASC",
+		);
+
+		expect(detail).toContain("messages_thread_created_idx");
+		expect(detail).not.toContain("SCAN messages");
+		expect(detail).not.toContain("USE TEMP B-TREE FOR ORDER BY");
+	});
+
 	it("lists a mailbox folder without sorting the table", () => {
 		const detail = plan(
 			"SELECT * FROM messages WHERE mailbox_id = 'mb' ORDER BY created_at DESC LIMIT 25",

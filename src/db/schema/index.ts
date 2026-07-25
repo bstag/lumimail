@@ -271,6 +271,9 @@ export const messages = sqliteTable(
 		// Folder listing filters by mailbox and orders by date; without this the
 		// page scans and sorts.
 		index("messages_mailbox_created_idx").on(t.mailboxId, t.createdAt),
+		// Thread view fetches every message in a conversation ordered by date (F58).
+		// Without this the query scans the table and sorts into a temporary B-tree.
+		index("messages_thread_created_idx").on(t.threadId, t.createdAt),
 		index("messages_mailbox_rfc_message_idx").on(t.mailboxId, t.rfcMessageId),
 		index("messages_org_idx").on(t.organizationId),
 		uniqueIndex("messages_imap_uid_idx").on(t.imapUid),
