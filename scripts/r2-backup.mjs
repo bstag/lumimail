@@ -20,8 +20,9 @@
  * volume, use Cloudflare's bucket replication instead.
  *
  * Usage:
- *   node scripts/r2-backup.mjs backup  <dump.sql> <output-dir>
- *   node scripts/r2-backup.mjs restore <backup-dir>
+ *   node scripts/r2-backup.mjs backup  <dump.sql> <output-dir>   # always reads production
+ *   node scripts/r2-backup.mjs restore <backup-dir> [--local]    # --local targets the dev bucket
+ *   node scripts/r2-backup.mjs verify  <backup-dir>              # offline, no R2 access
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -56,6 +57,15 @@ function wrangler(args) {
 		[resolve("node_modules/wrangler/bin/wrangler.js"), ...args],
 		{ env: { ...process.env, WRANGLER_LOG: "none" }, stdio: ["ignore", "pipe", "pipe"] },
 	);
+}
+
+/**
+ * `--remote` is the production bucket; `--local` is the Wrangler dev bucket under
+ * `.wrangler/state`. Restore defaults to **local**, so an unqualified restore can
+ * never overwrite production objects by accident.
+ */
+function bucketTarget(useLocal) {
+	return useLocal ? "--local" : "--remote";
 }
 
 function backup(dumpPath, outputDir) {
@@ -93,8 +103,9 @@ function backup(dumpPath, outputDir) {
 	}
 }
 
-function restore(backupDir) {
+function restore(backupDir, useLocal) {
 	const manifest = JSON.parse(readFileSync(join(backupDir, "manifest.json"), "utf8"));
+	const target = bucketTarget(useLocal);
 	let restored = 0;
 
 	for (const entry of manifest.objects) {
@@ -105,11 +116,11 @@ function restore(backupDir) {
 		if (sha256 !== entry.sha256) {
 			throw new Error(`Checksum mismatch for ${entry.key}; refusing to restore`);
 		}
-		wrangler(["r2", "object", "put", `lumimail-raw-prod/${entry.key}`, "--remote", "--file", source]);
+		wrangler(["r2", "object", "put", `lumimail-raw-prod/${entry.key}`, target, "--file", source]);
 		restored += 1;
 	}
 
-	console.log(JSON.stringify({ restored, expected: manifest.objects.length }, null, 2));
+	console.log(JSON.stringify({ restored, expected: manifest.objects.length, target }, null, 2));
 }
 
 /** Verifies a backup directory against its manifest without contacting R2. */
@@ -137,7 +148,10 @@ export function verifyBackup(backupDir) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
 	const [command, ...rest] = process.argv.slice(2);
 	if (command === "backup") backup(rest[0], rest[1]);
-	else if (command === "restore") restore(rest[0]);
+	else if (command === "restore") {
+		// Default to local. Writing to production requires saying so explicitly.
+		restore(rest[0], !rest.includes("--remote"));
+	}
 	else if (command === "verify") console.log(JSON.stringify(verifyBackup(rest[0]), null, 2));
 	else {
 		console.error("Usage: r2-backup.mjs backup <dump.sql> <dir> | restore <dir> | verify <dir>");

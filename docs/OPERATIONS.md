@@ -61,37 +61,72 @@ referenced.
 count and suited to the current scale. At volume, use Cloudflare's bucket replication
 instead of this script.
 
-## Restore
+## Restore — production
 
-A dump restores by executing it against an empty database.
+**Use D1 Time Travel, not the dump.** D1 keeps a point-in-time history, so recovering
+production does not require a dump at all:
 
 ```bash
-# Into a fresh local database, to rehearse without touching production:
-wrangler d1 execute DB --local --file lumimail-backup.sql
-
-# Then the objects, which verify their checksums before any write:
-node scripts/r2-backup.mjs restore ./r2-backup
+wrangler d1 time-travel info DB                  # current bookmark
+wrangler d1 time-travel restore DB --bookmark=<bookmark>
 ```
 
+This is the supported path for "production is wrong, put it back". The dump exists for
+portability — moving to a new database, or inspecting data offline — not as the primary
+recovery mechanism.
+
+## Restore — from a dump
+
+`wrangler d1 execute --file` **cannot load a `d1 export` dump.** Two reasons, both
+found by attempting it:
+
+1. The dump declares foreign keys before the tables they reference — `api_keys` cites
+   `users` about 180 lines before `users` is created. Foreign-key enforcement must be
+   off during the load or resolution fails on the forward reference. The dump's own
+   `PRAGMA defer_foreign_keys` is not sufficient: a missing table is a resolution error,
+   not a constraint violation.
+2. That pragma is scoped to a transaction, and Wrangler executes a file as separate
+   statements, so it does not survive regardless.
+
+A restore must therefore execute the dump as a single script with foreign keys disabled,
+then re-enable them and check integrity. `scripts/restore-local.mjs` does exactly that:
+
+```bash
+wrangler d1 export DB --remote --output dump.sql
+node scripts/r2-backup.mjs backup dump.sql ./r2-backup
+
+node scripts/restore-local.mjs dump.sql      # D1 into the local Wrangler database
+node scripts/r2-backup.mjs restore ./r2-backup   # objects into the local bucket
+npm run dev
+```
+
+The restore starts from an empty database — a dump carries its own `d1_migrations`
+rows, which collide with whatever the target already recorded — and finishes with
+`PRAGMA foreign_key_check`, so integrity is verified rather than assumed.
+
 Restore R2 **before** pointing traffic at a restored database, or the retention sweep
-may observe objects it considers unreferenced. The restore refuses to write a file whose
-SHA-256 does not match the manifest: restoring corrupted bytes is worse than failing.
+may observe objects it considers unreferenced. The object restore refuses to write a
+file whose SHA-256 does not match the manifest.
 
-Restoring **over** production is destructive and is not a routine operation. Create a
-new database, restore into it, verify, then repoint the binding — rather than importing
-over live data.
+Restoring **over** production is destructive and is not routine. Create a new database,
+restore into it, verify, then repoint the binding.
 
-Verified 2026-07-25 by restoring the dump into a throwaway database and checking:
+Verified 2026-07-25 by restoring a production dump and its objects into local:
 
 | Check | Result |
 |---|---|
-| Tables restored | 29 |
-| Indexes restored | 40 |
-| `messages` / `message_bodies` | 34 / 34, one-to-one |
-| Orphaned messages after restore | 0 |
+| Tables / indexes | 29 / 40 |
+| Rows | 3 users, 2 domains, 4 mailboxes, 35 messages, 4 attachments |
+| R2 objects restored | 15 of 15 |
+| Orphaned messages | 0 |
+| **Foreign key violations** | **0** |
 
-The orphan check matters more than the row counts: it proves foreign-key relationships
-survived the round trip rather than merely that rows arrived.
+The integrity checks matter more than the row counts: they show relationships survived
+the round trip rather than merely that rows arrived.
+
+**The restored copy contains production password hashes**, so it accepts production
+passwords. Treat a local replica as production data: it is a copy of real mail, not
+test fixtures.
 
 ## Rollback
 
