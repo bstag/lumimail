@@ -57,10 +57,9 @@ export default function RoutingPage() {
 
 	const rules = useQuery({
 		queryKey: ["routing-rules"],
-		queryFn: async () => {
-			const res = await authFetch("/api/routing-rules");
-			return (await res.json()) as { rules: RoutingRule[] };
-		},
+		queryFn: async () => readRoutingResponse<{ rules: RoutingRule[] }>(
+			await authFetch("/api/routing-rules"),
+		),
 	});
 
 	const create = useMutation({

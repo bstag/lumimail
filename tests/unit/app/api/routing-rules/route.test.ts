@@ -86,7 +86,7 @@ describe("POST /api/routing-rules", () => {
 		mock.queueSelect([domain]).queueSelect([]);
 		const res = await POST(post(valid));
 		expect(res.status).toBe(400);
-		expect((await res.json()) as any).toEqual({ error: "Target mailbox must belong to the selected domain" });
+		expect((await res.json()) as any).toEqual({ success: false, error: { message: "Target mailbox must belong to the selected domain" } });
 	});
 
 	it("returns 409 when the domain already has an internal catch-all", async () => {
@@ -108,7 +108,7 @@ describe("POST /api/routing-rules", () => {
 			.queueSelect([]);
 		const res = await POST(post(valid));
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toMatchObject({ id: "rule_1", pattern: "*" });
+		expect((await res.json()) as any).toMatchObject({ success: true, data: { id: "rule_1", pattern: "*" } });
 		expect(m.ensureCatchAll).toHaveBeenCalledWith(expect.anything(), "zone_1");
 		expect(mock.inserts[0].values).toMatchObject({ pattern: "*", mailboxId: "mb_1", forwardTo: null });
 	});
@@ -134,7 +134,7 @@ describe("POST /api/routing-rules", () => {
 		m.ensureCatchAll.mockRejectedValue(new Error("token detail"));
 		const res = await POST(post(valid));
 		expect(res.status).toBe(502);
-		expect((await res.json()) as any).toEqual({ error: "Unable to configure Cloudflare catch-all" });
+		expect((await res.json()) as any).toEqual({ success: false, error: { message: "Unable to configure Cloudflare catch-all" } });
 		expect(mock.inserts).toHaveLength(0);
 	});
 
@@ -191,8 +191,9 @@ describe("POST /api/routing-rules", () => {
 			priority: 2,
 		}));
 		expect(res.status).toBe(422);
-		expect((await res.json()) as { error: string }).toEqual({
-			error: "That destination has not confirmed Cloudflare's verification email yet",
+		expect((await res.json()) as { error: { message: string } }).toEqual({
+			success: false,
+			error: { message: "That destination has not confirmed Cloudflare's verification email yet" },
 		});
 		expect(mock.inserts).toHaveLength(0);
 	});
@@ -229,6 +230,6 @@ describe("GET /api/routing-rules", () => {
 		mock.queueSelect([{ id: "r1", organizationId: "org1" }]);
 		const res = await GET(new Request("https://x.test/api/routing-rules"));
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ rules: [{ id: "r1", organizationId: "org1" }] });
+		expect((await res.json()) as any).toEqual({ success: true, data: { rules: [{ id: "r1", organizationId: "org1" }] } });
 	});
 });

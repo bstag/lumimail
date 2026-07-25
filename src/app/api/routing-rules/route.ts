@@ -9,26 +9,27 @@ import { routingRuleSchema } from "@/lib/validators";
 import { normalizeRoutingPattern } from "@/lib/email/routing-pattern";
 import { ensureEmailRoutingCatchAllToWorker } from "@/lib/cloudflare-api";
 import { authorizeForwardDestination } from "@/lib/email/forwarding";
-import { forwardRefusalMessage } from "./utils";
+import { apiError, apiSuccess } from "@/lib/api/response";
+import { firstZodMessage, forwardRefusalMessage } from "./utils";
 
 export async function GET(request: Request) {
 	const env = getEnv();
 	const { user, errorResponse } = await guardUser(env, request);
 	if (errorResponse) return errorResponse;
-	if (!user.organizationId) return NextResponse.json({ error: "No organization" }, { status: 400 });
+	if (!user.organizationId) return apiError("No organization", 400);
 	const db = getDb(env);
 	const rows = await db.select().from(routingRules).where(eq(routingRules.organizationId, user.organizationId));
-	return NextResponse.json({ rules: rows });
+	return apiSuccess({ rules: rows });
 }
 
 export async function POST(request: Request) {
 	const env = getEnv();
 	const { user, errorResponse } = await guardUser(env, request);
 	if (errorResponse) return errorResponse;
-	if (!user.organizationId) return NextResponse.json({ error: "No organization" }, { status: 400 });
+	if (!user.organizationId) return apiError("No organization", 400);
 	const parsed = routingRuleSchema.safeParse(await request.json());
 	if (!parsed.success) {
-		return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+		return apiError(firstZodMessage(parsed.error), 400);
 	}
 
 	const db = getDb(env);
@@ -38,11 +39,11 @@ export async function POST(request: Request) {
 		.where(and(eq(domains.id, parsed.data.domainId), eq(domains.organizationId, user.organizationId)))
 		.limit(1);
 	if (!domain) {
-		return NextResponse.json({ error: "Domain not found" }, { status: 404 });
+		return apiError("Domain not found", 404);
 	}
 
 	const normalized = normalizeRoutingPattern(parsed.data.pattern, domain.hostname);
-	if (!normalized.ok) return NextResponse.json({ error: normalized.error }, { status: 400 });
+	if (!normalized.ok) return apiError(normalized.error, 400);
 
 	if (parsed.data.action === "store") {
 		const [mailbox] = await db
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
 			))
 			.limit(1);
 		if (!mailbox) {
-			return NextResponse.json({ error: "Target mailbox must belong to the selected domain" }, { status: 400 });
+			return apiError("Target mailbox must belong to the selected domain", 400);
 		}
 	}
 
@@ -69,16 +70,16 @@ export async function POST(request: Request) {
 			return existingPattern.ok && existingPattern.pattern === "*";
 		});
 		if (hasCatchAll) {
-			return NextResponse.json({ error: "This domain already has a catch-all rule" }, { status: 409 });
+			return apiError("This domain already has a catch-all rule", 409);
 		}
 
 		try {
 			await ensureEmailRoutingCatchAllToWorker(env, domain.zoneId);
 		} catch (error) {
 			if (error instanceof Error && error.name === "CloudflareCatchAllConflictError") {
-				return NextResponse.json({ error: "Cloudflare catch-all is already used by another destination" }, { status: 409 });
+				return apiError("Cloudflare catch-all is already used by another destination", 409);
 			}
-			return NextResponse.json({ error: "Unable to configure Cloudflare catch-all" }, { status: 502 });
+			return apiError("Unable to configure Cloudflare catch-all", 502);
 		}
 	}
 
@@ -91,10 +92,7 @@ export async function POST(request: Request) {
 	if (forwardTo) {
 		const authorization = await authorizeForwardDestination(db, user.organizationId, forwardTo);
 		if (!authorization.allowed) {
-			return NextResponse.json(
-				{ error: forwardRefusalMessage(authorization.reason) },
-				{ status: 422 },
-			);
+			return apiError(forwardRefusalMessage(authorization.reason), 422);
 		}
 	}
 
@@ -110,7 +108,7 @@ export async function POST(request: Request) {
 		priority: parsed.data.priority,
 	});
 
-	return NextResponse.json({
+	return apiSuccess({
 		id,
 		...parsed.data,
 		pattern: normalized.pattern,

@@ -50,7 +50,7 @@ describe("GET /api/routing-rules/[id]", () => {
 		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: null } });
 		const res = await GET(req(), params());
 		expect(res.status).toBe(400);
-		expect((await res.json()) as any).toEqual({ error: "No organization" });
+		expect((await res.json()) as any).toEqual({ success: false, error: { message: "No organization" } });
 	});
 
 	it("returns 404 when rule not found / cross-tenant", async () => {
@@ -58,7 +58,7 @@ describe("GET /api/routing-rules/[id]", () => {
 		mock.queueSelect([]);
 		const res = await GET(req(), params());
 		expect(res.status).toBe(404);
-		expect((await res.json()) as any).toEqual({ error: "Not found" });
+		expect((await res.json()) as any).toEqual({ success: false, error: { message: "Not found" } });
 	});
 
 	it("returns the rule on success", async () => {
@@ -66,7 +66,7 @@ describe("GET /api/routing-rules/[id]", () => {
 		mock.queueSelect([{ id: "rule_1", action: "store" }]);
 		const res = await GET(req(), params());
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ rule: { id: "rule_1", action: "store" } });
+		expect((await res.json()) as any).toEqual({ success: true, data: { rule: { id: "rule_1", action: "store" } } });
 	});
 });
 
@@ -95,7 +95,7 @@ describe("PATCH /api/routing-rules/[id]", () => {
 		mock.queueSelect([{ id: "rule_1" }]); // lookup found
 		const res = await PATCH(req({ ignored: true }), params());
 		expect(res.status).toBe(400);
-		expect((await res.json()) as any).toEqual({ error: "No valid fields to update" });
+		expect((await res.json()) as any).toEqual({ success: false, error: { message: "No valid fields to update" } });
 	});
 
 	it("normalizes and validates a catch-all transition before updating", async () => {
@@ -266,7 +266,7 @@ describe("DELETE /api/routing-rules/[id]", () => {
 		mock.queueSelect([{ id: "dom_1", zoneId: "z1", organizationId: "org1", hostname: "x.test" }]);
 		const res = await DELETE(req(), params());
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ ok: true });
+		expect((await res.json()) as any).toEqual({ success: true, data: { ok: true } });
 		expect(mock.deletes.length).toBe(1);
 	});
 

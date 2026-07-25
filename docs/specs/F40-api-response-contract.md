@@ -52,13 +52,17 @@ Canonical error:
 
 The client parser returns `data` for a successful 2xx response. It throws `ApiResponseError` for a structurally valid error envelope. Invalid JSON, invalid envelopes, or non-2xx success envelopes throw an invalid-response `ApiResponseError` without exposing arbitrary response content.
 
-Current route-group inventory as of 2026-07-22:
+Current route-group inventory as of 2026-07-25:
 
 | Contract | Route groups |
 |---|---|
-| Canonical envelope | `aliases`, `attachments`, `auth/forgot-password`, `auth/reset-password`, `contacts`, `domains` create/detail/DNS, `filters`, `labels`, `mailboxes` create, `messages/*/attachments`, `messages/*/labels`, `org`, `send`, `setup/domain`, `v1/send`, `vacation`, `webhooks/[id]` |
+| Canonical envelope | `admin/r2-retention`, `aliases`, `attachments`, `auth/forgot-password`, `auth/reset-password`, `contacts`, `domains` create/detail/DNS, `filters`, `forwarding-destinations`, `labels`, `mailboxes` create, `messages/*/attachments`, `messages/*/labels`, `messages/*/retry`, `org`, `routing-rules`, `send`, `setup/domain`, `v1/send`, `vacation`, `webhooks/[id]` |
 | Mixed canonical and legacy/raw | `auth/register` (canonical for selected errors; raw for success and other errors), `domains` (raw list; canonical mutations/details), `mailboxes` (raw list/detail; canonical create), `webhooks` (raw list/create; canonical item mutations) |
-| Legacy/raw | `api-keys`, `auth/change-password`, `auth/login`, `auth/logout`, `auth/me`, `drafts`, message list/detail/search/count/status/bulk routes, `routing-rules`, `seed`, `settings/profile`, `setup/status`, `v1/messages` |
+| Legacy/raw | `api-keys`, `auth/change-password`, `auth/login`, `auth/logout`, `auth/me`, `drafts`, message list/detail/search/count/status/bulk routes, `seed`, `settings/profile`, `setup/status`, `v1/messages` |
+
+`guardUser` and `guardOrgAdmin` still return a bare `{ error: string }` for 401/403,
+so an otherwise-canonical route can produce that shape at its authentication
+boundary. Clients must therefore accept both a bare string and `error.message`.
 
 Nested route variants inherit the listed family only where their handlers actually import the canonical response helper. R-05 must confirm the individual handler before migrating a client.
 
@@ -143,3 +147,33 @@ Notes:
 - Focused verification passed 15 tests with 100% statement, branch, function, and line coverage.
 - `npm run verify` passed: 107 test files, 861 tests, and 100% reported coverage; lint reported the same 43 existing warnings and no errors.
 - E2E was not run because no consumer or UI behavior changed in this item.
+
+### 2026-07-25 — Migrate the routing-rules group to the canonical envelope
+
+Type: Bug Fix
+
+Summary:
+
+- Convert every `/api/routing-rules` and `/api/routing-rules/[id]` response to `apiSuccess`/`apiError`.
+- Reduce Zod failures to a single readable message via `firstZodMessage`, because the envelope carries a string rather than a nested flatten object.
+- Teach `readRoutingResponse` to unwrap the envelope and to read `error.message` as well as a bare `error` string.
+- Update the routing page's rules query to go through that parser rather than casting the raw body.
+
+Reason:
+
+- `routing-rules` was the last legacy/raw group reachable from a page that also calls canonical endpoints. F62 added `/api/forwarding-destinations` alongside it, and because `readRoutingResponse` read `error` as a string, every enveloped failure — including "Register this forwarding destination before using it" — was displayed as the generic "Routing request failed". The inconsistency was actively hiding the specific reasons F62 exists to surface.
+
+Impact:
+
+- The routing page now shows the real refusal reason when a forwarding destination is rejected.
+- `/api/routing-rules` responses change shape. Any external consumer reading `{ rules }` or `{ error }` directly must read `data.rules` and `error.message`. The parser still accepts the bare `{ error: string }` that `guardUser` returns at the authentication boundary.
+
+Tests:
+
+- Ten route assertions updated from the bare shape to the envelope; these asserted the old contract and had to change with it.
+- Two new parser cases: the envelope on success and failure, and the bare guard string.
+- Four routing E2E mocks updated to the real contract so the browser tests are not validating a fiction.
+
+Notes:
+
+- Verified in production before the change that `/api/routing-rules` returned `{"error":"..."}` while `/api/forwarding-destinations` returned the envelope.

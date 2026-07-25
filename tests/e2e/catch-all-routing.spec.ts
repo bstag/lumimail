@@ -24,10 +24,10 @@ test.describe("domain catch-all routing", () => {
 			if (route.request().method() === "POST") {
 				posted = route.request().postDataJSON() as Record<string, unknown>;
 				rules.push({ id: "r1", ...posted, pattern: "*" });
-				await route.fulfill({ json: rules[0] });
+				await route.fulfill({ json: { success: true, data: rules[0] } });
 				return;
 			}
-			await route.fulfill({ json: { rules } });
+			await route.fulfill({ json: { success: true, data: { rules } } });
 		});
 
 		await page.goto("/routing");
@@ -48,10 +48,10 @@ test.describe("domain catch-all routing", () => {
 		await page.route("**/api/mailboxes", (route) => route.fulfill({ json: { mailboxes: [{ id: "m1", localPart: "admin", domainId: "d1", displayName: null }] } }));
 		await page.route("**/api/routing-rules", async (route) => {
 			if (route.request().method() === "POST") {
-				await route.fulfill({ status: 409, json: { error: "Cloudflare catch-all is already used by another destination" } });
+				await route.fulfill({ status: 409, json: { success: false, error: { message: "Cloudflare catch-all is already used by another destination" } } });
 				return;
 			}
-			await route.fulfill({ json: { rules: [] } });
+			await route.fulfill({ json: { success: true, data: { rules: [] } } });
 		});
 
 		await page.goto("/routing");

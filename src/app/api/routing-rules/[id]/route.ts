@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { and, eq, ne } from "drizzle-orm";
 import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
@@ -11,7 +10,8 @@ import {
   ensureEmailRoutingCatchAllToWorker,
 } from "@/lib/cloudflare-api";
 import { authorizeForwardDestination } from "@/lib/email/forwarding";
-import { forwardRefusalMessage } from "../utils";
+import { apiError, apiSuccess } from "@/lib/api/response";
+import { firstZodMessage, forwardRefusalMessage } from "../utils";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -41,7 +41,7 @@ export async function GET(request: Request, { params }: Params) {
   const env = getEnv();
   const { user, errorResponse } = await guardUser(env, request);
   if (errorResponse) return errorResponse;
-  if (!user.organizationId) return NextResponse.json({ error: "No organization" }, { status: 400 });
+  if (!user.organizationId) return apiError("No organization", 400);
 
   const db = getDb(env);
   const [rule] = await db
@@ -50,8 +50,8 @@ export async function GET(request: Request, { params }: Params) {
     .where(and(eq(routingRules.id, id), eq(routingRules.organizationId, user.organizationId)))
     .limit(1);
 
-  if (!rule) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ rule });
+  if (!rule) return apiError("Not found", 404);
+  return apiSuccess({ rule });
 }
 
 export async function PATCH(request: Request, { params }: Params) {
@@ -59,7 +59,7 @@ export async function PATCH(request: Request, { params }: Params) {
   const env = getEnv();
   const { user, errorResponse } = await guardUser(env, request);
   if (errorResponse) return errorResponse;
-  if (!user.organizationId) return NextResponse.json({ error: "No organization" }, { status: 400 });
+  if (!user.organizationId) return apiError("No organization", 400);
 
   const body = await request.json();
   const db = getDb(env);
@@ -69,12 +69,12 @@ export async function PATCH(request: Request, { params }: Params) {
     .where(and(eq(routingRules.id, id), eq(routingRules.organizationId, user.organizationId)))
     .limit(1);
 
-  if (!rule) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!rule) return apiError("Not found", 404);
 
   const update = routingRuleUpdateSchema.safeParse(body);
-  if (!update.success) return NextResponse.json({ error: update.error.flatten() }, { status: 400 });
+  if (!update.success) return apiError(firstZodMessage(update.error), 400);
   if (Object.keys(update.data).length === 0) {
-    return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+    return apiError("No valid fields to update", 400);
   }
 
   const [domain] = await db
@@ -82,7 +82,7 @@ export async function PATCH(request: Request, { params }: Params) {
     .from(domains)
     .where(and(eq(domains.id, rule.domainId), eq(domains.organizationId, user.organizationId)))
     .limit(1);
-  if (!domain) return NextResponse.json({ error: "Domain not found" }, { status: 404 });
+  if (!domain) return apiError("Domain not found", 404);
 
   const merged = routingRuleSchema.safeParse({
     domainId: rule.domainId,
@@ -92,10 +92,10 @@ export async function PATCH(request: Request, { params }: Params) {
     forwardTo: Object.hasOwn(update.data, "forwardTo") ? update.data.forwardTo : rule.forwardTo,
     priority: update.data.priority ?? rule.priority,
   });
-  if (!merged.success) return NextResponse.json({ error: merged.error.flatten() }, { status: 400 });
+  if (!merged.success) return apiError(firstZodMessage(merged.error), 400);
 
   const normalized = normalizeRoutingPattern(merged.data.pattern, domain.hostname);
-  if (!normalized.ok) return NextResponse.json({ error: normalized.error }, { status: 400 });
+  if (!normalized.ok) return apiError(normalized.error, 400);
 
   if (merged.data.action === "store") {
     const [mailbox] = await db
@@ -108,7 +108,7 @@ export async function PATCH(request: Request, { params }: Params) {
       ))
       .limit(1);
     if (!mailbox) {
-      return NextResponse.json({ error: "Target mailbox must belong to the selected domain" }, { status: 400 });
+      return apiError("Target mailbox must belong to the selected domain", 400);
     }
   }
 
@@ -129,7 +129,7 @@ export async function PATCH(request: Request, { params }: Params) {
 		return candidatePattern.ok && candidatePattern.pattern === "*";
 	});
     if (hasDuplicate) {
-		return NextResponse.json({ error: "This domain already has a catch-all rule" }, { status: 409 });
+		return apiError("This domain already has a catch-all rule", 409);
 	}
   }
 
@@ -140,9 +140,9 @@ export async function PATCH(request: Request, { params }: Params) {
     }
   } catch (error) {
     if (error instanceof Error && error.name === "CloudflareCatchAllConflictError") {
-      return NextResponse.json({ error: "Cloudflare catch-all is already used by another destination" }, { status: 409 });
+      return apiError("Cloudflare catch-all is already used by another destination", 409);
     }
-    return NextResponse.json({ error: "Unable to update Cloudflare catch-all" }, { status: 502 });
+    return apiError("Unable to update Cloudflare catch-all", 502);
   }
 
   const values = {
@@ -158,17 +158,14 @@ export async function PATCH(request: Request, { params }: Params) {
   if (values.forwardTo) {
     const authorization = await authorizeForwardDestination(db, user.organizationId, values.forwardTo);
     if (!authorization.allowed) {
-      return NextResponse.json(
-        { error: forwardRefusalMessage(authorization.reason) },
-        { status: 422 },
-      );
+      return apiError(forwardRefusalMessage(authorization.reason), 422);
     }
   }
 
   await db.update(routingRules).set(values).where(eq(routingRules.id, id));
 
   const [updated] = await db.select().from(routingRules).where(eq(routingRules.id, id)).limit(1);
-  return NextResponse.json({ rule: updated });
+  return apiSuccess({ rule: updated });
 }
 
 export async function DELETE(request: Request, { params }: Params) {
@@ -176,7 +173,7 @@ export async function DELETE(request: Request, { params }: Params) {
   const env = getEnv();
   const { user, errorResponse } = await guardUser(env, request);
   if (errorResponse) return errorResponse;
-  if (!user.organizationId) return NextResponse.json({ error: "No organization" }, { status: 400 });
+  if (!user.organizationId) return apiError("No organization", 400);
 
   const db = getDb(env);
   const [rule] = await db
@@ -185,14 +182,14 @@ export async function DELETE(request: Request, { params }: Params) {
     .where(and(eq(routingRules.id, id), eq(routingRules.organizationId, user.organizationId)))
     .limit(1);
 
-  if (!rule) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!rule) return apiError("Not found", 404);
 
   const [domain] = await db
     .select()
     .from(domains)
     .where(and(eq(domains.id, rule.domainId), eq(domains.organizationId, user.organizationId)))
     .limit(1);
-  if (!domain) return NextResponse.json({ error: "Domain not found" }, { status: 404 });
+  if (!domain) return apiError("Domain not found", 404);
 
   const normalized = normalizeRoutingPattern(rule.pattern, domain.hostname);
   if (normalized.ok && normalized.pattern === "*") {
@@ -201,10 +198,10 @@ export async function DELETE(request: Request, { params }: Params) {
 		await disableEmailRoutingCatchAllToWorker(env, domain.zoneId);
 	  }
     } catch {
-      return NextResponse.json({ error: "Unable to disable Cloudflare catch-all" }, { status: 502 });
+      return apiError("Unable to disable Cloudflare catch-all", 502);
     }
   }
 
   await db.delete(routingRules).where(eq(routingRules.id, id));
-  return NextResponse.json({ ok: true });
+  return apiSuccess({ ok: true });
 }

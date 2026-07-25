@@ -19,8 +19,10 @@ async function mockRoutingPage(page: Page, destinations: Destination[]) {
 		route.fulfill({ json: { domains: [{ id: "dom_1", hostname: "example.com" }] } }),
 	);
 	await page.route("**/api/routing-rules", (route) => {
-		if (route.request().method() === "GET") return route.fulfill({ json: { rules: [] } });
-		return route.fulfill({ json: { id: "rule_1" } });
+		if (route.request().method() === "GET") {
+			return route.fulfill({ json: { success: true, data: { rules: [] } } });
+		}
+		return route.fulfill({ json: { success: true, data: { id: "rule_1" } } });
 	});
 	await page.route("**/api/forwarding-destinations", (route) => {
 		if (route.request().method() === "GET") {
