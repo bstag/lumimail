@@ -177,3 +177,4 @@ Tests:
 Notes:
 
 - Verified in production before the change that `/api/routing-rules` returned `{"error":"..."}` while `/api/forwarding-destinations` returned the envelope.
+- Production verification 2026-07-25: version `a8aab29f-051b-4351-be20-09bb2882a36f` returns `{"success":true,"data":{"rules":[...]}}` for the list, `{"success":false,"error":{"message":"Register this forwarding destination before using it"}}` for a refused forward rule, and `{"success":false,"error":{"message":"priority: Invalid input: expected number, received string"}}` for a Zod failure. Adding a managed-domain destination through the `/routing` UI now displays "Cannot forward to an address on a domain Lumimail manages" instead of the previous generic "Routing request failed", confirming the defect this migration existed to fix.
