@@ -58,7 +58,7 @@ gates later in this document must also pass.
 | F22 | Contacts UI | Shipped | Missing | `/contacts`, `/api/contacts` | — |
 | F23 | Label filtering in message lists | Shipped | Missing | label chips, `/api/messages?labelId=` | — |
 | F24 | Email filters/rules | Shipped | Missing | `/filters`, `/api/filters*` | — |
-| F25 | Vacation responder | Partially Shipped | Missing | `/settings`, `/api/vacation` | Automatic replies work, but loop suppression and per-sender frequency controls are incomplete. |
+| F25 | Vacation responder | In Progress | [F64](specs/F64-vacation-responder-safety.md) | `/settings`, `/api/vacation`, inbound queue | Loop suppression (RFC 3834 markers, bulk/list headers, bounces, automated senders) and a 4-day per-correspondent window are implemented and locally verified; replies now identify themselves as automatic. Migration `0020`, deployment, and a controlled two-responder exchange remain. |
 | F26 | Reply and user-initiated forward composition | Shipped | Missing | `/inbox/[id]`, `/compose` | This is distinct from automatic external alias forwarding in F16/F30. |
 | F27 | Inline attachment list | Shipped | [F57](specs/F57-inbound-attachment-ingestion.md) | `/inbox/[id]`, attachment APIs | Received-file rows, sizes, downloads, and truthful omission warnings are verified locally; ordinary received-file listing is production-verified. |
 | F28 | Password change for authenticated users | Shipped | Missing | `/settings`, `/api/auth/change-password` | — |

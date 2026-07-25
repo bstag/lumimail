@@ -13,6 +13,8 @@ type VacationResponder = {
 	body: string;
 	startDate: string | null;
 	endDate: string | null;
+	replyToContacts: boolean;
+	replyToOrganization: boolean;
 };
 
 export function VacationResponderForm() {
@@ -23,6 +25,8 @@ export function VacationResponderForm() {
 	const [body, setBody] = useState("I am currently out of office and will reply when I return.");
 	const [startDate, setStartDate] = useState("");
 	const [endDate, setEndDate] = useState("");
+	const [replyToContacts, setReplyToContacts] = useState(false);
+	const [replyToOrganization, setReplyToOrganization] = useState(false);
 	const [saved, setSaved] = useState(false);
 
 	useEffect(() => {
@@ -36,6 +40,8 @@ export function VacationResponderForm() {
 					setBody(r.body);
 					setStartDate(r.startDate ? r.startDate.slice(0, 10) : "");
 					setEndDate(r.endDate ? r.endDate.slice(0, 10) : "");
+					setReplyToContacts(r.replyToContacts);
+					setReplyToOrganization(r.replyToOrganization);
 				}
 			})
 			.finally(() => setLoading(false));
@@ -52,6 +58,8 @@ export function VacationResponderForm() {
 				body,
 				startDate: startDate ? new Date(startDate).toISOString() : null,
 				endDate: endDate ? new Date(endDate).toISOString() : null,
+				replyToContacts,
+				replyToOrganization,
 			}),
 		});
 		setSaving(false);
@@ -100,6 +108,33 @@ export function VacationResponderForm() {
 								<Label>End date (optional)</Label>
 								<Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
 							</div>
+						</div>
+
+						<div className="space-y-2">
+							<Label>Who receives a reply</Label>
+							<label className="flex items-center gap-2 text-sm cursor-pointer">
+								<input
+									type="checkbox"
+									checked={replyToContacts}
+									onChange={(e) => setReplyToContacts(e.target.checked)}
+									className="rounded"
+								/>
+								People in my contacts
+							</label>
+							<label className="flex items-center gap-2 text-sm cursor-pointer">
+								<input
+									type="checkbox"
+									checked={replyToOrganization}
+									onChange={(e) => setReplyToOrganization(e.target.checked)}
+									className="rounded"
+								/>
+								Anyone on a domain in my organization
+							</label>
+							<p className="text-sm text-ink-muted">
+								{replyToContacts || replyToOrganization
+									? "Only senders matching a ticked option receive a reply."
+									: "Everyone receives a reply. Tick an option to narrow it."}
+							</p>
 						</div>
 					</>
 				)}

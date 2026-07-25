@@ -1,13 +1,23 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { schema } from "@/db/schema";
 
-const migrationPath = resolve(
-	process.cwd(),
-	"drizzle/migrations/0019_normalize_millisecond_timestamps.sql",
-);
+const migrationsDir = resolve(process.cwd(), "drizzle/migrations");
+
+/**
+ * Normalization statements are read from the whole migration set, not one file.
+ * An applied migration must never be edited — that is the exact defect the
+ * staged-upgrade contract catches — so a timestamp column added later is covered
+ * by the migration that introduces it.
+ */
+function allMigrationSql(): string {
+	return readdirSync(migrationsDir)
+		.filter((name) => name.endsWith(".sql"))
+		.map((name) => readFileSync(join(migrationsDir, name), "utf8"))
+		.join("\n");
+}
 
 /**
  * Every `{ mode: "timestamp" }` column in the application schema, as
@@ -28,12 +38,16 @@ export function timestampColumns(): string[] {
 }
 
 describe("millisecond timestamp normalization", () => {
-	const sql = readFileSync(migrationPath, "utf8");
+	const sql = allMigrationSql();
+	/** Only normalization statements; other migrations contain unrelated UPDATEs. */
+	const normalizationStatements = sql
+		.split("--> statement-breakpoint")
+		.filter((statement) => /UPDATE `\w+` SET `\w+` = `\w+` \/ 1000/.test(statement));
 
 	it("covers every timestamp column in the schema", () => {
 		const missing = timestampColumns().filter((qualified) => {
 			const [table, column] = qualified.split(".");
-			return !sql.includes(`UPDATE \`${table}\` SET \`${column}\``);
+			return !sql.includes(`UPDATE \`${table}\` SET \`${column}\` = \`${column}\` / 1000`);
 		});
 
 		expect(missing).toEqual([]);
@@ -42,10 +56,8 @@ describe("millisecond timestamp normalization", () => {
 	it("only rewrites values that are unambiguously milliseconds", () => {
 		// A seconds epoch stays below 1e11 until the year 5138, so anything above
 		// it cannot be a legitimate second-precision timestamp for this application.
-		const statements = sql.split("--> statement-breakpoint");
-		for (const statement of statements) {
-			if (!statement.includes("UPDATE")) continue;
-			expect(statement).toContain("/ 1000");
+		expect(normalizationStatements.length).toBeGreaterThan(0);
+		for (const statement of normalizationStatements) {
 			expect(statement).toContain("> 100000000000");
 		}
 	});

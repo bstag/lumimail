@@ -440,6 +440,25 @@ export const messageFilters = sqliteTable("message_filters", {
 	createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
 
+/**
+ * One row per correspondent the vacation responder has answered, so a repeat
+ * sender is told once per window rather than once per message (F64).
+ */
+export const vacationReplyLog = sqliteTable(
+	"vacation_reply_log",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		senderAddress: text("sender_address").notNull(),
+		lastRepliedAt: integer("last_replied_at", { mode: "timestamp" }).notNull(),
+	},
+	(t) => [
+		uniqueIndex("vacation_reply_log_user_sender_idx").on(t.userId, t.senderAddress),
+	],
+);
+
 export const vacationResponders = sqliteTable("vacation_responders", {
 	id: text("id").primaryKey(),
 	userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
@@ -448,6 +467,13 @@ export const vacationResponders = sqliteTable("vacation_responders", {
 	body: text("body").notNull().default("I am currently out of office and will reply when I return."),
 	startDate: integer("start_date", { mode: "timestamp" }),
 	endDate: integer("end_date", { mode: "timestamp" }),
+	/**
+	 * Audience restrictions (F64). Both false means reply to everyone. When either
+	 * is set, a sender must match at least one enabled audience — they combine as
+	 * OR, so "contacts plus colleagues" is expressible.
+	 */
+	replyToContacts: integer("reply_to_contacts", { mode: "boolean" }).notNull().default(false),
+	replyToOrganization: integer("reply_to_organization", { mode: "boolean" }).notNull().default(false),
 	updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
 
@@ -489,4 +515,5 @@ export const schema = {
 	attachments,
 	messageFilters,
 	vacationResponders,
+	vacationReplyLog,
 };

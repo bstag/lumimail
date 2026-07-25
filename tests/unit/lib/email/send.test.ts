@@ -432,6 +432,127 @@ const storedJob = {
 	}),
 };
 
+describe("automatic reply marking", () => {
+	/** Mirrors the sender-authorization select sequence sendEmail performs. */
+	function queueAuthorization(orgId: string | null = null) {
+		mock
+			.queueSelect([activeDomain])
+			.queueSelect([{ organizationId: orgId }])
+			.queueSelect([{ id: "mb_1" }]);
+	}
+
+	it("applies the fixed auto-reply headers when the snapshot is flagged", async () => {
+		mock.queueSelect([{
+			...storedJob,
+			payload: JSON.stringify({
+				from: "a@example.com",
+				to: "b@x.com",
+				subject: "Away",
+				text: "OOO",
+				autoReply: true,
+			}),
+		}]);
+		providerSend.mockResolvedValue({ providerMessageId: "provider_1" });
+
+		await processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1");
+
+		// The headers come from a constant in code, never from the stored payload.
+		expect(providerSend.mock.calls[0][0].headers).toMatchObject({
+			"Auto-Submitted": "auto-replied",
+			"X-Auto-Response-Suppress": "All",
+		});
+	});
+
+	it("merges auto-reply headers with threading headers", async () => {
+		mock.queueSelect([{
+			...storedJob,
+			payload: JSON.stringify({
+				from: "a@example.com",
+				to: "b@x.com",
+				subject: "Away",
+				text: "OOO",
+				autoReply: true,
+				headers: { "In-Reply-To": "<p@x>", References: "<p@x>" },
+			}),
+		}]);
+		providerSend.mockResolvedValue({ providerMessageId: "provider_1" });
+
+		await processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1");
+
+		expect(providerSend.mock.calls[0][0].headers).toMatchObject({
+			"In-Reply-To": "<p@x>",
+			"Auto-Submitted": "auto-replied",
+		});
+	});
+
+	it("sends no headers for an ordinary message", async () => {
+		mock.queueSelect([storedJob]);
+		providerSend.mockResolvedValue({ providerMessageId: "provider_1" });
+
+		await processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1");
+
+		expect(providerSend.mock.calls[0][0].headers).toBeUndefined();
+	});
+
+	it("rejects a stored payload whose autoReply flag is not a boolean", async () => {
+		mock.queueSelect([{
+			...storedJob,
+			payload: JSON.stringify({
+				from: "a@example.com",
+				to: "b@x.com",
+				subject: "Hi",
+				text: "Body",
+				autoReply: "yes",
+			}),
+		}]);
+
+		await processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1");
+
+		// An invalid snapshot must fail the job rather than be sent.
+		expect(providerSend).not.toHaveBeenCalled();
+	});
+
+	it("records the flag on the snapshot when sending an automatic reply", async () => {
+		queueAuthorization();
+		mock
+			.queueSelect([{ organizationId: null }])
+			.queueSelect([{ localPart: "a", displayName: "Agent A", hostname: "example.com" }]);
+
+		await sendEmail(env, {
+			userId: "u1",
+			from: "a@example.com",
+			to: "b@x.com",
+			subject: "Away",
+			text: "OOO",
+			mailboxId: "mb_1",
+			autoReply: true,
+		});
+
+		expect(JSON.parse((mock.inserts[2].values as { payload: string }).payload)).toMatchObject({
+			autoReply: true,
+		});
+	});
+
+	it("omits the flag for an ordinary message", async () => {
+		queueAuthorization();
+		mock
+			.queueSelect([{ organizationId: null }])
+			.queueSelect([{ localPart: "a", displayName: "Agent A", hostname: "example.com" }]);
+
+		await sendEmail(env, {
+			userId: "u1",
+			from: "a@example.com",
+			to: "b@x.com",
+			subject: "Hi",
+			text: "Body",
+			mailboxId: "mb_1",
+		});
+
+		expect(JSON.parse((mock.inserts[2].values as { payload: string }).payload).autoReply)
+			.toBeUndefined();
+	});
+});
+
 describe("processOutboundQueue consumer", () => {
 	it("claims and sends the persisted job exactly once", async () => {
 		mock.queueSelect([storedJob]);

@@ -6,6 +6,7 @@ import {
 	messages,
 	messageFilters,
 	messageLabels,
+	vacationReplyLog,
 	vacationResponders,
 } from "@/db/schema";
 import { newId } from "@/lib/ids";
@@ -15,6 +16,12 @@ import { dispatchWebhooks } from "@/lib/email/webhooks";
 import { getMessageContactNames, upsertContactFromAddress } from "@/lib/contacts/service";
 import { formatEmailAddress, getEmailAddress } from "@/lib/email/address";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
+import {
+	isVacationAudienceAllowed,
+	normalizeVacationAddress,
+	shouldSuppressVacationReply,
+	withinVacationReplyWindow,
+} from "@/lib/email/vacation";
 import { prepareInboundAttachments } from "@/lib/email/inbound-attachments";
 import { resolveInboundThreading } from "@/lib/email/threading";
 
@@ -209,7 +216,7 @@ async function deliverToMailbox(
 		subject: parsed.subject,
 	});
 
-	await maybeVacationRespond(env, mailbox.userId, fromAddr, toAddr, parsed.subject ?? undefined);
+	await maybeVacationRespond(env, mailbox.userId, fromAddr, toAddr, parsed.subject ?? undefined, payload.headers ?? {}, mailbox.organizationId);
 }
 
 async function cleanupInboundAttachmentObjects(
@@ -269,8 +276,13 @@ async function maybeVacationRespond(
 	fromAddr: string,
 	toAddr: string,
 	subject: string | undefined,
+	headers: Record<string, string>,
+	organizationId: string | null,
 ) {
-	if (fromAddr.toLowerCase().includes("noreply") || fromAddr.toLowerCase().includes("no-reply")) return;
+	// Header- and sender-based suppression comes first: it decides whether this
+	// message may be answered at all, before any per-correspondent bookkeeping.
+	const suppression = shouldSuppressVacationReply({ fromAddr, toAddr, headers });
+	if (suppression) return;
 
 	const db = getDb(env);
 	const [responder] = await db
@@ -285,6 +297,16 @@ async function maybeVacationRespond(
 	if (responder.startDate && now < responder.startDate) return;
 	if (responder.endDate && now > responder.endDate) return;
 
+	const audienceAllowed = await isVacationAudienceAllowed(db, {
+		userId,
+		organizationId,
+		fromAddr,
+		responder,
+	});
+	if (!audienceAllowed) return;
+
+	if (await withinVacationReplyWindow(db, userId, fromAddr, now)) return;
+
 	const { sendEmail } = await import("@/lib/email/send");
 	try {
 		await sendEmail(env, {
@@ -293,9 +315,31 @@ async function maybeVacationRespond(
 			to: fromAddr,
 			subject: `Re: ${subject ?? ""} — ${responder.subject}`,
 			text: responder.body,
+			autoReply: true,
 		});
 	} catch {
 		// vacation reply is best-effort
+		return;
+	}
+
+	// Recorded only after a successful send, so a failed reply does not consume the
+	// correspondent's window. A failure here means one possible duplicate later,
+	// which is preferable to failing inbound delivery.
+	try {
+		await db
+			.insert(vacationReplyLog)
+			.values({
+				id: newId("vrl"),
+				userId,
+				senderAddress: normalizeVacationAddress(fromAddr),
+				lastRepliedAt: now,
+			})
+			.onConflictDoUpdate({
+				target: [vacationReplyLog.userId, vacationReplyLog.senderAddress],
+				set: { lastRepliedAt: now },
+			});
+	} catch {
+		console.warn("Vacation reply log could not be updated");
 	}
 }
 

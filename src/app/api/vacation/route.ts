@@ -13,6 +13,9 @@ const vacationSchema = z.object({
 	body: z.string().min(1).max(5000).optional(),
 	startDate: z.string().datetime().optional().nullable(),
 	endDate: z.string().datetime().optional().nullable(),
+	// Audience restrictions combine as OR; both false replies to everyone (F64).
+	replyToContacts: z.boolean().optional(),
+	replyToOrganization: z.boolean().optional(),
 });
 
 export async function GET(request: Request) {
@@ -51,6 +54,8 @@ export async function PUT(request: Request) {
 		body: parsed.data.body ?? "I am currently out of office and will reply when I return.",
 		startDate: parsed.data.startDate ? new Date(parsed.data.startDate) : null,
 		endDate: parsed.data.endDate ? new Date(parsed.data.endDate) : null,
+		replyToContacts: parsed.data.replyToContacts ?? false,
+		replyToOrganization: parsed.data.replyToOrganization ?? false,
 		updatedAt: new Date(),
 	};
 

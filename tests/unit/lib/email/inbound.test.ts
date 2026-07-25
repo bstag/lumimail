@@ -680,7 +680,116 @@ describe("processInboundMessage vacation responder", () => {
 			to: "sender@other.com",
 			subject: "Re: Hello — Away",
 			text: "OOO",
+			// The reply must identify itself as automatic (F64), or two enabled
+			// responders answer each other without bound.
+			autoReply: true,
 		});
+	});
+
+	it("suppresses the reply when the inbound message is itself automatic", async () => {
+		singleStore();
+		mock.queueSelect([]);
+
+		await processInboundMessage(env(), {
+			...payload,
+			headers: { "Auto-Submitted": "auto-replied" },
+		});
+
+		// Suppression happens before the responder is even loaded.
+		expect(sendEmail).not.toHaveBeenCalled();
+	});
+
+	it("suppresses a sender outside the configured audience", async () => {
+		singleStore();
+		mock
+			.queueSelect([])
+			.queueSelect([{
+				enabled: true,
+				startDate: null,
+				endDate: null,
+				subject: "Away",
+				body: "OOO",
+				replyToContacts: true,
+				replyToOrganization: false,
+			}])
+			.queueSelect([]); // contacts lookup finds nothing
+
+		await processInboundMessage(env(), payload);
+
+		expect(sendEmail).not.toHaveBeenCalled();
+	});
+
+	it("replies to a sender inside the configured audience", async () => {
+		singleStore();
+		mock
+			.queueSelect([])
+			.queueSelect([{
+				enabled: true,
+				startDate: null,
+				endDate: null,
+				subject: "Away",
+				body: "OOO",
+				replyToContacts: true,
+				replyToOrganization: false,
+			}])
+			.queueSelect([{ id: "c1" }]) // known contact
+			.queueSelect([]); // no prior reply logged
+		sendEmail.mockResolvedValue({ messageId: "msg_x", status: "queued" });
+
+		await processInboundMessage(env(), payload);
+
+		expect(sendEmail).toHaveBeenCalled();
+	});
+
+	it("suppresses a repeat reply to the same correspondent inside the window", async () => {
+		singleStore();
+		mock
+			.queueSelect([])
+			.queueSelect([{ enabled: true, startDate: null, endDate: null, subject: "Away", body: "OOO" }])
+			.queueSelect([{ lastRepliedAt: new Date() }]);
+
+		await processInboundMessage(env(), payload);
+
+		expect(sendEmail).not.toHaveBeenCalled();
+	});
+
+	it("still delivers when the reply log cannot be written", async () => {
+		singleStore();
+		mock
+			.queueSelect([])
+			.queueSelect([{ enabled: true, startDate: null, endDate: null, subject: "Away", body: "OOO" }])
+			.queueSelect([]);
+		sendEmail.mockResolvedValue({ messageId: "msg_x", status: "queued" });
+		const insert = mock.db.insert;
+		mock.db.insert = vi.fn((table: unknown) => {
+			const builder = insert(table);
+			const values = builder.values;
+			builder.values = vi.fn((v: unknown) => {
+				const chained = values(v);
+				chained.onConflictDoUpdate = vi.fn(() => Promise.reject(new Error("log write failed")));
+				return chained;
+			});
+			return builder;
+		});
+
+		// A failed log write must not fail inbound delivery; the worst case is one
+		// duplicate out-of-office reply later.
+		await expect(processInboundMessage(env(), payload)).resolves.toBeUndefined();
+		expect(warnSpy).toHaveBeenCalledWith("Vacation reply log could not be updated");
+	});
+
+	it("records the correspondent after a successful reply", async () => {
+		singleStore();
+		mock
+			.queueSelect([])
+			.queueSelect([{ enabled: true, startDate: null, endDate: null, subject: "Away", body: "OOO" }])
+			.queueSelect([]);
+		sendEmail.mockResolvedValue({ messageId: "msg_x", status: "queued" });
+
+		await processInboundMessage(env(), payload);
+
+		const logged = mock.inserts.at(-1);
+		expect(logged?.values).toMatchObject({ userId: "u1", senderAddress: "sender@other.com" });
 	});
 
 	it("swallows errors thrown by the vacation send", async () => {

@@ -20,10 +20,13 @@ export type OutboundMessage = {
 	subject: string;
 	html?: string;
 	text?: string;
-	headers?: {
-		"In-Reply-To": string;
-		References: string;
-	};
+	/**
+	 * Extra headers to set on the outgoing message. Providers pass these through
+	 * verbatim, so callers are responsible for supplying only values they control —
+	 * threading headers derived from a stored message, or a fixed constant such as
+	 * the auto-reply markers. Never populate this from untrusted input.
+	 */
+	headers?: Record<string, string>;
 	attachments?: Array<{
 		filename: string;
 		contentType: string;

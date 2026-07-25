@@ -171,9 +171,12 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - The message reached `sent` with provider message ID `<VTddgh22LzinYLAoCGDkcxfnPYJHocGiI4k5@lucidkith.com>`, so delivery actually occurred rather than a status being flipped. The job row shows `status sent`, `attempts 2`, `recovery_count 1`, and `error NULL` — the attempt counter accumulated across the failure and the recovery instead of resetting, operator recovery is distinguishable from automatic retry, and the error cleared on success. The Retry control withdrew once the message was no longer failed.
   - Together with the earlier production refusals — 409 for a `sent` message and 404 for an unknown id — both halves of the gate are now demonstrated: a retry cannot claim a job that is not `failed`, and a terminal failure is recoverable end to end.
 
-- [ ] **R-27 Add vacation-responder loop and frequency controls.**
+- [ ] **R-27 Add vacation-responder loop and frequency controls.** Spec: [F64](./specs/F64-vacation-responder-safety.md).
   - Honor standard automated/bulk headers, prevent responses to mailing systems and Lumimail-generated auto-replies, and limit repeat responses per sender/time window.
   - Acceptance: loop fixtures cannot create a reply storm and normal senders receive at most the documented response frequency.
+  - Severity note 2026-07-25: before F64 the only suppression was a substring test for `noreply` in the sender address. Two enabled responders — two Lumimail users, or one Lumimail user and any third-party autoresponder — would answer each other without bound, and every reply lands in someone's inbox. Bounces and mailing-list traffic were also answered, and a repeat correspondent received one reply per message.
+  - Local evidence 2026-07-25: F64 suppresses null envelope senders, `Auto-Submitted` other than `no`, `Precedence: bulk/list/junk`, any `List-*` header, `X-Auto-Response-Suppress`, automated local parts, and self-replies, then enforces a 4-day per-correspondent window backed by `vacation_reply_log` and migration `0020`. Outgoing replies carry `Auto-Submitted: auto-replied`, which is what makes two responders terminate: our own marker is recognised by our own rules, and a test asserts that property directly. The stored payload carries a boolean rather than headers so the snapshot injection guard is preserved.
+  - Remaining: production migration `0020`, deployment, and a controlled two-responder exchange confirming exactly one reply is produced.
 
 ### Phase 3 — Multi-user authorization
 

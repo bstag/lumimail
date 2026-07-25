@@ -15,6 +15,7 @@ import { buildSnippet } from "@/lib/email/parse";
 import { dispatchWebhooks } from "@/lib/email/webhooks";
 import { ensureEmailRoutingRuleToWorker } from "@/lib/cloudflare-api";
 import { selectOutboundProvider } from "@/lib/email/providers";
+import { AUTO_REPLY_HEADERS } from "@/lib/email/vacation";
 import { OutboundProviderError } from "@/lib/email/providers/types";
 import { upsertContactFromAddress } from "@/lib/contacts/service";
 import { formatEmailAddress, getEmailAddress } from "@/lib/email/address";
@@ -52,6 +53,12 @@ export type SendEmailInput = {
 	mailboxId?: string;
 	attachments?: OutboundAttachmentInput[];
 	replyToMessageId?: string;
+	/**
+	 * Marks this as an automatic reply (F64). Only a flag is carried, never the
+	 * headers themselves, so the stored payload stays un-injectable and the
+	 * consumer applies the fixed AUTO_REPLY_HEADERS constant from code.
+	 */
+	autoReply?: boolean;
 };
 
 type OutboundAttachmentSnapshot = {
@@ -70,6 +77,7 @@ type OutboundDeliverySnapshot = {
 	text?: string;
 	attachments?: OutboundAttachmentSnapshot[];
 	headers?: NonNullable<ReplyThreading["headers"]>;
+	autoReply?: boolean;
 };
 
 export type OutboundQueueMessage = {
@@ -232,6 +240,7 @@ export async function sendEmail(
 		text: deliveryBodies.text,
 		...(attachmentSnapshots.length ? { attachments: attachmentSnapshots } : {}),
 		...(replySource?.threading.headers ? { headers: replySource.threading.headers } : {}),
+		...(input.autoReply ? { autoReply: true } : {}),
 	};
 	const messageInsert = db.insert(messages).values({
 		id: messageId,
@@ -371,6 +380,7 @@ function parseDeliverySnapshot(payload: string): OutboundDeliverySnapshot | null
 			(value.html !== undefined && typeof value.html !== "string") ||
 			(value.text !== undefined && typeof value.text !== "string") ||
 			(value.headers !== undefined && !isThreadingHeaders(value.headers)) ||
+			(value.autoReply !== undefined && typeof value.autoReply !== "boolean") ||
 			(value.attachments !== undefined && !isAttachmentSnapshotArray(value.attachments))
 		) {
 			return null;
@@ -382,6 +392,7 @@ function parseDeliverySnapshot(payload: string): OutboundDeliverySnapshot | null
 			html: value.html as string | undefined,
 			text: value.text as string | undefined,
 			headers: value.headers as NonNullable<ReplyThreading["headers"]> | undefined,
+			autoReply: value.autoReply as boolean | undefined,
 			attachments: value.attachments as OutboundAttachmentSnapshot[] | undefined,
 		};
 	} catch {
@@ -576,7 +587,14 @@ export async function processOutboundQueue(
 			subject: snapshot.subject,
 			html: snapshot.html,
 			text: snapshot.text,
-			...(snapshot.headers ? { headers: snapshot.headers } : {}),
+			...(snapshot.headers || snapshot.autoReply
+				? {
+					headers: {
+						...(snapshot.headers ?? {}),
+						...(snapshot.autoReply ? AUTO_REPLY_HEADERS : {}),
+					},
+				}
+				: {}),
 			...(loadedAttachments.length ? { attachments: loadedAttachments } : {}),
 		});
 		await db.batch([
