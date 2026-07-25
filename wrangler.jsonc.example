@@ -20,9 +20,16 @@
 			"service": "lumimail",
 		},
 	],
+	// `vars` are stored in plain text and echoed by `wrangler deploy`, so no
+	// credential belongs here. Set these as secrets instead:
+	//   wrangler secret put CF_TOKEN          // Cloudflare API token
+	//   wrangler secret put RESEND_API_KEY    // only when MAIL_PROVIDER=resend
 	"vars": {
-		"CF_TOKEN": "cf-token",
 		"CF_ACCOUNT_ID": "cf-account-id",
+		// Name of the Worker that Email Routing rules target. Must match "name"
+		// above, or provisioned routing rules will point at a Worker that does
+		// not exist.
+		"CF_EMAIL_WORKER_NAME": "lumimail",
 		// Outbound provider: "cloudflare" (default, verified recipients only) or
 		// "resend" (arbitrary recipients). For "resend", set RESEND_API_KEY via
 		// `wrangler secret put RESEND_API_KEY` and keep the send_email binding below.
@@ -30,6 +37,11 @@
 		// Canonical HTTPS origin and a sender on an Email Sending-enabled domain.
 		"PUBLIC_APP_URL": "https://mail.example.com",
 		"PASSWORD_RESET_FROM": "noreply@example.com",
+		// Set to "true" to let the hourly sweep delete R2 objects that are both
+		// unreferenced in D1 and older than the retention age (F63). Leave unset
+		// on a new deployment until `GET /api/admin/r2-retention` has been read,
+		// so an existing backlog is never removed before anyone has seen it.
+		// "R2_SWEEP_ENABLED": "true",
 	},
 	"observability": {
 		"enabled": true,
