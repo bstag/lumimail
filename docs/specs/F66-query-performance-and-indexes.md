@@ -141,6 +141,7 @@ performs a routing-rule scan per message and a filter scan per stored message.
 - Decision: delete existing sessions rather than supporting a legacy scan path. A fallback would preserve the very cost this removes, and signing in again is a small one-time cost. — 2026-07-25
 - Decision: assert query plans rather than durations, so the contract is stable across machines and CI. — 2026-07-25
 - Decision: measure locally against a seeded database. Production timing under real load is R-18's exercise, and this item should not wait on it. — 2026-07-25
+- Decision: no synthetic seed harness is built. Volume arrives as real domains are onboarded, and a fabricated distribution would characterise data the product does not have. Plan assertions hold regardless of size, because a full table scan is a scan at any row count; what they cannot show is absolute latency, which R-18 must measure against real data. — 2026-07-25
 
 ## 13. Bug / Change Log
 
