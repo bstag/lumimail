@@ -24,9 +24,42 @@ Exercised 2026-07-25: 29 tables, 152 rows, 78 KB.
 
 ### What the dump does not contain
 
-- R2 objects. Attachments and any retained raw MIME live in the bucket, not D1, so a D1 dump alone cannot restore a mailbox's attachments. A complete backup requires an R2 copy as well; that is **not yet exercised** and is recorded as an open gap below.
+- R2 objects. Attachments and retained raw MIME live in the bucket, not D1. **A D1 dump alone is not a backup of this system** — see the R2 step below, which is required, not optional.
 - Secrets. `CF_TOKEN` and any provider key are Worker secrets, not database rows.
 - Queue contents. In-flight messages are held by Cloudflare Queues.
+
+## Backup — R2 objects
+
+Run **after** the D1 export, passing it the dump:
+
+```bash
+node scripts/r2-backup.mjs backup lumimail-backup.sql ./r2-backup
+node scripts/r2-backup.mjs verify ./r2-backup
+```
+
+The dump is the manifest: D1 already records every key Lumimail owns, in
+`attachments.r2_key` and `message_bodies.raw_r2_key`. Two consequences follow.
+
+Only *referenced* objects are captured. An unreferenced object is precisely what the
+F63 retention sweep exists to delete, so it does not need backing up.
+
+Every key in the manifest provably existed when the dump was taken, so the R2 backup is
+consistent with the database it accompanies rather than with whatever the bucket held
+later. This is why the order matters: **export D1 first, then derive R2 from it.**
+
+A referenced key with no object is reported and exits non-zero. That is a real finding —
+the database pointing at something that is gone — not a warning to ignore.
+
+`verify` re-reads every file and compares size and SHA-256 against the manifest without
+contacting R2, so an archived backup can be checked at any time.
+
+Exercised 2026-07-25: 15 referenced, 15 captured, 0 missing; verification checked 15
+objects with no problems. The bucket held exactly 15 objects, so every object was
+referenced.
+
+**Scale limit:** one `wrangler r2 object get` per object, so this is linear in object
+count and suited to the current scale. At volume, use Cloudflare's bucket replication
+instead of this script.
 
 ## Restore
 
@@ -35,7 +68,14 @@ A dump restores by executing it against an empty database.
 ```bash
 # Into a fresh local database, to rehearse without touching production:
 wrangler d1 execute DB --local --file lumimail-backup.sql
+
+# Then the objects, which verify their checksums before any write:
+node scripts/r2-backup.mjs restore ./r2-backup
 ```
+
+Restore R2 **before** pointing traffic at a restored database, or the retention sweep
+may observe objects it considers unreferenced. The restore refuses to write a file whose
+SHA-256 does not match the manifest: restoring corrupted bytes is worse than failing.
 
 Restoring **over** production is destructive and is not a routine operation. Create a
 new database, restore into it, verify, then repoint the binding — rather than importing
@@ -129,10 +169,10 @@ Inbound mail transits Cloudflare Email Routing before reaching the Worker.
 Domain, zone, routing-rule, and destination-address configuration is read and written
 using `CF_TOKEN`. No message content is sent to the configuration API.
 
-### Open gap
+### Remaining gap
 
-**R2 is not covered by any backup procedure.** `wrangler d1 export` captures the
-database only. A restore from a D1 dump alone yields messages whose attachments are
-missing, and the retention sweep would eventually treat the surviving R2 objects as
-unreferenced. An R2 backup procedure is required before the backup gate can be
-considered fully met.
+Backup and restore are exercised for D1 and R2, but **a full restore has never been
+performed against a live environment** — the D1 restore was rehearsed into a throwaway
+database and the R2 restore path, while checksum-guarded and tested, has not written to
+a bucket. Exercising a complete restore requires a spare database and bucket to restore
+into, and remains open.
