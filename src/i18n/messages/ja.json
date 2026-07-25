@@ -169,6 +169,8 @@
   "messages": {
     "loading": "読み込み中...",
     "noSubject": "（件名なし）",
+    "retryDelivery": "配信を再試行",
+    "retryDeliveryConfirm": "{recipient} への配信を再試行しますか？前回の試行が失敗する前にメールプロバイダーに到達していた場合、メッセージが二重に配信されることがあります。",
     "noRecipient": "宛先なし",
     "unknownSender": "不明な送信者",
     "noContent": "内容なし",

@@ -41,11 +41,11 @@ export async function processInboundMessage(
 		.filter((d) => d.action === "store" && d.mailbox)
 		.map((d) => d.mailbox as ResolvedMailbox);
 
+	// Forwarding is performed at receive time in the Worker's `email()` handler,
+	// because `message.forward()` is only available on the live inbound message.
+	// This consumer is responsible for storage decisions only.
 	for (const decision of decisions) {
 		if (decision.action === "reject") console.warn(`Rejected inbound: ${payload.to}`);
-		if (decision.action === "forward" && decision.forwardTo) {
-			console.info(`Forward ${payload.to} -> ${decision.forwardTo}`);
-		}
 	}
 
 	if (mailboxTargets.length === 0) return;

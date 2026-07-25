@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { getMessageQueryParams } from "@/hooks/utils";
 import { getMessageBadge } from "@/components/messages/utils";
-import { shouldRefreshDeliveryStatus } from "@/components/messages/message-folder-utils";
+import {
+	canRecoverMessage,
+	shouldRefreshDeliveryStatus,
+} from "@/components/messages/message-folder-utils";
 import type { Message } from "@/hooks/types";
 
 const baseMessage = {
@@ -30,6 +33,15 @@ describe("outbound delivery state UI", () => {
 
 	it.each(["queued", "sent", "failed"] as const)("shows %s as the Sent-row badge", (status) => {
 		expect(getMessageBadge({ ...baseMessage, status }, "sent")).toBe(status);
+	});
+
+	it("offers recovery only for a failed Sent message a send-capable user owns", () => {
+		expect(canRecoverMessage("sent", "failed", true)).toBe(true);
+		// viewer capability must not see a send affordance (F48)
+		expect(canRecoverMessage("sent", "failed", false)).toBe(false);
+		expect(canRecoverMessage("sent", "queued", true)).toBe(false);
+		expect(canRecoverMessage("sent", "sent", true)).toBe(false);
+		expect(canRecoverMessage("inbox", "failed", true)).toBe(false);
 	});
 
 	it("refreshes a visible Sent page only while queued work is present", () => {

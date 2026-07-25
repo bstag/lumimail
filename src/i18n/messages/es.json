@@ -169,6 +169,8 @@
   "messages": {
     "loading": "Cargando...",
     "noSubject": "(sin asunto)",
+    "retryDelivery": "Reintentar envío",
+    "retryDeliveryConfirm": "¿Reintentar el envío a {recipient}? Si el intento anterior llegó al proveedor de correo antes de fallar, el mensaje podría entregarse dos veces.",
     "noRecipient": "Sin destinatario",
     "unknownSender": "Remitente desconocido",
     "noContent": "Sin contenido",

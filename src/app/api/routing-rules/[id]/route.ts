@@ -10,6 +10,8 @@ import {
   disableEmailRoutingCatchAllToWorker,
   ensureEmailRoutingCatchAllToWorker,
 } from "@/lib/cloudflare-api";
+import { authorizeForwardDestination } from "@/lib/email/forwarding";
+import { forwardRefusalMessage } from "../utils";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -150,6 +152,18 @@ export async function PATCH(request: Request, { params }: Params) {
     forwardTo: merged.data.action === "forward" ? merged.data.forwardTo! : null,
     mailboxId: merged.data.action === "store" ? merged.data.mailboxId! : null,
   };
+
+  // Same fail-closed rule as creation: an edit must not be able to point a rule at
+  // an unowned or unverified destination.
+  if (values.forwardTo) {
+    const authorization = await authorizeForwardDestination(db, user.organizationId, values.forwardTo);
+    if (!authorization.allowed) {
+      return NextResponse.json(
+        { error: forwardRefusalMessage(authorization.reason) },
+        { status: 422 },
+      );
+    }
+  }
 
   await db.update(routingRules).set(values).where(eq(routingRules.id, id));
 

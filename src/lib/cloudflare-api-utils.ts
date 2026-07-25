@@ -20,6 +20,17 @@ export function getCloudflareAuth(env: CloudflareEnv): CfAuth {
 	throw new Error("CF_TOKEN or CF_API_KEY is not configured");
 }
 
+/**
+ * Account-scoped Email Routing endpoints (destination addresses) need the account
+ * id rather than a zone id. Fails closed so a missing configuration cannot silently
+ * produce a request against a malformed path.
+ */
+export function getCloudflareAccountId(env: CloudflareEnv): string {
+	const accountId = env.CF_ACCOUNT_ID?.trim();
+	if (!accountId) throw new Error("CF_ACCOUNT_ID is not configured");
+	return accountId;
+}
+
 export function getCloudflareAuthHeaders(auth: CfAuth): HeadersInit {
 	if (auth.kind === "global-key") {
 		return {

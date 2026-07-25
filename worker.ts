@@ -15,11 +15,43 @@ import {
 	isOutboundQueueMessage,
 } from "./worker-utils";
 import { runQueueHealthCheck } from "./src/lib/queue-health";
+import { getDb } from "./src/db";
+import { resolveInboundTargets } from "./src/lib/email/routing";
+import {
+	forwardInbound,
+	shouldRejectUndeliverable,
+} from "./src/lib/email/forwarding";
 
 export default {
 	fetch: nextHandler.fetch,
 
 	async email(message: ForwardableEmailMessage, env: CloudflareEnv, ctx: ExecutionContext) {
+		// Forwarding must happen here: `message.forward()` exists only on the live
+		// inbound message, and by the time the queue consumer resolves routing the
+		// forwarding capability is gone.
+		let forwarding: Awaited<ReturnType<typeof forwardInbound>> | null = null;
+		let decisions: Awaited<ReturnType<typeof resolveInboundTargets>> = [];
+		try {
+			decisions = await resolveInboundTargets(getDb(env), message.to);
+			forwarding = await forwardInbound(getDb(env), message, decisions);
+
+			if (forwarding.refused.length > 0 || forwarding.failed.length > 0) {
+				console.warn("Inbound forwarding not delivered", {
+					refused: forwarding.refused.map((entry) => entry.reason),
+					failed: forwarding.failed.length,
+				});
+			}
+		} catch (err) {
+			// A routing or forwarding fault must not make Lumimail worse than it was
+			// before forwarding existed, so fall through to the ordinary store path.
+			console.error("Inbound forwarding failed", err);
+		}
+
+		if (forwarding && shouldRejectUndeliverable(decisions, forwarding)) {
+			message.setReject("Forwarding destination unavailable");
+			return;
+		}
+
 		try {
 			const rawR2Key = await storeRawToR2(env, message.from, message.to, message.raw);
 			const payload: InboundQueueMessage = {

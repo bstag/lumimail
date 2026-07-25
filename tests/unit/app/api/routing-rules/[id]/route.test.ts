@@ -176,10 +176,25 @@ describe("PATCH /api/routing-rules/[id]", () => {
 		m.guardUser.mockResolvedValue(authedOrg);
 		mock.queueSelect([{ id: "rule_1", domainId: "dom_1", pattern: "admin", action: "store", mailboxId: "mb1", forwardTo: null, priority: 1 }]);
 		mock.queueSelect([{ id: "dom_1", hostname: "x.test", zoneId: "z1", organizationId: "org1" }]);
+		// authorizeForwardDestination: not a managed domain, owned and verified
+		mock.queueSelect([]);
+		mock.queueSelect([{ id: "fwd_1", address: "outside@example.net", verifiedAt: new Date() }]);
 		mock.queueSelect([{ id: "rule_1", action: "forward" }]);
 		const res = await PATCH(req({ action: "forward", forwardTo: "outside@example.net" }), params());
 		expect(res.status).toBe(200);
 		expect(mock.updates[0].set).toMatchObject({ action: "forward", mailboxId: null, forwardTo: "outside@example.net" });
+	});
+
+	it("refuses an update pointing at an unverified destination", async () => {
+		m.guardUser.mockResolvedValue(authedOrg);
+		mock.queueSelect([{ id: "rule_1", domainId: "dom_1", pattern: "admin", action: "store", mailboxId: "mb1", forwardTo: null, priority: 1 }]);
+		mock.queueSelect([{ id: "dom_1", hostname: "x.test", zoneId: "z1", organizationId: "org1" }]);
+		mock.queueSelect([]);
+		mock.queueSelect([{ id: "fwd_1", address: "outside@example.net", verifiedAt: null }]);
+		const res = await PATCH(req({ action: "forward", forwardTo: "outside@example.net" }), params());
+		expect(res.status).toBe(422);
+		// The rule must keep its previous, working configuration.
+		expect(mock.updates).toHaveLength(0);
 	});
 
 	it("updates a named reject rule without touching the provider", async () => {

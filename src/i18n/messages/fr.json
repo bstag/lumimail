@@ -169,6 +169,8 @@
   "messages": {
     "loading": "Chargement...",
     "noSubject": "(sans objet)",
+    "retryDelivery": "Réessayer l'envoi",
+    "retryDeliveryConfirm": "Réessayer l'envoi à {recipient} ? Si la tentative précédente a atteint le fournisseur de messagerie avant d'échouer, le message peut être remis deux fois.",
     "noRecipient": "Aucun destinataire",
     "unknownSender": "Expéditeur inconnu",
     "noContent": "Aucun contenu",

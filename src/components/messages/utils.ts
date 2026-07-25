@@ -39,6 +39,13 @@ export function getPageRange(offset: number, count: number, total: number): Page
 	};
 }
 
+export async function retryMessageDelivery(messageId: string) {
+	const response = await authFetch(`/api/messages/${messageId}/retry`, { method: "POST" });
+
+	if (!response.ok) throw new Error("Unable to retry delivery");
+	window.dispatchEvent(new Event("lumimail:messages-changed"));
+}
+
 export async function runBulkMessageAction(messageIds: string[], action: string) {
 	const response = await authFetch("/api/messages/bulk", {
 		method: "POST",
