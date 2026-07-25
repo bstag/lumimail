@@ -288,6 +288,11 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Test outbound, reply, attachments, drafts, password reset, shared mailbox access, forbidden mailbox access, forwarding if retained, queue retries, and backup/restore.
   - Confirm logs and configured webhooks do not export message content or credentials unexpectedly.
   - Record rollback steps and Cloudflare resource identifiers in private operational documentation, not in committed public files when sensitive.
+  - Progress 2026-07-25: [OPERATIONS.md](./OPERATIONS.md) records backup, restore, rollback, and the data-egress inventory. Resource identifiers are deliberately excluded; commands name resources by binding so the file carries no secrets.
+  - Backup/restore evidence 2026-07-25: `wrangler d1 export` produced a 78 KB dump of 29 tables and 152 rows. Restoring it into a throwaway database recovered 29 tables and 40 indexes, with `messages` and `message_bodies` one-to-one at 34 each and **zero orphaned messages**, so foreign-key relationships survived the round trip rather than merely the rows. The dump was deleted afterwards; it contains message bodies and password hashes.
+  - Rollback evidence 2026-07-25: `wrangler rollback <version-id>` is available and version history is retained. The documented procedure records that **migrations are forward-only** — rolling back the Worker leaves the schema advanced — and classifies each migration shape by whether a code rollback is safe. `0022` is called out as unsafe to roll back past, since it re-keyed a table.
+  - Egress evidence 2026-07-25: all 21 log statements audited. No message bodies, subjects, passwords, tokens, or API keys are logged; two statements deliberately log an unroutable recipient address, which is the fact needed to diagnose a routing failure. Webhooks export `from`, `to`, and `subject` to a user-configured URL but never bodies or attachments. Providers receive full message content inherently.
+  - **Open gap 2026-07-25: R2 has no backup procedure.** `d1 export` covers the database only, so a restore from a D1 dump yields messages whose attachments are missing, and the F63 retention sweep would eventually treat the surviving objects as unreferenced. The backup gate cannot be checked until an R2 backup is defined and exercised.
 
 ## Verification log
 
