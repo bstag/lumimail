@@ -2,21 +2,37 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 import { createDbMock, type DbMock } from "../../../helpers/db";
 
-const m = vi.hoisted(() => ({ db: null as unknown, guardUser: vi.fn() }));
+const m = vi.hoisted(() => ({
+	db: null as unknown,
+	guardUser: vi.fn(),
+	getMailboxAccess: vi.fn(),
+	listAccessibleMailboxIds: vi.fn(),
+}));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
 vi.mock("@/lib/auth/cookies", () => ({ guardUser: m.guardUser }));
 vi.mock("@/lib/ids", () => ({ newId: (p: string) => `${p}_1` }));
+vi.mock("@/lib/auth/mailbox-access", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/lib/auth/mailbox-access")>()),
+	getMailboxAccess: m.getMailboxAccess,
+	listAccessibleMailboxIds: m.listAccessibleMailboxIds,
+}));
 
 import { GET, PUT } from "@/app/api/vacation/route";
 
 let mock: DbMock;
 const unauth = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+const authed = { user: { id: "u1", organizationId: "org_1" } };
 
 beforeEach(() => {
+	vi.clearAllMocks();
 	mock = createDbMock();
 	m.db = mock.db;
 	m.guardUser.mockReset();
+	m.getMailboxAccess.mockReset();
+	m.listAccessibleMailboxIds.mockReset();
+	m.listAccessibleMailboxIds.mockResolvedValue(["mb_1"]);
+	m.getMailboxAccess.mockResolvedValue({ mailboxId: "mb_1", organizationId: "org_1", role: "manager" });
 });
 
 function putReq(body?: unknown) {
@@ -26,6 +42,8 @@ function putReq(body?: unknown) {
 	});
 }
 
+const validPut = { mailboxId: "mb_1", enabled: true };
+
 describe("GET /api/vacation", () => {
 	it("returns 401 when unauthenticated", async () => {
 		m.guardUser.mockResolvedValue({ errorResponse: unauth });
@@ -33,69 +51,131 @@ describe("GET /api/vacation", () => {
 		expect(res.status).toBe(401);
 	});
 
-	it("returns the existing responder", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
-		mock.queueSelect([{ id: "vac1", enabled: true }]);
+	it("returns one responder per manageable mailbox", async () => {
+		m.guardUser.mockResolvedValue(authed);
+		mock.queueSelect([{ id: "vac1", mailboxId: "mb_1", enabled: true }]);
+
 		const res = await GET(new Request("https://x.test/api/vacation"));
+
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ success: true, data: { responder: { id: "vac1", enabled: true } } });
+		expect((await res.json()) as unknown).toEqual({
+			success: true,
+			data: { responders: [{ id: "vac1", mailboxId: "mb_1", enabled: true }] },
+		});
+		// Only mailboxes the caller may manage are consulted.
+		expect(m.listAccessibleMailboxIds).toHaveBeenCalledWith(
+			expect.anything(), "u1", "org_1", "manage",
+		);
 	});
 
-	it("returns null when no responder exists", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
-		mock.queueSelect([]);
+	it("returns an empty list when the caller manages no mailbox", async () => {
+		m.guardUser.mockResolvedValue(authed);
+		m.listAccessibleMailboxIds.mockResolvedValue([]);
+
 		const res = await GET(new Request("https://x.test/api/vacation"));
-		expect((await res.json()) as any).toEqual({ success: true, data: { responder: null } });
+
+		expect((await res.json()) as unknown).toEqual({ success: true, data: { responders: [] } });
+		expect(mock.db.select).not.toHaveBeenCalled();
+	});
+
+	it("returns an empty list for a user with no organization", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: null } });
+
+		const res = await GET(new Request("https://x.test/api/vacation"));
+
+		expect((await res.json()) as unknown).toEqual({ success: true, data: { responders: [] } });
+		expect(m.listAccessibleMailboxIds).not.toHaveBeenCalled();
 	});
 });
 
 describe("PUT /api/vacation", () => {
 	it("returns 401 when unauthenticated", async () => {
 		m.guardUser.mockResolvedValue({ errorResponse: unauth });
-		const res = await PUT(putReq({ enabled: true }));
-		expect(res.status).toBe(401);
+		expect((await PUT(putReq(validPut))).status).toBe(401);
 	});
 
 	it("returns 400 for an invalid body", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
-		const res = await PUT(putReq({ enabled: "yes" }));
-		expect(res.status).toBe(400);
-		expect((await res.json()) as any).toMatchObject({ error: { message: "Validation failed" } });
+		m.guardUser.mockResolvedValue(authed);
+		expect((await PUT(putReq({ mailboxId: "mb_1", enabled: "yes" }))).status).toBe(400);
 	});
 
-	it("updates an existing responder using provided values and dates", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
-		mock.queueSelect([{ id: "vac1" }]); // existing
-		const res = await PUT(
-			putReq({
-				enabled: true,
-				subject: "Away",
-				body: "Back soon",
-				startDate: "2026-01-01T00:00:00.000Z",
-				endDate: "2026-01-10T00:00:00.000Z",
-			}),
-		);
-		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ success: true, data: { ok: true } });
-		expect(mock.updates[0].set).toMatchObject({ enabled: true, subject: "Away", body: "Back soon" });
-		expect((mock.updates[0].set as any).startDate).toBeInstanceOf(Date);
-		expect((mock.updates[0].set as any).endDate).toBeInstanceOf(Date);
+	it("requires a mailbox to act on", async () => {
+		m.guardUser.mockResolvedValue(authed);
+		const res = await PUT(putReq({ enabled: true }));
+		expect(res.status).toBe(400);
+	});
+
+	it("refuses a mailbox the caller cannot manage", async () => {
+		m.guardUser.mockResolvedValue(authed);
+		m.getMailboxAccess.mockResolvedValue(null);
+
+		const res = await PUT(putReq(validPut));
+
+		// 404 rather than 403 so the response cannot confirm the mailbox exists.
+		expect(res.status).toBe(404);
+		expect(mock.updates).toHaveLength(0);
 		expect(mock.inserts).toHaveLength(0);
 	});
 
-	it("inserts a new responder with default subject/body and null dates", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
-		mock.queueSelect([]); // no existing
-		const res = await PUT(putReq({ enabled: false }));
+	it("refuses a member who can send but not manage", async () => {
+		m.guardUser.mockResolvedValue(authed);
+		m.getMailboxAccess.mockResolvedValue({ mailboxId: "mb_1", organizationId: "org_1", role: "responder" });
+
+		const res = await PUT(putReq(validPut));
+
+		// A responder changes how the mailbox answers everyone, so send is not enough.
+		expect(res.status).toBe(404);
+		expect(mock.inserts).toHaveLength(0);
+	});
+
+	it("refuses a user with no organization", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: null } });
+
+		expect((await PUT(putReq(validPut))).status).toBe(404);
+		expect(m.getMailboxAccess).not.toHaveBeenCalled();
+	});
+
+	it("updates the responder belonging to that mailbox", async () => {
+		m.guardUser.mockResolvedValue(authed);
+		mock.queueSelect([{ id: "vac1" }]);
+
+		const res = await PUT(putReq({
+			mailboxId: "mb_1",
+			enabled: true,
+			subject: "Away",
+			body: "Back soon",
+			startDate: "2026-01-01T00:00:00.000Z",
+			endDate: "2026-01-10T00:00:00.000Z",
+			replyToContacts: true,
+		}));
+
 		expect(res.status).toBe(200);
+		expect(mock.updates[0].set).toMatchObject({
+			enabled: true,
+			subject: "Away",
+			body: "Back soon",
+			replyToContacts: true,
+			replyToOrganization: false,
+		});
+		expect(mock.inserts).toHaveLength(0);
+	});
+
+	it("inserts a responder for a mailbox that has none", async () => {
+		m.guardUser.mockResolvedValue(authed);
+		mock.queueSelect([]);
+
+		await PUT(putReq({ mailboxId: "mb_1", enabled: false }));
+
 		expect(mock.inserts[0].values).toMatchObject({
 			id: "vac_1",
+			mailboxId: "mb_1",
 			userId: "u1",
 			enabled: false,
 			subject: "Out of office",
-			body: "I am currently out of office and will reply when I return.",
 			startDate: null,
 			endDate: null,
+			replyToContacts: false,
+			replyToOrganization: false,
 		});
 	});
 });

@@ -92,7 +92,7 @@ describe("withinVacationReplyWindow", () => {
 		mock.queueSelect([]);
 
 		await expect(
-			withinVacationReplyWindow(mock.db, "u1", "correspondent@example.net", now),
+			withinVacationReplyWindow(mock.db, "mb_1", "correspondent@example.net", now),
 		).resolves.toBe(false);
 	});
 
@@ -100,7 +100,7 @@ describe("withinVacationReplyWindow", () => {
 		mock.queueSelect([{ lastRepliedAt: new Date("2026-07-24T12:00:00Z") }]);
 
 		await expect(
-			withinVacationReplyWindow(mock.db, "u1", "correspondent@example.net", now),
+			withinVacationReplyWindow(mock.db, "mb_1", "correspondent@example.net", now),
 		).resolves.toBe(true);
 	});
 
@@ -109,7 +109,7 @@ describe("withinVacationReplyWindow", () => {
 		mock.queueSelect([{ lastRepliedAt: past }]);
 
 		await expect(
-			withinVacationReplyWindow(mock.db, "u1", "correspondent@example.net", now),
+			withinVacationReplyWindow(mock.db, "mb_1", "correspondent@example.net", now),
 		).resolves.toBe(false);
 	});
 
@@ -117,7 +117,7 @@ describe("withinVacationReplyWindow", () => {
 		mock.queueSelect([{ lastRepliedAt: new Date("2026-07-24T12:00:00Z") }]);
 
 		await expect(
-			withinVacationReplyWindow(mock.db, "u1", "  Correspondent@Example.NET ", now),
+			withinVacationReplyWindow(mock.db, "mb_1", "  Correspondent@Example.NET ", now),
 		).resolves.toBe(true);
 	});
 });

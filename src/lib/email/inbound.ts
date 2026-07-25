@@ -216,7 +216,16 @@ async function deliverToMailbox(
 		subject: parsed.subject,
 	});
 
-	await maybeVacationRespond(env, mailbox.userId, fromAddr, toAddr, parsed.subject ?? undefined, payload.headers ?? {}, mailbox.organizationId);
+	await maybeVacationRespond(
+		env,
+		mailbox.userId,
+		fromAddr,
+		toAddr,
+		parsed.subject ?? undefined,
+		payload.headers ?? {},
+		mailbox.organizationId,
+		mailbox.mailboxId,
+	);
 }
 
 async function cleanupInboundAttachmentObjects(
@@ -278,6 +287,7 @@ async function maybeVacationRespond(
 	subject: string | undefined,
 	headers: Record<string, string>,
 	organizationId: string | null,
+	mailboxId: string,
 ) {
 	// Header- and sender-based suppression comes first: it decides whether this
 	// message may be answered at all, before any per-correspondent bookkeeping.
@@ -288,7 +298,7 @@ async function maybeVacationRespond(
 	const [responder] = await db
 		.select()
 		.from(vacationResponders)
-		.where(eq(vacationResponders.userId, userId))
+		.where(eq(vacationResponders.mailboxId, mailboxId))
 		.limit(1);
 
 	if (!responder?.enabled) return;
@@ -305,7 +315,7 @@ async function maybeVacationRespond(
 	});
 	if (!audienceAllowed) return;
 
-	if (await withinVacationReplyWindow(db, userId, fromAddr, now)) return;
+	if (await withinVacationReplyWindow(db, mailboxId, fromAddr, now)) return;
 
 	const { sendEmail } = await import("@/lib/email/send");
 	try {
@@ -330,12 +340,12 @@ async function maybeVacationRespond(
 			.insert(vacationReplyLog)
 			.values({
 				id: newId("vrl"),
-				userId,
+				mailboxId,
 				senderAddress: normalizeVacationAddress(fromAddr),
 				lastRepliedAt: now,
 			})
 			.onConflictDoUpdate({
-				target: [vacationReplyLog.userId, vacationReplyLog.senderAddress],
+				target: [vacationReplyLog.mailboxId, vacationReplyLog.senderAddress],
 				set: { lastRepliedAt: now },
 			});
 	} catch {

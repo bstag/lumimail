@@ -789,7 +789,7 @@ describe("processInboundMessage vacation responder", () => {
 		await processInboundMessage(env(), payload);
 
 		const logged = mock.inserts.at(-1);
-		expect(logged?.values).toMatchObject({ userId: "u1", senderAddress: "sender@other.com" });
+		expect(logged?.values).toMatchObject({ mailboxId: "mb_1", senderAddress: "sender@other.com" });
 	});
 
 	it("swallows errors thrown by the vacation send", async () => {

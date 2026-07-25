@@ -1,4 +1,4 @@
-# F64 — Vacation Responder Loop and Frequency Controls
+# F64 — Vacation Responder Loop, Frequency, and Scope Controls
 
 > Status: In Progress — implemented and locally verified; not yet deployed
 > Owner area: `src/lib/email/vacation.ts`, `src/lib/email/inbound.ts`, `src/lib/email/send.ts`
@@ -33,6 +33,9 @@ stay silent toward automated systems.
 - Given two Lumimail mailboxes both with responders enabled, when one writes to the other, then exactly one reply is produced and the exchange terminates.
 - As a recipient of an out-of-office reply, the message identifies itself as automatic so my own systems can suppress a response.
 - As a responder owner, I can restrict replies to people in my contacts, to senders on a domain in my organization, or to either.
+- As someone who manages several mailboxes, enabling a responder on one leaves the others answering normally.
+- Given a mailbox shared by several people, when any manager configures its responder, then that one responder governs the mailbox regardless of who owns it.
+- Given I can send from a mailbox but not manage it, when I try to change its responder, then it is refused.
 - Given neither restriction is enabled, then everyone receives a reply, which is the existing behavior.
 - Given both restrictions are enabled, then a sender matching either one receives a reply.
 
@@ -68,6 +71,18 @@ New table `vacation_reply_log`:
 Unique index on (`user_id`, `sender_address`). The row is upserted on send, so the
 table holds one row per correspondent rather than one per message.
 
+Migration `0022` re-keys the responder from user to **mailbox**. `vacation_responders`
+gains `mailbox_id` (unique, cascading) and loses the unique constraint on `user_id`,
+which becomes a record of who last configured it. `vacation_reply_log` is re-keyed the
+same way, so two mailboxes do not share one correspondent's window.
+
+Both tables are rebuilt rather than altered, because SQLite cannot drop a unique
+constraint in place. Existing responders are fanned out to every mailbox their owner
+holds — exactly the set that was already replying — so the migration does not change
+observable behavior; narrowing becomes a deliberate act in the interface. The reply log
+is fanned out the same way, which can only suppress a duplicate notice, never cause an
+unexpected one.
+
 `vacation_responders` gains two boolean columns in migration `0021`:
 
 | Column | Default | Meaning |
@@ -82,15 +97,24 @@ strictly less useful than either alone.
 
 ## 5. API Contract
 
-`PUT /api/vacation` accepts optional `replyToContacts` and `replyToOrganization`
-booleans, defaulting to `false` when absent. `GET` returns them on the responder.
+`PUT /api/vacation` requires `mailboxId` and accepts optional `replyToContacts` and
+`replyToOrganization` booleans, defaulting to `false` when absent. It requires the
+**manage** capability on that mailbox — a responder changes how the mailbox answers
+everyone who writes to it, so it is not a personal preference on a shared mailbox — and
+returns 404 rather than 403 so the response cannot confirm a mailbox the caller may not
+see. `GET` returns one responder per manageable mailbox.
 
 `SendEmailInput` gains an optional `autoReply` flag rather than arbitrary headers; see
 §12 for why the headers themselves are not carried through the stored payload.
 
 ## 6. UI/UX
 
-The `/settings` responder gains a **Who receives a reply** group with two checkboxes,
+The `/settings` responder gains a mailbox selector listing only mailboxes the user
+manages, with a note that each has its own responder. Below it the existing controls
+apply to the selected mailbox, and a user who manages none is told so rather than shown
+an inert form.
+
+It also gains a **Who receives a reply** group with two checkboxes,
 shown only when the responder is enabled. Below them a line states the effective
 audience — everyone when neither is ticked, otherwise that only matching senders
 receive a reply — so the combined meaning is visible without reading documentation.
@@ -153,6 +177,9 @@ automatic.
 - Decision: the audience restrictions are independent booleans combining as OR rather than one exclusive choice, so "contacts plus colleagues" is expressible without a fourth enum value. — 2026-07-25
 - Decision: "organization" means any domain belonging to the owner's organization, not only the receiving mailbox's domain. On a multi-domain account a colleague on a second domain is a colleague, and the alternative would treat them as an outsider. — 2026-07-25
 - Decision: audience is evaluated after the safety suppression rules and before the frequency window, so a suppressed sender never consumes a window slot. — 2026-07-25
+- Decision: a responder belongs to a **mailbox**, not a user. Keyed by user, someone with several mailboxes could not leave one staffed, and on a shared mailbox only the owner's responder had any effect while a member's setting was a silent no-op — they could enable an out-of-office, believe they were covered, and it would never fire where they actually work. — 2026-07-25
+- Decision: configuring a responder requires the `manage` capability rather than `send`. It governs how the mailbox answers every correspondent, so it is a mailbox setting rather than a personal one. — 2026-07-25
+- Decision: the migration fans an existing responder out to every mailbox its owner holds rather than picking one. That is the set already replying, so upgrading changes nothing observable; choosing which mailboxes stay quiet is then explicit. — 2026-07-25
 
 ## 13. Bug / Change Log
 
@@ -187,4 +214,5 @@ Notes:
 - The stored payload carries a boolean, not headers. `isThreadingHeaders` exists to stop header injection from a snapshot, so widening it would have weakened that guard; the consumer applies a constant from code instead.
 - The provider `headers` type widened from the two threading headers to `Record<string, string>`, documented as caller-controlled values only.
 - The log is written only after a successful send, so a failed reply does not consume the window. A failed log write is warned and swallowed, because losing an inbound message would be worse than a duplicate notice.
+- The per-mailbox rework followed operator review of the first implementation, which correctly identified that the settings page could not isolate mailboxes. Investigation confirmed the responder was live in production and enabled for a user owning three mailboxes, one of them shared with another member.
 - The timestamp-coverage guard added this morning caught `vacation_reply_log.last_replied_at` immediately. The normalization statement went into `0020` rather than `0019`, because `0019` is already applied and editing an applied migration is the exact defect the staged-upgrade contract detects. The guard now scans the whole migration set.

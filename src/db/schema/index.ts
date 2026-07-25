@@ -441,27 +441,40 @@ export const messageFilters = sqliteTable("message_filters", {
 });
 
 /**
- * One row per correspondent the vacation responder has answered, so a repeat
- * sender is told once per window rather than once per message (F64).
+ * One row per correspondent a mailbox's responder has answered, so a repeat sender
+ * is told once per window rather than once per message (F64). Keyed by mailbox so
+ * two mailboxes do not share one correspondent's window (F65).
  */
 export const vacationReplyLog = sqliteTable(
 	"vacation_reply_log",
 	{
 		id: text("id").primaryKey(),
-		userId: text("user_id")
+		mailboxId: text("mailbox_id")
 			.notNull()
-			.references(() => users.id, { onDelete: "cascade" }),
+			.references(() => mailboxes.id, { onDelete: "cascade" }),
 		senderAddress: text("sender_address").notNull(),
 		lastRepliedAt: integer("last_replied_at", { mode: "timestamp" }).notNull(),
 	},
 	(t) => [
-		uniqueIndex("vacation_reply_log_user_sender_idx").on(t.userId, t.senderAddress),
+		uniqueIndex("vacation_reply_log_mailbox_sender_idx").on(t.mailboxId, t.senderAddress),
 	],
 );
 
+/**
+ * One responder per mailbox, not per user (F65).
+ *
+ * Inbound delivery answers on behalf of the mailbox that received the message, so
+ * keying by user meant a user with several mailboxes could not leave one staffed,
+ * and on a shared mailbox only the owner's responder had any effect — a member's
+ * setting was a silent no-op. `userId` records who last configured it.
+ */
 export const vacationResponders = sqliteTable("vacation_responders", {
 	id: text("id").primaryKey(),
-	userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+	userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+	mailboxId: text("mailbox_id")
+		.notNull()
+		.references(() => mailboxes.id, { onDelete: "cascade" })
+		.unique(),
 	enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
 	subject: text("subject").notNull().default("Out of office"),
 	body: text("body").notNull().default("I am currently out of office and will reply when I return."),

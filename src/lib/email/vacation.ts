@@ -99,11 +99,12 @@ export function shouldSuppressVacationReply(input: {
 
 /**
  * True when this correspondent has already been told, within the window, that the
- * recipient is away.
+ * mailbox is unattended. Keyed by mailbox so writing to two mailboxes owned by the
+ * same person yields a notice from each.
  */
 export async function withinVacationReplyWindow(
 	db: AppDatabase,
-	userId: string,
+	mailboxId: string,
 	senderAddress: string,
 	now: Date,
 ): Promise<boolean> {
@@ -112,7 +113,7 @@ export async function withinVacationReplyWindow(
 		.select({ lastRepliedAt: vacationReplyLog.lastRepliedAt })
 		.from(vacationReplyLog)
 		.where(and(
-			eq(vacationReplyLog.userId, userId),
+			eq(vacationReplyLog.mailboxId, mailboxId),
 			eq(vacationReplyLog.senderAddress, sender),
 		))
 		.limit(1);
