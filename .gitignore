@@ -61,3 +61,6 @@ yarn.lock
 # local tooling
 .commandcode
 .claude
+
+# Playwright saved sessions for the local suite
+tests/e2e-local/.auth/
