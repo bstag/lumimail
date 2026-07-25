@@ -1,6 +1,6 @@
 # F62 — External Forwarding via Cloudflare Email Routing
 
-> Status: In Progress — implemented and locally verified; not yet deployed
+> Status: In Progress — deployed; awaiting controlled external delivery
 > Owner area: `worker.ts`, `src/lib/email/`, `src/lib/cloudflare-api.ts`, `/routing`, `/aliases`
 
 ## 1. Problem & User Job
@@ -191,5 +191,6 @@ Tests:
 
 Notes:
 
-- Not deployed. Production migration `0018`, deployment, destination verification by a real recipient, and a controlled forwarded message to an external mailbox all remain before R-09 can be checked.
+- Deployed 2026-07-25 as version `0336c6ab-af1b-499c-85d7-7087cc76c33a` with migration `0018` applied and none pending; `/routing` returned 200 and unauthenticated `/api/forwarding-destinations` returned 401.
+- Destination verification by a real recipient and a controlled forwarded message to an external mailbox both remain before this is Shipped and before R-09 is checked. No live `message.forward()` call has been exercised yet, so the delivery path itself is deployed but unproven.
 - The `email()` handler now performs a D1 routing lookup per inbound message. Include this in the R-17 performance pass.

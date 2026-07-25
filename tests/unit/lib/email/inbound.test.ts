@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDbMock, type DbMock } from "../../helpers/db";
+import { messages } from "@/db/schema";
 
 const h = vi.hoisted(() => ({ db: null as unknown }));
 vi.mock("@/db", () => ({ getDb: () => h.db }));
@@ -127,6 +128,42 @@ describe("processInboundMessage", () => {
 		await processInboundMessage(env, payload);
 		expect(infoSpy).not.toHaveBeenCalled();
 		expect(env.BUCKET.get).not.toHaveBeenCalled();
+	});
+
+	it("deletes the raw object and clears its reference once storage succeeds", async () => {
+		resolveInboundTargets.mockResolvedValue(storeDecisions);
+		const env = makeEnv(makeR2());
+		mock.queueSelect([]).queueSelect([{ enabled: false }]);
+
+		await processInboundMessage(env, payload);
+
+		// The reference is cleared before the object is removed, so no row can ever
+		// name an object that no longer exists.
+		expect(mock.updates.at(-1)?.set).toEqual({ rawR2Key: null });
+		expect(env.BUCKET.delete).toHaveBeenCalledWith("inbound/k.eml");
+	});
+
+	it("keeps the raw object when nothing stored the message", async () => {
+		resolveInboundTargets.mockResolvedValue([{ action: "reject" }] as RoutingDecision[]);
+		const env = makeEnv(makeR2());
+
+		await processInboundMessage(env, payload);
+
+		// Unstored raw is retained for the diagnostic window and removed by the sweep.
+		expect(env.BUCKET.delete).not.toHaveBeenCalled();
+	});
+
+	it("still succeeds when the raw object cannot be deleted", async () => {
+		resolveInboundTargets.mockResolvedValue(storeDecisions);
+		const env = makeEnv(makeR2());
+		(env.BUCKET.delete as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("r2 down"));
+		mock.queueSelect([]).queueSelect([{ enabled: false }]);
+
+		await expect(processInboundMessage(env, payload)).resolves.toBeUndefined();
+		expect(warnSpy).toHaveBeenCalledWith(
+			"Raw inbound object could not be deleted",
+			{ key: "inbound/k.eml" },
+		);
 	});
 
 	it("errors and returns when the R2 object is missing", async () => {
@@ -471,13 +508,22 @@ describe("processInboundMessage filters", () => {
 		resolveInboundTargets.mockResolvedValue(storeDecisions);
 	}
 
+	/**
+	 * Successful processing always clears `message_bodies.raw_r2_key` (F63), so
+	 * "the filter changed nothing" must be asserted against the messages table
+	 * rather than against every update the consumer performs.
+	 */
+	function messageUpdates() {
+		return mock.updates.filter((update) => update.table === messages);
+	}
+
 	it("skips disabled filters", async () => {
 		singleStore();
 		mock
 			.queueSelect([{ enabled: false, fromContains: "sender" }])
 			.queueSelect([{ enabled: false }]); // vacation
 		await processInboundMessage(baseEnv(), payload);
-		expect(mock.updates).toHaveLength(0);
+		expect(messageUpdates()).toHaveLength(0);
 	});
 
 	it("does not act when the filter does not match", async () => {
@@ -486,7 +532,7 @@ describe("processInboundMessage filters", () => {
 			.queueSelect([{ enabled: true, fromContains: "nomatch", actionStar: true }])
 			.queueSelect([{ enabled: false }]);
 		await processInboundMessage(baseEnv(), payload);
-		expect(mock.updates).toHaveLength(0);
+		expect(messageUpdates()).toHaveLength(0);
 	});
 
 	it("applies star/read/trash and a label for a matching filter", async () => {
@@ -509,7 +555,7 @@ describe("processInboundMessage filters", () => {
 
 		await processInboundMessage(baseEnv(), payload);
 
-		expect(mock.updates).toHaveLength(1);
+		expect(messageUpdates()).toHaveLength(1);
 		expect(mock.updates[0].set).toEqual({ starred: true, read: true, status: "trash" });
 		// label insert
 		expect(mock.inserts).toContainEqual(
@@ -554,7 +600,7 @@ describe("processInboundMessage filters", () => {
 			.queueSelect([{ enabled: true, subjectContains: "Hello", hasWords: "Hello", actionMarkRead: true }])
 			.queueSelect([{ enabled: false }]);
 		await processInboundMessage(baseEnv(), payload);
-		expect(mock.updates).toHaveLength(0);
+		expect(messageUpdates()).toHaveLength(0);
 	});
 
 	it("does not update when a matching filter has no field actions but inserts the label", async () => {
@@ -563,7 +609,7 @@ describe("processInboundMessage filters", () => {
 			.queueSelect([{ enabled: true, actionLabelId: "lbl_2" }])
 			.queueSelect([{ enabled: false }]);
 		await processInboundMessage(baseEnv(), payload);
-		expect(mock.updates).toHaveLength(0);
+		expect(messageUpdates()).toHaveLength(0);
 		expect(mock.inserts).toContainEqual(
 			expect.objectContaining({ values: { messageId: "msg_id", labelId: "lbl_2" } }),
 		);

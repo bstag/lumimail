@@ -63,6 +63,19 @@ export async function processInboundMessage(
 	for (const mailbox of mailboxTargets) {
 		await deliverToMailbox(env, db, payload, parsed, fromAddr, mailbox);
 	}
+
+	// The raw copy is redundant once the body, HTML, and attachments are extracted,
+	// and nothing reads it back (F63). Clear the references first so no row can name
+	// an object that no longer exists; a failed delete is caught by the sweep.
+	await db
+		.update(messageBodies)
+		.set({ rawR2Key: null })
+		.where(eq(messageBodies.rawR2Key, payload.rawR2Key));
+	try {
+		await env.BUCKET.delete(payload.rawR2Key);
+	} catch {
+		console.warn("Raw inbound object could not be deleted", { key: payload.rawR2Key });
+	}
 }
 
 async function deliverToMailbox(

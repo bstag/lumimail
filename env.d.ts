@@ -22,4 +22,10 @@ interface CloudflareEnv {
 	PUBLIC_APP_URL?: string;
 	/** Verified sender address used for password recovery messages. */
 	PASSWORD_RESET_FROM?: string;
+	/**
+	 * Set to "true" to let the scheduled sweep delete unreferenced R2 objects.
+	 * Ships unset so the existing backlog is never removed before an operator has
+	 * reviewed the report from `/api/admin/r2-retention` (F63).
+	 */
+	R2_SWEEP_ENABLED?: string;
 }
