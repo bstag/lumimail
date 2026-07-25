@@ -153,30 +153,42 @@ describe("getUserFromSession", () => {
 		});
 	});
 
-	it("skips non-matching sessions before finding the match", async () => {
+	it("performs exactly one bcrypt comparison for a matching session", async () => {
 		mock
-			.queueSelect([
-				{ tokenHash: "hashed:nope", userId: "ux" },
-				{ tokenHash: "hashed:tok", userId: "u1" },
-			])
+			.queueSelect([{ tokenHash: "hashed:tok", userId: "u1" }])
 			.queueSelect([{ id: "u1", organizationId: null }]);
-		expect(await getUserFromSession(env, "tok")).toEqual({ id: "u1", organizationId: null });
+
+		await getUserFromSession(env, "tok");
+
+		// The row is found by indexed digest, so cost no longer grows with the
+		// number of active sessions (F66).
+		expect(vi.mocked(bcrypt.compareSync)).toHaveBeenCalledTimes(1);
+	});
+
+	it("performs no bcrypt comparison when the digest matches nothing", async () => {
+		mock.queueSelect([]);
+
+		expect(await getUserFromSession(env, "tok")).toBeNull();
+		expect(vi.mocked(bcrypt.compareSync)).not.toHaveBeenCalled();
+	});
+
+	it("rejects a row whose digest matched but whose hash does not verify", async () => {
+		mock.queueSelect([{ tokenHash: "hashed:other", userId: "u1" }]);
+
+		// Authentication still depends on bcrypt, so the digest alone never admits.
+		expect(await getUserFromSession(env, "tok")).toBeNull();
+		expect(vi.mocked(bcrypt.compareSync)).toHaveBeenCalledTimes(1);
 	});
 });
 
 describe("deleteSession", () => {
-	it("deletes the session whose hash matches", async () => {
-		mock.queueSelect([
-			{ id: "s1", tokenHash: "hashed:nope" },
-			{ id: "s2", tokenHash: "hashed:tok" },
-		]);
+	it("deletes by digest without scanning or hashing", async () => {
 		await deleteSession(env, "tok");
-		expect(mock.deletes).toHaveLength(1);
-	});
 
-	it("deletes nothing when no hash matches", async () => {
-		mock.queueSelect([{ id: "s1", tokenHash: "hashed:other" }]);
-		await deleteSession(env, "tok");
-		expect(mock.deletes).toHaveLength(0);
+		// A targeted delete on a unique digest removes the one row if it exists and
+		// nothing otherwise, so it is idempotent and needs no bcrypt.
+		expect(mock.deletes).toHaveLength(1);
+		expect(vi.mocked(bcrypt.compareSync)).not.toHaveBeenCalled();
+		expect(mock.db.select).not.toHaveBeenCalled();
 	});
 });

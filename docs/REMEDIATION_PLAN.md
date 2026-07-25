@@ -271,10 +271,14 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
     validation. The owner page showed all three queues healthy, and **Check now**
     advanced every timestamp with zero backlog, dead letters, and stale jobs.
 
-- [ ] **R-17 Run a multiple-domain performance and isolation pass.**
+- [ ] **R-17 Run a multiple-domain performance and isolation pass.** Spec: [F66](./specs/F66-query-performance-and-indexes.md).
   - Seed realistic domains, users, mailboxes, aliases, rules, and messages.
   - Measure bounded pagination, search, routing lookup, mailbox loading, DNS status loading, queue throughput, and D1 query plans.
   - Verify indexes serve organization/domain/mailbox filters and remove N+1 request/query patterns.
+  - Finding 2026-07-25, **authentication cost grew with the number of signed-in users**: `getUserFromSession` selected every unexpired session and bcrypt-compared the presented token against each. At the ~100 ms per comparison this project's own Vitest configuration documents, twenty active sessions added about a second to every authenticated request. `deleteSession` was worse: it scanned and did not stop at the first match, so every logout compared against every session.
+  - Finding 2026-07-25: seven tables had no index at all, since SQLite does not create them for foreign keys — `sessions`, `routing_rules`, `message_filters`, `attachments`, `api_keys`, `password_reset_tokens`, and `webhook_deliveries`. The first five are on paths hit per request, per inbound message, or per message view. `messages` also lacked an index for its commonest shape, filter by mailbox ordered by date, so every folder page scanned and sorted.
+  - Local evidence 2026-07-25: F66 adds an indexed SHA-256 lookup digest so a session resolves in one indexed read plus a single bcrypt comparison, and none at all when the token matches nothing; bcrypt still verifies the matched row, so the digest never authenticates. Ten indexes added. Nine `EXPLAIN QUERY PLAN` assertions run against a real migrated database, asserting plans rather than timings so the contract is stable across machines. `npm run verify` passes with 1,446 tests across 162 files at 100% configured coverage plus 16 bridge tests.
+  - Remaining: migration `0024` (which deletes existing sessions), deployment, and the seeded multi-domain measurement of pagination, search, and DNS status loading under realistic volume. Queue throughput belongs with R-18.
 
 - [ ] **R-18 Complete a production readiness exercise.** Depends on all earlier critical items.
   - Test inbound exact address and catch-all for at least `lucidkith.com` and `henriksen.dev`.

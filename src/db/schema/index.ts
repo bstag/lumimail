@@ -189,7 +189,7 @@ export const passwordResetTokens = sqliteTable("password_reset_tokens", {
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
   used: integer("used", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-});
+}, (t) => [index("password_reset_tokens_user_idx").on(t.userId)]);
 
 export const contacts = sqliteTable(
 	"contacts",
@@ -231,7 +231,7 @@ export const apiKeys = sqliteTable("api_keys", {
 		.$defaultFn(() => new Date()),
 	lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
 	revokedAt: integer("revoked_at", { mode: "timestamp" }),
-});
+}, (t) => [index("api_keys_user_idx").on(t.userId)]);
 
 export const messages = sqliteTable(
 	"messages",
@@ -268,6 +268,9 @@ export const messages = sqliteTable(
 	(t) => [
 		index("messages_user_created_idx").on(t.userId, t.createdAt),
 		index("messages_mailbox_idx").on(t.mailboxId),
+		// Folder listing filters by mailbox and orders by date; without this the
+		// page scans and sorts.
+		index("messages_mailbox_created_idx").on(t.mailboxId, t.createdAt),
 		index("messages_mailbox_rfc_message_idx").on(t.mailboxId, t.rfcMessageId),
 		index("messages_org_idx").on(t.organizationId),
 		uniqueIndex("messages_imap_uid_idx").on(t.imapUid),
@@ -347,7 +350,11 @@ export const routingRules = sqliteTable("routing_rules", {
 	createdAt: integer("created_at", { mode: "timestamp" })
 		.notNull()
 		.$defaultFn(() => new Date()),
-});
+}, (t) => [
+	// Inbound routing filters by domain on every message, twice since F62.
+	index("routing_rules_domain_idx").on(t.domainId),
+	index("routing_rules_org_idx").on(t.organizationId),
+]);
 
 export const webhooks = sqliteTable("webhooks", {
 	id: text("id").primaryKey(),
@@ -376,20 +383,33 @@ export const webhookDeliveries = sqliteTable("webhook_deliveries", {
 	createdAt: integer("created_at", { mode: "timestamp" })
 		.notNull()
 		.$defaultFn(() => new Date()),
-});
+}, (t) => [index("webhook_deliveries_webhook_idx").on(t.webhookId)]);
 
-export const sessions = sqliteTable("sessions", {
-	id: text("id").primaryKey(),
-	userId: text("user_id")
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-	organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
-	tokenHash: text("token_hash").notNull().unique(),
-	expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
-	createdAt: integer("created_at", { mode: "timestamp" })
-		.notNull()
-		.$defaultFn(() => new Date()),
-});
+export const sessions = sqliteTable(
+	"sessions",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
+		/**
+		 * SHA-256 of the session token, used only to find the row (F66). Safe as a
+		 * lookup key because a session token is high-entropy random material rather
+		 * than a user-chosen password; authentication still depends on `tokenHash`.
+		 */
+		tokenLookup: text("token_lookup").notNull(),
+		tokenHash: text("token_hash").notNull().unique(),
+		expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+		createdAt: integer("created_at", { mode: "timestamp" })
+			.notNull()
+			.$defaultFn(() => new Date()),
+	},
+	(t) => [
+		uniqueIndex("sessions_token_lookup_idx").on(t.tokenLookup),
+		index("sessions_user_idx").on(t.userId),
+	],
+);
 
 export const labels = sqliteTable(
 	"labels",
@@ -421,7 +441,7 @@ export const attachments = sqliteTable("attachments", {
 	size: integer("size").notNull(),
 	r2Key: text("r2_key").notNull(),
 	createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-});
+}, (t) => [index("attachments_message_idx").on(t.messageId)]);
 
 export const messageFilters = sqliteTable("message_filters", {
 	id: text("id").primaryKey(),
@@ -438,7 +458,7 @@ export const messageFilters = sqliteTable("message_filters", {
 	actionMoveToTrash: integer("action_move_to_trash", { mode: "boolean" }).notNull().default(false),
 	enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
 	createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-});
+}, (t) => [index("message_filters_user_idx").on(t.userId)]);
 
 /**
  * One row per correspondent a mailbox's responder has answered, so a repeat sender
