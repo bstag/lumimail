@@ -1,9 +1,7 @@
 "use client";
 
-import { Languages } from "lucide-react";
 import { useLocale } from "next-intl";
 import { locales, localeLabels, localeFlags, type Locale } from "@/i18n/config";
-import { Select } from "@/components/ui/select";
 
 function setLocaleCookie(locale: Locale) {
   document.cookie = [
@@ -15,57 +13,42 @@ function setLocaleCookie(locale: Locale) {
   window.location.reload();
 }
 
-export function LanguageSwitcher({
-  variant = "floating",
-}: {
-  variant?: "floating" | "inline";
-}) {
+/**
+ * Locale picker, as a header icon showing the current flag.
+ *
+ * The `<select>` is a real one, laid transparently over the flag rather than replaced
+ * by a custom menu. That keeps three things a hand-built dropdown would have cost:
+ * the platform's own picker on a phone, the full language names in the open list
+ * (a flag alone is a poor way to find a language you do not already read), and native
+ * keyboard and screen-reader behaviour.
+ *
+ * Only the closed state is compressed to an icon — which is the whole requirement,
+ * since that is what occupies the header.
+ */
+export function LanguageSwitcher() {
   const currentLocale = useLocale() as Locale;
 
-  if (variant === "inline") {
-    return (
-      <div className="flex items-center gap-3 px-4 py-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-subtle text-ink-muted">
-          <Languages className="h-4 w-4" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <label
-            htmlFor="language-select-inline"
-            className="text-sm font-medium text-ink"
-          >
-            Language
-          </label>
-          <Select
-            id="language-select-inline"
-            value={currentLocale}
-            onChange={(e) => setLocaleCookie(e.target.value as Locale)}
-            size="sm" className="mt-1 truncate"
-          >
-            {locales.map((locale) => (
-              <option key={locale} value={locale}>
-                {localeFlags[locale]} {localeLabels[locale]}
-              </option>
-            ))}
-          </Select>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="fixed bottom-4 right-4 z-30">
-      <Select
+    <span className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-surface-subtle">
+      {/* The locale code, not the flag. Regional-indicator emoji have no glyph on
+          Windows and fall back to the region letters — so a British English user saw
+          "GB", which names a country rather than a language and looked different on
+          every platform. Two letters render identically everywhere. */}
+      <span aria-hidden className="text-xs font-semibold uppercase tracking-wide">
+        {currentLocale}
+      </span>
+      <select
         value={currentLocale}
-        onChange={(e) => setLocaleCookie(e.target.value as Locale)}
-        className="max-w-[45vw] truncate sm:max-w-none"
+        onChange={(event) => setLocaleCookie(event.target.value as Locale)}
         aria-label="Select language"
+        className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0"
       >
         {locales.map((locale) => (
           <option key={locale} value={locale}>
             {localeFlags[locale]} {localeLabels[locale]}
           </option>
         ))}
-      </Select>
-    </div>
+      </select>
+    </span>
   );
 }

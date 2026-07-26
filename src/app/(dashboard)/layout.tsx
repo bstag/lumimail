@@ -11,6 +11,8 @@ import { MailSearchProvider } from "@/components/mail-search/mail-search-context
 import { MailboxProvider } from "@/components/mailbox-provider";
 import { MailboxSelector } from "@/components/mailbox-selector";
 import { DashboardNav } from "@/components/dashboard-nav";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { MobileTabBar } from "@/components/mobile-tab-bar";
 import {
 	readSidebarCollapsed,
@@ -99,6 +101,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 										</button>
 									)}
 									<MailSearchInput />
+									<LanguageSwitcher />
+									<ThemeToggle />
 									<Link
 										href="/settings"
 										className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-muted hover:bg-surface-subtle"

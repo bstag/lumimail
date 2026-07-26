@@ -5,9 +5,14 @@ import type { AuthShellProps } from "./types";
 export function AuthShell({ icon: Icon, title, description, children, footer, steps }: AuthShellProps) {
 	return (
 		<div className="min-h-dvh bg-surface p-4 text-ink sm:p-6">
-			<LanguageSwitcher />
-			<ThemeToggle />
-			<div className="mx-auto flex min-h-[calc(100dvh-32px)] max-w-6xl items-center sm:min-h-[calc(100dvh-48px)]">
+			{/* These used to float over the bottom-right corner of the card. A header is
+			    where the rest of the app keeps them, and on a small screen the floating
+			    pair sat on top of the form it was next to. */}
+			<header className="mx-auto flex w-full max-w-6xl items-center justify-end gap-1">
+				<LanguageSwitcher />
+				<ThemeToggle />
+			</header>
+			<div className="mx-auto flex min-h-[calc(100dvh-88px)] max-w-6xl items-center sm:min-h-[calc(100dvh-104px)]">
 				<div className="mx-auto bg-surface-raised overflow-hidden rounded-4xl shadow-lg shadow-border/50">
 
 					<section className="flex flex-col justify-between p-6 sm:p-10">

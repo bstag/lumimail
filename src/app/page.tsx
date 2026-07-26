@@ -33,8 +33,6 @@ export default function HomePage() {
 
   return (
     <div className="min-h-dvh bg-surface text-ink">
-      <LanguageSwitcher />
-      <ThemeToggle />
       <header className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link
           href="/"
@@ -55,12 +53,19 @@ export default function HomePage() {
 					))}
 				</nav> */}
 
-        <div className="flex shrink-0 items-center gap-2">
-          {actions.map((action) => (
-            <Button key={action.href} variant={action.variant} asChild className="px-4 sm:px-6">
-              <Link href={action.href}>{action.label}</Link>
-            </Button>
-          ))}
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <LanguageSwitcher />
+          <ThemeToggle />
+          {/* Hidden on a phone, where these two buttons pushed the header past the
+              viewport and clipped "Create account". Nothing is lost: the hero repeats
+              both actions immediately below, at full width. */}
+          <div className="hidden items-center gap-2 sm:flex">
+            {actions.map((action) => (
+              <Button key={action.href} variant={action.variant} asChild className="px-4 sm:px-6">
+                <Link href={action.href}>{action.label}</Link>
+              </Button>
+            ))}
+          </div>
         </div>
       </header>
 
@@ -75,9 +80,9 @@ export default function HomePage() {
               Mailboxes that feel like your inbox.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-ink-muted">
-              Add domains, route inbound mail, send through API keys, and manage
-              team mailboxes from one quiet workspace built around the message
-              list.
+              Add domains, route and forward inbound mail, manage capability-scoped
+              team mailboxes, and send with durable queued delivery from one quiet
+              workspace built around the message list.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Button size="lg" asChild className="rounded-full px-6">
@@ -191,6 +196,19 @@ export default function HomePage() {
           </div>
         </section>
 
+        <section className="mx-auto grid max-w-7xl gap-4 px-4 pb-16 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">
+          {[
+            ["Reliable delivery", "Queued sending, visible delivery state, classified retries, and operator-confirmed recovery."],
+            ["Safe collaboration", "Mailbox-scoped read and send capabilities, identity-bound invites, and immediate revocation."],
+            ["Complete mail flow", "Attachments, aliases, groups, catch-all routing, verified forwarding, and safe vacation replies."],
+            ["Bring your clients", "Use the separate IMAP/SMTP bridge when you need a desktop or mobile mail client."],
+          ].map(([title, description]) => (
+            <article key={title} className="rounded-2xl border border-border bg-surface-raised p-5">
+              <h2 className="font-semibold text-ink">{title}</h2>
+              <p className="mt-2 text-sm leading-6 text-ink-muted">{description}</p>
+            </article>
+          ))}
+        </section>
       </main>
     </div>
   );

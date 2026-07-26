@@ -13,7 +13,15 @@ function applyTheme(theme: Theme) {
 	else root.setAttribute("data-theme", theme);
 }
 
-export function ThemeToggle({ variant = "floating" }: { variant?: "floating" | "inline" }) {
+/**
+ * Cycles system → light → dark, as a header icon.
+ *
+ * Icon-only, sized and coloured like the other header controls, so the row reads as
+ * one set rather than as a button that wandered in. The state is carried by the icon
+ * and the accessible name; a visible label would cost width that the mail header does
+ * not have on a phone.
+ */
+export function ThemeToggle() {
 	const [theme, setTheme] = useState<Theme>("system");
 
 	useEffect(() => {
@@ -30,40 +38,17 @@ export function ThemeToggle({ variant = "floating" }: { variant?: "floating" | "
 	}
 
 	const Icon = theme === "light" ? Sun : theme === "dark" ? Moon : Monitor;
-	const label =
-		theme === "system" ? "System" : theme === "light" ? "Light" : "Dark";
-
-	if (variant === "inline") {
-		return (
-			<button
-				type="button"
-				onClick={cycle}
-				aria-label={`Theme: ${label}. Click to switch.`}
-				className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-ink-muted hover:bg-surface-subtle"
-			>
-				<div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-subtle text-ink-muted">
-					<Icon className="h-4 w-4" />
-				</div>
-				<div className="min-w-0 flex-1">
-					<p className="text-sm font-medium text-ink">Theme</p>
-					<p className="text-xs text-ink-muted">{label}</p>
-				</div>
-			</button>
-		);
-	}
+	const label = theme === "system" ? "System" : theme === "light" ? "Light" : "Dark";
 
 	return (
-		<div className="fixed bottom-4 left-4 z-30">
-			<button
-				type="button"
-				onClick={cycle}
-				aria-label={`Theme: ${label}. Click to switch.`}
-				title={`Theme: ${label} — click to switch`}
-				className="flex h-10 items-center gap-2 rounded-lg border border-border bg-surface-raised px-3 text-sm font-medium text-ink-muted shadow-sm transition-colors hover:border-border-strong hover:text-ink focus:outline-none focus:ring-2 focus:ring-accent/20"
-			>
-				<Icon className="h-4 w-4 shrink-0" />
-				<span className="hidden sm:inline">{label}</span>
-			</button>
-		</div>
+		<button
+			type="button"
+			onClick={cycle}
+			aria-label={`Theme: ${label}. Click to switch.`}
+			title={`Theme: ${label} — click to switch`}
+			className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-surface-subtle hover:text-ink"
+		>
+			<Icon className="h-5 w-5" />
+		</button>
 	);
 }

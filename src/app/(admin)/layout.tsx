@@ -9,6 +9,8 @@ import { FloatingComposer } from "@/components/compose/floating-composer";
 import { MailboxProvider } from "@/components/mailbox-provider";
 import { MailboxSelector } from "@/components/mailbox-selector";
 import { AdminNav } from "@/components/admin-nav";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   readSidebarCollapsed,
   sidebarGridColumns,
@@ -99,6 +101,8 @@ export default function DashboardLayout({
                   <Search className="h-5 w-5 shrink-0" />
                   <span className="truncate text-[15px]">Search mail</span>
                 </div>
+                <LanguageSwitcher />
+                <ThemeToggle />
                 <Link
                   href="/settings"
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-muted hover:bg-surface-subtle"
