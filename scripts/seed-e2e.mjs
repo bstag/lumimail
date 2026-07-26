@@ -14,12 +14,15 @@
  *
  *   alpha@e2e.test    owner manages          — ordinary mailbox
  *   shared@e2e.test   owner manages,
- *                     member responds        — two people, different capabilities
+ *                     member responds,
+ *                     viewer reads           — three people, three capabilities
  *   private@e2e.test  owner manages,
  *                     member has NO row      — the negative case isolation needs
  *
  * Without `private`, "member cannot reach a mailbox they were not granted" is not
- * testable at all.
+ * testable at all. Without the viewer on `shared`, neither is "can read the mailbox
+ * but still cannot send from it", which is the capability split rather than the
+ * membership one.
  *
  * Usage:
  *   node scripts/seed-e2e.mjs [password]
@@ -38,6 +41,7 @@ export const E2E = {
 	orgId: "e2e_org",
 	owner: { id: "e2e_usr_owner", email: "e2e-owner@e2e.test" },
 	member: { id: "e2e_usr_member", email: "e2e-member@e2e.test" },
+	viewer: { id: "e2e_usr_viewer", email: "e2e-viewer@e2e.test" },
 	mailboxes: {
 		alpha: { id: "e2e_mbx_alpha", localPart: "alpha" },
 		shared: { id: "e2e_mbx_shared", localPart: "shared" },
@@ -56,6 +60,11 @@ function findLocalDatabase() {
 
 /** Removes every previously seeded row, so re-seeding replaces rather than duplicates. */
 function clear(db) {
+	// Rows the application created during a test carry generated `msg_` ids, not the
+	// `e2e_` prefix, so the id sweep below never reaches them and they accumulate in
+	// the local database run after run. They are identifiable by their mailbox.
+	db.prepare("DELETE FROM messages WHERE mailbox_id LIKE 'e2e_%'").run();
+
 	// Order matters only for readability; foreign keys cascade from users/org.
 	for (const [table, column] of [
 		["messages", "id"],
@@ -77,13 +86,20 @@ function seed(db, password) {
 	db.prepare("INSERT INTO organizations (id, name, created_at, updated_at) VALUES (?,?,?,?)")
 		.run(E2E.orgId, "E2E Org", now, now);
 
-	for (const [user, role] of [[E2E.owner, "owner"], [E2E.member, "member"]]) {
+	// `name` is the fixture's label; `orgRole` is the organization role, which only
+	// accepts owner/admin/member. The viewer's restriction is a mailbox role, not an
+	// organization one, so at organization level they are an ordinary member.
+	for (const [user, name, orgRole] of [
+		[E2E.owner, "owner", "owner"],
+		[E2E.member, "member", "member"],
+		[E2E.viewer, "viewer", "member"],
+	]) {
 		db.prepare(
 			"INSERT INTO users (id, email, password_hash, name, organization_id, created_at) VALUES (?,?,?,?,?,?)",
-		).run(user.id, user.email, hash, role, E2E.orgId, now);
+		).run(user.id, user.email, hash, name, E2E.orgId, now);
 		db.prepare(
 			"INSERT INTO organization_members (id, organization_id, user_id, role, created_at) VALUES (?,?,?,?,?)",
-		).run(`e2e_om_${role}`, E2E.orgId, user.id, role, now);
+		).run(`e2e_om_${name}`, E2E.orgId, user.id, orgRole, now);
 	}
 
 	db.prepare(
@@ -105,6 +121,10 @@ function seed(db, password) {
 		["e2e_mbm_shared_owner", E2E.mailboxes.shared.id, E2E.owner.id, "manager"],
 		["e2e_mbm_private_owner", E2E.mailboxes.private.id, E2E.owner.id, "manager"],
 		["e2e_mbm_shared_member", E2E.mailboxes.shared.id, E2E.member.id, "responder"],
+		// The viewer reads the same mailbox the member responds on. That pairing is
+		// what makes "can read but must not send" testable — a user denied the mailbox
+		// outright would prove nothing about the capability split.
+		["e2e_mbm_shared_viewer", E2E.mailboxes.shared.id, E2E.viewer.id, "viewer"],
 	];
 	for (const [id, mailboxId, userId, role] of memberships) {
 		db.prepare(
@@ -139,7 +159,28 @@ function seed(db, password) {
 		}
 	}
 
-	return { users: 2, mailboxes: 3, messages: n };
+	// One draft in the shared mailbox. Drafts are gated on send capability rather
+	// than read, so without a draft that actually exists, "the viewer sees no drafts"
+	// would pass against an empty list and prove nothing.
+	db.prepare(
+		`INSERT INTO messages (id, user_id, organization_id, mailbox_id, direction, from_addr,
+		 to_addr, subject, snippet, status, read, starred, thread_id, created_at, attachment_status)
+		 VALUES (?,?,?,?,'outbound',?,?,?,?,'draft',1,0,?,?,'none')`,
+	).run(
+		"e2e_msg_shared_draft",
+		E2E.owner.id,
+		E2E.orgId,
+		E2E.mailboxes.shared.id,
+		`${E2E.mailboxes.shared.localPart}@${E2E.domain}`,
+		"nobody@external.test",
+		"shared draft subject",
+		"snippet for the shared draft",
+		"e2e_thr_shared_draft",
+		now,
+	);
+	n += 1;
+
+	return { users: 3, mailboxes: 3, messages: n };
 }
 
 export function seedE2E(password = E2E.password) {

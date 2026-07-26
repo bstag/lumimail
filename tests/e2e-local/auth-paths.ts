@@ -6,4 +6,5 @@
  */
 export const OWNER_STATE = "tests/e2e-local/.auth/owner.json";
 export const MEMBER_STATE = "tests/e2e-local/.auth/member.json";
+export const VIEWER_STATE = "tests/e2e-local/.auth/viewer.json";
 export const E2E_PASSWORD = "e2e-local-password";

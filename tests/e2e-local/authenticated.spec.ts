@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { api } from "./api";
 import { MEMBER_STATE, OWNER_STATE } from "./auth-paths";
 
 /**
@@ -12,14 +13,6 @@ import { MEMBER_STATE, OWNER_STATE } from "./auth-paths";
  * Sessions come from `auth.setup.ts`, which signs in once per role. Fixtures come
  * from `scripts/seed-e2e.mjs`; see there for why the shape is what it is.
  */
-
-/** Reads an API response through the browser so the session cookie is applied. */
-async function api(page: Page, path: string) {
-	return page.evaluate(async (p) => {
-		const response = await fetch(p);
-		return { status: response.status, body: await response.text() };
-	}, path);
-}
 
 test.describe("owner access", () => {
 	test.use({ storageState: OWNER_STATE });

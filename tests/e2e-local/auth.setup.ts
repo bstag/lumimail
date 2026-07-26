@@ -1,19 +1,43 @@
-import { test as setup, expect } from "@playwright/test";
-import { mkdirSync } from "node:fs";
+import { test as setup, expect, type Browser, type Page } from "@playwright/test";
+import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
 /**
- * Signs in once per role and saves the session for the rest of the suite.
+ * Establishes one session per role for the rest of the suite.
  *
  * Logging in per test tripped the login rate limiter — five attempts per minute
  * per IP — which made a different test fail on every run. That limiter is correct
  * behaviour catching a bad test pattern, so the tests changed rather than the
- * policy. This also makes the suite faster: two sign-ins instead of eleven.
+ * policy.
+ *
+ * Signing in once per role is still not enough on its own: three roles means two
+ * runs inside a minute reach six attempts and the third role is refused, so the
+ * whole suite fails on nothing but being run twice. A saved session is valid for
+ * thirty days, so this reuses one that still resolves and signs in only when there
+ * is nothing to reuse. Repeat runs then cost no login attempts at all.
  */
 
-import { E2E_PASSWORD, MEMBER_STATE, OWNER_STATE } from "./auth-paths";
+import { E2E_PASSWORD, MEMBER_STATE, OWNER_STATE, VIEWER_STATE } from "./auth-paths";
 
-async function signInAndSave(page: import("@playwright/test").Page, email: string, file: string) {
+/** Returns true when the saved state still resolves to an authenticated session. */
+async function reuseSavedSession(browser: Browser, file: string): Promise<boolean> {
+	if (!existsSync(file)) return false;
+
+	const context = await browser.newContext({ storageState: file });
+	try {
+		const page = await context.newPage();
+		await page.goto("/login");
+		const status = await page.evaluate(async () => (await fetch("/api/auth/me")).status);
+		return status === 200;
+	} catch {
+		// A saved state that cannot even be loaded is worth nothing; sign in instead.
+		return false;
+	} finally {
+		await context.close();
+	}
+}
+
+async function signInAndSave(page: Page, email: string, file: string) {
 	mkdirSync(dirname(file), { recursive: true });
 
 	await page.goto("/login");
@@ -38,10 +62,19 @@ async function signInAndSave(page: import("@playwright/test").Page, email: strin
 	await page.context().storageState({ path: file });
 }
 
-setup("authenticate as owner", async ({ page }) => {
-	await signInAndSave(page, "e2e-owner@e2e.test", OWNER_STATE);
+async function establishSession(browser: Browser, page: Page, email: string, file: string) {
+	if (await reuseSavedSession(browser, file)) return;
+	await signInAndSave(page, email, file);
+}
+
+setup("authenticate as owner", async ({ browser, page }) => {
+	await establishSession(browser, page, "e2e-owner@e2e.test", OWNER_STATE);
 });
 
-setup("authenticate as member", async ({ page }) => {
-	await signInAndSave(page, "e2e-member@e2e.test", MEMBER_STATE);
+setup("authenticate as member", async ({ browser, page }) => {
+	await establishSession(browser, page, "e2e-member@e2e.test", MEMBER_STATE);
+});
+
+setup("authenticate as viewer", async ({ browser, page }) => {
+	await establishSession(browser, page, "e2e-viewer@e2e.test", VIEWER_STATE);
 });

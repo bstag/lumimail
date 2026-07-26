@@ -1,4 +1,5 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser } from "@playwright/test";
+import { api, asRole } from "./api";
 import { MEMBER_STATE, OWNER_STATE } from "./auth-paths";
 
 /**
@@ -33,34 +34,9 @@ const SHARED = {
 	subject: "shared subject",
 };
 
-type Request = { method?: string; body?: unknown };
-
-/** Issues a request from inside the page so the session cookie is applied. */
-async function api(page: Page, path: string, request: Request = {}) {
-	return page.evaluate(
-		async ({ p, r }) => {
-			const response = await fetch(p, {
-				method: r.method ?? "GET",
-				...(r.body === undefined
-					? {}
-					: { headers: { "Content-Type": "application/json" }, body: JSON.stringify(r.body) }),
-			});
-			return { status: response.status, body: await response.text() };
-		},
-		{ p: path, r: request as { method?: string; body?: unknown } },
-	);
-}
-
 /** Reads a path as the owner, who can see every fixture mailbox. */
 async function asOwner(browser: Browser, path: string) {
-	const context = await browser.newContext({ storageState: OWNER_STATE });
-	try {
-		const page = await context.newPage();
-		await page.goto("/inbox");
-		return await api(page, path);
-	} finally {
-		await context.close();
-	}
+	return asRole(browser, OWNER_STATE, path);
 }
 
 test.describe("a member cannot reach a mailbox they were not granted", () => {

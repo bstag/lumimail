@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { gotoAllowingRedirect } from "./nav";
+import { gotoAllowingRedirect } from "../nav";
 
 const mailbox = {
 	id: "mbx_1",
