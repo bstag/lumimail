@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { api } from "./api";
 import { MEMBER_STATE, VIEWER_STATE } from "./auth-paths";
-import { gotoAllowingRedirect } from "../nav";
 
 /**
  * The capability split inside a mailbox two people share.
@@ -91,7 +90,7 @@ test.describe("a viewer may read a shared mailbox but not send from it", () => {
 		await expect(page.getByRole("button", { name: "Compose" })).toHaveCount(0);
 		await expect(page.getByRole("link", { name: "Drafts" })).toHaveCount(0);
 
-		await gotoAllowingRedirect(page, "/compose");
+		await page.goto("/compose");
 		await expect(page).not.toHaveURL(/\/compose$/);
 	});
 });
@@ -112,7 +111,7 @@ test.describe("a responder on the same mailbox is not restricted", () => {
 	test("reaches compose rather than being redirected away", async ({ page }) => {
 		await page.goto("/inbox");
 
-		await gotoAllowingRedirect(page, "/compose");
+		await page.goto("/compose");
 		await expect(page).toHaveURL(/\/compose$/);
 	});
 });

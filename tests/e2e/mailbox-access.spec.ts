@@ -1,5 +1,4 @@
 import { expect, test, type Page } from "@playwright/test";
-import { gotoAllowingRedirect } from "../nav";
 import { mockShellNoise } from "./shell";
 
 async function mockAuthenticatedShell(page: Page) {
@@ -176,7 +175,7 @@ test.describe("mailbox access administration", () => {
 			});
 		});
 
-		await gotoAllowingRedirect(page, "/mailboxes");
+		await page.goto("/mailboxes");
 
 		await expect(
 			page.getByRole("link", { name: /Support support@example\.com manager/i }),
@@ -269,7 +268,7 @@ test.describe("role-aware mail actions", () => {
 		await expect(page.getByRole("button", { name: "Compose" })).toHaveCount(0);
 		await expect(page.getByRole("link", { name: "Drafts" })).toHaveCount(0);
 
-		await gotoAllowingRedirect(page, "/compose");
+		await page.goto("/compose");
 		await expect(page).toHaveURL(/\/inbox$/);
 		await expect(page.getByRole("heading", { name: "Compose" })).toHaveCount(0);
 	});
@@ -308,7 +307,7 @@ test.describe("role-aware mail actions", () => {
 			});
 		});
 
-		await gotoAllowingRedirect(page, "/drafts");
+		await page.goto("/drafts");
 
 		// Wait for the empty state, not just the request count. The count rises when
 		// the route is intercepted, but `fetchMessageList` coalesces onto an in-flight
