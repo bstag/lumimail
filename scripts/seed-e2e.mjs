@@ -121,7 +121,10 @@ function seed(db, password) {
 				 to_addr, subject, snippet, status, read, starred, thread_id, created_at, attachment_status)
 				 VALUES (?,?,?,?,'inbound',?,?,?,?,'received',0,0,?,?,'none')`,
 			).run(
-				`e2e_msg_${n}`,
+				// Named after the mailbox rather than a running counter, so a test that
+				// asks for a private message says so instead of depending on the order
+				// these mailboxes happen to be declared in.
+				`e2e_msg_${mailbox.localPart}_${i}`,
 				E2E.owner.id,
 				E2E.orgId,
 				mailbox.id,

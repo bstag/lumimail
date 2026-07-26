@@ -279,6 +279,41 @@ Tests:
 
 The explicit unrelated-mailbox and immediate-revocation production gates are complete.
 
+### 2026-07-25 — Automated isolation coverage against the real backend
+
+The production validations above were performed by a person against production. They
+are strong evidence but not repeatable, so nothing re-checked them when later routes
+were added. `tests/e2e-local/isolation.spec.ts` now covers the same ground
+automatically against the real local backend, using the `scripts/seed-e2e.mjs`
+fixture where the member has no membership row at all for `private`.
+
+Ten scenarios cover each verb the production gate names, plus the mutating paths a
+read-only check would miss:
+
+| Path | Denial | Positive control |
+|------|--------|------------------|
+| `/api/messages/search` | no `private` result | returns the `shared` result |
+| `/api/messages/[messageId]` | `404` | `200` for `shared` |
+| `/api/messages/thread/[threadId]` | no `private` subject | returns the `shared` thread |
+| `/api/messages/[messageId]/attachments` | `404` | `200` for `shared` |
+| `/api/messages/counts` | no `private` mailbox id | returns the `shared` id |
+| `/api/mailboxes/[id]` | `404` | `200` for `shared` |
+| `/api/send` | `404 Mailbox not found` | none — a successful send would hand a real message to the provider |
+| `/api/messages/[messageId]/read` | `404` | — |
+| `/api/messages/bulk` | row unchanged, witnessed by the owner | — |
+| `/api/admin/mailboxes` | `403` | — |
+
+Bulk deserves the separate treatment: it answers `200` without disclosing which ids
+it matched, so the denial is only observable in the row. The test reads the message
+back through a second browser context authenticated as the owner — the only party
+who can see it — and asserts the status never moved to `trash`.
+
+Verified by mutation, not by a green run: repointing the `private` fixture at the
+mailbox the member *can* reach failed 8 of the 10 scenarios. The two that still
+passed are explained rather than excused — the administration check does not depend
+on that fixture, and the search case becomes vacuous because the mutation also
+changes the string being searched for.
+
 ## 14. Follow-up observations
 
 - Resolved locally by [F48](./F48-role-aware-mail-actions-and-shared-draft-refresh.md): viewer-only users no longer receive compose/draft/reply/forward affordances, direct Compose navigation is guarded, and responder/manager users retain send workflows.

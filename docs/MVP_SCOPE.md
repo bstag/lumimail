@@ -138,6 +138,19 @@ predates later features, so the newer surfaces were re-audited:
 | Shared mailbox without unrelated access | R-13 and R-29 controlled production validation | Same membership condition; no bypassing path found. |
 | Fresh and upgraded schema verification | R-06 fresh-database contract, extended by R-33 | The reconciliation found only fresh databases were verified, so F42 gained a staged-upgrade contract. Applying `0014`–`0016` to a database already at `0013` now reaches exact Drizzle parity, and an edit to an already-applied migration is detected. |
 
+### Gate 12 clause status 2026-07-25
+
+The final gate covers four separate things and is checked only when all four hold:
+
+| Clause | Status |
+|--------|--------|
+| `npm run verify` | Passing — 1,463 tests at 100% configured coverage. |
+| Required E2E suite | Passing — 46 mocked scenarios and 14 authenticated local scenarios against the real backend. |
+| Deployment smoke tests | Not automated. Every deployment records ad-hoc HTTP 200/401 checks in the remediation log; there is no repeatable script, so this is an operator habit rather than a test. |
+| Traced mail-flow tests | Absent. No automated test follows a message from inbound receipt through storage to outbound reply with a traceable identifier. |
+
+The two failing clauses need work that does not exist yet, so the gate stays unchecked.
+
 One gate remains deliberately unchecked because the evidence does not support it:
 
 - **Terminal failure recoverability** is unimplemented. Duplicate suppression and
