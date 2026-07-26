@@ -145,7 +145,7 @@ The final gate covers four separate things and is checked only when all four hol
 | Clause | Status |
 |--------|--------|
 | `npm run verify` | Passing — 1,463 tests at 100% configured coverage. |
-| Required E2E suite | Passing — 46 mocked scenarios and 14 authenticated local scenarios against the real backend. |
+| Required E2E suite | Passing — 46 mocked scenarios and 29 authenticated scenarios against the real local backend, stable across repeated runs. |
 | Deployment smoke tests | Not automated. Every deployment records ad-hoc HTTP 200/401 checks in the remediation log; there is no repeatable script, so this is an operator habit rather than a test. |
 | Traced mail-flow tests | Absent. No automated test follows a message from inbound receipt through storage to outbound reply with a traceable identifier. |
 

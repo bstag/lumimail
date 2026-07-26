@@ -75,6 +75,57 @@ Cloudflare APIs (`CF_TOKEN`), either:
 
 Document which mode a given E2E test uses in a comment at the top of the file.
 
+## Two E2E suites, and why both exist
+
+```
+tests/
+  e2e/         # Playwright, every API response mocked
+  e2e-local/   # Playwright, real backend and real sessions
+```
+
+`tests/e2e/` mocks every API response. It verifies that the UI renders what it is
+handed, quickly and without any data setup. It cannot verify that the server would
+hand it that — a mock returning `role: "viewer"` proves nothing about who the
+server considers a viewer. Hidden controls are not a security boundary.
+
+`tests/e2e-local/` signs in as real users against a real local database and asserts
+on real authorization. Run it with:
+
+```bash
+npm run e2e:local
+```
+
+That seeds `scripts/seed-e2e.mjs` first. The fixture's shape is deliberate:
+
+| Mailbox | Owner | Member | Viewer |
+|---------|-------|--------|--------|
+| `alpha` | manager | — | — |
+| `shared` | manager | responder | viewer |
+| `private` | manager | **no row** | — |
+
+`private` makes "cannot reach a mailbox they were not granted" testable; the viewer
+on `shared` makes "can read it but still cannot send from it" testable. Neither
+question can be asked without the corresponding fixture, so do not simplify them
+away.
+
+Sessions are established once per role by `auth.setup.ts` and reused while they
+still resolve. Logging in per test tripped the five-attempt-per-minute limiter,
+which was the limiter working correctly against a bad test pattern.
+
+### Mock every request the shell makes
+
+`authFetch` treats a 401 as a lost session: it clears the token and navigates to
+`/login`. In `tests/e2e/`, a shell request left unmocked therefore tears the page
+down partway through the test, and the failure surfaces wherever the redirect lands
+— a detached element, an aborted navigation, an assertion against `/login`. None of
+those point at the missing mock, and because it races the assertion it looks
+intermittent.
+
+`tests/e2e/shell.ts` mocks the requests every dashboard route makes. Call
+`mockShellNoise(page)` before a spec's own routes, which still take precedence. If
+a mocked test fails in a way that mentions `/login` or a detached element, log
+401 responses first — the cause is almost certainly a request nothing mocked.
+
 ## Definition of "done" for a feature's tests
 
 - [ ] Every new/changed file in `src/` is in `coverage.include` and at 100%.
