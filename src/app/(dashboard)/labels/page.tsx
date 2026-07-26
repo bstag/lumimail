@@ -83,7 +83,7 @@ export default function LabelsPage() {
 	}
 
 	return (
-		<div className="space-y-8 p-8">
+		<div className="space-y-8 px-4 py-6 sm:px-12 sm:py-8">
 			<div>
 				<h2 className="text-xl font-semibold text-ink">Labels</h2>
 				<p className="text-sm text-ink-muted">Organise your messages with custom labels.</p>
@@ -120,7 +120,7 @@ export default function LabelsPage() {
 							className="h-6 w-6 rounded-full border-2 transition-transform hover:scale-110"
 							style={{
 								backgroundColor: c,
-								borderColor: color === c ? "#1a1a1a" : "transparent",
+								borderColor: color === c ? "var(--ink)" : "transparent",
 							}}
 						/>
 					))}

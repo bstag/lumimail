@@ -166,7 +166,7 @@ export function ComposeEditorToolbar({ editor }: { editor: Editor | null }) {
           className={cn(
             "h-8 w-8 px-0",
             "h-8 w-8",
-            editor && btn.isActive(editor) && "bg-[var(--surface-subtle)] text-[var(--accent)]",
+            editor && btn.isActive(editor) && "bg-surface-subtle text-accent",
           )}
           onClick={() => editor && btn.action(editor)}
           title={btn.label}

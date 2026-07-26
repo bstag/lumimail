@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Select } from "@/components/ui/select";
 
 type Props = {
   open: boolean;
@@ -68,7 +69,7 @@ export function InviteMemberDialog({ open, onOpenChange, onInviteCreated }: Prop
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Invite member</DialogTitle>
         </DialogHeader>
@@ -103,15 +104,15 @@ export function InviteMemberDialog({ open, onOpenChange, onInviteCreated }: Prop
             </div>
             <div className="space-y-2">
               <Label htmlFor="invite-role">Role</Label>
-              <select
+              <Select
                 id="invite-role"
                 value={role}
                 onChange={(e) => setRole(e.target.value as "admin" | "member")}
-                className="h-9 w-full rounded-md border border-[var(--border-strong)] bg-[var(--surface-raised)] px-3 text-sm"
+                
               >
                 <option value="member">Member</option>
                 <option value="admin">Admin</option>
-              </select>
+              </Select>
               <p className="text-xs text-ink-muted">
                 Admins can manage members. Members can only use mail.
               </p>

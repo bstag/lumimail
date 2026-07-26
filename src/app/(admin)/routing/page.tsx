@@ -14,6 +14,8 @@ import {
 	readRoutingResponse,
 	sortRoutingRules,
 } from "./utils";
+import { Select } from "@/components/ui/select";
+import { PageHeader } from "@/components/ui/page-header";
 
 type RoutingRule = {
 	id: string;
@@ -142,11 +144,11 @@ export default function RoutingPage() {
 	const canSubmit = canSubmitRoutingRule({ domainId, pattern, action, mailboxId, forwardTo });
 
 	return (
-		<div className="space-y-6 max-w-2xl">
-			<h1 className="text-2xl font-semibold text-ink">Routing rules</h1>
-			<p className="text-sm text-ink-muted">
-				Named addresses are matched before real mailboxes; catch-all runs only for otherwise unmatched addresses. Priority applies within each match type.
-			</p>
+		<div className="space-y-6">
+			<PageHeader
+				title="Routing rules"
+				description="Named addresses are matched before real mailboxes; catch-all runs only for otherwise unmatched addresses. Priority applies within each match type."
+			/>
 
 			<Card>
 				<CardHeader>
@@ -156,9 +158,8 @@ export default function RoutingPage() {
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div className="space-y-2">
 							<Label htmlFor="routing-domain">Domain</Label>
-							<select
+							<Select
 								id="routing-domain"
-								className="w-full h-10 rounded-md border border-border px-3 text-sm"
 								value={domainId}
 								onChange={(e) => { setDomainId(e.target.value); setMailboxId(""); }}
 							>
@@ -166,7 +167,7 @@ export default function RoutingPage() {
 								{(domains.data?.domains ?? []).map((d) => (
 									<option key={d.id} value={d.id}>{d.hostname}</option>
 								))}
-							</select>
+							</Select>
 						</div>
 						<div className="space-y-2">
 							<Label htmlFor="routing-pattern">Pattern</Label>
@@ -184,16 +185,15 @@ export default function RoutingPage() {
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div className="space-y-2">
 							<Label htmlFor="routing-action">Action</Label>
-							<select
+							<Select
 								id="routing-action"
-								className="w-full h-10 rounded-md border border-border px-3 text-sm"
 								value={action}
 								onChange={(e) => setAction(e.target.value as "store" | "forward" | "reject")}
 							>
 								<option value="store">Store in mailbox</option>
 								<option value="forward">Forward to address</option>
 								<option value="reject">Reject</option>
-							</select>
+							</Select>
 						</div>
 						<div className="space-y-2">
 							<Label htmlFor="routing-priority">Priority</Label>
@@ -209,9 +209,8 @@ export default function RoutingPage() {
 					{action === "store" && (
 						<div className="space-y-2">
 							<Label htmlFor="routing-mailbox">Target mailbox</Label>
-							<select
+							<Select
 								id="routing-mailbox"
-								className="w-full h-10 rounded-md border border-border px-3 text-sm"
 								value={mailboxId}
 								onChange={(e) => setMailboxId(e.target.value)}
 							>
@@ -221,7 +220,7 @@ export default function RoutingPage() {
 										{m.localPart}@{domainHostname(m.domainId)}
 									</option>
 								))}
-							</select>
+							</Select>
 						</div>
 					)}
 
@@ -229,9 +228,8 @@ export default function RoutingPage() {
 						<div className="space-y-2">
 							<Label htmlFor="routing-forward">Forward to</Label>
 							{verifiedDestinations.length > 0 ? (
-								<select
+								<Select
 									id="routing-forward"
-									className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink"
 									value={forwardTo}
 									onChange={(e) => setForwardTo(e.target.value)}
 								>
@@ -241,7 +239,7 @@ export default function RoutingPage() {
 											{destination.address}
 										</option>
 									))}
-								</select>
+								</Select>
 							) : (
 								<p className="text-sm text-ink-muted">
 									Add and verify a destination below before forwarding. Mail cannot be

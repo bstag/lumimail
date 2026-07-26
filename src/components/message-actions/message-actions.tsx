@@ -9,6 +9,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
 import type { MessageActionsProps } from "./types";
 import { getMessageActionRedirect, runSingleMessageAction } from "./utils";
+import { Select } from "@/components/ui/select";
 
 export function MessageActions({
 	messageId,
@@ -122,8 +123,8 @@ export function MessageActions({
 					</Button>
 				</Tooltip>
 				<Tooltip label={t("moveMessage")}>
-					<select
-						className="h-8 rounded-lg border border-border bg-surface-raised px-2 text-xs text-ink-muted"
+					<Select
+						size="sm" className="w-auto"
 						disabled={disabled}
 						defaultValue=""
 						aria-label={t("moveMessage")}
@@ -136,7 +137,7 @@ export function MessageActions({
 						<option value="">{t("moveTo")}</option>
 						<option value="spam">{t("moveToSpam")}</option>
 						<option value="trash">{t("moveToTrash")}</option>
-					</select>
+					</Select>
 				</Tooltip>
 				<Tooltip label={t("moreActions")}>
 					<span aria-label={t("moreActions")} className="rounded-full p-1 text-ink-faint">

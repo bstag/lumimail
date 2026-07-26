@@ -27,10 +27,12 @@ export function NavItem({ link, onNavigate }: { link: NavLink; onNavigate?: () =
   if (!Icon) return <span className="flex-1" />;
   const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
   const classes = cn(
-    "flex h-9 items-center gap-3 rounded-r-full text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--ink)]",
-    active && "bg-[var(--accent-muted)] text-[var(--ink)] font-medium",
-    link.primary &&
-      "mb-3 h-12 w-fit rounded-2xl bg-[var(--accent)] px-5 text-white hover:brightness-90",
+    "flex h-9 items-center gap-3 rounded-r-full text-sm font-medium text-ink-muted transition-colors hover:bg-surface hover:text-ink",
+    active && "bg-accent-muted font-medium text-ink",
+    // The primary action is a filled rectangle, so it takes the same 6px corner as
+    // every other filled button. It shipped at 16px, which made it the only solid
+    // button in the app with its own radius.
+    link.primary && "mb-3 h-12 w-fit rounded-[6px] bg-accent px-5 text-white hover:brightness-90",
   );
 
   const countLabel = typeof link.count === "number" && link.count > 0

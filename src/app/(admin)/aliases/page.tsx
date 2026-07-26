@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select } from "@/components/ui/select";
+import { PageHeader } from "@/components/ui/page-header";
 
 type AliasRow = {
 	id: string;
@@ -152,14 +154,14 @@ export default function AliasesPage() {
 		return mailbox ? `${mailbox.localPart}@${mailbox.hostname}` : "missing mailbox";
 	};
 
-	if (loading) return <div className="p-8 text-sm text-ink-muted">Loading…</div>;
+	if (loading) return <div className="text-sm text-ink-muted">Loading…</div>;
 
 	return (
-		<div className="space-y-6 max-w-3xl">
-			<h1 className="text-2xl font-semibold text-ink">Aliases</h1>
-			<p className="text-sm text-ink-muted">
-				Create internal mailbox aliases and groups across your managed domains.
-			</p>
+		<div className="space-y-6">
+			<PageHeader
+				title="Aliases"
+				description="Create internal mailbox aliases and groups across your managed domains."
+			/>
 
 			{error && <p className="text-sm text-danger">{error}</p>}
 
@@ -170,15 +172,14 @@ export default function AliasesPage() {
 				<CardContent className="space-y-4">
 					<div className="space-y-2">
 						<Label htmlFor="alias-type">Alias type</Label>
-						<select
+						<Select
 							id="alias-type"
-							className="w-full h-10 rounded-md border border-border bg-surface px-3 text-sm"
 							value={kind}
 							onChange={(event) => setKind(event.target.value as AliasKind)}
 						>
 							<option value="mailbox">Mailbox alias</option>
 							<option value="group">Group alias</option>
-						</select>
+						</Select>
 					</div>
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div className="space-y-2">
@@ -192,9 +193,8 @@ export default function AliasesPage() {
 						</div>
 						<div className="space-y-2">
 							<Label htmlFor="alias-domain">Domain</Label>
-							<select
+							<Select
 								id="alias-domain"
-								className="w-full h-10 rounded-md border border-border bg-surface px-3 text-sm"
 								value={domainId}
 								onChange={(e) => setDomainId(e.target.value)}
 							>
@@ -202,15 +202,14 @@ export default function AliasesPage() {
 								{domains.map((d) => (
 									<option key={d.id} value={d.id}>{d.hostname}</option>
 								))}
-							</select>
+							</Select>
 						</div>
 					</div>
 					{kind === "mailbox" ? (
 						<div className="space-y-2">
 							<Label htmlFor="alias-target">Deliver to mailbox</Label>
-							<select
+							<Select
 								id="alias-target"
-								className="w-full h-10 rounded-md border border-border bg-surface px-3 text-sm"
 								value={targetMailboxId}
 								onChange={(event) => setTargetMailboxId(event.target.value)}
 							>
@@ -221,7 +220,7 @@ export default function AliasesPage() {
 										{mailbox.displayName ? ` (${mailbox.displayName})` : ""}
 									</option>
 								))}
-							</select>
+							</Select>
 						</div>
 					) : (
 						<MailboxChecklist

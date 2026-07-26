@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 
 export default function SettingsPage() {
 	return (
-		<div className="space-y-6 max-w-2xl">
+		<div className="max-w-2xl space-y-6 px-4 py-6 sm:px-12 sm:py-8">
 			<CurrentMailboxForm />
 			<VacationResponderForm />
 			<ChangePasswordForm />

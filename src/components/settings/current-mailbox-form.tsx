@@ -10,6 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getMailboxAddress, updateCurrentMailboxName } from "./utils";
 
+/**
+ * The mailbox card on `/settings`, plus that page's heading.
+ *
+ * Width and padding belong to the page, not to one of the cards on it. This used to
+ * wrap itself in `max-w-2xl p-8` inside the page's own `max-w-2xl`, which inset the
+ * card 32px on each side and left it 64px narrower than the three cards below it.
+ */
 export function CurrentMailboxForm() {
 	const t = useTranslations("settings");
 	const { selectedMailbox, setSelectedMailbox, isLoading } = useSelectedMailbox();
@@ -46,7 +53,7 @@ export function CurrentMailboxForm() {
 
 	if (isLoading) {
 		return (
-			<div className="max-w-2xl space-y-6 p-8">
+			<div className="space-y-6">
 				<h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
 				<Card>
 					<CardContent className="p-6 text-sm text-ink-muted">{t("loadingMailbox")}</CardContent>
@@ -57,7 +64,7 @@ export function CurrentMailboxForm() {
 
 	if (!selectedMailbox) {
 		return (
-			<div className="max-w-2xl space-y-6 p-8">
+			<div className="space-y-6">
 				<h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
 				<Card>
 					<CardContent className="p-6 text-sm text-ink-muted">
@@ -72,7 +79,7 @@ export function CurrentMailboxForm() {
 	const hasChanges = displayName.trim() !== savedDisplayName;
 
 	return (
-		<div className="max-w-2xl space-y-6 p-8">
+		<div className="space-y-6">
 			<div>
 				<h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
 				<p className="mt-1 text-sm text-ink-muted">{address}</p>

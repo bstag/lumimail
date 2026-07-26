@@ -19,7 +19,7 @@ export default function ComposePage() {
 
 	if (isLoading || !canSend) return null;
 	return (
-		<div className="flex h-full flex-col overflow-auto p-8">
+		<div className="flex h-full flex-col overflow-auto px-4 py-6 sm:px-12 sm:py-8">
 			<div className="mb-6 shrink-0">
 				<h1 className="text-2xl font-semibold text-ink">{t("pageTitle")}</h1>
 				<p className="mt-1 text-sm text-ink-muted">{t("pageDesc")}</p>

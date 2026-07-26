@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { fetchFilterLabels, fetchMessageFilters, type MessageFilter } from "./utils";
+import { Select } from "@/components/ui/select";
 
 export default function FiltersPage() {
 	const qc = useQueryClient();
@@ -88,7 +89,7 @@ export default function FiltersPage() {
 	};
 
 	return (
-		<div className="space-y-6 max-w-2xl p-8">
+		<div className="max-w-2xl space-y-6 px-4 py-6 sm:px-12 sm:py-8">
 			<h1 className="text-2xl font-semibold text-ink">Filters</h1>
 			<p className="text-sm text-ink-muted">
 				Filters automatically apply actions to incoming messages that match your conditions.
@@ -134,8 +135,7 @@ export default function FiltersPage() {
 						))}
 						<div className="space-y-2">
 							<Label>Apply label</Label>
-							<select
-								className="w-full h-10 rounded-md border border-border px-3 text-sm"
+							<Select
 								value={actionLabelId}
 								onChange={(e) => setActionLabelId(e.target.value)}
 							>
@@ -143,7 +143,7 @@ export default function FiltersPage() {
 								{(labels.data ?? []).map((l) => (
 									<option key={l.id} value={l.id}>{l.name}</option>
 								))}
-							</select>
+							</Select>
 						</div>
 					</div>
 					<Button onClick={() => create.mutate()} disabled={create.isPending}>

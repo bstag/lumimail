@@ -170,6 +170,26 @@ Reason:
 
 ## 14. Implementation and Verification Log
 
+### 2026-07-25 — Two colour defects the sweep missed
+
+Found by rendering rather than grepping, and fixed under
+[F68](./F68-ui-geometry-consistency.md):
+
+- The dialog scrim was `bg-[var(--ink)]/20`. `--ink` is near-black in light and
+  near-white in dark, so the same declaration dimmed one theme and *lightened* the
+  other: in dark the page behind a modal got brighter, and the modal — sharing
+  `--surface-raised` with the page and carrying no shadow — barely separated from it.
+  A token is not automatically theme-correct; this one was being asked to do a job
+  whose sign flips with the palette. Now `bg-black/40`, matching the sidebar overlays.
+- `labels/page.tsx` set the selected swatch's ring to the literal `#1a1a1a`, a frozen
+  light-mode ink value. Now `var(--ink)`.
+
+Neither was visible to a search for raw Tailwind palette utilities, which is what the
+original sweep looked for. One was a token used incorrectly; the other was an inline
+`style` object rather than a class.
+
+
+
 ### 2026-07-23 — Local implementation
 
 - Added the missing semantic danger, success, warning, information, and inverse color tokens for both system palettes.

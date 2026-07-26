@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DEFAULT_RESPONDER, findResponderForMailbox } from "./vacation-responder-utils";
+import { Select } from "@/components/ui/select";
 
 type VacationResponder = {
 	mailboxId: string;
@@ -123,9 +124,8 @@ export function VacationResponderForm() {
 					<>
 						<div className="space-y-2">
 							<Label htmlFor="vacation-mailbox">Mailbox</Label>
-							<select
+							<Select
 								id="vacation-mailbox"
-								className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink"
 								value={mailboxId}
 								onChange={(e) => selectMailbox(e.target.value)}
 							>
@@ -134,7 +134,7 @@ export function VacationResponderForm() {
 										{mailbox.localPart}@{mailbox.hostname}
 									</option>
 								))}
-							</select>
+							</Select>
 							<p className="text-sm text-ink-muted">
 								Each mailbox has its own responder. Turning one on does not affect the others.
 							</p>

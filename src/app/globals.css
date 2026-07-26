@@ -137,33 +137,13 @@ body {
 	transition-property: none;
 }
 
-/* ── shadcn/ui overrides ────────────────────────────────────── */
-[data-slot="card"] {
-	border-radius: 6px;
-	border: 1px solid var(--border);
-	box-shadow: none;
-}
-
-[data-slot="dialog-content"] {
-	border-radius: 8px;
-	border: 1px solid var(--border);
-	box-shadow: none;
-}
-
-[data-slot="input"] {
-	height: 36px;
-	border-radius: 6px;
-	border: 1px solid var(--border-strong);
-	background: var(--surface-raised);
-	padding-left: 12px;
-	padding-right: 12px;
-}
-
-[data-slot="input"]::placeholder {
-	color: var(--ink-faint);
-}
-
-[data-slot="button"] {
-	border-radius: 6px;
-	font-weight: 500;
-}
+/* ── Component geometry ─────────────────────────────────────────
+   Deliberately absent. This file previously carried a block of
+   `[data-slot="card"|"dialog-content"|"input"|"button"]` rules, but no
+   component in the codebase sets `data-slot`, so none of them ever
+   matched anything. The same values were separately expressed in
+   `src/components/ui/*` as utility classes, which is why most of them
+   appeared to be working — and where the two disagreed, the CSS lost
+   silently: it asked for a 6px button radius while the component shipped
+   12px. The primitives are the single source of truth for geometry; see
+   docs/specs/F68-ui-geometry-consistency.md. */

@@ -7,8 +7,10 @@ charset = utf-8
 end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
-indent_style = space
-indent_size = 2
+# Tabs, matching the source: 430 of 462 TypeScript files use them. The config
+# previously asked for spaces, so almost every file was in violation of it and
+# editors were reformatting against the grain of the codebase.
+indent_style = tab
 
 [*.md]
 trim_trailing_whitespace = false

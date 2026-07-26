@@ -5,6 +5,8 @@ import { Mail, Clock, Plus, X } from "lucide-react";
 import { authFetch } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { InviteMemberDialog } from "@/components/admin/invite-member-dialog";
+import { Select } from "@/components/ui/select";
+import { PageHeader } from "@/components/ui/page-header";
 
 type Member = {
   id: string;
@@ -82,16 +84,16 @@ export default function MembersPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-ink">Members</h2>
-          <p className="text-sm text-ink-muted">Manage who has access to this workspace.</p>
-        </div>
-        <Button onClick={() => setInviteOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Invite member
-        </Button>
-      </div>
+      <PageHeader
+        title="Members"
+        description="Manage who has access to this workspace."
+        action={
+          <Button onClick={() => setInviteOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Invite member
+          </Button>
+        }
+      />
 
       {error && (
         <p className="rounded-lg border border-danger/30 bg-danger-muted px-4 py-3 text-sm text-danger">{error}</p>
@@ -118,14 +120,14 @@ export default function MembersPage() {
                   Owner
                 </span>
               ) : (
-                <select
+                <Select
                   value={member.role}
                   onChange={(e) => changeRole(member.id, e.target.value)}
-                  className="h-7 rounded-md border border-border bg-surface-subtle px-2 text-xs text-ink-muted"
+                  size="sm" className="w-auto"
                 >
                   <option value="admin">Admin</option>
                   <option value="member">Member</option>
-                </select>
+                </Select>
               )}
               {member.role !== "owner" && (
                 <button

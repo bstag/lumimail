@@ -21,6 +21,7 @@ import { authFetch } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
 import type { QueueHealthSnapshot, QueueHealthStatus } from "@/lib/queue-health";
 import type { QueueHealthResponse } from "./types";
+import { PageHeader } from "@/components/ui/page-header";
 
 const statusPresentation: Record<QueueHealthStatus, {
 	label: string;
@@ -165,11 +166,10 @@ function QueueHealthContent() {
 		<div className="space-y-6">
 			<div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
 				<div>
-					<h1 className="text-2xl font-semibold text-ink">Queue health</h1>
-					<p className="mt-2 max-w-3xl text-sm text-ink-muted">
-						Platform-wide delivery health for this Lumimail deployment. These
-						numbers are not scoped to the selected mailbox or domain.
-					</p>
+					<PageHeader
+						title="Queue health"
+						description="Platform-wide delivery health for this Lumimail deployment. These numbers are not scoped to the selected mailbox or domain."
+					/>
 				</div>
 				<Button
 					variant="outline"

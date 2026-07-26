@@ -69,8 +69,13 @@ export default function DashboardLayout({
                 </Link>
                 <MailboxSelector />
               </header>
+              {/*
+                The content column is bounded here rather than per page. Pages used to
+                pick their own `max-w-*`, so content right edges landed at 1232, 1072,
+                and 976 across the section and the frame shifted as you navigated.
+              */}
               <main className="min-w-0 flex-1 overflow-auto rounded-t-3xl bg-surface-raised px-4 py-6 sm:px-12 sm:py-8">
-                {children}
+                <div className="mx-auto w-full max-w-5xl">{children}</div>
               </main>
             </div>
             <FloatingComposer />

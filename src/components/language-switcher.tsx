@@ -3,6 +3,7 @@
 import { Languages } from "lucide-react";
 import { useLocale } from "next-intl";
 import { locales, localeLabels, localeFlags, type Locale } from "@/i18n/config";
+import { Select } from "@/components/ui/select";
 
 function setLocaleCookie(locale: Locale) {
   document.cookie = [
@@ -34,18 +35,18 @@ export function LanguageSwitcher({
           >
             Language
           </label>
-          <select
+          <Select
             id="language-select-inline"
             value={currentLocale}
             onChange={(e) => setLocaleCookie(e.target.value as Locale)}
-            className="mt-1 w-full truncate rounded-md border border-border bg-surface-raised px-2 py-1 text-xs font-medium text-ink-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+            size="sm" className="mt-1 truncate"
           >
             {locales.map((locale) => (
               <option key={locale} value={locale}>
                 {localeFlags[locale]} {localeLabels[locale]}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
     );
@@ -53,10 +54,10 @@ export function LanguageSwitcher({
 
   return (
     <div className="fixed bottom-4 right-4 z-30">
-      <select
+      <Select
         value={currentLocale}
         onChange={(e) => setLocaleCookie(e.target.value as Locale)}
-        className="max-w-[45vw] truncate rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm font-medium text-ink-muted shadow-sm transition-colors hover:border-border-strong focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-50 sm:max-w-none"
+        className="max-w-[45vw] truncate sm:max-w-none"
         aria-label="Select language"
       >
         {locales.map((locale) => (
@@ -64,7 +65,7 @@ export function LanguageSwitcher({
             {localeFlags[locale]} {localeLabels[locale]}
           </option>
         ))}
-      </select>
+      </Select>
     </div>
   );
 }

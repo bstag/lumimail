@@ -27,6 +27,7 @@ import {
 	updateMailboxName,
 } from "./utils";
 import type { MailboxRole } from "./types";
+import { Select } from "@/components/ui/select";
 
 export default function MailboxSettingsPage() {
 	const params = useParams<{ id: string }>();
@@ -99,7 +100,7 @@ export default function MailboxSettingsPage() {
 	);
 
 	return (
-		<div className="max-w-3xl space-y-6">
+		<div className="space-y-6">
 			<div className="flex items-center gap-3">
 				<Button asChild variant="ghost" size="sm">
 					<Link href="/mailboxes">
@@ -175,25 +176,25 @@ export default function MailboxSettingsPage() {
 					</CardHeader>
 					<CardContent className="space-y-4">
 						<div className="grid gap-2 sm:grid-cols-[1fr_9rem_auto]">
-							<select
+							<Select
 								value={newMemberId}
 								onChange={(event) => setNewMemberId(event.target.value)}
-								className="h-10 rounded-md border border-border bg-surface-raised px-3 text-sm"
+								className="w-auto"
 							>
 								<option value="">Select workspace member</option>
 								{availableMembers.map((member) => (
 									<option key={member.userId} value={member.userId}>{member.name} ({member.email})</option>
 								))}
-							</select>
-							<select
+							</Select>
+							<Select
 								value={newMemberRole}
 								onChange={(event) => setNewMemberRole(event.target.value as MailboxRole)}
-								className="h-10 rounded-md border border-border bg-surface-raised px-3 text-sm"
+								className="w-auto"
 							>
 								<option value="viewer">Viewer</option>
 								<option value="responder">Responder</option>
 								<option value="manager">Manager</option>
-							</select>
+							</Select>
 							<Button onClick={() => addMember.mutate()} disabled={!newMemberId || addMember.isPending}>
 								<UserPlus className="h-4 w-4" /> Add
 							</Button>
@@ -213,15 +214,15 @@ export default function MailboxSettingsPage() {
 										<p className="truncate text-xs text-ink-muted">{member.email}</p>
 									</div>
 									<div className="flex items-center gap-2">
-										<select
+										<Select
 											value={member.role}
 											onChange={(event) => changeMemberRole.mutate({ membershipId: member.id, role: event.target.value as MailboxRole })}
-											className="h-8 rounded-md border border-border bg-surface-raised px-2 text-xs"
+											size="sm" className="w-auto"
 										>
 											<option value="viewer">Viewer</option>
 											<option value="responder">Responder</option>
 											<option value="manager">Manager</option>
-										</select>
+										</Select>
 										<Button
 											variant="ghost"
 											size="sm"

@@ -19,6 +19,7 @@ import { authFetch } from "@/lib/auth/client";
 import { parseApiResponse } from "@/lib/api/client-response";
 import type { Domain, Mailbox } from "./types";
 import { getMailboxAddress, getMailboxName } from "./utils";
+import { Select } from "@/components/ui/select";
 
 export default function MailboxesPage() {
 	const qc = useQueryClient();
@@ -102,8 +103,7 @@ export default function MailboxesPage() {
 						<div className="space-y-4">
 							<div className="space-y-2">
 								<Label>Domain</Label>
-								<select
-									className="w-full h-10 rounded-md border border-border px-3 text-sm shadow-sm shadow-border/50 placeholder:text-ink-muted focus-visible:outline-none focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-50"
+								<Select
 									value={domainId}
 									onChange={(event) => setDomainId(event.target.value)}
 								>
@@ -113,7 +113,7 @@ export default function MailboxesPage() {
 											{domain.hostname}
 										</option>
 									))}
-								</select>
+								</Select>
 							</div>
 							<div className="space-y-2 relative">
 								<Label>Username</Label>

@@ -5,6 +5,7 @@ import { Activity, Globe2, KeyRound, Mail, Settings, Webhook } from "lucide-reac
 import { useAuthSession } from "@/components/auth/auth-session-context";
 import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 
 export default function AdminSettingsPage() {
 	const t = useTranslations("admin");
@@ -28,11 +29,8 @@ export default function AdminSettingsPage() {
 
 	return (
 		<div className="h-full overflow-auto">
-			<div className="mb-8">
-				<h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
-				<p className="mt-2 text-sm text-ink-muted">{t("desc")}</p>
-			</div>
-			<div className="grid max-w-5xl gap-4 md:grid-cols-2">
+			<PageHeader title={t("title")} description={t("desc")} className="mb-8" />
+			<div className="grid gap-4 md:grid-cols-2">
 				{sections.map((section) => {
 					const Icon = section.icon;
 

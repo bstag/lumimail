@@ -65,7 +65,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 									</Link>
 									<MailboxSelector />
 								</header>
-								<main className="flex-1 overflow-hidden rounded-tl-3xl bg-surface-raised">{children}</main>
+								{/* Rounded on both top corners, matching the admin shell. The mail panes are
+									    deliberately full-bleed — that is why this one has no padding — but the
+									    container itself should not change shape when you switch sections. */}
+								<main className="flex-1 overflow-hidden rounded-t-3xl bg-surface-raised">{children}</main>
 							</div>
 							<FloatingComposer />
 						</div>
