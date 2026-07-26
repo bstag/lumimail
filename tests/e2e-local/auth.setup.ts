@@ -23,7 +23,12 @@ async function signInAndSave(page: import("@playwright/test").Page, email: strin
 
 	// The mail shell is the signal the session took effect. Waiting on a DOM state
 	// rather than a URL avoids racing the client-side redirect.
-	await page.waitForSelector('[placeholder="Search mail"]', { timeout: 60_000 });
+	//
+	// The budget matches the project's 120s test timeout rather than undercutting it.
+	// A cold dev server compiles `/login`, the login route, and the mail shell during
+	// this first sign-in, which has exceeded 60s on a cold start; the same request
+	// takes under a second once warm. The cost is the dev server's, not the app's.
+	await page.waitForSelector('[placeholder="Search mail"]', { timeout: 110_000 });
 
 	// Guard against saving an unauthenticated state, which would make every
 	// downstream failure look like an authorization bug.

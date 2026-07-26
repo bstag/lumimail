@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { gotoAllowingRedirect } from "./nav";
 
 type OrganizationRole = "owner" | "admin" | "member";
 
@@ -77,7 +78,7 @@ test("hides organization administration and redirects direct member visits", asy
 		"/webhooks",
 		"/queue-health",
 	]) {
-		await page.goto(path);
+		await gotoAllowingRedirect(page, path);
 		await expect(page).toHaveURL(/\/inbox$/);
 		await expect(page.getByRole("button", { name: "New mailbox" })).toHaveCount(0);
 	}
@@ -109,6 +110,6 @@ test("retains organization administration for an owner", async ({ page }) => {
 	await page.getByRole("button", { name: "Support support@example.com" }).click();
 	await expect(page.getByRole("link", { name: /Admin settings/i })).toBeVisible();
 
-	await page.goto("/mailboxes");
+	await gotoAllowingRedirect(page, "/mailboxes");
 	await expect(page.getByRole("button", { name: "New mailbox" })).toBeVisible();
 });

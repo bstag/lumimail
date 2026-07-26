@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { gotoAllowingRedirect } from "./nav";
 
 async function mockAuthenticatedShell(page: Page) {
 	await page.addInitScript(() => {
@@ -172,7 +173,7 @@ test.describe("mailbox access administration", () => {
 			});
 		});
 
-		await page.goto("/mailboxes");
+		await gotoAllowingRedirect(page, "/mailboxes");
 
 		await expect(
 			page.getByRole("link", { name: /Support support@example\.com manager/i }),
@@ -265,7 +266,7 @@ test.describe("role-aware mail actions", () => {
 		await expect(page.getByRole("button", { name: "Compose" })).toHaveCount(0);
 		await expect(page.getByRole("link", { name: "Drafts" })).toHaveCount(0);
 
-		await page.goto("/compose");
+		await gotoAllowingRedirect(page, "/compose");
 		await expect(page).toHaveURL(/\/inbox$/);
 		await expect(page.getByRole("heading", { name: "Compose" })).toHaveCount(0);
 	});
@@ -304,8 +305,17 @@ test.describe("role-aware mail actions", () => {
 			});
 		});
 
-		await page.goto("/drafts");
-		await expect.poll(() => draftRequests).toBe(1);
+		await gotoAllowingRedirect(page, "/drafts");
+
+		// Wait for the empty state, not just the request count. The count rises when
+		// the route is intercepted, but `fetchMessageList` coalesces onto an in-flight
+		// request for the same key even when forced — so a focus fired between those
+		// two moments is dropped and the second request never happens. The empty text
+		// renders only once loading has finished, which is the point the first request
+		// has actually settled.
+		await expect(page.getByText("No drafts")).toBeVisible();
+		expect(draftRequests).toBe(1);
+
 		await page.evaluate(() => window.dispatchEvent(new Event("focus")));
 		await expect.poll(() => draftRequests).toBe(2);
 	});

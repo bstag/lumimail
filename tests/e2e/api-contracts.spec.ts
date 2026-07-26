@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { gotoAllowingRedirect } from "./nav";
 
 const mailbox = {
 	id: "mbx_1",
@@ -183,7 +184,7 @@ test.describe("canonical API client contracts", () => {
 			await route.fulfill({ json: { success: true, data: { id: "att_1" } } });
 		});
 
-		await page.goto("/compose");
+		await gotoAllowingRedirect(page, "/compose");
 		await page.getByLabel("To", { exact: true }).fill("recipient@example.net");
 		await page.getByLabel("Subject").fill("Contract test");
 		await page.getByLabel("Body").fill("Test body");
