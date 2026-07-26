@@ -1,9 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
+import { mockShellNoise } from "./shell";
 
 async function mockOwnerShell(page: Page) {
 	await page.addInitScript(() => {
 		localStorage.setItem("lumimail-session-token", "e2e-session");
 	});
+	await mockShellNoise(page);
 	await page.route("**/api/auth/me", (route) =>
 		route.fulfill({
 			json: {

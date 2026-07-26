@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { mockShellNoise } from "./shell";
 
 async function expectReactHydrated(locator: import("@playwright/test").Locator) {
 	await expect.poll(() =>
@@ -16,6 +17,7 @@ test("clears account-scoped mailbox and message caches across logout and login",
 		}
 	});
 
+	await mockShellNoise(page);
 	await page.route("**/api/auth/me", (route) => {
 		const accountB = route.request().headers().authorization === "Bearer token-b";
 		return route.fulfill({

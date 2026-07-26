@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { mockShellNoise } from "./shell";
 
 type Destination = { id: string; address: string; verified: boolean };
 
@@ -6,6 +7,7 @@ async function mockRoutingPage(page: Page, destinations: Destination[]) {
 	await page.addInitScript(() => {
 		localStorage.setItem("lumimail-session-token", "e2e-session");
 	});
+	await mockShellNoise(page);
 	await page.route("**/api/auth/me", (route) =>
 		route.fulfill({ json: { user: { id: "user_1", role: "owner" }, hasMailboxes: true } }),
 	);

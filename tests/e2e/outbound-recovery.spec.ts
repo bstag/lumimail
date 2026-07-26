@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { mockShellNoise } from "./shell";
 
 const sendCapableMailbox = {
 	id: "mbx_1",
@@ -29,6 +30,7 @@ async function mockSentFolder(page: Page, mailbox: Record<string, unknown>) {
 	await page.addInitScript(() => {
 		localStorage.setItem("lumimail-session-token", "e2e-session");
 	});
+	await mockShellNoise(page);
 	await page.route("**/api/auth/me", (route) =>
 		route.fulfill({ json: { user: { id: "user_1", role: "owner" }, hasMailboxes: true } }),
 	);

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { gotoAllowingRedirect } from "../nav";
+import { mockShellNoise } from "./shell";
 
 const mailbox = {
 	id: "mbx_1",
@@ -14,6 +15,7 @@ async function mockAuthenticatedShell(page: Page) {
 	await page.addInitScript(() => {
 		localStorage.setItem("lumimail-session-token", "e2e-session");
 	});
+	await mockShellNoise(page);
 	await page.route("**/api/auth/me", (route) =>
 		route.fulfill({ json: { user: { id: "user_1", role: "owner" }, hasMailboxes: true } }),
 	);
@@ -228,6 +230,14 @@ test.describe("canonical API client contracts", () => {
 		);
 		await page.route("**/api/messages/msg_parent/attachments", (route) =>
 			route.fulfill({ json: { success: true, data: { attachments: [] } } }),
+		);
+		// The parent carries a threadId, so opening it fetches the F58 thread. Leaving
+		// that unmocked let the request reach the real server, and `authFetch` treats a
+		// 401 as a lost session: it cleared the token and navigated to /login, so the
+		// test failed wherever the redirect happened to land. It looked intermittent
+		// only because the redirect raced the assertion.
+		await page.route("**/api/messages/thread/thr_parent", (route) =>
+			route.fulfill({ json: { messages: [parent], total: 1 } }),
 		);
 		await page.route("**/api/drafts", (route) =>
 			route.fulfill({ json: { draft: { id: "draft_reply" } } }),

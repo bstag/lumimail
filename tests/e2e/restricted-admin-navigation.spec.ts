@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { gotoAllowingRedirect } from "../nav";
+import { mockShellNoise } from "./shell";
 
 type OrganizationRole = "owner" | "admin" | "member";
 
@@ -7,6 +8,7 @@ async function mockShell(page: Page, organizationRole: OrganizationRole) {
 	await page.addInitScript(() => {
 		localStorage.setItem("lumimail-session-token", "e2e-session");
 	});
+	await mockShellNoise(page);
 	await page.route("**/api/auth/me", (route) =>
 		route.fulfill({
 			json: {
