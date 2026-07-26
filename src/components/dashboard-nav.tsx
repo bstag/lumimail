@@ -19,16 +19,23 @@ import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { findSendCapableMailbox } from "@/components/mailbox-provider-utils";
 import { useMessageCounts } from "@/hooks/use-message-counts";
 import { cn } from "@/lib/utils";
-import { NavItem } from "./components-nav";
+import { NavItem, type NavLink } from "./components-nav";
 import { getFolderNavCount } from "./dashboard-nav-utils";
 
-export function DashboardNav({ className, onNavigate }: { className?: string; onNavigate?: () => void }) {
+/**
+ * The mail destinations this user actually has, with unread counts applied.
+ *
+ * Shared with the mobile bottom bar so the two cannot disagree about what a viewer is
+ * allowed to see. The bar picks from whatever this returns rather than from its own
+ * list — see `mobile-tab-bar-utils.ts`.
+ */
+export function useMailNavLinks(): NavLink[] {
   const t = useTranslations("nav");
   const { selectedMailbox, mailboxes, isLoading } = useSelectedMailbox();
   const canSend = Boolean(findSendCapableMailbox(mailboxes));
   const { counts } = useMessageCounts(selectedMailbox?.id, !isLoading);
 
-  const links = [
+  const links: NavLink[] = [
     { href: "/compose", label: t("compose"), icon: MailPlus, primary: true },
     { href: "/inbox", label: t("inbox"), icon: Inbox },
     { href: "/sent", label: t("sent"), icon: Send },
@@ -42,25 +49,46 @@ export function DashboardNav({ className, onNavigate }: { className?: string; on
     { break: true },
     { href: "/settings", label: t("settings"), icon: Settings },
   ];
-  const linksWithCounts = links
+
+  return links
     .filter((link) => canSend || (link.href !== "/compose" && link.href !== "/drafts"))
     .map((link) => {
-    if (link.href === "/inbox") return { ...link, count: getFolderNavCount("inbox", counts.folders) };
-    if (link.href === "/spam") return { ...link, count: getFolderNavCount("spam", counts.folders) };
-    return link;
+      if (link.href === "/inbox") return { ...link, count: getFolderNavCount("inbox", counts.folders) };
+      if (link.href === "/spam") return { ...link, count: getFolderNavCount("spam", counts.folders) };
+      return link;
     });
+}
+
+export function DashboardNav({
+  className,
+  onNavigate,
+  collapsed = false,
+}: {
+  className?: string;
+  onNavigate?: () => void;
+  collapsed?: boolean;
+}) {
+  const t = useTranslations("nav");
+  const links = useMailNavLinks();
 
   return (
-    <nav className={cn("flex flex-col gap-1 flex-1", className)}>
+    <nav className={cn("flex flex-1 flex-col gap-1", className)}>
       <Link
         href="/inbox"
-        className="mb-3 flex h-10 items-center gap-3 px-3 text-ink-muted"
+        className={cn(
+          "mb-3 flex h-10 items-center gap-3 text-ink-muted",
+          collapsed ? "justify-center px-0" : "px-3",
+        )}
       >
-        <img src="/icon-96.png" height={28} width={28} />
-        <span className="text-lg font-semibold text-ink">{t("mail")}</span>
+        <img src="/icon-96.png" height={28} width={28} alt="" />
+        {/* Hidden rather than dropped: the rail still needs a name for anyone
+            navigating it by screen reader or keyboard. */}
+        <span className={cn("text-lg font-semibold text-ink", collapsed && "sr-only")}>
+          {t("mail")}
+        </span>
       </Link>
-      {linksWithCounts.map((link, i) => (
-        <NavItem link={link} onNavigate={onNavigate} key={`nav-${link.href || i}`} />
+      {links.map((link, i) => (
+        <NavItem link={link} onNavigate={onNavigate} collapsed={collapsed} key={`nav-${link.href || i}`} />
       ))}
     </nav>
   );

@@ -125,7 +125,8 @@
     "adminSettingsDesc": "Domains, mailboxes, API keys",
     "countOverflow": "99+",
     "starred": "Starred",
-    "contacts": "Contacts"
+    "contacts": "Contacts",
+    "more": "More"
   },
   "search": {
     "placeholder": "Search mail",

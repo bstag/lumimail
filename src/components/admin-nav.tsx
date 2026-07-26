@@ -17,7 +17,15 @@ import { useAuthSession } from "@/components/auth/auth-session-context";
 import { cn } from "@/lib/utils";
 import { NavItem } from "./components-nav";
 
-export function AdminNav({ className, onNavigate }: { className?: string; onNavigate?: () => void }) {
+export function AdminNav({
+  className,
+  onNavigate,
+  collapsed = false,
+}: {
+  className?: string;
+  onNavigate?: () => void;
+  collapsed?: boolean;
+}) {
   const t = useTranslations("nav");
   const session = useAuthSession();
 
@@ -39,13 +47,20 @@ export function AdminNav({ className, onNavigate }: { className?: string; onNavi
     <nav className={cn("flex flex-col gap-1", className)}>
       <Link
         href="/inbox"
-        className="mb-3 flex h-10 items-center gap-3 px-3 text-ink-muted"
+        className={cn(
+          "mb-3 flex h-10 items-center gap-3 text-ink-muted",
+          collapsed ? "justify-center px-0" : "px-3",
+        )}
       >
         <img src="/icon-96.png" height={28} width={28} alt="" />
-        <span className="text-lg font-semibold text-ink">{t("admin")}</span>
+        {/* Hidden rather than dropped: the rail still needs a name for anyone
+            navigating it by screen reader or keyboard. */}
+        <span className={cn("text-lg font-semibold text-ink", collapsed && "sr-only")}>
+          {t("admin")}
+        </span>
       </Link>
       {links.map((link) => (
-        <NavItem link={link} onNavigate={onNavigate} key={link.href} />
+        <NavItem link={link} onNavigate={onNavigate} collapsed={collapsed} key={link.href} />
       ))}
     </nav>
   );

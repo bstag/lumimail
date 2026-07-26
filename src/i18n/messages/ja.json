@@ -125,7 +125,8 @@
     "countOverflow": "99+",
     "starred": "Starred",
     "contacts": "Contacts",
-    "members": "メンバー"
+    "members": "メンバー",
+    "more": "その他"
   },
   "search": {
     "placeholder": "メール検索",

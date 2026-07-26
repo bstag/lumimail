@@ -14,7 +14,15 @@ export type NavLink = {
 	break?: boolean;
 };
 
-export function NavItem({ link, onNavigate }: { link: NavLink; onNavigate?: () => void }) {
+export function NavItem({
+  link,
+  onNavigate,
+  collapsed = false,
+}: {
+  link: NavLink;
+  onNavigate?: () => void;
+  collapsed?: boolean;
+}) {
   const t = useTranslations("nav");
   const pathname = usePathname();
   const { openComposer } = useCompose();
@@ -33,11 +41,36 @@ export function NavItem({ link, onNavigate }: { link: NavLink; onNavigate?: () =
     // every other filled button. It shipped at 16px, which made it the only solid
     // button in the app with its own radius.
     link.primary && "mb-3 h-12 w-fit rounded-[6px] bg-accent px-5 text-white hover:brightness-90",
+    // On the rail every item is a centred square, so the pill shape and the negative
+    // inset that produce the expanded row are dropped rather than overridden.
+    collapsed && "w-10 justify-center gap-0 self-center rounded-[6px] px-0",
+    collapsed && link.primary && "h-10 w-10",
   );
 
   const countLabel = typeof link.count === "number" && link.count > 0
     ? (link.count > 99 ? t("countOverflow") : link.count)
     : null;
+
+  // Collapsed, the label moves into `sr-only` and the count becomes a dot. The name
+  // stays in the accessibility tree either way — a rail of unnamed icons is not
+  // navigable without sight, and the count is still spoken as part of the name.
+  const body = (
+    <>
+      <Icon className="h-4 w-4 shrink-0" />
+      <span className={cn("flex-1", collapsed && "sr-only")}>
+        {link.label}
+        {collapsed && countLabel ? ` (${countLabel})` : null}
+      </span>
+      {countLabel && !collapsed && (
+        <span className="ml-auto mr-3 rounded-full px-2 py-0.5 text-sm font-semibold text-ink-muted">
+          {countLabel}
+        </span>
+      )}
+      {countLabel && collapsed && (
+        <span aria-hidden className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-accent" />
+      )}
+    </>
+  );
 
   if (link.href === "/compose") {
     return (
@@ -47,15 +80,10 @@ export function NavItem({ link, onNavigate }: { link: NavLink; onNavigate?: () =
           openComposer();
           onNavigate?.();
         }}
-        className={classes}
+        title={collapsed ? link.label : undefined}
+        className={cn("relative", classes)}
       >
-        <Icon className="h-4 w-4" />
-        <span className="flex-1">{link.label}</span>
-        {countLabel && (
-          <span className="ml-auto mr-3 rounded-full px-2 py-0.5 text-sm font-semibold text-ink-muted">
-            {countLabel}
-          </span>
-        )}
+        {body}
       </button>
     );
   }
@@ -64,15 +92,10 @@ export function NavItem({ link, onNavigate }: { link: NavLink; onNavigate?: () =
     <Link
       href={link.href}
       onClick={onNavigate}
-      className={cn("-ml-3 pl-6", classes)}
+      title={collapsed ? link.label : undefined}
+      className={cn("relative", collapsed ? classes : cn("-ml-3 pl-6", classes))}
     >
-      <Icon className="h-4 w-4" />
-      <span className="flex-1">{link.label}</span>
-      {countLabel && (
-        <span className="ml-auto mr-3 rounded-full px-2 py-0.5 text-sm font-semibold text-ink-muted">
-          {countLabel}
-        </span>
-      )}
+      {body}
     </Link>
   );
 }

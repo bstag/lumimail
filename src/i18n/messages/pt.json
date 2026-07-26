@@ -125,7 +125,8 @@
     "countOverflow": "99+",
     "starred": "Starred",
     "contacts": "Contacts",
-    "members": "Membros"
+    "members": "Membros",
+    "more": "Mais"
   },
   "search": {
     "placeholder": "Buscar email",

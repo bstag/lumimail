@@ -125,7 +125,8 @@
     "countOverflow": "99+",
     "starred": "Starred",
     "contacts": "Contacts",
-    "members": "Участники"
+    "members": "Участники",
+    "more": "Ещё"
   },
   "search": {
     "placeholder": "Поиск почты",
