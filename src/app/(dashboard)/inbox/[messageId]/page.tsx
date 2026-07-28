@@ -98,7 +98,7 @@ function ThreadItem({
 				className={`transition-all duration-200 ease-in-out ${isExpanded ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"}`}
 			>
 				<div className="px-4 pb-4 pt-0 border-t border-border">
-					<div className="prose max-w-none text-ink mt-3">
+					<div className="email-body max-w-none text-ink mt-3">
 						{bodyDisplay.htmlBody ? (
 							<div
 								dangerouslySetInnerHTML={{
@@ -281,7 +281,7 @@ export default function MessageDetailPage() {
 								{dayjs(message.createdAt).format("MMM DD, YYYY, hh:mmA")}
 							</p>
 						</div>
-						<div className="prose max-w-none text-ink">
+						<div className="email-body max-w-none text-ink">
 							{bodyDisplay.htmlBody ? (
 								<div dangerouslySetInnerHTML={{ __html: sanitizeRenderedHtml(bodyDisplay.htmlBody) }} />
 							) : (

@@ -100,6 +100,10 @@ original attachments.
   activated rather than introducing a second editor framework.
 - Sanitized HTML is the canonical formatted delivery representation. A
   server-derived plain-text alternative is always stored and delivered with it.
+- Stored authored HTML remains semantic and style-free. Immediately before the
+  provider call, the server adds a fixed, trusted presentation style to
+  supported headings so clients that reset browser defaults still display the
+  authored hierarchy. User-provided styles remain prohibited.
 - Safe HTML received from another message may be preserved in a server-derived
   reply quotation under F59. Raw source HTML remains server-owned and is never
   round-tripped through the browser as hidden trusted content.
@@ -133,6 +137,8 @@ original attachments.
   derived text are persisted.
 - Add send tests proving the immutable outbound snapshot contains sanitized HTML
   and derived text.
+- Add delivery-presentation tests proving semantic H1/H2 markup receives only
+  fixed server-owned styles and hostile/user-authored styles cannot survive.
 - Add editor component tests for the constrained extension/toolbar contract.
 - Retain browser contracts for attachment submission, shared draft behavior,
   reply-source submission, visible delivery state, formatting, and draft reload.
@@ -140,6 +146,29 @@ original attachments.
   README aligned on constrained WYSIWYG authoring.
 
 ## 11. Bug / Change Log
+
+### 2026-07-28 — Preserve visible heading hierarchy through delivery and reading
+
+Type: Bug.
+
+Observed:
+- H1 markup survives authoring, sanitization, persistence, and queueing, but the
+  outbound part has no presentation rule for clients that reset heading
+  defaults.
+- Lumimail's reader uses a `prose` class without a typography plugin, so received
+  H1/H2 elements can also appear as ordinary body text.
+
+Desired:
+- Keep semantic H1/H2 markup as the stored source of truth.
+- Add only fixed server-owned inline heading presentation at the provider
+  boundary.
+- Style sanitized H1/H2 elements explicitly in Lumimail's message reader.
+
+Test plan:
+- Prove outbound delivery decoration preserves semantic tags, applies the fixed
+  presentation, and re-sanitizes hostile snapshot markup.
+- Prove both thread and single-message HTML containers use the reader styling
+  class.
 
 ### 2026-07-28 — Make constrained WYSIWYG authoring an MVP requirement
 
@@ -152,7 +181,7 @@ Implemented:
 - Preserved the F59 server-owned quotation boundary.
 - Excluded style-based formatting, arbitrary HTML, tables, and inline images
   from the initial MVP.
-- `npm run verify` passes with 1,497 application tests, 100% coverage, and 16
+- `npm run verify` passes with 1,500 application tests, 100% coverage, and 16
   bridge tests.
 - The targeted attachment, formatted-reply, formatted-draft restore/autosave,
   and popup-composer browser scenarios pass. The Playwright process does not

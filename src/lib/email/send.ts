@@ -33,6 +33,7 @@ import {
 import { selectAccessibleReplySource } from "@/lib/email/reply-source";
 import { buildReplyBodies, type ReplyBodySource } from "@/lib/email/reply-bodies";
 import { normalizeAuthoredContent } from "@/lib/email/authored-content";
+import { prepareHtmlForDelivery } from "@/lib/email/delivery-html";
 
 async function getUserOrgId(env: CloudflareEnv, userId: string): Promise<string | null> {
 	const db = getDb(env);
@@ -591,7 +592,7 @@ export async function processOutboundQueue(
 			from: snapshot.from,
 			to: snapshot.to,
 			subject: snapshot.subject,
-			html: snapshot.html,
+			html: prepareHtmlForDelivery(snapshot.html),
 			text: snapshot.text,
 			...(snapshot.headers || snapshot.autoReply
 				? {

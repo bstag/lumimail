@@ -152,7 +152,7 @@ The final gate covers four separate things and is checked only when all four hol
 
 | Clause | Status |
 |--------|--------|
-| `npm run verify` | Passing 2026-07-28 — 1,497 application tests at 100% configured coverage plus 16 bridge tests. |
+| `npm run verify` | Passing 2026-07-28 — 1,500 application tests at 100% configured coverage plus 16 bridge tests. |
 | Required E2E suite | The scenarios pass (including all three restricted-admin scenarios), but the Playwright command does not exit cleanly in a credential-free environment because its configured web server attempts a Wrangler remote proxy without `CLOUDFLARE_API_TOKEN`. This must be corrected before the clause is passing. |
 | Deployment smoke tests | Not automated. Every deployment records ad-hoc HTTP 200/401 checks in the remediation log; there is no repeatable script, so this is an operator habit rather than a test. |
 | Traced mail-flow tests | Absent. No automated test follows a message from inbound receipt through storage to outbound reply with a traceable identifier. |
