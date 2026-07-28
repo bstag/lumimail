@@ -253,8 +253,10 @@ test.describe("canonical API client contracts", () => {
 		await page.goto("/inbox/msg_parent");
 		await page.getByRole("button", { name: "Reply", exact: true }).click();
 		await expect(page).toHaveURL(/\/compose\?.*inReplyTo=msg_parent/);
-		await expect(page.getByLabel("Body")).toHaveValue("");
+		await expect(page.getByLabel("Body")).toHaveText("");
 		await page.getByLabel("Body").fill("Reply body");
+		await page.getByLabel("Body").press("Control+A");
+		await page.getByRole("button", { name: "Bold" }).click();
 		await page.locator('button[type="submit"]').click();
 
 		await expect.poll(() => sentPayload).not.toBeNull();
@@ -262,11 +264,75 @@ test.describe("canonical API client contracts", () => {
 			mailboxId: "mbx_1",
 			replyToMessageId: "msg_parent",
 			text: "Reply body",
+			html: "<p><strong>Reply body</strong></p>",
 		});
-		expect(sentPayload).not.toHaveProperty("html");
 		expect(sentPayload).not.toHaveProperty("inReplyTo");
 		expect(sentPayload).not.toHaveProperty("references");
 		expect(sentPayload).not.toHaveProperty("threadId");
+	});
+
+	test("restores and autosaves a formatted draft without flattening it", async ({ page }) => {
+		await mockAuthenticatedShell(page);
+		let savedPayload: Record<string, unknown> | null = null;
+		await page.route("**/api/drafts/draft_rich", async (route) => {
+			if (route.request().method() === "PATCH") {
+				savedPayload = route.request().postDataJSON() as Record<string, unknown>;
+				return route.fulfill({ json: { draft: { id: "draft_rich" } } });
+			}
+			return route.fulfill({
+				json: {
+					draft: {
+						id: "draft_rich",
+						mailboxId: "mbx_1",
+						fromAddr: "owner@example.com",
+						toAddr: "recipient@example.net",
+						subject: "Formatted draft",
+						textBody: "Saved body",
+						htmlBody: "<p><strong>Saved body</strong></p>",
+						replySourceMessageId: null,
+					},
+				},
+			});
+		});
+		await page.route("**/api/labels", (route) =>
+			route.fulfill({ json: { success: true, data: [] } }),
+		);
+		await page.route("**/api/messages?**", (route) =>
+			route.fulfill({
+				json: {
+					messages: [{
+						id: "draft_rich",
+						userId: "user_1",
+						mailboxId: "mbx_1",
+						direction: "outbound",
+						fromAddr: "owner@example.com",
+						toAddr: "recipient@example.net",
+						subject: "Formatted draft",
+						snippet: "Saved body",
+						status: "draft",
+						read: true,
+						starred: false,
+						threadId: null,
+						createdAt: "2026-07-28T12:00:00.000Z",
+					}],
+					total: 1,
+					limit: 25,
+					offset: 0,
+				},
+			}),
+		);
+
+		await page.goto("/drafts");
+		await page.getByText("Formatted draft").click();
+
+		const body = page.getByLabel("Body");
+		await expect(body).toHaveText("Saved body");
+		await expect(body.locator("strong")).toHaveText("Saved body");
+		await expect.poll(() => savedPayload).not.toBeNull();
+		expect(savedPayload).toMatchObject({
+			text: "Saved body",
+			html: "<p><strong>Saved body</strong></p>",
+		});
 	});
 
 	test("keeps the popup composer Send action above floating preference controls", async ({ page }) => {

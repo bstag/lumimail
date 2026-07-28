@@ -18,6 +18,7 @@ export type SubmitMessageInput = {
 	to: string;
 	subject: string;
 	text: string;
+	html?: string;
 	mailboxId?: string;
 	replyToMessageId?: string;
 };

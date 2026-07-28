@@ -32,6 +32,7 @@ import {
 } from "@/lib/email/threading";
 import { selectAccessibleReplySource } from "@/lib/email/reply-source";
 import { buildReplyBodies, type ReplyBodySource } from "@/lib/email/reply-bodies";
+import { normalizeAuthoredContent } from "@/lib/email/authored-content";
 
 async function getUserOrgId(env: CloudflareEnv, userId: string): Promise<string | null> {
 	const db = getDb(env);
@@ -209,9 +210,14 @@ export async function sendEmail(
 	const authorizedInput = { ...input, mailboxId: authorization.mailboxId };
 	const sender = await getSenderContext(env, authorizedInput);
 	const fromAddr = sender.fromAddr;
+	const authoredContent = normalizeAuthoredContent(input);
 	const deliveryBodies = replySource
-		? buildReplyBodies(input.text ?? "", replySource.bodySource)
-		: { text: input.text, html: input.html };
+		? buildReplyBodies(
+			authoredContent.text ?? "",
+			replySource.bodySource,
+			authoredContent.html,
+		)
+		: authoredContent;
 	const validatedAttachments = validateOutboundAttachments(input);
 	await upsertContactFromAddress(env, {
 		userId: input.userId,
@@ -236,8 +242,8 @@ export async function sendEmail(
 		from: fromAddr,
 		to: input.to,
 		subject: input.subject,
-		html: deliveryBodies.html,
-		text: deliveryBodies.text,
+		html: deliveryBodies.html ?? undefined,
+		text: deliveryBodies.text ?? undefined,
 		...(attachmentSnapshots.length ? { attachments: attachmentSnapshots } : {}),
 		...(replySource?.threading.headers ? { headers: replySource.threading.headers } : {}),
 		...(input.autoReply ? { autoReply: true } : {}),

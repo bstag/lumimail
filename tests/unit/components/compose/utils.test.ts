@@ -13,7 +13,14 @@ describe("submitMessage", () => {
 			success: true,
 			data: { messageId: "msg_1", status: "queued" },
 		}));
-		const input = { from: "a@example.com", to: "b@example.com", subject: "Hi", text: "Body", mailboxId: "mbx_1" };
+		const input = {
+			from: "a@example.com",
+			to: "b@example.com",
+			subject: "Hi",
+			text: "Body",
+			html: "<p><strong>Body</strong></p>",
+			mailboxId: "mbx_1",
+		};
 		const file = new File(["hello"], "hello.txt", { type: "text/plain" });
 		await expect(submitMessage(input, [file])).resolves.toEqual({ messageId: "msg_1", status: "queued" });
 		const [, options] = authFetch.mock.calls[0];

@@ -13,6 +13,7 @@ import {
 	messageAccessCondition,
 } from "@/lib/auth/mailbox-access";
 import { selectAccessibleReplySource } from "@/lib/email/reply-source";
+import { normalizeAuthoredContent } from "@/lib/email/authored-content";
 
 export async function GET(request: Request, { params }: DraftRouteParams) {
 	const { id } = await params;
@@ -78,8 +79,7 @@ export async function PATCH(request: Request, { params }: DraftRouteParams) {
 		}
 	}
 
-	const text = input.text ?? "";
-	const html = input.html ?? "";
+	const content = normalizeAuthoredContent(input);
 	await db
 		.update(messages)
 		.set({
@@ -88,7 +88,7 @@ export async function PATCH(request: Request, { params }: DraftRouteParams) {
 			fromAddr: input.from ?? "",
 			toAddr: input.to ?? "",
 			subject: input.subject ?? null,
-			snippet: buildSnippet(text || null, html || null),
+			snippet: buildSnippet(content.text, content.html),
 			replySourceMessageId: input.replyToMessageId?.trim() ?? null,
 		})
 		.where(eq(messages.id, id));
@@ -96,8 +96,8 @@ export async function PATCH(request: Request, { params }: DraftRouteParams) {
 	await db
 		.update(messageBodies)
 		.set({
-			textBody: text || null,
-			htmlBody: html || null,
+			textBody: content.text,
+			htmlBody: content.html,
 		})
 		.where(eq(messageBodies.messageId, id));
 

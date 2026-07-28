@@ -127,8 +127,8 @@ describe("sendEmail producer", () => {
 			from: "a@example.com",
 			to: "b@x.com",
 			subject: "Hi",
-			text: "body",
-			html: "<p>body</p>",
+			text: "untrusted alternative",
+			html: '<p onclick="bad()"><strong>formatted body</strong><script>secret()</script></p>',
 		});
 
 		expect(result).toEqual({ messageId: "msg_id", status: "queued" });
@@ -143,6 +143,10 @@ describe("sendEmail producer", () => {
 			mailboxId: "mb_1",
 			threadId: "thr_id",
 		});
+		expect(mock.inserts[1].values).toMatchObject({
+			textBody: "formatted body",
+			htmlBody: "<p><strong>formatted body</strong></p>",
+		});
 		expect(mock.inserts[2].values).toMatchObject({
 			id: "job_id",
 			status: "queued",
@@ -150,8 +154,8 @@ describe("sendEmail producer", () => {
 				from: "a@example.com",
 				to: "b@x.com",
 				subject: "Hi",
-				html: "<p>body</p>",
-				text: "body",
+				html: "<p><strong>formatted body</strong></p>",
+				text: "formatted body",
 			}),
 		});
 		expect(queueSend).toHaveBeenCalledWith({ kind: "outbound", jobId: "job_id" });
@@ -179,7 +183,7 @@ describe("sendEmail producer", () => {
 			subject: "Re: Hi",
 			replyToMessageId: "msg_parent",
 			text: "Authored <reply>",
-			html: "<img src=x onerror=bad()>client html",
+			html: "<p>Authored &lt;reply&gt;<script>bad()</script></p>",
 		});
 
 		expect(mock.inserts[0].values).toMatchObject({
@@ -200,7 +204,7 @@ describe("sendEmail producer", () => {
 		expect(body.textBody).toContain("> Plain source");
 		expect(body.htmlBody).toContain("Authored &lt;reply&gt;");
 		expect(body.htmlBody).toContain("<blockquote><p><strong>Rich source</strong></p></blockquote>");
-		expect(body.htmlBody).not.toContain("client html");
+		expect(body.htmlBody).toContain("<p>Authored &lt;reply&gt;</p>");
 		expect(body.htmlBody).not.toContain("<script");
 	});
 

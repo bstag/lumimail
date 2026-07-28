@@ -142,6 +142,7 @@
     "to": "Кому",
     "subject": "Тема",
     "body": "Текст",
+    "bodyRequired": "Текст сообщения обязателен",
     "selectMailboxFirst": "Сначала выберите ящик",
     "recipientsPlaceholder": "Получатели, или \"Иван Петров\" (ivan@example.com)",
     "savedToDrafts": "Сохранено в черновики",

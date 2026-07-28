@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import type { Editor } from "@tiptap/react";
 import { Minimize2, Paperclip, Send, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
 import {
 	canMailboxSend,
@@ -18,6 +18,8 @@ import { notifyMessagesChanged } from "@/hooks/utils";
 import { formatEmailAddress } from "@/lib/email/address";
 import { cn } from "@/lib/utils";
 import { fetchDraft, submitMessage } from "./utils";
+import { ComposeEditor } from "./compose-editor";
+import { ComposeEditorToolbar } from "./compose-editor-toolbar";
 
 type Toast = { type: "success" | "error"; message: string } | null;
 
@@ -37,6 +39,22 @@ function formatFileSize(bytes: number): string {
 	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function escapeHtml(value: string): string {
+	return value
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;");
+}
+
+function plainTextToHtml(value: string): string {
+	const normalized = value.replace(/\r\n?/g, "\n");
+	if (!normalized) return "";
+	return normalized
+		.split(/\n{2,}/)
+		.map((paragraph) => `<p>${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`)
+		.join("");
+}
+
 export function ComposeForm({
 	mode = "page",
 	draftIdToLoad,
@@ -53,6 +71,8 @@ export function ComposeForm({
 	const [to, setTo] = useState("");
 	const [subject, setSubject] = useState("");
 	const [text, setText] = useState("");
+	const [html, setHtml] = useState("");
+	const [editor, setEditor] = useState<Editor | null>(null);
 	const [replyToMessageId, setReplyToMessageId] = useState<string | null>(null);
 	const [toast, setToast] = useState<Toast>(null);
 	const [loading, setLoading] = useState(false);
@@ -98,6 +118,7 @@ export function ComposeForm({
 				setTo(draft.toAddr);
 				setSubject(draft.subject ?? "");
 				setText(draft.textBody ?? "");
+				setHtml(draft.htmlBody ?? plainTextToHtml(draft.textBody ?? ""));
 				setReplyToMessageId(draft.replySourceMessageId);
 				setLoadedDraftMailboxId(draft.mailboxId);
 			})
@@ -138,7 +159,11 @@ export function ComposeForm({
 				const original = payload.body.textBody ?? "";
 				const meta = payload.message;
 				const quoted = `\n\n---------- Forwarded message ----------\nFrom: ${meta?.fromAddr ?? ""}\nSubject: ${meta?.subject ?? ""}\n\n${original}`;
-				setText((current) => current + quoted);
+				setText((current) => {
+					const next = current + quoted;
+					setHtml(plainTextToHtml(next));
+					return next;
+				});
 			})
 			.catch(() => {
 				/* prefill is best-effort */
@@ -152,10 +177,11 @@ export function ComposeForm({
 
 	useEffect(() => {
 		if (!loadedDraftMailboxId) return;
+		if (selectedMailbox?.id === loadedDraftMailboxId) return;
 
 		const draftMailbox = mailboxes.find((mailbox) => mailbox.id === loadedDraftMailboxId);
 		if (draftMailbox) setSelectedMailbox(draftMailbox);
-	}, [loadedDraftMailboxId, mailboxes, setSelectedMailbox]);
+	}, [loadedDraftMailboxId, mailboxes, selectedMailbox?.id, setSelectedMailbox]);
 
 	useEffect(() => {
 		const hasContent = to.trim() || subject.trim() || text.trim();
@@ -169,6 +195,7 @@ export function ComposeForm({
 				to,
 				subject,
 				text,
+				html,
 				...(replyToMessageId ? { replyToMessageId } : {}),
 			};
 			const res = await authFetch(draftId ? `/api/drafts/${draftId}` : "/api/drafts", {
@@ -186,7 +213,7 @@ export function ComposeForm({
 		return () => {
 			if (saveTimer.current) clearTimeout(saveTimer.current);
 		};
-	}, [draftId, fromAddr, loadingDraft, replyToMessageId, selectedMailbox?.id, subject, text, to]);
+	}, [draftId, fromAddr, html, loadingDraft, replyToMessageId, selectedMailbox?.id, subject, text, to]);
 
 	function handleFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
 		const files = Array.from(event.target.files ?? []);
@@ -226,6 +253,10 @@ export function ComposeForm({
 
 	async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
+		if (!text.trim()) {
+			setToast({ type: "error", message: t("bodyRequired") });
+			return;
+		}
 		setLoading(true);
 		try {
 			await submitMessage({
@@ -233,6 +264,7 @@ export function ComposeForm({
 				to,
 				subject,
 				text,
+				html,
 				mailboxId: selectedMailbox?.id,
 				...(replyToMessageId ? { replyToMessageId } : {}),
 			}, attachedFiles.map((attachment) => attachment.file));
@@ -252,6 +284,7 @@ export function ComposeForm({
 		setTo("");
 		setSubject("");
 		setText("");
+		setHtml("");
 		setReplyToMessageId(null);
 		setAttachedFiles([]);
 		setToast({ type: "success", message: t("sendSuccess") });
@@ -325,16 +358,21 @@ export function ComposeForm({
 						className="h-8 border-0 px-0 py-1 shadow-none focus-visible:ring-0"
 					/>
 				</div>
-				<div className="min-h-0 flex-1 px-4 py-2">
-					<Label htmlFor={`${mode}-text`} className="sr-only">{t("body")}</Label>
-					<Textarea
-						id={`${mode}-text`}
-						value={text}
-						onChange={(event) => setText(event.target.value)}
-						required
-						disabled={loadingDraft}
-						className="h-full min-h-full resize-none border-0 px-0 shadow-none focus-visible:ring-0"
-					/>
+				<div className="flex min-h-0 flex-1 flex-col">
+					<Label className="sr-only">{t("body")}</Label>
+					<ComposeEditorToolbar editor={editor} />
+					<div className="min-h-0 flex-1 overflow-y-auto">
+						<ComposeEditor
+							content={html}
+							label={t("body")}
+							disabled={loadingDraft}
+							onEditorReady={setEditor}
+							onChange={(content) => {
+								setHtml(content.html);
+								setText(content.text);
+							}}
+						/>
+					</div>
 				</div>
 				{attachedFiles.length > 0 && (
 					<div className="border-t border-border px-4 py-2 flex flex-wrap gap-2">

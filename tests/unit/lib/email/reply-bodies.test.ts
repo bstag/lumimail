@@ -26,6 +26,19 @@ describe("buildReplyBodies", () => {
 		expect(result.html).not.toContain("<img");
 	});
 
+	it("preserves sanitized authored formatting ahead of the server-owned quotation", () => {
+		const result = buildReplyBodies("Thanks team", {
+			fromAddr: "Sender",
+			textBody: "Earlier",
+			htmlBody: "<p>Earlier</p>",
+		}, '<p><strong>Thanks</strong> team<script>bad()</script></p>');
+
+		expect(result.html).toContain("<p><strong>Thanks</strong> team</p>");
+		expect(result.html).toContain("<blockquote><p>Earlier</p></blockquote>");
+		expect(result.html).not.toContain("script");
+		expect(result.text).toContain("Thanks team");
+	});
+
 	it("uses escaped source text when HTML is absent", () => {
 		const result = buildReplyBodies("Reply", {
 			fromAddr: "Bad <name>",

@@ -117,8 +117,8 @@ describe("PATCH /api/drafts/[id]", () => {
 				from: "me@x.test",
 				to: "you@x.test",
 				subject: "Re",
-				text: "t",
-				html: "<p>h</p>",
+				text: "untrusted",
+				html: '<p onclick="bad()"><em>formatted</em><img src="https://track.test"></p>',
 			}),
 			params(),
 		);
@@ -129,7 +129,10 @@ describe("PATCH /api/drafts/[id]", () => {
 			toAddr: "you@x.test",
 			subject: "Re",
 		});
-		expect(mock.updates[1].set).toEqual({ textBody: "t", htmlBody: "<p>h</p>" });
+		expect(mock.updates[1].set).toEqual({
+			textBody: "formatted",
+			htmlBody: "<p><em>formatted</em></p>",
+		});
 	});
 
 	it("rejects malformed reply source input before updating", async () => {

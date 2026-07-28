@@ -4,19 +4,18 @@ import { useEffect } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Link from "@tiptap/extension-link";
-import Underline from "@tiptap/extension-underline";
-import TextAlign from "@tiptap/extension-text-align";
 
 export type ComposeEditorProps = {
   content: string;
-  onChange: (html: string) => void;
+  label: string;
+  onChange: (content: { html: string; text: string }) => void;
   disabled?: boolean;
   onEditorReady?: (editor: Editor | null) => void;
 };
 
 export function ComposeEditor({
   content,
+  label,
   onChange,
   disabled = false,
   onEditorReady,
@@ -26,25 +25,24 @@ export function ComposeEditor({
       extensions: [
         StarterKit.configure({
           heading: { levels: [1, 2] },
-        }),
-        Link.configure({
-          openOnClick: false,
-        }),
-        Underline,
-        TextAlign.configure({
-          types: ["heading", "paragraph"],
+          link: { openOnClick: false },
         }),
       ],
       content,
+      immediatelyRender: false,
       editable: !disabled,
       editorProps: {
         attributes: {
-          class: "tiptap prose prose-sm max-w-none focus:outline-none",
+          class: "tiptap min-h-full px-4 py-3 text-sm text-ink focus:outline-none",
           role: "textbox",
+          "aria-label": label,
         },
       },
       onUpdate: ({ editor }) => {
-        onChange(editor.getHTML());
+        onChange({
+          html: editor.getHTML(),
+          text: editor.getText({ blockSeparator: "\n" }),
+        });
       },
     },
     [],

@@ -12,6 +12,7 @@ import {
 	messageAccessCondition,
 } from "@/lib/auth/mailbox-access";
 import { selectAccessibleReplySource } from "@/lib/email/reply-source";
+import { normalizeAuthoredContent } from "@/lib/email/authored-content";
 
 type DraftPayload = {
 	mailboxId?: string | null;
@@ -86,8 +87,7 @@ export async function POST(request: Request) {
 		}
 	}
 	const draftId = newId("msg");
-	const text = input.text ?? "";
-	const html = input.html ?? "";
+	const content = normalizeAuthoredContent(input);
 
 	await db.insert(messages).values({
 		id: draftId,
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
 		fromAddr: input.from ?? "",
 		toAddr: input.to ?? "",
 		subject: input.subject ?? null,
-		snippet: buildSnippet(text || null, html || null),
+		snippet: buildSnippet(content.text, content.html),
 		status: "draft",
 		read: true,
 		replySourceMessageId: input.replyToMessageId?.trim() ?? null,
@@ -107,8 +107,8 @@ export async function POST(request: Request) {
 	await db.insert(messageBodies).values({
 		id: newId(),
 		messageId: draftId,
-		textBody: text || null,
-		htmlBody: html || null,
+		textBody: content.text,
+		htmlBody: content.html,
 	});
 
 	return NextResponse.json({ draft: { id: draftId } });

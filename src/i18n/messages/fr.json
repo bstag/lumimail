@@ -142,6 +142,7 @@
     "to": "À",
     "subject": "Objet",
     "body": "Corps",
+    "bodyRequired": "Le corps du message est requis",
     "selectMailboxFirst": "Sélectionnez d'abord une boîte mail",
     "recipientsPlaceholder": "Destinataires, ou \"Marie Dupont\" (marie@exemple.com)",
     "savedToDrafts": "Enregistré dans les brouillons",

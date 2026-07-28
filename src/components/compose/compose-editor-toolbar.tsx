@@ -12,9 +12,6 @@ import {
   ListOrdered,
   Quote,
   Link,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -111,27 +108,6 @@ function buildButtons(editor: Editor | null, labels: Record<string, string>): To
       isActive: (ed) => ed.isActive("link"),
       label: labels.link,
     },
-    {
-      key: "alignLeft",
-      icon: AlignLeft,
-      action: (ed) => ed.chain().focus().setTextAlign("left").run(),
-      isActive: (ed) => ed.isActive({ textAlign: "left" }),
-      label: labels.alignLeft,
-    },
-    {
-      key: "alignCenter",
-      icon: AlignCenter,
-      action: (ed) => ed.chain().focus().setTextAlign("center").run(),
-      isActive: (ed) => ed.isActive({ textAlign: "center" }),
-      label: labels.alignCenter,
-    },
-    {
-      key: "alignRight",
-      icon: AlignRight,
-      action: (ed) => ed.chain().focus().setTextAlign("right").run(),
-      isActive: (ed) => ed.isActive({ textAlign: "right" }),
-      label: labels.alignRight,
-    },
   ];
 }
 
@@ -148,9 +124,6 @@ export function ComposeEditorToolbar({ editor }: { editor: Editor | null }) {
     orderedList: t("orderedList"),
     blockquote: t("blockquote"),
     link: t("link"),
-    alignLeft: t("alignLeft"),
-    alignCenter: t("alignCenter"),
-    alignRight: t("alignRight"),
   };
 
   const buttons = buildButtons(editor, labels);
@@ -165,7 +138,6 @@ export function ComposeEditorToolbar({ editor }: { editor: Editor | null }) {
           size="sm"
           className={cn(
             "h-8 w-8 px-0",
-            "h-8 w-8",
             editor && btn.isActive(editor) && "bg-surface-subtle text-accent",
           )}
           onClick={() => editor && btn.action(editor)}

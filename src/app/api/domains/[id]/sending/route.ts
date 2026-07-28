@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { guardUser } from "@/lib/auth/cookies";
+import { guardOrgAdmin } from "@/lib/auth/org-guard";
 import { getEnv } from "@/lib/cloudflare";
 import { getDomainForUser, reconcileDomainSending } from "@/lib/domains/service";
 import { apiError, apiSuccess } from "@/lib/api/response";
@@ -9,12 +9,11 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function POST(request: Request, { params }: Params) {
 	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
+	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
 	if (errorResponse) return errorResponse;
-	if (!user.organizationId) return apiError("No organization", 400);
 
 	const { id } = await params;
-	const domain = await getDomainForUser(env, user.organizationId, id);
+	const domain = await getDomainForUser(env, orgUser.organizationId!, id);
 	if (!domain) return apiError("Not found", 404);
 
 	const body = await request.json().catch(() => null);

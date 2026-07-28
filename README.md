@@ -55,7 +55,7 @@ You don't pick Lumimail because it's cheaper. You pick it because it's *yours* a
 
 Not a toy. Not a "look I parsed an email" demo. A working multi-user mail platform:
 
-- **Full webmail workflow** — compose, queued send, reply, forward, RFC-aware conversations, metadata/snippet search
+- **Full webmail workflow** — constrained rich-text compose, queued send, reply, forward, RFC-aware conversations, metadata/snippet search
 - **Organize like Gmail** — labels, stars, filters/rules, bulk actions, pagination, spam & trash
 - **Reliable delivery** — durable queues, classified retries, visible delivery state, queue-health monitoring, and operator-confirmed recovery
 - **Out-of-office** — mailbox-scoped vacation auto-responder with loop suppression and a per-correspondent reply window

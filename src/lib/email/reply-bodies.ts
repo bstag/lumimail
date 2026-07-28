@@ -46,8 +46,10 @@ function readableHtmlText(value: string | null): string {
 export function buildReplyBodies(
 	authoredText: string,
 	source: ReplyBodySource,
+	authoredHtml?: string | null,
 ): ReplyBodies {
 	const authored = normalizeNewlines(authoredText);
+	const safeAuthoredHtml = sanitizeHtml(authoredHtml);
 	const safeSourceHtml = sanitizeHtml(source.htmlBody);
 	const sourceText = source.textBody
 		?? readableHtmlText(safeSourceHtml);
@@ -58,6 +60,6 @@ export function buildReplyBodies(
 
 	return {
 		text: `${authored}\n\n${attribution}\n${quotePlainText(sourceText)}`,
-		html: `<div>${textToHtml(authored)}</div><div>${escapeHtml(attribution)}</div><blockquote>${quoteHtml}</blockquote>`,
+		html: `${safeAuthoredHtml?.trim() ? safeAuthoredHtml : `<div>${textToHtml(authored)}</div>`}<div>${escapeHtml(attribution)}</div><blockquote>${quoteHtml}</blockquote>`,
 	};
 }

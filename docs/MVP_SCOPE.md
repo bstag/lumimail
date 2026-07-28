@@ -26,10 +26,10 @@ gates later in this document must also pass.
 | ID | Feature | Status | Spec | Routes / integration | Known boundary |
 |----|---------|--------|------|----------------------|----------------|
 | F01 | Core auth: register, login, session, invite acceptance | Shipped | [F01](specs/F01-auth.md) | `/login`, `/register`, `/api/auth/*` | Password recovery is tracked separately as F21. |
-| F02 | Domain management and Cloudflare provisioning | Partially Shipped | [F02](specs/F02-domains.md), [F45](specs/F45-cloudflare-sending-domain-readiness.md) | `/domains`, `/api/domains*`, `/api/setup/*` | Apex/nested sending readiness is provider-backed and production-verified; domain administration still lacks role enforcement for restricted members. |
+| F02 | Domain management and Cloudflare provisioning | Shipped (local) | [F02](specs/F02-domains.md), [F45](specs/F45-cloudflare-sending-domain-readiness.md) | `/domains`, `/api/domains*`, `/api/setup/*` | Apex/nested sending readiness is provider-backed and production-verified. Every domain UI/API surface is now owner/admin-only locally; deployment and a controlled restricted-member `403` check remain. |
 | F03 | Organization-scoped mailbox CRUD | Shipped | [F03](specs/F03-mailboxes.md), [F47](specs/F47-mailbox-access-control.md) | `/mailboxes`, `/api/admin/mailboxes`, `/api/mailboxes*` | Organization admins provision and delete mailboxes; content/settings access requires explicit mailbox membership. Unrelated-mailbox isolation and immediate live revocation are production-verified. |
 | F04 | Mail folders: inbox, sent, drafts, spam, trash, starred | Shipped | [F04](specs/F04-mail-folders.md), [F72](specs/F72-mail-ui-state-synchronization.md) | dashboard folders, `/api/messages*` | Shared mutation invalidation keeps folder rows, filtered membership, detail controls, drafts, and navigation counts synchronized. |
-| F05 | Plain-text compose, provider send, drafts, attachment UI | Shipped | [F05](specs/F05-compose-send.md), [F48](specs/F48-role-aware-mail-actions-and-shared-draft-refresh.md), [F55](specs/F55-outbound-attachment-delivery.md) | `/compose`, `/api/send`, `/api/drafts*`, `/api/v1/send` | Shared mailbox drafts are capability-scoped; atomic outbound attachment storage, queue loading, Cloudflare/Resend encoding, exact R2 bytes, and external-recipient delivery are production-verified. Newly selected files are intentionally not persisted by draft autosave. |
+| F05 | Constrained WYSIWYG compose, provider send, drafts, attachment UI | Shipped (local) | [F05](specs/F05-compose-send.md), [F48](specs/F48-role-aware-mail-actions-and-shared-draft-refresh.md), [F55](specs/F55-outbound-attachment-delivery.md), [F59](specs/F59-html-preserving-replies.md) | `/compose`, `/api/send`, `/api/drafts*`, `/api/v1/send` | Constrained formatting, sanitized HTML, server-derived plain text, the server-owned reply quotation boundary, attachments, and shared drafts are locally verified. Production formatted-delivery evidence remains. |
 | F06 | API keys | Shipped | [F06](specs/F06-api-keys.md), [F44](specs/F44-api-key-lifecycle.md) | `/api-keys`, `/api/api-keys`, `/api/v1/send` | Keys are created with a one-time secret, lifecycle metadata is visible, and owner-scoped permanent revocation is enforced during authentication. |
 | F07 | Inbound routing rules and catch-all | Shipped | [F46](specs/F46-domain-catch-all-routing.md) | `/routing`, `/api/routing-rules*` | Canonical per-domain rules, safe Cloudflare catch-all provisioning, and named-recipient precedence are deployed and production-verified with controlled exact/catch-all delivery across LucidKith and Henriksen. |
 | F08 | Webhooks | Shipped | Missing | `/webhooks`, `/api/webhooks*` | Payload/privacy behavior must be included in the production data-export audit. |
@@ -107,6 +107,8 @@ multi-domain, multi-user email replacement.
 
 | Priority | Required outcome | Why it blocks the MVP | Tracking |
 |----------|------------------|-----------------------|----------|
+| P1 | Deploy and validate F02 domain-role enforcement | The direct API bypass is fixed and covered locally, but the production Worker has not yet been shown to return `403` to a restricted member before Cloudflare operations. | [F02](specs/F02-domains.md) |
+| P1 | Deploy and validate F05 formatted delivery | The editor and MIME representations are locally covered, but representative clients have not yet been shown to receive equivalent sanitized HTML and meaningful plain text from the production Worker. | [F05](specs/F05-compose-send.md) |
 | P1 | Exercise R2 cleanup against a real orphan | Reporting and retention policy are deployed, but the deletion path has not removed a live orphan. | [R-11](REMEDIATION_PLAN.md#phase-2--sending-and-routing-correctness) |
 | P1 | Host and validate the IMAP/SMTP bridge | Local protocol and API contracts pass; a trusted-TLS production host and controlled client isolation/send pass remain. | [R-23](REMEDIATION_PLAN.md#phase-3--multi-user-authorization) |
 | P2 | Complete the multi-domain performance pass | Indexed plans and local volume tests exist; the remaining production-shape timing and queue-throughput evidence is part of the readiness exercise. | [R-17](REMEDIATION_PLAN.md#phase-5--operational-hardening) |
@@ -119,9 +121,10 @@ All of these must be checked before a general production launch:
 - [x] Hostile HTML, links, and inline content are rendered without executable content or credential leakage.
 - [x] A fresh D1 database and an upgraded production-like database both pass automated schema verification.
 - [x] Exact-address and catch-all inbound delivery pass across at least two domains, including precedence and no-match cases.
-- [x] Outbound, reply, drafts, and attachments reach controlled recipients with observable delivery/failure state.
+- [ ] Formatted outbound mail and replies reach controlled recipients with equivalent HTML and plain-text content; drafts and attachments preserve expected content and delivery/failure state.
 - [x] Retried queue events cannot send duplicate mail, and terminal failures are recoverable.
 - [x] Restricted users cannot enumerate, read, search, download from, or send as unauthorized mailboxes.
+- [ ] Restricted members cannot view or mutate organization domain configuration through UI or direct API calls.
 - [x] Two or more users can share one mailbox without receiving access to unrelated mailboxes.
 - [x] Password recovery works end to end in production without exposing reset tokens.
 - [ ] Backup, restore, retention, cleanup, and rollback procedures have been exercised.
@@ -149,8 +152,8 @@ The final gate covers four separate things and is checked only when all four hol
 
 | Clause | Status |
 |--------|--------|
-| `npm run verify` | Passing — 1,463 tests at 100% configured coverage. |
-| Required E2E suite | Passing — 46 mocked scenarios and 29 authenticated scenarios against the real local backend, stable across repeated runs. |
+| `npm run verify` | Passing 2026-07-28 — 1,497 application tests at 100% configured coverage plus 16 bridge tests. |
+| Required E2E suite | The scenarios pass (including all three restricted-admin scenarios), but the Playwright command does not exit cleanly in a credential-free environment because its configured web server attempts a Wrangler remote proxy without `CLOUDFLARE_API_TOKEN`. This must be corrected before the clause is passing. |
 | Deployment smoke tests | Not automated. Every deployment records ad-hoc HTTP 200/401 checks in the remediation log; there is no repeatable script, so this is an operator habit rather than a test. |
 | Traced mail-flow tests | Absent. No automated test follows a message from inbound receipt through storage to outbound reply with a traceable identifier. |
 
@@ -173,11 +176,23 @@ Additional registry hygiene required:
 - Reconcile stale statuses in F01, F12, F13, and F34 specifications with verified behavior.
 - Ensure each future status change records test and deployment evidence rather than relying on route existence.
 
+### Reconciliation 2026-07-28
+
+- F02 now uses the established organization-admin guard across list, detail,
+  DNS, create, sending-reconciliation, and removal endpoints. The UI already
+  rejected restricted members. Thirty focused domain tests, full verification,
+  and the three restricted-admin browser scenarios pass locally; production
+  deployment evidence remains an MVP gate.
+- F05 constrained WYSIWYG authoring is now implemented locally for the MVP. It
+  reuses Tiptap, sends safe HTML plus a derived plain-text alternative, and keeps
+  raw reply-source HTML server-owned. Advanced style-based formatting remains
+  post-MVP; production client-delivery evidence is still required.
+
 ## Post-MVP enhancements
 
 | Feature | Notes |
 |---------|-------|
-| Rich-text HTML composition | Current composition is plain text. |
+| Advanced rich-text formatting | Fonts, colours, alignment, tables, inline images, arbitrary HTML/source editing, and embedded media remain beyond the constrained MVP editor. |
 | IMAP IDLE / server-side push | The bridge currently polls. |
 | Snooze and scheduled send | Convenience features beyond core reliable mail. |
 | Additional identity providers / SSO | Useful for larger organizations after mailbox ACLs are complete. |

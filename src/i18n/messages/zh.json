@@ -142,6 +142,7 @@
     "to": "收件人",
     "subject": "主题",
     "body": "正文",
+    "bodyRequired": "邮件正文为必填项",
     "selectMailboxFirst": "请先选择一个邮箱",
     "recipientsPlaceholder": "收件人，或 \"张三\" (zhangsan@example.com)",
     "savedToDrafts": "已保存到草稿",

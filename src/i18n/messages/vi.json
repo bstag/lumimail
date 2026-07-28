@@ -142,6 +142,7 @@
     "to": "Đến",
     "subject": "Chủ đề",
     "body": "Nội dung",
+    "bodyRequired": "Nội dung thư là bắt buộc",
     "selectMailboxFirst": "Chọn hộp thư trước",
     "recipientsPlaceholder": "Người nhận, hoặc \"Nguyễn Văn A\" (nguyenvana@vidu.com)",
     "savedToDrafts": "Đã lưu vào thư nháp",

@@ -142,6 +142,7 @@
     "to": "宛先",
     "subject": "件名",
     "body": "本文",
+    "bodyRequired": "メッセージ本文は必須です",
     "selectMailboxFirst": "まずメールボックスを選択",
     "recipientsPlaceholder": "宛先、例：\"山田 太郎\" (taro@example.com)",
     "savedToDrafts": "下書きに保存",

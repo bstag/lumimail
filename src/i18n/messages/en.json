@@ -142,6 +142,7 @@
     "to": "To",
     "subject": "Subject",
     "body": "Body",
+    "bodyRequired": "Message body is required",
     "selectMailboxFirst": "Select a mailbox first",
     "recipientsPlaceholder": "Recipients, or \"Maya Chen\" (maya@example.com)",
     "savedToDrafts": "Saved to drafts",

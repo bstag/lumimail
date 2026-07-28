@@ -142,6 +142,7 @@
     "to": "إلى",
     "subject": "الموضوع",
     "body": "النص",
+    "bodyRequired": "نص الرسالة مطلوب",
     "selectMailboxFirst": "اختر صندوق بريد أولاً",
     "recipientsPlaceholder": "المستلمون، أو \"أحمد\" (ahmed@example.com)",
     "savedToDrafts": "محفوظ في المسودات",

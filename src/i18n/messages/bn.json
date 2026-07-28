@@ -142,6 +142,7 @@
     "to": "প্রাপক",
     "subject": "বিষয়",
     "body": "মূল অংশ",
+    "bodyRequired": "বার্তার মূল অংশ আবশ্যক",
     "selectMailboxFirst": "প্রথমে একটি মেইলবক্স নির্বাচন করুন",
     "recipientsPlaceholder": "প্রাপক, অথবা \"রহিম উদ্দিন\" (rahim@example.com)",
     "savedToDrafts": "খসড়ায় সংরক্ষিত",

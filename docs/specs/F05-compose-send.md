@@ -1,6 +1,6 @@
 # F05 — Compose, Send & Drafts
 
-> Status: In Progress (core flow shipped; registry reconciliation required)
+> Status: Shipped locally — production delivery verification pending
 > Owner area: `src/components/compose/`, `src/app/api/send/`, `src/app/api/drafts/`, `src/app/api/v1/send/`
 
 ## 1. Problem & User Job
@@ -10,30 +10,41 @@ browser sessions. Send is available via both the UI and a public API (API keys).
 
 ## 2. User Stories & Acceptance Criteria
 
-- As a user, I can compose an email with rich formatting (Tiptap WYSIWYG).
-  - Toolbar: bold, italic, underline, strikethrough, headings, lists, blockquote, links, text alignment.
+- As a user, I can compose a formatted email in either the full-page or floating
+  composer using paragraphs, headings, bold, italic, underline, strikethrough,
+  lists, blockquotes, and safe links.
+- As a recipient, I receive equivalent safe HTML and meaningful plain-text MIME
+  alternatives regardless of which representation my email client prefers.
 - As a user, drafts auto-save every 900ms when content changes.
 - As a user, I can load a saved draft and continue editing.
 - As a user, I can send an email from a selected mailbox.
+- As a user, I can include outbound attachments in the send request.
+- As a user replying to an HTML message, the delivered reply preserves a safe
+  HTML quotation without exposing the source HTML in the authoring surface.
 - As an API consumer, I can send email via `/api/v1/send` with an API key.
 
 ## 3. Scope Boundaries
 
-**In scope:** Compose form (popup + full page), Tiptap WYSIWYG editor, auto-save drafts, load/delete drafts, send via UI, send via API key.
+**In scope:** Constrained Tiptap WYSIWYG compose form (popup + full page),
+server-sanitized semantic HTML, derived plain text, auto-save drafts,
+load/delete drafts, durable send via UI, send via API key, outbound attachments,
+and server-derived HTML-preserving reply quotations.
 
 **In scope through later contracts:** outbound attachments are defined by
 [F55](F55-outbound-attachment-delivery.md); reply/forward composition is tracked
 separately in the feature registry.
 
-**Out of scope:** email templates, scheduled send, selected-file persistence in
-draft autosave, and automatic forwarding of original attachments.
+**Out of scope:** Arbitrary HTML/source editing, styles, alignment, fonts,
+colours, tables, inline images, embedded media, email templates, scheduled send,
+selected-file persistence in draft autosave, and automatic forwarding of
+original attachments.
 
 ## 4. Data Model
 
 | Table | Columns touched | Notes |
 |-------|------------------|-------|
 | `messages` | `id`, `userId`, `mailboxId`, `direction: "outbound"`, `fromAddr`, `toAddr`, `subject`, `snippet`, `status`, `providerMessageId` | |
-| `messageBodies` | `textBody`, `htmlBody` | htmlBody from Tiptap editor |
+| `messageBodies` | `textBody`, `htmlBody` | Server-normalized plain text and sanitized semantic HTML |
 | `outboundJobs` | `id`, `userId`, `messageId`, `status`, `payload` | |
 
 ## 5. API Contract
@@ -57,9 +68,10 @@ draft autosave, and automatic forwarding of original attachments.
 
 ## 6. UI/UX
 
-- `/compose` — full-page compose form with Tiptap toolbar
+- `/compose` — full-page constrained WYSIWYG compose form
 - Floating composer — popup overlay at bottom-right
-- Compose form: from (read-only), to, subject, rich body, send button
+- Compose form: from (read-only), to, subject, formatting toolbar, editable body,
+  attachments, send button
 - Header bar: shows "Draft saved" / "New Message" / "Loading draft"
 - Auto-save indicator: "Autosaves as draft" / "Saved to drafts"
 - Send success toast, draft deleted on send
@@ -67,6 +79,11 @@ draft autosave, and automatic forwarding of original attachments.
 ## 7. Current Behavior
 
 - `sendEmailSchema` accepts `html` and `text` fields
+- The UI emits both Tiptap HTML and a plain-text alternative.
+- Draft and send APIs sanitize authored HTML on the server before persistence or
+  queue snapshot creation; client sanitization is never the security boundary.
+- The server derives the authoritative plain-text alternative from sanitized
+  HTML when HTML is present.
 - `sendEmail()` authorizes the selected sender, persists a durable job snapshot,
   stores attachment bytes in R2 when present, and enqueues the job. The queue
   consumer selects Cloudflare or Resend and records the final state. See
@@ -77,7 +94,84 @@ draft autosave, and automatic forwarding of original attachments.
 - On send success, associated draft is deleted
 - API key send uses `authenticateApiKey()` + `requireScope("send")`
 
-## 8. Bug / Change Log
+## 8. Decisions
+
+- Constrained WYSIWYG authoring is part of the MVP. The existing Tiptap editor is
+  activated rather than introducing a second editor framework.
+- Sanitized HTML is the canonical formatted delivery representation. A
+  server-derived plain-text alternative is always stored and delivered with it.
+- Safe HTML received from another message may be preserved in a server-derived
+  reply quotation under F59. Raw source HTML remains server-owned and is never
+  round-tripped through the browser as hidden trusted content.
+- The first MVP formatting schema intentionally matches the semantic elements
+  accepted by the existing Workers-compatible sanitizer. Alignment is omitted
+  because it serializes through `style`, which the current safety policy removes.
+- API clients may submit text-only messages. When they submit HTML, the server
+  sanitizes it and derives the authoritative text alternative.
+
+## 9. Error States and Edge Cases
+
+- A sender without the selected mailbox's send capability cannot create or send
+  its drafts.
+- A send is accepted only after its durable message/job and all selected
+  attachment objects are stored atomically as defined by F54/F55.
+- Newly selected files are not draft-autosaved; the UI must not claim otherwise.
+- Invalid or unauthorized reply source identifiers fail closed under F59.
+- Empty editor wrapper markup such as `<p></p>` does not satisfy the required-body
+  contract.
+- Pasted active content, remote images, forms, styles, and unsupported markup are
+  removed before draft persistence or outbound queueing.
+- Provider failure is represented by queued/failed delivery state rather than a
+  false synchronous success.
+
+## 10. Test Plan
+
+- Add Workers-safe HTML-to-text and authored-content normalization tests,
+  including hostile markup, links, lists, blockquotes, empty wrapper markup, and
+  text-only API compatibility.
+- Add draft create/update round-trip tests proving only sanitized HTML and its
+  derived text are persisted.
+- Add send tests proving the immutable outbound snapshot contains sanitized HTML
+  and derived text.
+- Add editor component tests for the constrained extension/toolbar contract.
+- Retain browser contracts for attachment submission, shared draft behavior,
+  reply-source submission, visible delivery state, formatting, and draft reload.
+- Documentation-status coverage must keep the registry, this specification, and
+  README aligned on constrained WYSIWYG authoring.
+
+## 11. Bug / Change Log
+
+### 2026-07-28 — Make constrained WYSIWYG authoring an MVP requirement
+
+Type: Feature / Scope Decision.
+
+Implemented:
+- Activated the existing Tiptap editor in both composition surfaces.
+- Drafts, sends, and replies store server-sanitized semantic HTML and a
+  server-derived plain-text alternative.
+- Preserved the F59 server-owned quotation boundary.
+- Excluded style-based formatting, arbitrary HTML, tables, and inline images
+  from the initial MVP.
+- `npm run verify` passes with 1,497 application tests, 100% coverage, and 16
+  bridge tests.
+- The targeted attachment, formatted-reply, formatted-draft restore/autosave,
+  and popup-composer browser scenarios pass. The Playwright process does not
+  exit cleanly because the existing Wrangler remote proxy requires
+  `CLOUDFLARE_API_TOKEN`; that infrastructure issue is tracked separately.
+
+Remaining production evidence:
+- Deploy and confirm that representative email clients receive and render both
+  the formatted HTML body and its meaningful plain-text alternative.
+
+### 2026-07-28 — Reconcile the prior plain-text authoring contract
+
+Type: Documentation / Scope Correction.
+
+Summary:
+- Define the active plain-text composer as the shipped MVP authoring surface.
+- Preserve HTML through the separate server-derived reply contract without
+  claiming WYSIWYG authoring.
+- Move rich-text/WYSIWYG composition to post-MVP scope.
 
 ### 2026-06-10 — Added Tiptap WYSIWYG editor
 
@@ -89,6 +183,10 @@ Summary:
 - Updated draft save/send payloads to include HTML
 - Added i18n strings under `compose.toolbar.*`
 - Added Tiptap CSS to globals.css
+
+Historical note: this entry records the original implementation claim. The
+editor was not the active shipped authoring surface at the time. The later
+2026-07-28 MVP decision above supersedes that temporary plain-text boundary.
 
 ### 2026-06-10 — Backfill spec from existing implementation
 

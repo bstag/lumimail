@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 
 const m = vi.hoisted(() => ({
-	guardUser: vi.fn(),
+	guardOrgAdmin: vi.fn(),
 	getDomainForUser: vi.fn(),
 	reconcileDomainSending: vi.fn(),
 }));
 
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
-vi.mock("@/lib/auth/cookies", () => ({ guardUser: m.guardUser }));
+vi.mock("@/lib/auth/org-guard", () => ({ guardOrgAdmin: m.guardOrgAdmin }));
 vi.mock("@/lib/domains/service", () => ({
 	getDomainForUser: m.getDomainForUser,
 	reconcileDomainSending: m.reconcileDomainSending,
@@ -17,6 +17,7 @@ vi.mock("@/lib/domains/service", () => ({
 import { POST } from "@/app/api/domains/[id]/sending/route";
 
 const unauth = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+const forbidden = NextResponse.json({ error: "Forbidden" }, { status: 403 });
 const params = (id = "dom_1") => ({ params: Promise.resolve({ id }) });
 
 function request(body: unknown = { action: "verify" }) {
@@ -33,22 +34,23 @@ beforeEach(() => {
 
 describe("POST /api/domains/[id]/sending", () => {
 	it("returns 401 without a session and never calls Cloudflare", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: unauth });
+		m.guardOrgAdmin.mockResolvedValue({ errorResponse: unauth });
 		const response = await POST(request(), params());
 		expect(response.status).toBe(401);
 		expect(m.getDomainForUser).not.toHaveBeenCalled();
 		expect(m.reconcileDomainSending).not.toHaveBeenCalled();
 	});
 
-	it("returns 400 when the user has no organization", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: null } });
+	it("returns 403 for a restricted member before provider work", async () => {
+		m.guardOrgAdmin.mockResolvedValue({ errorResponse: forbidden });
 		const response = await POST(request(), params());
-		expect(response.status).toBe(400);
+		expect(response.status).toBe(403);
+		expect(m.getDomainForUser).not.toHaveBeenCalled();
 		expect(m.reconcileDomainSending).not.toHaveBeenCalled();
 	});
 
 	it("returns the same 404 for unknown and cross-tenant domains", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "org1" } });
+		m.guardOrgAdmin.mockResolvedValue({ orgUser: { id: "u1", organizationId: "org1" } });
 		m.getDomainForUser.mockResolvedValue(null);
 		const response = await POST(request(), params("other"));
 		expect(response.status).toBe(404);
@@ -57,7 +59,7 @@ describe("POST /api/domains/[id]/sending", () => {
 	});
 
 	it.each([{}, { action: "manual" }, "not-json"])("returns 400 for an invalid action", async (body) => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "org1" } });
+		m.guardOrgAdmin.mockResolvedValue({ orgUser: { id: "u1", organizationId: "org1" } });
 		m.getDomainForUser.mockResolvedValue({ id: "dom_1" });
 		const response = await POST(request(body), params());
 		expect(response.status).toBe(400);
@@ -70,7 +72,7 @@ describe("POST /api/domains/[id]/sending", () => {
 			domain: { ...domain, sendingEnabled: true, sendingSubdomainTag: "tag1" },
 			dns: { sending: { enabled: true, records: [{ type: "TXT" }] } },
 		};
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "org1" } });
+		m.guardOrgAdmin.mockResolvedValue({ orgUser: { id: "u1", organizationId: "org1" } });
 		m.getDomainForUser.mockResolvedValue(domain);
 		m.reconcileDomainSending.mockResolvedValue(result);
 
@@ -82,7 +84,7 @@ describe("POST /api/domains/[id]/sending", () => {
 	});
 
 	it("returns a safe provider failure without changing the route contract", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "org1" } });
+		m.guardOrgAdmin.mockResolvedValue({ orgUser: { id: "u1", organizationId: "org1" } });
 		m.getDomainForUser.mockResolvedValue({ id: "dom_1" });
 		m.reconcileDomainSending.mockRejectedValue(new Error("token details"));
 

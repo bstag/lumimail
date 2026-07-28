@@ -29,11 +29,16 @@ describe("documentation status contracts", () => {
   it("keeps public feature claims bounded by the current contracts", () => {
     const readme = read("README.md");
     const landing = read("src/app/page.tsx");
+    const composeSpec = read("docs/specs/F05-compose-send.md");
+    const registry = read("docs/MVP_SCOPE.md");
 
     expect(readme).not.toContain("Gmail-class");
     expect(readme).not.toContain("full-text search");
     expect(readme).toContain("separately deployed IMAP/SMTP bridge");
     expect(landing).toContain("durable queued delivery");
     expect(landing).toContain("separate IMAP/SMTP bridge");
+    expect(composeSpec).toContain("Constrained WYSIWYG authoring is part of the MVP");
+    expect(composeSpec).toContain("server-derived plain-text alternative");
+    expect(registry).toContain("| Advanced rich-text formatting |");
   });
 });

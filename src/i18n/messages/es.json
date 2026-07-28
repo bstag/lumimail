@@ -142,6 +142,7 @@
     "to": "Para",
     "subject": "Asunto",
     "body": "Cuerpo",
+    "bodyRequired": "El cuerpo del mensaje es obligatorio",
     "selectMailboxFirst": "Selecciona un buzón primero",
     "recipientsPlaceholder": "Destinatarios, o \"María García\" (maria@ejemplo.com)",
     "savedToDrafts": "Guardado en borradores",

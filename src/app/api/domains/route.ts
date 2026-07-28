@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEnv } from "@/lib/cloudflare";
-import { guardUser } from "@/lib/auth/cookies";
+import { guardOrgAdmin } from "@/lib/auth/org-guard";
 import { addDomainSchema } from "@/lib/validators";
 import { addDomainForUser, getDomainDns, listUserDomains } from "@/lib/domains/service";
 import { summariseDns, type DnsStatusSummary } from "@/lib/dns-status";
@@ -8,10 +8,9 @@ import { apiSuccess, apiError } from "@/lib/api/response";
 
 export async function GET(request: NextRequest) {
 	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
+	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
 	if (errorResponse) return errorResponse;
-	if (!user.organizationId) return apiError("No organization", 400);
-	const domains = await listUserDomains(env, user.organizationId);
+	const domains = await listUserDomains(env, orgUser.organizationId!);
 
 	const includeDns = request.nextUrl.searchParams.get("includeDns") === "true";
 
@@ -38,13 +37,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
 	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
+	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
 	if (errorResponse) return errorResponse;
 	const parsed = addDomainSchema.safeParse(await request.json());
 	if (!parsed.success) return apiError("Validation failed", 400, parsed.error.flatten());
 
 	try {
-		const result = await addDomainForUser(env, user.id, user.organizationId!, parsed.data.hostname, {
+		const result = await addDomainForUser(env, orgUser.id, orgUser.organizationId!, parsed.data.hostname, {
 			enableRouting: parsed.data.enableRouting,
 			enableSending: parsed.data.enableSending,
 		});

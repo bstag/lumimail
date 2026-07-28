@@ -72,8 +72,8 @@ describe("POST /api/drafts", () => {
 				from: "me@x.test",
 				to: "you@x.test",
 				subject: "Hi",
-				text: "body",
-				html: "<p>body</p>",
+				text: "untrusted alternative",
+				html: '<p style="color:red"><strong>body</strong><script>bad()</script></p>',
 			}),
 		);
 		expect(res.status).toBe(200);
@@ -94,7 +94,7 @@ describe("POST /api/drafts", () => {
 			id: "body_1",
 			messageId: "msg_1",
 			textBody: "body",
-			htmlBody: "<p>body</p>",
+			htmlBody: "<p><strong>body</strong></p>",
 		});
 	});
 
