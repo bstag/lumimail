@@ -117,6 +117,8 @@ async function deliverToMailbox(
 			size: attachment.size,
 			r2Key: `attachments/${mailbox.userId}/${messageId}/${id}`,
 			content: attachment.content,
+			disposition: attachment.disposition,
+			contentId: attachment.contentId,
 		};
 	});
 	const threading = await resolveInboundThreading({
@@ -185,6 +187,8 @@ async function deliverToMailbox(
 				contentType: row.contentType,
 				size: row.size,
 				r2Key: row.r2Key,
+				disposition: row.disposition,
+				contentId: row.contentId,
 			})),
 		)
 		: null;

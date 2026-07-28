@@ -26,6 +26,8 @@ type Toast = { type: "success" | "error"; message: string } | null;
 type AttachedFile = {
 	file: File;
 	id: string;
+	disposition: "attachment" | "inline";
+	contentId?: string;
 };
 
 type MessageWithBodyResponse = {
@@ -55,6 +57,10 @@ function plainTextToHtml(value: string): string {
 		.join("");
 }
 
+function withoutInlineImages(value: string): string {
+	return value.replace(/<img\b[^>]*\bsrc=["']cid:[^"']+["'][^>]*>/gi, "");
+}
+
 export function ComposeForm({
 	mode = "page",
 	draftIdToLoad,
@@ -80,6 +86,7 @@ export function ComposeForm({
 	const [loadedDraftMailboxId, setLoadedDraftMailboxId] = useState<string | null>(null);
 	const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const imageInputRef = useRef<HTMLInputElement>(null);
 	const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const fromAddr = useMemo(
@@ -195,7 +202,7 @@ export function ComposeForm({
 				to,
 				subject,
 				text,
-				html,
+				html: withoutInlineImages(html),
 				...(replyToMessageId ? { replyToMessageId } : {}),
 			};
 			const res = await authFetch(draftId ? `/api/drafts/${draftId}` : "/api/drafts", {
@@ -239,6 +246,7 @@ export function ComposeForm({
 				...valid.slice(0, available).map((file) => ({
 					file,
 					id: `${file.name}-${file.size}-${Date.now()}-${crypto.randomUUID()}`,
+					disposition: "attachment" as const,
 				})),
 			];
 		});
@@ -247,8 +255,40 @@ export function ComposeForm({
 		if (fileInputRef.current) fileInputRef.current.value = "";
 	}
 
+	function handleInlineImageChange(event: React.ChangeEvent<HTMLInputElement>) {
+		const file = event.target.files?.[0];
+		if (imageInputRef.current) imageInputRef.current.value = "";
+		if (!file || !editor) return;
+		if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(file.type)) {
+			setToast({ type: "error", message: "Inline images must be JPEG, PNG, GIF, or WebP." });
+			return;
+		}
+		if (file.size > 3 * 1024 * 1024 || attachedFiles.length >= 10) {
+			setToast({ type: "error", message: "Inline image exceeds the attachment limits." });
+			return;
+		}
+		const contentId = `img_${crypto.randomUUID().replaceAll("-", "")}`;
+		setAttachedFiles((current) => [
+			...current,
+			{ file, id: contentId, disposition: "inline", contentId },
+		]);
+		editor.chain().focus().setImage({ src: `cid:${contentId}`, alt: file.name }).run();
+	}
+
 	function removeAttachment(id: string) {
-		setAttachedFiles((prev) => prev.filter((a) => a.id !== id));
+		setAttachedFiles((prev) => {
+			const removed = prev.find((attachment) => attachment.id === id);
+			if (removed?.contentId && editor) {
+				const escaped = removed.contentId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+				editor.commands.setContent(
+					editor.getHTML().replace(
+						new RegExp(`<img\\b[^>]*\\bsrc=["']cid:${escaped}["'][^>]*>`, "gi"),
+						"",
+					),
+				);
+			}
+			return prev.filter((attachment) => attachment.id !== id);
+		});
 	}
 
 	async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -267,7 +307,17 @@ export function ComposeForm({
 				html,
 				mailboxId: selectedMailbox?.id,
 				...(replyToMessageId ? { replyToMessageId } : {}),
-			}, attachedFiles.map((attachment) => attachment.file));
+			},
+			attachedFiles
+				.filter((attachment) => attachment.disposition === "attachment")
+				.map((attachment) => attachment.file),
+			attachedFiles
+				.filter((attachment) => attachment.disposition === "inline")
+				.map((attachment) => ({
+					file: attachment.file,
+					contentId: attachment.contentId as string,
+				})),
+			);
 			setLoading(false);
 		} catch (error) {
 			setLoading(false);
@@ -360,7 +410,10 @@ export function ComposeForm({
 				</div>
 				<div className="flex min-h-0 flex-1 flex-col">
 					<Label className="sr-only">{t("body")}</Label>
-					<ComposeEditorToolbar editor={editor} />
+					<ComposeEditorToolbar
+						editor={editor}
+						onInsertImage={() => imageInputRef.current?.click()}
+					/>
 					<div className="min-h-0 flex-1 overflow-y-auto">
 						<ComposeEditor
 							content={html}
@@ -404,6 +457,14 @@ export function ComposeForm({
 						className="sr-only"
 						onChange={handleFileInputChange}
 						aria-label="Attach files"
+					/>
+					<input
+						ref={imageInputRef}
+						type="file"
+						accept="image/jpeg,image/png,image/gif,image/webp"
+						className="sr-only"
+						onChange={handleInlineImageChange}
+						aria-label="Insert inline image"
 					/>
 					<button
 						type="button"

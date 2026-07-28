@@ -1,5 +1,6 @@
 import { htmlToReadableText } from "@/lib/email/reply-content-utils";
 import { sanitizeHtml } from "@/lib/email/sanitize";
+import { stripInlineImages } from "@/lib/email/authored-content";
 
 export type ReplyBodySource = {
 	fromAddr: string | null | undefined;
@@ -50,7 +51,7 @@ export function buildReplyBodies(
 ): ReplyBodies {
 	const authored = normalizeNewlines(authoredText);
 	const safeAuthoredHtml = sanitizeHtml(authoredHtml);
-	const safeSourceHtml = sanitizeHtml(source.htmlBody);
+	const safeSourceHtml = stripInlineImages(sanitizeHtml(source.htmlBody));
 	const sourceText = source.textBody
 		?? readableHtmlText(safeSourceHtml);
 	const attribution = `On the previous message, ${source.fromAddr ?? ""} wrote:`;

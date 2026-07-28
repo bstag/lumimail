@@ -8,6 +8,44 @@ import {
 const bytes = (value: string) => new TextEncoder().encode(value).buffer;
 
 describe("outbound attachment validation", () => {
+	it("accepts referenced inline images and rejects mismatched CID metadata", () => {
+		const image = {
+			filename: "chart.png",
+			contentType: "image/png",
+			content: new Uint8Array([1, 2, 3]).buffer,
+			disposition: "inline" as const,
+			contentId: "chart_1",
+		};
+		expect(validateOutboundAttachments({
+			subject: "Report",
+			html: '<p><img src="cid:chart_1" alt="Chart"></p>',
+			attachments: [image],
+		})).toEqual([expect.objectContaining({
+			disposition: "inline",
+			contentId: "chart_1",
+		})]);
+		expect(() => validateOutboundAttachments({
+			subject: "Report",
+			html: '<img src="cid:different">',
+			attachments: [image],
+		})).toThrow("Inline image references do not match uploaded images");
+	});
+
+	it.each([
+		[{ disposition: "inline", contentType: "text/plain", contentId: "cid_1" }, "Inline attachments must be images"],
+		[{ disposition: "inline", contentType: "image/png", contentId: "../bad" }, "Inline attachment content ID is invalid"],
+		[{ disposition: "attachment", contentType: "image/png", contentId: "cid_1" }, "Regular attachments cannot have a content ID"],
+	] as const)("rejects invalid inline metadata %#", (override, message) => {
+		expect(() => validateOutboundAttachments({
+			subject: "S",
+			attachments: [{
+				filename: "file.png",
+				content: bytes("x"),
+				...override,
+			}],
+		})).toThrow(message);
+	});
+
 	it("normalizes safe filenames and preserves exact bytes", () => {
 		const [attachment] = validateOutboundAttachments({
 			subject: "Report",

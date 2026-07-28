@@ -10,6 +10,8 @@ export type PreparedInboundAttachment = {
 	contentType: string;
 	size: number;
 	content: ArrayBuffer;
+	disposition: "attachment" | "inline";
+	contentId: string | null;
 };
 
 export type PreparedInboundAttachments = {
@@ -34,6 +36,11 @@ function sanitizeContentType(value: string): string {
 	return /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(normalized)
 		? normalized
 		: "application/octet-stream";
+}
+
+function sanitizeContentId(value: string | null): string | null {
+	const normalized = (value ?? "").trim().replace(/^<|>$/g, "");
+	return /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(normalized) ? normalized : null;
 }
 
 function omitted(): PreparedInboundAttachments {
@@ -63,11 +70,18 @@ export function prepareInboundAttachments(
 		) {
 			return omitted();
 		}
+		const contentType = sanitizeContentType(value.contentType);
+		const contentId = sanitizeContentId(value.contentId);
 		attachments.push({
 			filename: sanitizeFilename(value.filename),
-			contentType: sanitizeContentType(value.contentType),
+			contentType,
 			size,
 			content: value.content,
+			disposition:
+				value.disposition === "inline" && contentType.startsWith("image/") && contentId
+					? "inline"
+					: "attachment",
+			contentId,
 		});
 	}
 

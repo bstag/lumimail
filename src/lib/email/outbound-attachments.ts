@@ -23,10 +23,13 @@ export type OutboundAttachmentInput = {
 	filename: string;
 	contentType: string;
 	content: ArrayBuffer;
+	disposition?: "attachment" | "inline";
+	contentId?: string;
 };
 
-export type ValidatedOutboundAttachment = OutboundAttachmentInput & {
+export type ValidatedOutboundAttachment = Omit<OutboundAttachmentInput, "disposition"> & {
 	size: number;
+	disposition: "attachment" | "inline";
 };
 
 export class AttachmentValidationError extends Error {
@@ -71,8 +74,43 @@ export function validateOutboundAttachments(input: {
 		if (!SAFE_CONTENT_TYPES.has(contentType)) {
 			throw new AttachmentValidationError(`Unsupported attachment type: ${contentType}`);
 		}
-		return { ...attachment, filename, contentType, size };
+		const disposition = attachment.disposition ?? "attachment";
+		const contentId = attachment.contentId?.trim();
+		if (disposition === "inline") {
+			if (!contentType.startsWith("image/")) {
+				throw new AttachmentValidationError("Inline attachments must be images");
+			}
+			if (!contentId || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(contentId)) {
+				throw new AttachmentValidationError("Inline attachment content ID is invalid");
+			}
+		} else if (contentId) {
+			throw new AttachmentValidationError("Regular attachments cannot have a content ID");
+		}
+		return {
+			...attachment,
+			filename,
+			contentType,
+			size,
+			disposition,
+			...(contentId ? { contentId } : {}),
+		};
 	});
+
+	const referencedContentIds = new Set(
+		[...(input.html ?? "").matchAll(/\bsrc\s*=\s*["']cid:([A-Za-z0-9][A-Za-z0-9._-]{0,127})["']/gi)]
+			.map((match) => match[1]),
+	);
+	const inlineContentIds = new Set(
+		normalized
+			.filter((attachment) => attachment.disposition === "inline")
+			.map((attachment) => attachment.contentId as string),
+	);
+	if (
+		[...referencedContentIds].some((contentId) => !inlineContentIds.has(contentId))
+		|| [...inlineContentIds].some((contentId) => !referencedContentIds.has(contentId))
+	) {
+		throw new AttachmentValidationError("Inline image references do not match uploaded images");
+	}
 
 	const encoder = new TextEncoder();
 	let estimate =

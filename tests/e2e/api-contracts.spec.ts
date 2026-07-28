@@ -166,6 +166,7 @@ test.describe("canonical API client contracts", () => {
 	test("submits selected attachments atomically with the send request", async ({ page }) => {
 		await mockAuthenticatedShell(page);
 		let sendIncludedAttachment = false;
+		let sendIncludedInlineImage = false;
 		let legacyAttachmentRequests = 0;
 		await page.route("**/api/drafts", (route) =>
 			route.fulfill({ json: { draft: { id: "draft_1" } } }),
@@ -175,6 +176,11 @@ test.describe("canonical API client contracts", () => {
 			sendIncludedAttachment =
 				body?.toString().includes("contract.txt") === true &&
 				body.toString().includes("attachment") === true;
+			sendIncludedInlineImage =
+				body?.toString().includes("chart.png") === true
+				&& body.toString().includes("inlineImage") === true
+				&& body.toString().includes("cid%3A") === false
+				&& body.toString().includes("img_") === true;
 			return route.fulfill({
 				status: 202,
 				json: { success: true, data: { messageId: "msg_1", status: "queued" } },
@@ -194,9 +200,15 @@ test.describe("canonical API client contracts", () => {
 			mimeType: "text/plain",
 			buffer: Buffer.from("attachment"),
 		});
+		await page.getByLabel("Insert inline image").setInputFiles({
+			name: "chart.png",
+			mimeType: "image/png",
+			buffer: Buffer.from([137, 80, 78, 71]),
+		});
 		await page.locator('button[type="submit"]').click();
 
 		await expect.poll(() => sendIncludedAttachment).toBe(true);
+		await expect.poll(() => sendIncludedInlineImage).toBe(true);
 		expect(legacyAttachmentRequests).toBe(0);
 		await expect(page.getByText("Message queued for sending")).toBeVisible();
 	});
@@ -269,6 +281,38 @@ test.describe("canonical API client contracts", () => {
 		expect(sentPayload).not.toHaveProperty("inReplyTo");
 		expect(sentPayload).not.toHaveProperty("references");
 		expect(sentPayload).not.toHaveProperty("threadId");
+	});
+
+	test("serializes expanded semantic and presentation formatting", async ({ page }) => {
+		await mockAuthenticatedShell(page);
+		await page.route("**/api/drafts", (route) =>
+			route.fulfill({ json: { draft: { id: "draft_advanced" } } }),
+		);
+		let sentPayload: Record<string, unknown> | null = null;
+		await page.route("**/api/send", async (route) => {
+			sentPayload = route.request().postDataJSON() as Record<string, unknown>;
+			return route.fulfill({
+				status: 202,
+				json: { success: true, data: { messageId: "msg_advanced", status: "queued" } },
+			});
+		});
+
+		await page.goto("/compose");
+		await page.getByLabel("To", { exact: true }).fill("recipient@example.net");
+		await page.getByLabel("Subject").fill("Advanced formatting");
+		await page.getByLabel("Body").fill("Advanced");
+		await page.getByLabel("Body").press("Control+A");
+		await page.getByRole("button", { name: "Heading 1" }).click();
+		await page.getByRole("button", { name: "Align center" }).click();
+		await page.getByRole("button", { name: "Superscript" }).click();
+		await page.locator('button[type="submit"]').click();
+
+		await expect.poll(() => sentPayload).not.toBeNull();
+		const advancedPayload = sentPayload as unknown as { text: string; html: string };
+		expect(advancedPayload).toMatchObject({
+			html: '<h1 style="text-align: center;"><sup>Advanced</sup></h1><p style="text-align: center;"></p>',
+		});
+		expect(advancedPayload.text.trim()).toBe("Advanced");
 	});
 
 	test("restores and autosaves a formatted draft without flattening it", async ({ page }) => {

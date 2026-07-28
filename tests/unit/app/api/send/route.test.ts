@@ -91,6 +91,44 @@ describe("POST /api/send", () => {
 		});
 	});
 
+	it("accepts matched CID inline images in the multipart send", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.sendEmail.mockResolvedValue({ messageId: "msg1", status: "queued" });
+		const form = new FormData();
+		form.set("payload", JSON.stringify({
+			...validBody,
+			html: '<p><img src="cid:chart_1" alt="Chart"></p>',
+		}));
+		form.append("inlineImage", new File(["png"], "chart.png", { type: "image/png" }));
+		form.append("inlineImageId", "chart_1");
+
+		const response = await POST(new Request("https://x.test/api/send", {
+			method: "POST",
+			body: form,
+		}));
+
+		expect(response.status).toBe(202);
+		expect(m.sendEmail).toHaveBeenCalledWith({}, expect.objectContaining({
+			attachments: [expect.objectContaining({
+				filename: "chart.png",
+				disposition: "inline",
+				contentId: "chart_1",
+			})],
+		}));
+	});
+
+	it("rejects incomplete inline-image multipart metadata", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		const form = new FormData();
+		form.set("payload", JSON.stringify(validBody));
+		form.append("inlineImage", new File(["png"], "chart.png", { type: "image/png" }));
+		const response = await POST(new Request("https://x.test/api/send", {
+			method: "POST",
+			body: form,
+		}));
+		expect(response.status).toBe(400);
+	});
+
 	it("returns 415 for an unsupported request content type", async () => {
 		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
 		const res = await POST(new Request("https://x.test/api/send", {

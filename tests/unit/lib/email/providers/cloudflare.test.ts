@@ -71,6 +71,26 @@ describe("createCloudflareProvider", () => {
 		}));
 	});
 
+	it("maps CID images to Cloudflare inline attachments", async () => {
+		const send = vi.fn().mockResolvedValue({ messageId: "cf-inline" });
+		const provider = createCloudflareProvider(makeEnv(send));
+		const content = new Uint8Array([1]).buffer;
+		await provider.send({
+			from: "a@example.com", to: "b@example.com", subject: "S",
+			html: '<img src="cid:chart_1">',
+			attachments: [{
+				filename: "chart.png", contentType: "image/png", content,
+				disposition: "inline", contentId: "chart_1",
+			}],
+		});
+		expect(send).toHaveBeenCalledWith(expect.objectContaining({
+			attachments: [{
+				filename: "chart.png", type: "image/png", content,
+				disposition: "inline", contentId: "chart_1",
+			}],
+		}));
+	});
+
 	it("passes RFC reply headers to the Cloudflare binding", async () => {
 		const send = vi.fn().mockResolvedValue({ messageId: "cf-reply" });
 		const provider = createCloudflareProvider(makeEnv(send));

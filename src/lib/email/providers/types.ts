@@ -31,6 +31,8 @@ export type OutboundMessage = {
 		filename: string;
 		contentType: string;
 		content: ArrayBuffer;
+		disposition?: "attachment" | "inline";
+		contentId?: string;
 	}>;
 };
 

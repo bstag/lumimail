@@ -29,7 +29,7 @@ gates later in this document must also pass.
 | F02 | Domain management and Cloudflare provisioning | Shipped (local) | [F02](specs/F02-domains.md), [F45](specs/F45-cloudflare-sending-domain-readiness.md) | `/domains`, `/api/domains*`, `/api/setup/*` | Apex/nested sending readiness is provider-backed and production-verified. Every domain UI/API surface is now owner/admin-only locally; deployment and a controlled restricted-member `403` check remain. |
 | F03 | Organization-scoped mailbox CRUD | Shipped | [F03](specs/F03-mailboxes.md), [F47](specs/F47-mailbox-access-control.md) | `/mailboxes`, `/api/admin/mailboxes`, `/api/mailboxes*` | Organization admins provision and delete mailboxes; content/settings access requires explicit mailbox membership. Unrelated-mailbox isolation and immediate live revocation are production-verified. |
 | F04 | Mail folders: inbox, sent, drafts, spam, trash, starred | Shipped | [F04](specs/F04-mail-folders.md), [F72](specs/F72-mail-ui-state-synchronization.md) | dashboard folders, `/api/messages*` | Shared mutation invalidation keeps folder rows, filtered membership, detail controls, drafts, and navigation counts synchronized. |
-| F05 | Constrained WYSIWYG compose, provider send, drafts, attachment UI | Shipped (local) | [F05](specs/F05-compose-send.md), [F48](specs/F48-role-aware-mail-actions-and-shared-draft-refresh.md), [F55](specs/F55-outbound-attachment-delivery.md), [F59](specs/F59-html-preserving-replies.md) | `/compose`, `/api/send`, `/api/drafts*`, `/api/v1/send` | Constrained formatting, sanitized HTML, server-derived plain text, the server-owned reply quotation boundary, attachments, and shared drafts are locally verified. Production formatted-delivery evidence remains. |
+| F05 | Full safe WYSIWYG compose, provider send, drafts, attachment UI | Shipped (local) | [F05](specs/F05-compose-send.md), [F48](specs/F48-role-aware-mail-actions-and-shared-draft-refresh.md), [F55](specs/F55-outbound-attachment-delivery.md), [F59](specs/F59-html-preserving-replies.md) | `/compose`, `/api/send`, `/api/drafts*`, `/api/v1/send` | History, links, semantic formatting, alignment, safe colors/highlights, tables, CID inline images, sanitized HTML, derived text, reply boundaries, attachments, and shared drafts are locally verified. Production client evidence remains. |
 | F06 | API keys | Shipped | [F06](specs/F06-api-keys.md), [F44](specs/F44-api-key-lifecycle.md) | `/api-keys`, `/api/api-keys`, `/api/v1/send` | Keys are created with a one-time secret, lifecycle metadata is visible, and owner-scoped permanent revocation is enforced during authentication. |
 | F07 | Inbound routing rules and catch-all | Shipped | [F46](specs/F46-domain-catch-all-routing.md) | `/routing`, `/api/routing-rules*` | Canonical per-domain rules, safe Cloudflare catch-all provisioning, and named-recipient precedence are deployed and production-verified with controlled exact/catch-all delivery across LucidKith and Henriksen. |
 | F08 | Webhooks | Shipped | Missing | `/webhooks`, `/api/webhooks*` | Payload/privacy behavior must be included in the production data-export audit. |
@@ -152,7 +152,7 @@ The final gate covers four separate things and is checked only when all four hol
 
 | Clause | Status |
 |--------|--------|
-| `npm run verify` | Passing 2026-07-28 — 1,500 application tests at 100% configured coverage plus 16 bridge tests. |
+| `npm run verify` | Passing 2026-07-28 — 1,531 application tests at 100% configured coverage plus 16 bridge tests. |
 | Required E2E suite | The scenarios pass (including all three restricted-admin scenarios), but the Playwright command does not exit cleanly in a credential-free environment because its configured web server attempts a Wrangler remote proxy without `CLOUDFLARE_API_TOKEN`. This must be corrected before the clause is passing. |
 | Deployment smoke tests | Not automated. Every deployment records ad-hoc HTTP 200/401 checks in the remediation log; there is no repeatable script, so this is an operator habit rather than a test. |
 | Traced mail-flow tests | Absent. No automated test follows a message from inbound receipt through storage to outbound reply with a traceable identifier. |
@@ -183,16 +183,16 @@ Additional registry hygiene required:
   rejected restricted members. Thirty focused domain tests, full verification,
   and the three restricted-admin browser scenarios pass locally; production
   deployment evidence remains an MVP gate.
-- F05 constrained WYSIWYG authoring is now implemented locally for the MVP. It
-  reuses Tiptap, sends safe HTML plus a derived plain-text alternative, and keeps
-  raw reply-source HTML server-owned. Advanced style-based formatting remains
-  post-MVP; production client-delivery evidence is still required.
+- F05 safe WYSIWYG authoring is now implemented locally for the MVP. It reuses
+  Tiptap for semantic and allowlisted presentation formatting, tables, and
+  uploaded CID images; sends safe HTML plus derived plain text; and keeps raw
+  reply-source HTML server-owned. Production client-delivery evidence remains.
 
 ## Post-MVP enhancements
 
 | Feature | Notes |
 |---------|-------|
-| Advanced rich-text formatting | Fonts, colours, alignment, tables, inline images, arbitrary HTML/source editing, and embedded media remain beyond the constrained MVP editor. |
+| Advanced composer extensions | Arbitrary HTML/source editing, arbitrary CSS, font-family/size controls, remote images, embedded audio/video, templates, and scheduled send remain out of scope. |
 | IMAP IDLE / server-side push | The bridge currently polls. |
 | Snooze and scheduled send | Convenience features beyond core reliable mail. |
 | Additional identity providers / SSO | Useful for larger organizations after mailbox ACLs are complete. |

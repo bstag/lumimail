@@ -70,6 +70,32 @@ describe("prepareInboundAttachments", () => {
 		]);
 	});
 
+	it("keeps valid inline-image metadata and demotes invalid inline parts", () => {
+		const result = prepareInboundAttachments([
+			attachment(new ArrayBuffer(1), {
+				filename: "chart.png",
+				contentType: "image/png",
+				disposition: "inline",
+				contentId: "<chart_1>",
+			}),
+			attachment(new ArrayBuffer(1), {
+				contentType: "text/plain",
+				disposition: "inline",
+				contentId: "../bad",
+			}),
+			attachment(new ArrayBuffer(1), {
+				contentType: "image/png",
+				disposition: "inline",
+				contentId: null,
+			}),
+		]);
+		expect(result.attachments).toEqual([
+			expect.objectContaining({ disposition: "inline", contentId: "chart_1" }),
+			expect.objectContaining({ disposition: "attachment", contentId: null }),
+			expect.objectContaining({ disposition: "attachment", contentId: null }),
+		]);
+	});
+
 	it("omits the whole set when the count limit is exceeded", () => {
 		const values = Array.from({ length: 51 }, () =>
 			attachment(new ArrayBuffer(0)),

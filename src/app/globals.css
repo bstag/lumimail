@@ -183,6 +183,49 @@ body {
 	text-decoration: underline;
 }
 
+.tiptap pre,
+.email-body pre {
+	overflow-x: auto;
+	border-radius: 0.375rem;
+	background: var(--surface-subtle);
+	padding: 0.75rem;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.tiptap code,
+.email-body code {
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.tiptap table,
+.email-body table {
+	width: 100%;
+	border-collapse: collapse;
+	margin-block: 0 0.75rem;
+}
+
+.tiptap th,
+.tiptap td,
+.email-body th,
+.email-body td {
+	border: 1px solid var(--border-strong);
+	padding: 0.375rem 0.5rem;
+	text-align: start;
+	vertical-align: top;
+}
+
+.tiptap th,
+.email-body th {
+	background: var(--surface-subtle);
+	font-weight: 700;
+}
+
+.tiptap img,
+.email-body img {
+	max-width: 100%;
+	height: auto;
+}
+
 /* Sanitized received-message HTML cannot supply its own styles. */
 .email-body h1 {
 	font-size: 2rem;

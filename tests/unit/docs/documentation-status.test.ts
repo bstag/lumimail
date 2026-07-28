@@ -37,8 +37,8 @@ describe("documentation status contracts", () => {
     expect(readme).toContain("separately deployed IMAP/SMTP bridge");
     expect(landing).toContain("durable queued delivery");
     expect(landing).toContain("separate IMAP/SMTP bridge");
-    expect(composeSpec).toContain("Constrained WYSIWYG authoring is part of the MVP");
+    expect(composeSpec).toContain("Tiptap WYSIWYG compose form");
     expect(composeSpec).toContain("server-derived plain-text alternative");
-    expect(registry).toContain("| Advanced rich-text formatting |");
+    expect(registry).toContain("| Advanced composer extensions |");
   });
 });

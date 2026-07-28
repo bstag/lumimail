@@ -85,6 +85,26 @@ describe("createResendProvider", () => {
 		});
 	});
 
+	it("maps inline image content IDs into the Resend payload", async () => {
+		fetchMock.mockResolvedValue(jsonResponse({ id: "re-inline" }));
+		const provider = createResendProvider({ RESEND_API_KEY: "re_secret" } as CloudflareEnv);
+		await provider.send({
+			...message,
+			attachments: [{
+				filename: "chart.png",
+				contentType: "image/png",
+				content: new Uint8Array([1]).buffer,
+				disposition: "inline",
+				contentId: "chart_1",
+			}],
+		});
+		const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+		expect(payload.attachments).toEqual([expect.objectContaining({
+			filename: "chart.png",
+			content_id: "chart_1",
+		})]);
+	});
+
 	it("encodes attachment bytes as base64", async () => {
 		fetchMock.mockResolvedValue(jsonResponse({ id: "re-att" }));
 		const provider = createResendProvider({ RESEND_API_KEY: "re_secret" } as CloudflareEnv);

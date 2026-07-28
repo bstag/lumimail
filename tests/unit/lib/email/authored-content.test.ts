@@ -44,4 +44,11 @@ describe("normalizeAuthoredContent", () => {
 			"<ul><li>One</li><li>Two</li></ul><hr><span>Tail</span><!-- ignored -->",
 		)).toBe("- One\n- Two\n\n---\nTail");
 	});
+
+	it("derives readable table cells and inline-image alternatives", () => {
+		expect(emailHtmlToText(
+			'<table><tr><th>Name</th><th>Value</th></tr><tr><td>A</td><td>1</td></tr></table>'
+			+ '<p><img src="cid:chart_1" alt="Chart"></p><img src="cid:no_alt">',
+		)).toBe("Name\tValue\nA\t1\n[Image: Chart]");
+	});
 });

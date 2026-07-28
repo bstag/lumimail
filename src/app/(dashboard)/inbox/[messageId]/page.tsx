@@ -6,21 +6,16 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, ChevronDown } from "lucide-react";
 import dayjs from "dayjs";
 import { useTranslations } from "next-intl";
-import DOMPurify from "dompurify";
 import { MarkAsRead } from "@/components/mark-read";
 import { MessageActions } from "@/components/message-actions/message-actions";
 import { AttachmentList } from "@/components/messages/attachment-list";
+import { SafeMessageHtml } from "@/components/messages/safe-message-html";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { canMailboxSend } from "@/components/mailbox-provider-utils";
 import { getMessageBackHref } from "@/components/message-actions/utils";
 import { authFetch } from "@/lib/auth/client";
 import { getDisplayNameForAddress } from "@/lib/contacts/utils";
 import { getEmailAddress } from "@/lib/email/address";
-import {
-	SAFE_EMAIL_HTML_ATTRIBUTES,
-	SAFE_EMAIL_HTML_TAGS,
-	SAFE_EMAIL_URI_PATTERN,
-} from "@/lib/email/html-policy";
 import type { Message } from "@/hooks/types";
 import type { MessageDetailResponse } from "./types";
 import { fetchMessageDetail, getMessageBodyDisplay, getMessageHeaderParties } from "./utils";
@@ -33,16 +28,6 @@ type ThreadMessage = Message & {
 type ThreadResponse = {
 	messages: ThreadMessage[];
 };
-
-function sanitizeRenderedHtml(html: string): string {
-	return DOMPurify.sanitize(html, {
-		ALLOWED_TAGS: [...SAFE_EMAIL_HTML_TAGS],
-		ALLOWED_ATTR: [...SAFE_EMAIL_HTML_ATTRIBUTES],
-		ALLOWED_URI_REGEXP: SAFE_EMAIL_URI_PATTERN,
-		ALLOW_DATA_ATTR: false,
-		ALLOW_ARIA_ATTR: false,
-	});
-}
 
 function ThreadItem({
 	msg,
@@ -100,11 +85,7 @@ function ThreadItem({
 				<div className="px-4 pb-4 pt-0 border-t border-border">
 					<div className="email-body max-w-none text-ink mt-3">
 						{bodyDisplay.htmlBody ? (
-							<div
-								dangerouslySetInnerHTML={{
-									__html: sanitizeRenderedHtml(bodyDisplay.htmlBody),
-								}}
-							/>
+							<SafeMessageHtml messageId={msg.id} html={bodyDisplay.htmlBody} />
 						) : (
 							<pre className="whitespace-pre-wrap text-sm">{bodyDisplay.latestContent}</pre>
 						)}
@@ -283,7 +264,7 @@ export default function MessageDetailPage() {
 						</div>
 						<div className="email-body max-w-none text-ink">
 							{bodyDisplay.htmlBody ? (
-								<div dangerouslySetInnerHTML={{ __html: sanitizeRenderedHtml(bodyDisplay.htmlBody) }} />
+								<SafeMessageHtml messageId={message.id} html={bodyDisplay.htmlBody} />
 							) : (
 								<pre className="whitespace-pre-wrap text-sm">
 									{bodyDisplay.latestContent}

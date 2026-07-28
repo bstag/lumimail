@@ -29,6 +29,25 @@ describe("submitMessage", () => {
 		expect(options.body.getAll("attachment")).toEqual([file]);
 	});
 
+	it("submits inline-image files with their content IDs", async () => {
+		authFetch.mockResolvedValue(Response.json({
+			success: true,
+			data: { messageId: "msg_1", status: "queued" },
+		}));
+		const file = new File(["png"], "chart.png", { type: "image/png" });
+		await submitMessage(
+			{
+				from: "a@example.com", to: "b@example.com", subject: "Chart",
+				text: "[Image: chart.png]", html: '<img src="cid:chart_1" alt="chart.png">',
+			},
+			[],
+			[{ file, contentId: "chart_1" }],
+		);
+		const body = authFetch.mock.calls[0][1].body as FormData;
+		expect(body.getAll("inlineImage")).toEqual([file]);
+		expect(body.getAll("inlineImageId")).toEqual(["chart_1"]);
+	});
+
 	it("surfaces the canonical send error", async () => {
 		authFetch.mockResolvedValue(
 			Response.json({ success: false, error: { message: "Send rate limit exceeded" } }, { status: 429 }),

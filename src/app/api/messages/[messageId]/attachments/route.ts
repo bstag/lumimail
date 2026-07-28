@@ -34,6 +34,8 @@ export async function GET(
 			filename: attachments.filename,
 			contentType: attachments.contentType,
 			size: attachments.size,
+			disposition: attachments.disposition,
+			contentId: attachments.contentId,
 		})
 		.from(attachments)
 		.where(eq(attachments.messageId, messageId));

@@ -8,6 +8,35 @@ describe("sanitizeHtml", () => {
 		expect(sanitizeHtml("")).toBeNull();
 	});
 
+	it("keeps only normalized editor presentation styles", () => {
+		expect(sanitizeHtml(
+			'<p style="text-align:center;position:fixed;background-image:url(https://evil.test/x)">'
+			+ '<span style="color:#2563eb;background-color:rgb(254, 240, 138);font-size:99px">Safe</span>'
+			+ "</p>",
+		)).toBe(
+			'<p style="text-align: center;"><span style="color: #2563eb; background-color: rgb(254, 240, 138);">Safe</span></p>',
+		);
+	});
+
+	it("keeps CID images but rejects remote, data, and malformed sources", () => {
+		expect(sanitizeHtml(
+			'<img src="cid:inline_123" alt="Chart" title="Quarterly chart" width="640" height="480">'
+			+ '<img src="https://track.test/pixel.png"><img src="data:image/png;base64,AAAA">'
+			+ '<img src="cid:../bad"><img>',
+		)).toBe(
+			'<img src="cid:inline_123" alt="Chart" title="Quarterly chart" width="640" height="480">',
+		);
+	});
+
+	it("bounds inline-image dimensions and normalizes CID whitespace", () => {
+		expect(sanitizeHtml(
+			'<img src=" cid:chart_1 " width="0" height="2001">'
+			+ '<img src="cid:chart_2" width="abc" height="25">',
+		)).toBe(
+			'<img src="cid:chart_1"><img src="cid:chart_2" height="25">',
+		);
+	});
+
 	it("keeps allowlisted structural formatting and ordinary text", () => {
 		const result = sanitizeHtml(
 			'<div><h2>Heading</h2><p dir="rtl" lang="ar">Hello <strong>world</strong></p><ul><li>One</li></ul></div>',
@@ -32,8 +61,8 @@ describe("sanitizeHtml", () => {
 	it("unwraps unknown inert elements while preserving readable children", () => {
 		const result = sanitizeHtml("<section>Hello <mark>bright <custom>world</custom></mark></section>");
 
-		expect(result).toContain("Hello bright world");
-		expect(result).not.toMatch(/section|mark|custom/i);
+		expect(result).toContain("Hello <mark>bright world</mark>");
+		expect(result).not.toMatch(/section|custom/i);
 	});
 
 	it("strips event, style, identity, namespace, and unapproved attributes", () => {

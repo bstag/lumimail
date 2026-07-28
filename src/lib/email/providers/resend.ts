@@ -53,6 +53,9 @@ export function createResendProvider(env: CloudflareEnv): OutboundProvider {
 									filename: attachment.filename,
 									content_type: attachment.contentType,
 									content: encodeBase64Attachment(attachment.content),
+									...(attachment.disposition === "inline" && attachment.contentId
+										? { content_id: attachment.contentId }
+										: {}),
 								})),
 							}
 							: {}),

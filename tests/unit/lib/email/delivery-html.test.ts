@@ -10,6 +10,19 @@ describe("prepareHtmlForDelivery", () => {
 		);
 	});
 
+	it("adds portable presentation to structural email content", () => {
+		const result = prepareHtmlForDelivery(
+			"<table><tr><th>H</th><td>D</td></tr></table><blockquote>Q</blockquote><pre>C</pre>"
+			+ '<img src="cid:chart_1" alt="Chart">',
+		);
+		expect(result).toContain('<table style="border-collapse: collapse; width: 100%;">');
+		expect(result).toContain("<th style=");
+		expect(result).toContain("<td style=");
+		expect(result).toContain("<blockquote style=");
+		expect(result).toContain("<pre style=");
+		expect(result).toContain('src="cid:chart_1"');
+	});
+
 	it("re-sanitizes input and never preserves user-owned styles", () => {
 		expect(prepareHtmlForDelivery(
 			'<h1 style="display:none" onclick="bad()">Visible<script>secret()</script></h1>',

@@ -42,12 +42,24 @@ export function createCloudflareProvider(env: CloudflareEnv): OutboundProvider {
 					...(message.headers ? { headers: message.headers } : {}),
 					...(message.attachments?.length
 						? {
-							attachments: message.attachments.map((attachment) => ({
-								filename: attachment.filename,
-								type: attachment.contentType,
-								disposition: "attachment" as const,
-								content: attachment.content,
-							})),
+							attachments: message.attachments.map((attachment) => {
+								const disposition = attachment.disposition ?? "attachment";
+								if (disposition === "inline") {
+									return {
+										filename: attachment.filename,
+										type: attachment.contentType,
+										disposition,
+										contentId: attachment.contentId as string,
+										content: attachment.content,
+									};
+								}
+								return {
+									filename: attachment.filename,
+									type: attachment.contentType,
+									disposition,
+									content: attachment.content,
+								};
+							}),
 						}
 						: {}),
 				});

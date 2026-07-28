@@ -51,6 +51,7 @@ export function emailHtmlToText(html: string): string {
 
 		if (entry.kind === "end") {
 			if (blockEndTags.has(entry.tag)) output.push("\n");
+			if (entry.tag === "td" || entry.tag === "th") output.push("\t");
 			continue;
 		}
 
@@ -72,6 +73,16 @@ export function emailHtmlToText(html: string): string {
 			continue;
 		}
 		if (tag === "li") output.push("- ");
+		if (tag === "img") {
+			const alt = element.getAttribute("alt")?.trim();
+			if (alt) output.push(`[Image: ${alt}]`);
+			continue;
+		}
+		if (tag === "td" || tag === "th") {
+			stack.push({ kind: "end", tag });
+			pushChildren(stack, element);
+			continue;
+		}
 		stack.push({ kind: "end", tag });
 		pushChildren(stack, element);
 	}
@@ -92,8 +103,12 @@ function normalizePlainText(text: string | null | undefined): string | null {
 
 export function normalizeAuthoredContent(
 	input: AuthoredContentInput,
+	options: { allowInlineImages?: boolean } = {},
 ): NormalizedAuthoredContent {
-	const sanitizedHtml = sanitizeHtml(input.html);
+	const sanitizedHtml = stripInlineImages(
+		sanitizeHtml(input.html),
+		options.allowInlineImages ?? false,
+	);
 	if (sanitizedHtml) {
 		const derivedText = emailHtmlToText(sanitizedHtml);
 		if (derivedText) return { html: sanitizedHtml, text: derivedText };
@@ -103,4 +118,12 @@ export function normalizeAuthoredContent(
 		html: null,
 		text: normalizePlainText(input.text),
 	};
+}
+
+export function stripInlineImages(
+	html: string | null,
+	allowInlineImages = false,
+): string | null {
+	if (!html || allowInlineImages) return html;
+	return html.replace(/<img\b[^>]*\bsrc="cid:[^"]+"[^>]*>/gi, "");
 }

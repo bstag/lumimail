@@ -23,14 +23,24 @@ export type SubmitMessageInput = {
 	replyToMessageId?: string;
 };
 
+export type InlineImageUpload = {
+	file: File;
+	contentId: string;
+};
+
 export async function submitMessage(
 	input: SubmitMessageInput,
 	attachments: File[] = [],
+	inlineImages: InlineImageUpload[] = [],
 ): Promise<{ messageId: string; status: "queued" }> {
-	if (attachments.length > 0) {
+	if (attachments.length > 0 || inlineImages.length > 0) {
 		const formData = new FormData();
 		formData.set("payload", JSON.stringify(input));
 		for (const attachment of attachments) formData.append("attachment", attachment);
+		for (const image of inlineImages) {
+			formData.append("inlineImage", image.file);
+			formData.append("inlineImageId", image.contentId);
+		}
 		const response = await authFetch("/api/send", { method: "POST", body: formData });
 		return parseApiResponse<{ messageId: string; status: "queued" }>(response);
 	}

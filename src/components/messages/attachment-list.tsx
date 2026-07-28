@@ -9,6 +9,8 @@ type AttachmentRow = {
 	filename: string;
 	contentType: string;
 	size: number;
+	disposition: "attachment" | "inline";
+	contentId: string | null;
 };
 
 type AttachmentsResponse = {
@@ -58,7 +60,8 @@ export function AttachmentList({ messageId }: { messageId: string }) {
 		};
 	}, [messageId]);
 
-	if (items.length === 0 && !omission) return null;
+	const regularItems = items.filter((item) => item.disposition !== "inline");
+	if (regularItems.length === 0 && !omission) return null;
 
 	return (
 		<section className="mt-6 border-t border-border pt-4" aria-label="Attachments">
@@ -70,14 +73,14 @@ export function AttachmentList({ messageId }: { messageId: string }) {
 					{omission}
 				</p>
 			) : null}
-			{items.length > 0 ? (
+			{regularItems.length > 0 ? (
 				<p className="mb-3 flex items-center gap-2 text-xs font-medium text-ink-muted">
 					<Paperclip className="h-4 w-4" />
-					{items.length} attachment{items.length > 1 ? "s" : ""}
+					{regularItems.length} attachment{regularItems.length !== 1 ? "s" : ""}
 				</p>
 			) : null}
 			<ul className="flex flex-col gap-3">
-				{items.map((item) => (
+				{regularItems.map((item) => (
 					<li key={item.id} className="flex flex-col gap-2">
 						<AttachmentPreview item={item} />
 						<a

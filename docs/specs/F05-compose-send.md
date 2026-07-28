@@ -1,6 +1,6 @@
 # F05 — Compose, Send & Drafts
 
-> Status: In progress — the original constrained editor is deployed; expanded formatting and CID images are under implementation
+> Status: Shipped locally — expanded formatting and CID images await production delivery verification
 > Owner area: `src/components/compose/`, `src/app/api/send/`, `src/app/api/drafts/`, `src/app/api/v1/send/`
 
 ## 1. Problem & User Job
@@ -169,7 +169,7 @@ autosave, and automatic forwarding of original attachments.
 
 Type: Feature / Scope Expansion.
 
-Status: In progress.
+Status: Implemented locally.
 
 Requested:
 - Expose the remaining email-appropriate StarterKit controls and add advanced
@@ -183,6 +183,21 @@ Decisions:
 - Every editor control must round-trip through server sanitization, derived text,
   durable snapshots, provider translation, and the sanitized reader before it
   is considered shipped.
+
+Implemented:
+- Added visible history, paragraph/clear-format, link editing with `Mod-K`,
+  semantic formatting, alignment, safe colors/highlights, table editing, and
+  uploaded inline-image controls.
+- Added normalized style sanitization and CID-only image policy; remote/data
+  image sources and arbitrary CSS remain prohibited.
+- Added attachment disposition/content-ID persistence, Cloudflare/Resend
+  provider translation, inbound CID metadata, and authenticated reader
+  resolution.
+- `npm run verify` passes with 1,531 application tests at 100% configured
+  coverage plus 16 bridge tests.
+- Focused advanced-formatting and combined attachment/CID browser scenarios
+  pass; the Playwright process still does not exit because the configured
+  Wrangler remote proxy lacks `CLOUDFLARE_API_TOKEN`.
 
 ### 2026-07-28 — Preserve visible heading hierarchy through delivery and reading
 

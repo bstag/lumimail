@@ -37,20 +37,39 @@ async function parseRequest(request: Request): Promise<{
 	const parsedBody = sendEmailSchema.safeParse(body);
 	if (!parsedBody.success) return { body };
 	const files = form.getAll("attachment");
+	const inlineFiles = form.getAll("inlineImage");
+	const inlineIds = form.getAll("inlineImageId");
 	if (files.some((value) => !(value instanceof File))) {
 		throw new AttachmentValidationError("Attachment fields must contain files");
 	}
-	if (files.length > MAX_ATTACHMENT_COUNT) {
+	if (
+		inlineFiles.some((value) => !(value instanceof File))
+		|| inlineIds.some((value) => typeof value !== "string")
+		|| inlineFiles.length !== inlineIds.length
+	) {
+		throw new AttachmentValidationError("Inline image metadata is invalid");
+	}
+	if (files.length + inlineFiles.length > MAX_ATTACHMENT_COUNT) {
 		throw new AttachmentValidationError(`Too many attachments (max ${MAX_ATTACHMENT_COUNT})`);
 	}
-	if ((files as File[]).some((file) => file.size > MAX_ATTACHMENT_BYTES)) {
+	if ([...files, ...inlineFiles].some((file) => (file as File).size > MAX_ATTACHMENT_BYTES)) {
 		throw new AttachmentValidationError("Attachment too large (max 3 MiB)");
 	}
-	const inputs = await Promise.all((files as File[]).map(async (file) => ({
-		filename: file.name,
-		contentType: file.type,
-		content: await file.arrayBuffer(),
-	})));
+	const inputs = await Promise.all([
+		...(files as File[]).map(async (file) => ({
+			filename: file.name,
+			contentType: file.type,
+			content: await file.arrayBuffer(),
+			disposition: "attachment" as const,
+		})),
+		...(inlineFiles as File[]).map(async (file, index) => ({
+			filename: file.name,
+			contentType: file.type,
+			content: await file.arrayBuffer(),
+			disposition: "inline" as const,
+			contentId: inlineIds[index] as string,
+		})),
+	]);
 	return {
 		body,
 		attachments: validateOutboundAttachments({ ...parsedBody.data, attachments: inputs }),

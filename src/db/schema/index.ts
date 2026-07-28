@@ -443,6 +443,8 @@ export const attachments = sqliteTable("attachments", {
 	contentType: text("content_type").notNull(),
 	size: integer("size").notNull(),
 	r2Key: text("r2_key").notNull(),
+	disposition: text("disposition", { enum: ["attachment", "inline"] }).notNull().default("attachment"),
+	contentId: text("content_id"),
 	createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 }, (t) => [index("attachments_message_idx").on(t.messageId)]);
 

@@ -1,8 +1,9 @@
 import { parseHTML } from "linkedom";
 import { SAFE_EMAIL_HTML_TAGS } from "@/lib/email/html-policy";
+import { sanitizeEmailStyle } from "@/lib/email/style-policy";
 
 const allowedTags = new Set<string>(SAFE_EMAIL_HTML_TAGS);
-const voidTags = new Set(["br", "hr"]);
+const voidTags = new Set(["br", "hr", "img"]);
 const dropSubtreeTags = new Set([
 	"applet",
 	"audio",
@@ -16,7 +17,6 @@ const dropSubtreeTags = new Set([
 	"frameset",
 	"head",
 	"iframe",
-	"img",
 	"input",
 	"link",
 	"math",
@@ -77,6 +77,18 @@ function safeSpan(value: string | null): string | null {
 	return parsed >= 1 && parsed <= 100 ? String(parsed) : null;
 }
 
+function safeDimension(value: string | null): string | null {
+	if (!value || !/^\d{1,4}$/.test(value)) return null;
+	const parsed = Number(value);
+	return parsed >= 1 && parsed <= 2000 ? String(parsed) : null;
+}
+
+function safeCid(value: string | null): string | null {
+	if (!value) return null;
+	const candidate = value.trim();
+	return /^cid:[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(candidate) ? candidate : null;
+}
+
 function safeLanguage(value: string | null): string | null {
 	if (!value || !/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/.test(value)) return null;
 	return value;
@@ -95,6 +107,11 @@ function sanitizeAttributes(element: Element, tag: string): string {
 	const attributes: string[] = [];
 	pushAttribute(attributes, "dir", safeDirection(element.getAttribute("dir")?.toLowerCase() ?? null));
 	pushAttribute(attributes, "lang", safeLanguage(element.getAttribute("lang")));
+	pushAttribute(
+		attributes,
+		"style",
+		sanitizeEmailStyle(tag, element.getAttribute("style")),
+	);
 
 	if (tag === "a") {
 		const href = safeUrl(element.getAttribute("href"));
@@ -110,6 +127,14 @@ function sanitizeAttributes(element: Element, tag: string): string {
 	if (tag === "td" || tag === "th") {
 		pushAttribute(attributes, "colspan", safeSpan(element.getAttribute("colspan")));
 		pushAttribute(attributes, "rowspan", safeSpan(element.getAttribute("rowspan")));
+	}
+
+	if (tag === "img") {
+		pushAttribute(attributes, "src", safeCid(element.getAttribute("src")));
+		pushAttribute(attributes, "alt", element.getAttribute("alt"));
+		pushAttribute(attributes, "title", element.getAttribute("title"));
+		pushAttribute(attributes, "width", safeDimension(element.getAttribute("width")));
+		pushAttribute(attributes, "height", safeDimension(element.getAttribute("height")));
 	}
 
 	return attributes.length > 0 ? ` ${attributes.join(" ")}` : "";
@@ -151,6 +176,7 @@ function sanitizeFragment(html: string): string {
 		const element = node as Element;
 		const tag = element.localName.toLowerCase();
 		if (dropSubtreeTags.has(tag)) continue;
+		if (tag === "img" && !safeCid(element.getAttribute("src"))) continue;
 
 		if (!allowedTags.has(tag)) {
 			pushChildren(stack, node);

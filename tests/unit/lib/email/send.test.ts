@@ -357,8 +357,36 @@ describe("sendEmail producer", () => {
 			contentType: "text/plain",
 			size: 11,
 			r2Key: "attachments/u1/msg_id/att_id",
+			disposition: "attachment",
 		}]);
 		expect(payload.attachments[0]).not.toHaveProperty("content");
+	});
+
+	it("stores inline content IDs in durable attachment snapshots", async () => {
+		queueAuthorization();
+		await sendEmail(env, {
+			userId: "u1",
+			from: "a@example.com",
+			to: "b@x.com",
+			subject: "Chart",
+			html: '<p><img src="cid:chart_1" alt="Chart"></p>',
+			attachments: [{
+				filename: "chart.png",
+				contentType: "image/png",
+				content: new Uint8Array([1]).buffer,
+				disposition: "inline",
+				contentId: "chart_1",
+			}],
+		});
+		const payload = JSON.parse((mock.inserts[2].values as { payload: string }).payload);
+		expect(payload.attachments[0]).toMatchObject({
+			disposition: "inline",
+			contentId: "chart_1",
+		});
+		expect(mock.inserts[3].values).toEqual([expect.objectContaining({
+			disposition: "inline",
+			contentId: "chart_1",
+		})]);
 	});
 
 	it("removes stored objects when D1 persistence fails", async () => {
@@ -669,7 +697,39 @@ describe("processOutboundQueue consumer", () => {
 				contentType: "text/plain",
 				size: 5,
 				content,
+				disposition: "attachment",
 			}],
+		}));
+	});
+
+	it("restores inline metadata when loading queued attachment bytes", async () => {
+		const content = new Uint8Array([1]).buffer;
+		mock.queueSelect([{
+			...storedJob,
+			payload: JSON.stringify({
+				from: "a@example.com",
+				to: "b@x.com",
+				subject: "Chart",
+				html: '<img src="cid:chart_1">',
+				attachments: [{
+					id: "att_1",
+					filename: "chart.png",
+					contentType: "image/png",
+					size: 1,
+					r2Key: "attachments/u1/msg_1/att_1",
+					disposition: "inline",
+					contentId: "chart_1",
+				}],
+			}),
+		}]);
+		bucketGet.mockResolvedValue({ size: 1, arrayBuffer: async () => content });
+		providerSend.mockResolvedValue({ providerMessageId: "provider_1" });
+		await processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1");
+		expect(providerSend).toHaveBeenCalledWith(expect.objectContaining({
+			attachments: [expect.objectContaining({
+				disposition: "inline",
+				contentId: "chart_1",
+			})],
 		}));
 	});
 
@@ -892,6 +952,21 @@ describe("processOutboundQueue consumer", () => {
 		JSON.stringify({ from: "a@example.com", to: "b@x.com", subject: 1 }),
 		JSON.stringify({ from: "a@example.com", to: "b@x.com", subject: "Hi", html: 1 }),
 		JSON.stringify({ from: "a@example.com", to: "b@x.com", subject: "Hi", text: 1 }),
+		JSON.stringify({ from: "a@example.com", to: "b@x.com", subject: "Hi", attachments: [null] }),
+		JSON.stringify({
+			from: "a@example.com", to: "b@x.com", subject: "Hi",
+			attachments: [{
+				id: "a", filename: "a", contentType: "image/png", size: 1,
+				r2Key: "x", disposition: "remote",
+			}],
+		}),
+		JSON.stringify({
+			from: "a@example.com", to: "b@x.com", subject: "Hi",
+			attachments: [{
+				id: "a", filename: "a", contentType: "image/png", size: 1,
+				r2Key: "x", disposition: "inline", contentId: 42,
+			}],
+		}),
 	])("rejects a structurally invalid stored payload", async (invalidPayload) => {
 		mock
 			.queueSelect([{ ...storedJob, payload: invalidPayload }])

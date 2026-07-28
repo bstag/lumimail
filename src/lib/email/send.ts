@@ -69,6 +69,8 @@ type OutboundAttachmentSnapshot = {
 	contentType: string;
 	size: number;
 	r2Key: string;
+	disposition?: "attachment" | "inline";
+	contentId?: string;
 };
 
 type OutboundDeliverySnapshot = {
@@ -211,7 +213,7 @@ export async function sendEmail(
 	const authorizedInput = { ...input, mailboxId: authorization.mailboxId };
 	const sender = await getSenderContext(env, authorizedInput);
 	const fromAddr = sender.fromAddr;
-	const authoredContent = normalizeAuthoredContent(input);
+	const authoredContent = normalizeAuthoredContent(input, { allowInlineImages: true });
 	const deliveryBodies = replySource
 		? buildReplyBodies(
 			authoredContent.text ?? "",
@@ -237,6 +239,8 @@ export async function sendEmail(
 			contentType: attachment.contentType,
 			size: attachment.size,
 			r2Key: `attachments/${input.userId}/${messageId}/${id}`,
+			disposition: attachment.disposition,
+			...(attachment.contentId ? { contentId: attachment.contentId } : {}),
 		};
 	});
 	const snapshot: OutboundDeliverySnapshot = {
@@ -288,6 +292,8 @@ export async function sendEmail(
 			contentType: attachment.contentType,
 			size: attachment.size,
 			r2Key: attachment.r2Key,
+			disposition: attachment.disposition,
+			contentId: attachment.contentId ?? null,
 		})))
 		: null;
 
@@ -433,6 +439,12 @@ function isAttachmentSnapshotArray(value: unknown): value is OutboundAttachmentS
 		Number.isInteger(attachment.size) &&
 		attachment.size >= 0 &&
 		typeof attachment.r2Key === "string"
+		&& (
+			attachment.disposition === undefined
+			|| attachment.disposition === "attachment"
+			|| attachment.disposition === "inline"
+		)
+		&& (attachment.contentId === undefined || typeof attachment.contentId === "string")
 	);
 }
 
@@ -455,6 +467,8 @@ async function loadOutboundAttachments(
 			contentType: snapshot.contentType,
 			size: snapshot.size,
 			content,
+			disposition: snapshot.disposition ?? "attachment",
+			...(snapshot.contentId ? { contentId: snapshot.contentId } : {}),
 		});
 	}
 	return loaded;

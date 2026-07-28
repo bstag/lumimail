@@ -16,7 +16,9 @@ export const SAFE_EMAIL_HTML_TAGS = [
 	"h6",
 	"hr",
 	"i",
+	"img",
 	"li",
+	"mark",
 	"ol",
 	"p",
 	"pre",
@@ -37,15 +39,20 @@ export const SAFE_EMAIL_HTML_TAGS = [
 ] as const;
 
 export const SAFE_EMAIL_HTML_ATTRIBUTES = [
+	"alt",
 	"cite",
 	"colspan",
 	"dir",
+	"height",
 	"href",
 	"lang",
 	"rel",
 	"rowspan",
+	"src",
+	"style",
 	"title",
+	"width",
 ] as const;
 
-export const SAFE_EMAIL_URI_PATTERN = /^(?:https?:|mailto:)/i;
-
+export const SAFE_EMAIL_URI_PATTERN =
+	/^(?:(?:https?|mailto):|cid:[A-Za-z0-9][A-Za-z0-9._-]{0,127}$)/i;
