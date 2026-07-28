@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";

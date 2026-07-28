@@ -11,7 +11,6 @@ import TextAlign from "@tiptap/extension-text-align";
 export type ComposeEditorProps = {
   content: string;
   onChange: (html: string) => void;
-  placeholder?: string;
   disabled?: boolean;
   onEditorReady?: (editor: Editor | null) => void;
 };
@@ -19,7 +18,6 @@ export type ComposeEditorProps = {
 export function ComposeEditor({
   content,
   onChange,
-  placeholder = "",
   disabled = false,
   onEditorReady,
 }: ComposeEditorProps) {

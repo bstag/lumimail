@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { getEnv } from "@/lib/cloudflare";
 import { guardUser } from "@/lib/auth/cookies";
 import { getDomainDns, getDomainForUser } from "@/lib/domains/service";

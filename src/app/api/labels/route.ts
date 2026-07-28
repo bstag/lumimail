@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getEnv } from "@/lib/cloudflare";
 import { guardUser } from "@/lib/auth/cookies";

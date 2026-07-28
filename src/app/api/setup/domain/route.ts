@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { getEnv } from "@/lib/cloudflare";
 import { provisionDomainOnCloudflare } from "@/lib/domains/provision";
 import { getPrimaryDomain } from "@/lib/user";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { Plus, Tag, X } from "lucide-react";
 import { authFetch } from "@/lib/auth/client";
 import { parseApiResponse } from "@/lib/api/client-response";

@@ -2,7 +2,7 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import type { AuthShellProps } from "./types";
 
-export function AuthShell({ icon: Icon, title, description, children, footer, steps }: AuthShellProps) {
+export function AuthShell({ title, description, children, footer, steps }: AuthShellProps) {
 	return (
 		<div className="min-h-dvh bg-surface p-4 text-ink sm:p-6">
 			{/* These used to float over the bottom-right corner of the card. A header is

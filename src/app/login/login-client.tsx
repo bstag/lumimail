@@ -33,7 +33,6 @@ export function LoginClient() {
 
   return (
     <AuthShell
-      icon={Mail}
       title={t("signIn")}
       description={t("signInDesc")}
       footer={

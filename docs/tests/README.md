@@ -126,6 +126,19 @@ intermittent.
 a mocked test fails in a way that mentions `/login` or a detached element, log
 401 responses first — the cause is almost certainly a request nothing mocked.
 
+### When a run fails with "You are offline"
+
+That page is the PWA's cached offline shell, not an application error, and it means
+the dev server is not answering. It is easy to misread as an authentication failure —
+sign-in appears to hang, and the saved session looks expired.
+
+The usual cause is a dead server that still owns `.next/dev`: the record claims a PID,
+so starting another server is refused, while nothing is actually listening on the
+port. The service worker then answers navigations from cache.
+
+Check with `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/login` — a
+`000` means nothing is listening. Remove `.next/dev` and start the server again.
+
 ## Definition of "done" for a feature's tests
 
 - [ ] Every new/changed file in `src/` is in `coverage.include` and at 100%.

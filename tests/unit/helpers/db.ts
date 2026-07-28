@@ -44,13 +44,13 @@ export function createDbMock() {
 	// queued select array; a bare await resolves to `base()`.
 	function makeBuilder(base: () => unknown) {
 		let resolve = base;
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 		const b: any = {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 			then: (onF: any, onR: any) => Promise.resolve(resolve()).then(onF, onR),
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 			catch: (onR: any) => Promise.resolve(resolve()).catch(onR),
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 			finally: (onF: any) => Promise.resolve(resolve()).finally(onF),
 		};
 		for (const m of chainMethods) b[m] = vi.fn(() => b);
@@ -65,7 +65,7 @@ export function createDbMock() {
 		return b;
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 	const db: any = {
 		batch: vi.fn(async () => undefined),
 		select: vi.fn(() => makeBuilder(() => selectQueue.shift() ?? [])),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { summariseDns, type DnsStatusSummary } from "@/lib/dns-status";
+import { summariseDns } from "@/lib/dns-status";
 
 function makeRecord(type: string): { type: string } {
 	return { type };

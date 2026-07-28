@@ -106,7 +106,6 @@ export function RegisterClient() {
 
   return (
     <AuthShell
-      icon={MailPlus}
       title={invite ? t("createAccountCta") : showDomainStep ? t("addDomain") : t("createMailbox")}
       steps={
         firstRun

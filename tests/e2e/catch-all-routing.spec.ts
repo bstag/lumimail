@@ -22,6 +22,12 @@ test.describe("domain catch-all routing", () => {
 			{ id: "m1", localPart: "admin", domainId: "d1", displayName: null },
 			{ id: "m2", localPart: "owner", domainId: "d2", displayName: null },
 		] } }));
+		// `/routing` always loads its forwarding destinations. Left unmocked, that
+		// request reaches the real server, and `authFetch` treats the 401 as a lost
+		// session — so the page navigates to /login before the conflict can render.
+		await page.route("**/api/forwarding-destinations", (route) =>
+			route.fulfill({ json: { success: true, data: [] } }),
+		);
 		await page.route("**/api/routing-rules", async (route) => {
 			if (route.request().method() === "POST") {
 				posted = route.request().postDataJSON() as Record<string, unknown>;
@@ -48,6 +54,12 @@ test.describe("domain catch-all routing", () => {
 		await mockAuthenticatedShell(page);
 		await page.route("**/api/domains", (route) => route.fulfill({ json: { domains: [{ id: "d1", hostname: "lucidkith.com" }] } }));
 		await page.route("**/api/mailboxes", (route) => route.fulfill({ json: { mailboxes: [{ id: "m1", localPart: "admin", domainId: "d1", displayName: null }] } }));
+		// `/routing` always loads its forwarding destinations. Left unmocked, that
+		// request reaches the real server, and `authFetch` treats the 401 as a lost
+		// session — so the page navigates to /login before the conflict can render.
+		await page.route("**/api/forwarding-destinations", (route) =>
+			route.fulfill({ json: { success: true, data: [] } }),
+		);
 		await page.route("**/api/routing-rules", async (route) => {
 			if (route.request().method() === "POST") {
 				await route.fulfill({ status: 409, json: { success: false, error: { message: "Cloudflare catch-all is already used by another destination" } } });

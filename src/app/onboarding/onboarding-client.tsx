@@ -61,7 +61,6 @@ export function OnboardingClient() {
 
 	return (
 		<AuthShell
-			icon={MailPlus}
 			title={step === 1 ? t("connectRouting") : t("createMailbox")}
 			description={
 				step === 1

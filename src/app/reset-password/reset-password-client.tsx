@@ -43,7 +43,6 @@ export function ResetPasswordClient() {
 
 	return (
 		<AuthShell
-			icon={KeyRound}
 			title="Reset your password"
 			description="Choose a new password with at least eight characters."
 			footer={<Link href="/login" className="hover:underline">Back to sign in</Link>}
