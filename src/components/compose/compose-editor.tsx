@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
+import { createComposeExtensions } from "./editor-extensions";
 
 export type ComposeEditorProps = {
   content: string;
@@ -22,12 +22,7 @@ export function ComposeEditor({
 }: ComposeEditorProps) {
   const editor = useEditor(
     {
-      extensions: [
-        StarterKit.configure({
-          heading: { levels: [1, 2] },
-          link: { openOnClick: false },
-        }),
-      ],
+      extensions: createComposeExtensions(),
       content,
       immediatelyRender: false,
       editable: !disabled,

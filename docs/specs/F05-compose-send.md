@@ -1,6 +1,6 @@
 # F05 — Compose, Send & Drafts
 
-> Status: Shipped locally — production delivery verification pending
+> Status: In progress — the original constrained editor is deployed; expanded formatting and CID images are under implementation
 > Owner area: `src/components/compose/`, `src/app/api/send/`, `src/app/api/drafts/`, `src/app/api/v1/send/`
 
 ## 1. Problem & User Job
@@ -25,19 +25,22 @@ browser sessions. Send is available via both the UI and a public API (API keys).
 
 ## 3. Scope Boundaries
 
-**In scope:** Constrained Tiptap WYSIWYG compose form (popup + full page),
-server-sanitized semantic HTML, derived plain text, auto-save drafts,
-load/delete drafts, durable send via UI, send via API key, outbound attachments,
-and server-derived HTML-preserving reply quotations.
+**In scope:** Tiptap WYSIWYG compose form (popup + full page), undo/redo,
+paragraph and clear-format controls, link editing with `Mod-K`, horizontal rule,
+inline/code blocks, superscript/subscript, typography substitutions, alignment,
+foreground/background color, tables, uploaded CID inline images,
+server-sanitized semantic HTML and safe presentation attributes, derived plain
+text, auto-save drafts, load/delete drafts, durable send via UI, send via API
+key, outbound attachments, and server-derived HTML-preserving reply quotations.
 
 **In scope through later contracts:** outbound attachments are defined by
 [F55](F55-outbound-attachment-delivery.md); reply/forward composition is tracked
 separately in the feature registry.
 
-**Out of scope:** Arbitrary HTML/source editing, styles, alignment, fonts,
-colours, tables, inline images, embedded media, email templates, scheduled send,
-selected-file persistence in draft autosave, and automatic forwarding of
-original attachments.
+**Out of scope:** Arbitrary HTML/source editing, arbitrary CSS, remote-image
+URLs, base64 image persistence, font-family/size selection, embedded audio or
+video, email templates, scheduled send, selected-file persistence in draft
+autosave, and automatic forwarding of original attachments.
 
 ## 4. Data Model
 
@@ -100,16 +103,22 @@ original attachments.
   activated rather than introducing a second editor framework.
 - Sanitized HTML is the canonical formatted delivery representation. A
   server-derived plain-text alternative is always stored and delivered with it.
-- Stored authored HTML remains semantic and style-free. Immediately before the
-  provider call, the server adds a fixed, trusted presentation style to
-  supported headings so clients that reset browser defaults still display the
-  authored hierarchy. User-provided styles remain prohibited.
+- Stored authored HTML remains semantic with only normalized allowlisted
+  presentation properties. Immediately before the provider call, the server
+  adds fixed trusted presentation where clients commonly reset browser defaults.
 - Safe HTML received from another message may be preserved in a server-derived
   reply quotation under F59. Raw source HTML remains server-owned and is never
   round-tripped through the browser as hidden trusted content.
-- The first MVP formatting schema intentionally matches the semantic elements
-  accepted by the existing Workers-compatible sanitizer. Alignment is omitted
-  because it serializes through `style`, which the current safety policy removes.
+- Style-based features are limited to an allowlist of properties and normalized
+  values; arbitrary declarations, URLs, positioning, visibility, and
+  layout-breaking CSS are removed.
+- Inline images use sender-uploaded image files, `cid:` references, and
+  server-generated content IDs. Remote URLs and data URLs are not accepted.
+  Inline files share the existing attachment count/size/authorization/storage
+  lifecycle and are not draft-autosaved until the attachment draft contract is
+  expanded.
+- Tables are structural email content. Cell spans remain bounded by the
+  sanitizer; table presentation is server-owned at delivery and in the reader.
 - API clients may submit text-only messages. When they submit HTML, the server
   sanitizes it and derives the authoritative text alternative.
 
@@ -123,8 +132,12 @@ original attachments.
 - Invalid or unauthorized reply source identifiers fail closed under F59.
 - Empty editor wrapper markup such as `<p></p>` does not satisfy the required-body
   contract.
-- Pasted active content, remote images, forms, styles, and unsupported markup are
-  removed before draft persistence or outbound queueing.
+- Pasted active content, remote images, forms, arbitrary styles, and unsupported
+  markup are removed before draft persistence or outbound queueing. Allowlisted
+  formatting styles are normalized rather than copied verbatim.
+- A CID reference without a matching authorized inline upload is removed before
+  delivery. An inline upload not referenced by sanitized HTML is never silently
+  exposed through a public URL.
 - Provider failure is represented by queued/failed delivery state rather than a
   false synchronous success.
 
@@ -139,13 +152,37 @@ original attachments.
   and derived text.
 - Add delivery-presentation tests proving semantic H1/H2 markup receives only
   fixed server-owned styles and hostile/user-authored styles cannot survive.
-- Add editor component tests for the constrained extension/toolbar contract.
+- Add toolbar contracts for history state, paragraph/clear formatting, link
+  editing, semantic nodes, safe styles, tables, and image insertion.
+- Add sanitizer tests for every allowed style value and adversarial CSS/URL
+  input.
+- Add CID attachment tests across multipart parsing, R2 snapshots, Cloudflare
+  and Resend provider translation, reply handling, and plain-text fallback.
 - Retain browser contracts for attachment submission, shared draft behavior,
   reply-source submission, visible delivery state, formatting, and draft reload.
 - Documentation-status coverage must keep the registry, this specification, and
   README aligned on constrained WYSIWYG authoring.
 
 ## 11. Bug / Change Log
+
+### 2026-07-28 — Expand the MVP editor and multipart contract
+
+Type: Feature / Scope Expansion.
+
+Status: In progress.
+
+Requested:
+- Expose the remaining email-appropriate StarterKit controls and add advanced
+  formatting, tables, and inline images now rather than deferring them.
+
+Decisions:
+- Advanced presentation is stored only through normalized, allowlisted CSS
+  values.
+- Inline images are uploaded files delivered as CID attachments; arbitrary
+  remote and data URLs remain prohibited.
+- Every editor control must round-trip through server sanitization, derived text,
+  durable snapshots, provider translation, and the sanitized reader before it
+  is considered shipped.
 
 ### 2026-07-28 — Preserve visible heading hierarchy through delivery and reading
 
