@@ -2,6 +2,12 @@
 
 Date: 2026-07-22
 
+> **Historical snapshot.** This report preserves the evidence and gaps found on
+> 2026-07-22. It is not the current feature-status source: many findings below
+> were subsequently addressed by F47–F69. Use the live
+> [MVP_SCOPE.md](./MVP_SCOPE.md) registry for current status and follow its links
+> to the relevant specifications and production evidence.
+
 This audit validates the F01–F35 registry against executable code, schema,
 Cloudflare configuration, automated tests, and available user-interface paths.
 It does not treat a route name, schema table, or passing mocked test as proof of
@@ -111,3 +117,19 @@ original feature list overstated several integration-level capabilities. The web
 mail core is real. The advertised catch-all, shared/restricted mailbox access,
 external forwarding, group administration, normal attachment handling, reliable
 threading and IMAP/SMTP client support are not complete today. Password recovery is now complete under F43/R-21.
+
+## Reconciliation through 2026-07-26
+
+This section records what changed after the snapshot without rewriting the
+original audit as though it had been rerun.
+
+| Original finding | Later contract and current boundary |
+|------------------|-------------------------------------|
+| F03/F12 lacked mailbox ACLs and safe invitations | F47–F51 add mailbox capabilities, role-aware mail actions, identity-bound invites, cache isolation, and restricted navigation. The bounded access model is production-verified; invitation delivery remains copy-link. |
+| F05/F17/F27/F31 did not transmit or ingest normal attachments | F55 and F57 add atomic outbound delivery, bounded inbound extraction, R2 compensation, scoped download, and safe inline preview, with controlled production evidence. |
+| F07/F16/F30 routing and groups were incomplete | F46, F60, and F62 add exact/catch-all precedence, provider-backed internal alias/group provisioning, and organization-owned verified external forwarding. |
+| F13 bridge contracts were broken | F52 repairs mailbox-scoped APIs, UID behavior, SMTP sender binding, personal-key UI, and fail-closed TLS. Separate production bridge hosting and controlled client validation remain pending. |
+| F18/F26 threading and replies were basic | F58/F59 add RFC-aware grouping and server-derived HTML-preserving quotations. Rich-text authoring remains out of scope. |
+| F25 could loop or reply repeatedly | F64 adds standard automated-message suppression, mailbox scoping, self-reply protection, and a four-day per-correspondent window. |
+| F33 sent synchronously without queue use | F54/F56/F61 add durable outbound jobs, retry classification, dead-letter visibility, queue-health monitoring, and operator-confirmed terminal recovery. |
+| Operational readiness was largely unproven | F63/F66/F67 and `OPERATIONS.md` add retention controls, query-plan/index contracts, backup/restore tooling, a data-egress inventory, and isolated staging configuration. The live registry retains the remaining production-readiness gates. |

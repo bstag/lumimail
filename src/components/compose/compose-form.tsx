@@ -14,6 +14,7 @@ import {
 	findSendCapableMailbox,
 } from "@/components/mailbox-provider-utils";
 import { authFetch } from "@/lib/auth/client";
+import { notifyMessagesChanged } from "@/hooks/utils";
 import { formatEmailAddress } from "@/lib/email/address";
 import { cn } from "@/lib/utils";
 import { fetchDraft, submitMessage } from "./utils";
@@ -146,7 +147,7 @@ export function ComposeForm({
 		return () => {
 			cancelled = true;
 		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps
+		 
 	}, [searchParams, draftIdToLoad]);
 
 	useEffect(() => {
@@ -176,7 +177,10 @@ export function ComposeForm({
 				body: JSON.stringify(payload),
 			});
 			const data = (await res.json()) as { draft?: { id: string } };
-			if (res.ok && data.draft?.id) setDraftId(data.draft.id);
+			if (res.ok && data.draft?.id) {
+				setDraftId(data.draft.id);
+				notifyMessagesChanged();
+			}
 		}, 900);
 
 		return () => {
@@ -240,8 +244,8 @@ export function ComposeForm({
 		}
 
 		if (draftId) {
-			void authFetch(`/api/drafts/${draftId}`, { method: "DELETE" }).finally(() => {
-				window.dispatchEvent(new Event("lumimail:messages-changed"));
+			void authFetch(`/api/drafts/${draftId}`, { method: "DELETE" }).then((response) => {
+				if (response.ok) notifyMessagesChanged();
 			});
 		}
 		setDraftId(null);
@@ -251,7 +255,7 @@ export function ComposeForm({
 		setReplyToMessageId(null);
 		setAttachedFiles([]);
 		setToast({ type: "success", message: t("sendSuccess") });
-		window.dispatchEvent(new Event("lumimail:messages-changed"));
+		notifyMessagesChanged();
 	}
 
 	const frameClass =

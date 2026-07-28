@@ -13,6 +13,7 @@ import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { useMessages } from "@/hooks/use-messages";
 import { useQuery } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth/client";
+import { notifyMessagesChanged } from "@/hooks/utils";
 import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
 import { BulkMessageToolbar } from "./bulk-message-toolbar";
 import type { MessageListRowProps, MessageFolderConfig } from "./types";
@@ -223,11 +224,13 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 			current.map((m) => (m.id === messageId ? { ...m, starred } : m)),
 		);
 		try {
-			await authFetch(`/api/messages/${messageId}/starred`, {
+			const response = await authFetch(`/api/messages/${messageId}/starred`, {
 				method: "PATCH",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ starred }),
 			});
+			if (!response.ok) throw new Error("Unable to update starred state");
+			notifyMessagesChanged();
 		} catch {
 			setMessages((current) =>
 				current.map((m) => (m.id === messageId ? { ...m, starred: !starred } : m)),

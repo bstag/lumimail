@@ -1,4 +1,5 @@
 import type { Message } from "@/hooks/types";
+import { notifyMessagesChanged } from "@/hooks/utils";
 import { authFetch } from "@/lib/auth/client";
 import { getEmailDisplayName } from "@/lib/email/address";
 import type { MessageFolderConfig } from "./types";
@@ -43,7 +44,7 @@ export async function retryMessageDelivery(messageId: string) {
 	const response = await authFetch(`/api/messages/${messageId}/retry`, { method: "POST" });
 
 	if (!response.ok) throw new Error("Unable to retry delivery");
-	window.dispatchEvent(new Event("lumimail:messages-changed"));
+	notifyMessagesChanged();
 }
 
 export async function runBulkMessageAction(messageIds: string[], action: string) {
@@ -54,5 +55,5 @@ export async function runBulkMessageAction(messageIds: string[], action: string)
 	});
 
 	if (!response.ok) throw new Error("Unable to update selected messages");
-	window.dispatchEvent(new Event("lumimail:messages-changed"));
+	notifyMessagesChanged();
 }

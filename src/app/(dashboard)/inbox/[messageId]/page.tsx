@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, ChevronDown } from "lucide-react";
 import dayjs from "dayjs";
 import { useTranslations } from "next-intl";
@@ -136,7 +136,16 @@ export default function MessageDetailPage() {
 	const [loading, setLoading] = useState(true);
 	const [threadMessages, setThreadMessages] = useState<ThreadMessage[]>([]);
 	const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+	const [autoMarkRead, setAutoMarkRead] = useState(false);
 	const { mailboxes } = useSelectedMailbox();
+	const setCurrentReadState = useCallback((read: boolean) => {
+		setData((current) => current?.message
+			? { ...current, message: { ...current.message, read } }
+			: current);
+		setThreadMessages((current) =>
+			current.map((message) => message.id === messageId ? { ...message, read } : message),
+		);
+	}, [messageId]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -146,6 +155,9 @@ export default function MessageDetailPage() {
 			const nextData = await fetchMessageDetail(messageId);
 			if (!cancelled) {
 				setData(nextData);
+				setAutoMarkRead(
+					nextData.message?.direction === "inbound" && nextData.message.read === false,
+				);
 				setLoading(false);
 
 				if (nextData.message?.threadId) {
@@ -201,8 +213,14 @@ export default function MessageDetailPage() {
 
 	return (
 		<div className="h-full overflow-y-auto overflow-x-hidden">
-			{message.direction === "inbound" && !message.read && (
-				<MarkAsRead messageId={message.id} />
+			{autoMarkRead && (
+				<MarkAsRead
+					messageId={message.id}
+					onMarkedRead={() => {
+						setAutoMarkRead(false);
+						setCurrentReadState(true);
+					}}
+				/>
 			)}
 			<div className="flex py-2 items-center justify-between gap-2 px-2 overflow-x-auto">
 				<div className="flex items-center flex-row gap-6">
@@ -222,6 +240,10 @@ export default function MessageDetailPage() {
 					toAddr={message.toAddr}
 					subject={message.subject}
 					canSend={canSend}
+					onActionSuccess={(action) => {
+						if (action === "read") setCurrentReadState(true);
+						if (action === "unread") setCurrentReadState(false);
+					}}
 				/>
 			</div>
 			<article className="px-6">

@@ -20,6 +20,7 @@ export function MessageActions({
 	toAddr,
 	subject,
 	canSend = false,
+	onActionSuccess,
 }: MessageActionsProps) {
 	const t = useTranslations("actions");
 	const router = useRouter();
@@ -47,6 +48,7 @@ export function MessageActions({
 		setError(null);
 		try {
 			await runSingleMessageAction(messageId, action);
+			onActionSuccess?.(action);
 			const redirect = getMessageActionRedirect(action, direction);
 			if (redirect) router.push(redirect);
 			router.refresh();

@@ -88,6 +88,12 @@ export function clearMessageListCache() {
 	messageListRequests.clear();
 }
 
+export function notifyMessagesChanged() {
+	clearMessageCountsCache();
+	clearMessageListCache();
+	window.dispatchEvent(new Event("lumimail:messages-changed"));
+}
+
 registerAccountStateReset(() => {
 	clearMessageCountsCache();
 	clearMessageListCache();

@@ -1,4 +1,5 @@
 import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
+import { notifyMessagesChanged } from "@/hooks/utils";
 import { authFetch } from "@/lib/auth/client";
 
 export function getMessageBackHref(direction: "inbound" | "outbound", status: string) {
@@ -19,7 +20,7 @@ export async function runSingleMessageAction(messageId: string, action: BulkMess
 		throw new Error("Unable to update message");
 	}
 
-	window.dispatchEvent(new Event("lumimail:messages-changed"));
+	notifyMessagesChanged();
 }
 
 export function getMessageActionRedirect(action: BulkMessageAction, direction: "inbound" | "outbound") {

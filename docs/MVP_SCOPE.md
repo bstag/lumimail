@@ -28,7 +28,7 @@ gates later in this document must also pass.
 | F01 | Core auth: register, login, session, invite acceptance | Shipped | [F01](specs/F01-auth.md) | `/login`, `/register`, `/api/auth/*` | Password recovery is tracked separately as F21. |
 | F02 | Domain management and Cloudflare provisioning | Partially Shipped | [F02](specs/F02-domains.md), [F45](specs/F45-cloudflare-sending-domain-readiness.md) | `/domains`, `/api/domains*`, `/api/setup/*` | Apex/nested sending readiness is provider-backed and production-verified; domain administration still lacks role enforcement for restricted members. |
 | F03 | Organization-scoped mailbox CRUD | Shipped | [F03](specs/F03-mailboxes.md), [F47](specs/F47-mailbox-access-control.md) | `/mailboxes`, `/api/admin/mailboxes`, `/api/mailboxes*` | Organization admins provision and delete mailboxes; content/settings access requires explicit mailbox membership. Unrelated-mailbox isolation and immediate live revocation are production-verified. |
-| F04 | Mail folders: inbox, sent, drafts, spam, trash, starred | Shipped | [F04](specs/F04-mail-folders.md) | dashboard folders, `/api/messages*` | — |
+| F04 | Mail folders: inbox, sent, drafts, spam, trash, starred | Shipped | [F04](specs/F04-mail-folders.md), [F72](specs/F72-mail-ui-state-synchronization.md) | dashboard folders, `/api/messages*` | Shared mutation invalidation keeps folder rows, filtered membership, detail controls, drafts, and navigation counts synchronized. |
 | F05 | Plain-text compose, provider send, drafts, attachment UI | Shipped | [F05](specs/F05-compose-send.md), [F48](specs/F48-role-aware-mail-actions-and-shared-draft-refresh.md), [F55](specs/F55-outbound-attachment-delivery.md) | `/compose`, `/api/send`, `/api/drafts*`, `/api/v1/send` | Shared mailbox drafts are capability-scoped; atomic outbound attachment storage, queue loading, Cloudflare/Resend encoding, exact R2 bytes, and external-recipient delivery are production-verified. Newly selected files are intentionally not persisted by draft autosave. |
 | F06 | API keys | Shipped | [F06](specs/F06-api-keys.md), [F44](specs/F44-api-key-lifecycle.md) | `/api-keys`, `/api/api-keys`, `/api/v1/send` | Keys are created with a one-time secret, lifecycle metadata is visible, and owner-scoped permanent revocation is enforced during authentication. |
 | F07 | Inbound routing rules and catch-all | Shipped | [F46](specs/F46-domain-catch-all-routing.md) | `/routing`, `/api/routing-rules*` | Canonical per-domain rules, safe Cloudflare catch-all provisioning, and named-recipient precedence are deployed and production-verified with controlled exact/catch-all delivery across LucidKith and Henriksen. |
@@ -50,7 +50,7 @@ gates later in this document must also pass.
 | F56 | Scheduled queue health monitoring | Shipped | [F56](specs/F56-queue-health-monitoring.md) | Worker Cron Trigger, Queue metrics, `/queue-health`, `/api/admin/queue-health` | Owner-only platform status, one-minute snapshots, dead-letter visibility, stale-job detection, and manual checks are locally and production-verified. Exact administrative pause state and automatic resume are deliberately excluded. |
 | F57 | Inbound attachment ingestion | Shipped | [F57](specs/F57-inbound-attachment-ingestion.md) | PostalMime, inbound queue, R2, message attachment APIs/UI | Bounded exact-byte ingestion, atomic D1 metadata, R2 compensation, omission status, safe previews, and controlled production receipt/download are verified. |
 | F13 | IMAP/SMTP bridge for email clients | In Progress | [F13](specs/F13-imap-smtp-bridge.md), [F52](specs/F52-imap-smtp-bridge-contract-repair.md) | `/api/v1/session`, `/api/v1/messages*`, `/api/v1/send`, separate `imap-bridge` service | The mailbox-scoped API, persistent UID, truthful protocol, TLS, sender-binding, personal-key UI, and automated bridge contracts pass locally. Production bridge hosting, TLS, and controlled Thunderbird isolation/send validation remain required. |
-| F14 | Starred messages | Shipped | Missing | `/starred`, `/api/messages/[id]/starred` | — |
+| F14 | Starred messages | Shipped | [F72](specs/F72-mail-ui-state-synchronization.md) | `/starred`, `/api/messages/[id]/starred` | Star changes reconcile all cached folder variants and failed requests roll back optimistic row state. |
 | F15 | Labels | Shipped | Missing | `/labels`, `/api/labels*` | — |
 | F16 | Email aliases | Shipped | [F60](specs/F60-internal-alias-and-group-provisioning.md) | `/aliases`, `/api/aliases*`, Cloudflare Email Routing | Internal mailbox aliases now provision exact Worker rules and support same-organization cross-domain targets. Migration `0016` is deployed and controlled delivery is verified. External forwarding is now real and tracked separately as F62. |
 | F17 | Attachment storage, download, and metadata in R2 | Shipped | [F55](specs/F55-outbound-attachment-delivery.md), [F57](specs/F57-inbound-attachment-ingestion.md) | `/api/attachments*`, `/api/messages/[id]/attachments`, inbound/outbound queues | Outbound delivery and inbound exact-byte extraction, storage, listing, preview, and download are production-verified. |
@@ -75,20 +75,30 @@ gates later in this document must also pass.
 
 Implementation notes for shipped features live in `docs/implementation/`, but those
 notes are not substitutes for feature specifications and executable tests.
-The code-level evidence for every row is recorded in
-[FEATURE_VALIDATION.md](FEATURE_VALIDATION.md).
+The original F01–F35 audit is preserved in
+[FEATURE_VALIDATION.md](FEATURE_VALIDATION.md); it is a dated snapshot. Current
+status is maintained in this registry and in each linked specification.
 
 ## What is operational now
 
-- Registration, login, sessions, organization creation, and the first production migration path.
-- Domain and mailbox administration, including Cloudflare inbound routing setup for a connected zone.
-- Inbound message ingestion through the Worker, queue, D1 metadata, and R2 raw-message storage.
-- Basic message lists, folders, threads, search, labels, filters, contacts, drafts, and plain-text composition.
-- Provider-selected outbound sending when the sending domain/provider is already validly configured.
-- Internal aliases and internal group delivery.
+- Registration, login, identity-bound invitation acceptance, password recovery, sessions, and organizations.
+- Provider-backed domain onboarding, exact/catch-all routing, internal aliases,
+  bounded mailbox groups, and verified external forwarding.
+- Capability-scoped mailbox access with shared-mailbox isolation, role-aware
+  actions, immediate revocation, and restricted-member navigation.
+- Inbound and durable outbound queues, visible delivery state, classified retry,
+  dead-letter monitoring, and operator-confirmed recovery.
+- Folders, RFC-aware conversations, metadata search, labels, filters, contacts,
+  drafts, safe vacation replies, bulk actions, and plain-text composition with
+  HTML-preserving reply quotations.
+- Bounded inbound attachment extraction and outbound attachment delivery through
+  R2, including scoped downloads and safe image/PDF previews.
+- Theme selection, responsive layouts, and—on the current local branch—consistent
+  geometry, a collapsible sidebar, and a mobile tab bar.
 
-These capabilities are suitable for continued controlled setup and testing. They do
-not yet support the promised restricted-user/shared-mailbox model safely.
+These capabilities support controlled production use. The unchecked gates below
+still prevent a general production-ready claim, and the separately deployed
+IMAP/SMTP bridge remains in progress.
 
 ## MVP blockers and required remediation
 
@@ -97,18 +107,10 @@ multi-domain, multi-user email replacement.
 
 | Priority | Required outcome | Why it blocks the MVP | Tracking |
 |----------|------------------|-----------------------|----------|
-| P0 | Sanitize hostile inbound HTML safely on Workers | A received email can currently persist active HTML and expose viewers to stored XSS. | [R-19](REMEDIATION_PLAN.md#priority-override--security) |
-| P0 | Prove executable migrations match the application schema | A fresh or upgraded deployment can otherwise fail at runtime despite a successful build. | [R-06](REMEDIATION_PLAN.md#phase-1--data-integrity-and-api-contracts) — completed 2026-07-22 |
-| P0 | Specify and enforce mailbox ACLs | Restricted users and a shared `support@` mailbox cannot be isolated safely with organization roles alone. | [R-12/R-13](REMEDIATION_PLAN.md#phase-3--multi-user-authorization) |
-| P1 | Make domain sending state truthful and usable | Provider-backed apex/nested onboarding, verification, and production reconciliation are complete. | [R-07](REMEDIATION_PLAN.md#phase-2--sending-and-routing-correctness) — completed 2026-07-22 |
-| P1 | Define and verify catch-all behavior per domain | Ambiguous accepted patterns can silently misroute or drop mail. | [R-08](REMEDIATION_PLAN.md#phase-2--sending-and-routing-correctness) |
-| P1 | Include attachments in outbound delivery | Atomic R2/queue/provider delivery and external-recipient receipt are production-verified. | [R-20](REMEDIATION_PLAN.md#phase-2--sending-and-routing-correctness) — completed 2026-07-24 |
-| P1 | Complete password recovery UI and email delivery | A production user who loses a password has no usable recovery flow. | [R-21](REMEDIATION_PLAN.md#phase-1--data-integrity-and-api-contracts) — completed 2026-07-22 |
-| P1 | Implement forwarding or remove it from the product contract | External alias/group targets currently log rather than receive messages. | [R-09](REMEDIATION_PLAN.md#phase-2--sending-and-routing-correctness) |
-| P1 | Queue outbound mail with idempotent retries and failure visibility | Synchronous provider calls lack durable delivery and duplicate protection. | [R-10](REMEDIATION_PLAN.md#phase-2--sending-and-routing-correctness) — completed 2026-07-24 |
-| P1 | Establish intentional R2 retention/cleanup | Failed or unroutable inbound messages can leave orphaned raw objects. | [R-11](REMEDIATION_PLAN.md#phase-2--sending-and-routing-correctness) |
-| P2 | Repair localization and implement a complete theme contract | Raw keys, invalid ICU text, and fixed light colors make the interface inconsistent. | [R-14–R-16](REMEDIATION_PLAN.md#phase-4--theme-localization-and-interface-consistency) |
-| P2 | Verify multi-domain scale, recovery, rollback, and data export | Operational behavior and privacy must be demonstrated, not inferred from code. | [R-17/R-18](REMEDIATION_PLAN.md#phase-5--operational-hardening) |
+| P1 | Exercise R2 cleanup against a real orphan | Reporting and retention policy are deployed, but the deletion path has not removed a live orphan. | [R-11](REMEDIATION_PLAN.md#phase-2--sending-and-routing-correctness) |
+| P1 | Host and validate the IMAP/SMTP bridge | Local protocol and API contracts pass; a trusted-TLS production host and controlled client isolation/send pass remain. | [R-23](REMEDIATION_PLAN.md#phase-3--multi-user-authorization) |
+| P2 | Complete the multi-domain performance pass | Indexed plans and local volume tests exist; the remaining production-shape timing and queue-throughput evidence is part of the readiness exercise. | [R-17](REMEDIATION_PLAN.md#phase-5--operational-hardening) |
+| P2 | Complete the production readiness exercise | A live remote restore, current-build traced mail-flow pass, automated deployment smoke checks, and remaining timing evidence are not complete. | [R-18](REMEDIATION_PLAN.md#phase-5--operational-hardening) |
 
 ## Production-readiness gates
 
@@ -123,7 +125,7 @@ All of these must be checked before a general production launch:
 - [x] Two or more users can share one mailbox without receiving access to unrelated mailboxes.
 - [x] Password recovery works end to end in production without exposing reset tokens.
 - [ ] Backup, restore, retention, cleanup, and rollback procedures have been exercised.
-- [ ] Logs, webhooks, and third-party providers have a documented data-egress inventory with no unexpected message or credential export.
+- [x] Logs, webhooks, and third-party providers have a documented data-egress inventory with no unexpected message or credential export.
 - [ ] Multiple-domain load and D1 query plans meet documented performance targets.
 - [ ] `npm run verify`, the required E2E suite, deployment smoke tests, and traced mail-flow tests pass.
 
@@ -154,12 +156,9 @@ The final gate covers four separate things and is checked only when all four hol
 
 The two failing clauses need work that does not exist yet, so the gate stays unchecked.
 
-One gate remains deliberately unchecked because the evidence does not support it:
-
-- **Terminal failure recoverability** is unimplemented. Duplicate suppression and
-  classified retry are covered by deterministic tests, but `processOutboundDeadLetter`
-  only marks a job `failed`; no requeue, resend, or operator recovery path exists in
-  `src/`. Tracked as [R-34](REMEDIATION_PLAN.md#phase-2--sending-and-routing-correctness).
+Terminal failure recoverability was the stale exception in the prior
+reconciliation. F61/R-34 now provides explicit operator recovery and a controlled
+production failure-to-sent pass; the corresponding gate above is checked.
 
 ## Specification coverage debt
 

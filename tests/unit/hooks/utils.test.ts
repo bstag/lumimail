@@ -6,6 +6,7 @@ vi.mock("@/lib/auth/client", () => ({ authFetch: (...args: unknown[]) => authFet
 import {
 	fetchMessageCounts,
 	fetchMessageList,
+	notifyMessagesChanged,
 } from "@/hooks/utils";
 import { resetAccountScopedClientState } from "@/lib/auth/account-state";
 
@@ -19,6 +20,29 @@ beforeEach(() => {
 });
 
 describe("account-scoped message caches", () => {
+	it("invalidates list and count caches before announcing a message change", async () => {
+		const messages = { messages: [{ id: "before" }], total: 1 };
+		const counts = { folders: { inbox: { total: 1, unread: 1 } }, mailboxes: [] };
+		authFetch
+			.mockResolvedValueOnce(jsonResponse(messages))
+			.mockResolvedValueOnce(jsonResponse({ counts }))
+			.mockResolvedValueOnce(jsonResponse(messages))
+			.mockResolvedValueOnce(jsonResponse({ counts }));
+		const params = new URLSearchParams("status=received");
+		await fetchMessageList(params);
+		await fetchMessageCounts();
+		const dispatchEvent = vi.fn();
+		vi.stubGlobal("window", { dispatchEvent });
+
+		notifyMessagesChanged();
+		await fetchMessageList(params);
+		await fetchMessageCounts();
+
+		expect(authFetch).toHaveBeenCalledTimes(4);
+		expect(dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "lumimail:messages-changed" }));
+		vi.unstubAllGlobals();
+	});
+
 	it("does not let an old message-list request replace or delete the new account request", async () => {
 		let resolveOld!: (value: Response) => void;
 		const oldMessages = { messages: [{ id: "old" }], total: 1 };

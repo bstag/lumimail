@@ -56,6 +56,14 @@ Messages flow through inbox → read → archived/spam/trash just like any email
 
 ## 8. Bug / Change Log
 
+### 2026-07-26 — Synchronize mail mutation state across UI views
+
+Type: Correctness / UI State Consistency. See [F72](./F72-mail-ui-state-synchronization.md).
+
+- Successful message mutations now invalidate cached lists and counts before notifying mounted views.
+- Detail read state, Starred membership, draft changes, bulk status actions, and navigation counts reconcile
+  from one shared client-state contract.
+
 ### 2026-06-10 — Backfill spec from existing implementation
 
 Type: Documentation Change. No code changes.
