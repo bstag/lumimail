@@ -31,7 +31,9 @@ inline/code blocks, superscript/subscript, typography substitutions, alignment,
 foreground/background color, tables, uploaded CID inline images,
 server-sanitized semantic HTML and safe presentation attributes, derived plain
 text, auto-save drafts, load/delete drafts, durable send via UI, send via API
-key, outbound attachments, and server-derived HTML-preserving reply quotations.
+key, outbound attachments, server-derived HTML-preserving reply quotations,
+responsive editor controls, reactive formatting state, localized toolbar
+labels, explicit color/highlight clearing, and inline-image alternative text.
 
 **In scope through later contracts:** outbound attachments are defined by
 [F55](F55-outbound-attachment-delivery.md); reply/forward composition is tracked
@@ -75,6 +77,10 @@ autosave, and automatic forwarding of original attachments.
 - Floating composer — popup overlay at bottom-right
 - Compose form: from (read-only), to, subject, formatting toolbar, editable body,
   attachments, send button
+- On narrow compose surfaces, primary controls remain visible while secondary
+  controls are available from a compact overflow menu.
+- Toolbar pressed/disabled states follow the current cursor or selection.
+- Selected inline images expose alternative-text and removal controls.
 - Header bar: shows "Draft saved" / "New Message" / "Loading draft"
 - Auto-save indicator: "Autosaves as draft" / "Saved to drafts"
 - Send success toast, draft deleted on send
@@ -129,6 +135,9 @@ autosave, and automatic forwarding of original attachments.
 - A send is accepted only after its durable message/job and all selected
   attachment objects are stored atomically as defined by F54/F55.
 - Newly selected files are not draft-autosaved; the UI must not claim otherwise.
+- Removing a selected inline image also removes its pending CID upload.
+- Empty alternative text is allowed for decorative inline images; authored
+  alternative text is sanitized with the surrounding HTML.
 - Invalid or unauthorized reply source identifiers fail closed under F59.
 - Empty editor wrapper markup such as `<p></p>` does not satisfy the required-body
   contract.
@@ -154,6 +163,9 @@ autosave, and automatic forwarding of original attachments.
   fixed server-owned styles and hostile/user-authored styles cannot survive.
 - Add toolbar contracts for history state, paragraph/clear formatting, link
   editing, semantic nodes, safe styles, tables, and image insertion.
+- Add browser contracts for compact-toolbar access, reactive active state, and
+  inline-image alternative-text editing.
+- Require every supported locale to contain the complete toolbar message set.
 - Add sanitizer tests for every allowed style value and adversarial CSS/URL
   input.
 - Add CID attachment tests across multipart parsing, R2 snapshots, Cloudflare
@@ -164,6 +176,31 @@ autosave, and automatic forwarding of original attachments.
   README aligned on constrained WYSIWYG authoring.
 
 ## 11. Bug / Change Log
+
+### 2026-07-29 — Editor usability quick wins
+
+Type: Feature / UX.
+
+Status: Implemented locally.
+
+Implemented:
+- Kept common formatting actions visible and moved secondary actions into a
+  compact narrow-screen overflow menu while retaining horizontal overflow as a
+  fallback for very small surfaces.
+- Subscribed the toolbar to editor selection and transaction events so active
+  and enabled states update as the cursor moves.
+- Added explicit clear-text-color and clear-highlight actions.
+- Added selected-image alternative-text editing and removal; removing an image
+  also removes its pending CID upload.
+- Routed all toolbar text and accessibility labels through complete translations
+  for every supported locale.
+
+Verification:
+- `npm run verify` passes with 1,531 application tests at 100% configured
+  coverage plus 16 bridge tests.
+- Focused attachment/alt-text, reactive-formatting, and compact-toolbar browser
+  scenarios pass. The Playwright process still does not exit because the
+  configured Wrangler remote proxy lacks `CLOUDFLARE_API_TOKEN`.
 
 ### 2026-07-28 — Expand the MVP editor and multipart contract
 

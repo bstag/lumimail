@@ -165,7 +165,17 @@
       "link": "链接",
       "alignLeft": "左对齐",
       "alignCenter": "居中对齐",
-      "alignRight": "右对齐"
+      "alignRight": "右对齐",
+      "undo": "撤销", "redo": "重做", "normalText": "普通文本", "clearFormatting": "清除格式",
+      "superscript": "上标", "subscript": "下标", "inlineCode": "行内代码", "codeBlock": "代码块",
+      "horizontalRule": "水平线", "justify": "两端对齐", "insertTable": "插入表格", "deleteTable": "删除表格",
+      "messageFormatting": "邮件格式", "moreFormatting": "更多格式", "editLink": "编辑链接",
+      "textColor": "文字颜色", "clearTextColor": "清除文字颜色", "highlightColor": "高亮颜色",
+      "clearHighlight": "清除高亮", "insertImage": "插入图片", "linkUrl": "链接地址",
+      "apply": "应用", "remove": "移除", "imageAltText": "图片替代文本",
+      "imageAltPlaceholder": "描述这张图片", "removeImage": "移除图片", "tableControls": "表格控件",
+      "addRow": "添加行", "addColumn": "添加列", "deleteRow": "删除行",
+      "deleteColumn": "删除列", "mergeSplit": "合并或拆分单元格"
     }
   },
   "messages": {

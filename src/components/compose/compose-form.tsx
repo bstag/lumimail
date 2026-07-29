@@ -413,6 +413,11 @@ export function ComposeForm({
 					<ComposeEditorToolbar
 						editor={editor}
 						onInsertImage={() => imageInputRef.current?.click()}
+						onRemoveInlineImage={(contentId) => {
+							setAttachedFiles((current) =>
+								current.filter((attachment) => attachment.contentId !== contentId),
+							);
+						}}
 					/>
 					<div className="min-h-0 flex-1 overflow-y-auto">
 						<ComposeEditor

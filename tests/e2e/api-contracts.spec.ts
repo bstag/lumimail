@@ -205,6 +205,9 @@ test.describe("canonical API client contracts", () => {
 			mimeType: "image/png",
 			buffer: Buffer.from([137, 80, 78, 71]),
 		});
+		await page.getByLabel("Image alternative text").fill("Quarterly chart");
+		await page.getByRole("button", { name: "Apply" }).click();
+		await expect(page.getByLabel("Body").locator("img")).toHaveAttribute("alt", "Quarterly chart");
 		await page.locator('button[type="submit"]').click();
 
 		await expect.poll(() => sendIncludedAttachment).toBe(true);
@@ -305,6 +308,8 @@ test.describe("canonical API client contracts", () => {
 		await page.getByRole("button", { name: "Heading 1" }).click();
 		await page.getByRole("button", { name: "Align center" }).click();
 		await page.getByRole("button", { name: "Superscript" }).click();
+		await page.getByLabel("Body").locator("h1").click();
+		await expect(page.getByRole("button", { name: "Heading 1" })).toHaveAttribute("aria-pressed", "true");
 		await page.locator('button[type="submit"]').click();
 
 		await expect.poll(() => sentPayload).not.toBeNull();
@@ -313,6 +318,16 @@ test.describe("canonical API client contracts", () => {
 			html: '<h1 style="text-align: center;"><sup>Advanced</sup></h1><p style="text-align: center;"></p>',
 		});
 		expect(advancedPayload.text.trim()).toBe("Advanced");
+	});
+
+	test("keeps secondary formatting available in the compact toolbar", async ({ page }) => {
+		await mockAuthenticatedShell(page);
+		await page.setViewportSize({ width: 360, height: 720 });
+		await page.goto("/compose");
+
+		await expect(page.getByRole("button", { name: "Heading 1" })).toBeHidden();
+		await page.getByLabel("More formatting").click();
+		await expect(page.getByRole("button", { name: "Heading 1" })).toBeVisible();
 	});
 
 	test("restores and autosaves a formatted draft without flattening it", async ({ page }) => {

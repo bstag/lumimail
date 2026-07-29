@@ -165,7 +165,19 @@
       "link": "Enlace",
       "alignLeft": "Alinear a la izquierda",
       "alignCenter": "Centrar",
-      "alignRight": "Alinear a la derecha"
+      "alignRight": "Alinear a la derecha",
+      "undo": "Deshacer", "redo": "Rehacer", "normalText": "Texto normal",
+      "clearFormatting": "Borrar formato", "superscript": "Superíndice", "subscript": "Subíndice",
+      "inlineCode": "Código en línea", "codeBlock": "Bloque de código", "horizontalRule": "Línea horizontal",
+      "justify": "Justificar", "insertTable": "Insertar tabla", "deleteTable": "Eliminar tabla",
+      "messageFormatting": "Formato del mensaje", "moreFormatting": "Más formato", "editLink": "Editar enlace",
+      "textColor": "Color del texto", "clearTextColor": "Quitar color del texto",
+      "highlightColor": "Color de resaltado", "clearHighlight": "Quitar resaltado",
+      "insertImage": "Insertar imagen", "linkUrl": "URL del enlace", "apply": "Aplicar", "remove": "Quitar",
+      "imageAltText": "Texto alternativo de la imagen", "imageAltPlaceholder": "Describe esta imagen",
+      "removeImage": "Quitar imagen", "tableControls": "Controles de tabla", "addRow": "Añadir fila",
+      "addColumn": "Añadir columna", "deleteRow": "Eliminar fila", "deleteColumn": "Eliminar columna",
+      "mergeSplit": "Combinar o dividir celdas"
     }
   },
   "messages": {

@@ -35,6 +35,8 @@ describe("createComposeExtensions", () => {
 			alt: "Uploaded image",
 		})).toBe(true);
 		expect(editor.getHTML()).toContain('src="cid:inline-test"');
+		editor.commands.updateAttributes("image", { alt: "Quarterly chart" });
+		expect(editor.getHTML()).toContain('alt="Quarterly chart"');
 		editor.commands.setHorizontalRule();
 		expect(editor.getHTML()).toContain("<hr>");
 		editor.commands.setCodeBlock();

@@ -165,7 +165,17 @@
       "link": "लिंक",
       "alignLeft": "बाएं संरेखित करें",
       "alignCenter": "केंद्र में संरेखित करें",
-      "alignRight": "दाएं संरेखित करें"
+      "alignRight": "दाएं संरेखित करें",
+      "undo": "पूर्ववत करें", "redo": "फिर से करें", "normalText": "सामान्य टेक्स्ट", "clearFormatting": "फ़ॉर्मैट हटाएं",
+      "superscript": "सुपरस्क्रिप्ट", "subscript": "सबस्क्रिप्ट", "inlineCode": "इनलाइन कोड", "codeBlock": "कोड ब्लॉक",
+      "horizontalRule": "क्षैतिज रेखा", "justify": "जस्टिफ़ाई", "insertTable": "तालिका डालें", "deleteTable": "तालिका हटाएं",
+      "messageFormatting": "संदेश फ़ॉर्मैटिंग", "moreFormatting": "अधिक फ़ॉर्मैटिंग", "editLink": "लिंक संपादित करें",
+      "textColor": "टेक्स्ट का रंग", "clearTextColor": "टेक्स्ट का रंग हटाएं", "highlightColor": "हाइलाइट रंग",
+      "clearHighlight": "हाइलाइट हटाएं", "insertImage": "चित्र डालें", "linkUrl": "लिंक URL",
+      "apply": "लागू करें", "remove": "हटाएं", "imageAltText": "चित्र का वैकल्पिक टेक्स्ट",
+      "imageAltPlaceholder": "इस चित्र का वर्णन करें", "removeImage": "चित्र हटाएं", "tableControls": "तालिका नियंत्रण",
+      "addRow": "पंक्ति जोड़ें", "addColumn": "कॉलम जोड़ें", "deleteRow": "पंक्ति हटाएं",
+      "deleteColumn": "कॉलम हटाएं", "mergeSplit": "सेल मिलाएं या बांटें"
     }
   },
   "messages": {

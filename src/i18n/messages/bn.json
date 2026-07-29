@@ -165,7 +165,17 @@
       "link": "লিঙ্ক",
       "alignLeft": "বাঁয়ে সারিবদ্ধ",
       "alignCenter": "মাঝে সারিবদ্ধ",
-      "alignRight": "ডানে সারিবদ্ধ"
+      "alignRight": "ডানে সারিবদ্ধ",
+      "undo": "পূর্বাবস্থায় ফেরান", "redo": "পুনরায় করুন", "normalText": "সাধারণ লেখা", "clearFormatting": "ফরম্যাট মুছুন",
+      "superscript": "সুপারস্ক্রিপ্ট", "subscript": "সাবস্ক্রিপ্ট", "inlineCode": "ইনলাইন কোড", "codeBlock": "কোড ব্লক",
+      "horizontalRule": "অনুভূমিক রেখা", "justify": "সমানভাবে সাজান", "insertTable": "টেবিল যোগ করুন", "deleteTable": "টেবিল মুছুন",
+      "messageFormatting": "বার্তার ফরম্যাট", "moreFormatting": "আরও ফরম্যাট", "editLink": "লিঙ্ক সম্পাদনা",
+      "textColor": "লেখার রং", "clearTextColor": "লেখার রং মুছুন", "highlightColor": "হাইলাইটের রং",
+      "clearHighlight": "হাইলাইট মুছুন", "insertImage": "ছবি যোগ করুন", "linkUrl": "লিঙ্ক URL",
+      "apply": "প্রয়োগ", "remove": "সরান", "imageAltText": "ছবির বিকল্প লেখা",
+      "imageAltPlaceholder": "ছবিটি বর্ণনা করুন", "removeImage": "ছবি সরান", "tableControls": "টেবিল নিয়ন্ত্রণ",
+      "addRow": "সারি যোগ করুন", "addColumn": "কলাম যোগ করুন", "deleteRow": "সারি মুছুন",
+      "deleteColumn": "কলাম মুছুন", "mergeSplit": "ঘর একত্র বা বিভক্ত করুন"
     }
   },
   "messages": {

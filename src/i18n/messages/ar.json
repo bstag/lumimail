@@ -165,7 +165,17 @@
       "link": "رابط",
       "alignLeft": "محاذاة لليسار",
       "alignCenter": "توسيط",
-      "alignRight": "محاذاة لليمين"
+      "alignRight": "محاذاة لليمين",
+      "undo": "تراجع", "redo": "إعادة", "normalText": "نص عادي", "clearFormatting": "مسح التنسيق",
+      "superscript": "مرتفع", "subscript": "منخفض", "inlineCode": "رمز مضمن", "codeBlock": "كتلة رمز",
+      "horizontalRule": "خط أفقي", "justify": "ضبط", "insertTable": "إدراج جدول", "deleteTable": "حذف الجدول",
+      "messageFormatting": "تنسيق الرسالة", "moreFormatting": "المزيد من التنسيق", "editLink": "تحرير الرابط",
+      "textColor": "لون النص", "clearTextColor": "مسح لون النص", "highlightColor": "لون التمييز",
+      "clearHighlight": "مسح التمييز", "insertImage": "إدراج صورة", "linkUrl": "عنوان الرابط",
+      "apply": "تطبيق", "remove": "إزالة", "imageAltText": "النص البديل للصورة",
+      "imageAltPlaceholder": "صف هذه الصورة", "removeImage": "إزالة الصورة", "tableControls": "عناصر تحكم الجدول",
+      "addRow": "إضافة صف", "addColumn": "إضافة عمود", "deleteRow": "حذف الصف",
+      "deleteColumn": "حذف العمود", "mergeSplit": "دمج الخلايا أو تقسيمها"
     }
   },
   "messages": {

@@ -165,7 +165,19 @@
       "link": "Link",
       "alignLeft": "Align left",
       "alignCenter": "Align center",
-      "alignRight": "Align right"
+      "alignRight": "Align right",
+      "undo": "Undo", "redo": "Redo", "normalText": "Normal text",
+      "clearFormatting": "Clear formatting", "superscript": "Superscript", "subscript": "Subscript",
+      "inlineCode": "Inline code", "codeBlock": "Code block", "horizontalRule": "Horizontal rule",
+      "justify": "Justify", "insertTable": "Insert table", "deleteTable": "Delete table",
+      "messageFormatting": "Message formatting", "moreFormatting": "More formatting", "editLink": "Edit link",
+      "textColor": "Text color", "clearTextColor": "Clear text color",
+      "highlightColor": "Highlight color", "clearHighlight": "Clear highlight",
+      "insertImage": "Insert image", "linkUrl": "Link URL", "apply": "Apply", "remove": "Remove",
+      "imageAltText": "Image alternative text", "imageAltPlaceholder": "Describe this image",
+      "removeImage": "Remove image", "tableControls": "Table controls", "addRow": "Add row",
+      "addColumn": "Add column", "deleteRow": "Delete row", "deleteColumn": "Delete column",
+      "mergeSplit": "Merge or split cells"
     }
   },
   "messages": {

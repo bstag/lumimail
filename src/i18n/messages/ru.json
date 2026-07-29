@@ -165,7 +165,17 @@
       "link": "Ссылка",
       "alignLeft": "По левому краю",
       "alignCenter": "По центру",
-      "alignRight": "По правому краю"
+      "alignRight": "По правому краю",
+      "undo": "Отменить", "redo": "Повторить", "normalText": "Обычный текст", "clearFormatting": "Очистить форматирование",
+      "superscript": "Надстрочный", "subscript": "Подстрочный", "inlineCode": "Код в строке", "codeBlock": "Блок кода",
+      "horizontalRule": "Горизонтальная линия", "justify": "По ширине", "insertTable": "Вставить таблицу", "deleteTable": "Удалить таблицу",
+      "messageFormatting": "Форматирование сообщения", "moreFormatting": "Другие форматы", "editLink": "Изменить ссылку",
+      "textColor": "Цвет текста", "clearTextColor": "Убрать цвет текста", "highlightColor": "Цвет выделения",
+      "clearHighlight": "Убрать выделение", "insertImage": "Вставить изображение", "linkUrl": "URL ссылки",
+      "apply": "Применить", "remove": "Удалить", "imageAltText": "Альтернативный текст изображения",
+      "imageAltPlaceholder": "Опишите изображение", "removeImage": "Удалить изображение", "tableControls": "Управление таблицей",
+      "addRow": "Добавить строку", "addColumn": "Добавить столбец", "deleteRow": "Удалить строку",
+      "deleteColumn": "Удалить столбец", "mergeSplit": "Объединить или разделить ячейки"
     }
   },
   "messages": {
