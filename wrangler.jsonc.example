@@ -55,7 +55,6 @@
 	"send_email": [
 		{
 			"name": "EMAIL",
-			"remote": true,
 		},
 	],
 	"d1_databases": [
@@ -132,7 +131,7 @@
 			},
 			"observability": { "enabled": true },
 			"triggers": { "crons": ["* * * * *"] },
-			"send_email": [{ "name": "EMAIL", "remote": true }],
+			"send_email": [{ "name": "EMAIL" }],
 			"services": [
 				{ "binding": "WORKER_SELF_REFERENCE", "service": "lumimail-staging" }
 			],

@@ -152,12 +152,13 @@ The final gate covers four separate things and is checked only when all four hol
 
 | Clause | Status |
 |--------|--------|
-| `npm run verify` | Passing 2026-07-28 — 1,531 application tests at 100% configured coverage plus 16 bridge tests. |
-| Required E2E suite | The scenarios pass (including all three restricted-admin scenarios), but the Playwright command does not exit cleanly in a credential-free environment because its configured web server attempts a Wrangler remote proxy without `CLOUDFLARE_API_TOKEN`. This must be corrected before the clause is passing. |
+| `npm run verify` | Passing 2026-07-29 — 1,532 application tests at 100% configured coverage plus 16 bridge tests. |
+| Required E2E suite | Passing 2026-07-29 — all 49 mocked Chromium scenarios pass and Playwright exits cleanly without Cloudflare credentials. F73 provides bounded cross-platform server teardown and keeps the mocked suite off remote bindings. |
 | Deployment smoke tests | Not automated. Every deployment records ad-hoc HTTP 200/401 checks in the remediation log; there is no repeatable script, so this is an operator habit rather than a test. |
 | Traced mail-flow tests | Absent. No automated test follows a message from inbound receipt through storage to outbound reply with a traceable identifier. |
 
-The two failing clauses need work that does not exist yet, so the gate stays unchecked.
+The two remaining failing clauses need work that does not exist yet, so the gate
+stays unchecked.
 
 Terminal failure recoverability was the stale exception in the prior
 reconciliation. F61/R-34 now provides explicit operator recovery and a controlled

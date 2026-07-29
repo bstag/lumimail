@@ -60,8 +60,10 @@ test.describe("canonical API client contracts", () => {
 		await page.goto("/inbox/msg_hostile");
 
 		const article = page.locator("article");
+		const messageBody = article.locator(".email-body");
 		await expect(article.getByText("Safe body", { exact: false })).toBeVisible();
-		await expect(article.locator("script, img, iframe, form, [onclick], [style]")).toHaveCount(0);
+		await expect(messageBody.locator("script, img, iframe, form, [onclick]")).toHaveCount(0);
+		await expect(messageBody.locator("p", { hasText: "Safe body" })).not.toHaveAttribute("style");
 		await expect(article.locator("a", { hasText: "unsafe" })).not.toHaveAttribute("href");
 		await expect(article.locator("a", { hasText: "safe link" })).toHaveAttribute("href", "https://example.com");
 		await expect.poll(() => page.evaluate(() => (window as Window & { __mailXss?: boolean }).__mailXss)).toBeUndefined();

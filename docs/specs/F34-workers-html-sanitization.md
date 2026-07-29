@@ -166,6 +166,28 @@ Neither question blocks this fail-closed remediation.
 
 ## 13. Bug/change log
 
+### 2026-07-29 — Restore CID-only browser image defense
+
+Type: Security Fix.
+
+Summary:
+- Keep safe links and CID inline images under the shared HTML policy while
+  removing every non-CID image in the browser defense-in-depth sanitizer.
+- This protects the reader even when a malformed or legacy stored payload
+  bypasses the server sanitizer.
+
+Reason:
+- Adding CID images expanded the shared URI policy to allow HTTPS links. DOMPurify
+  applies that URI policy to both links and images, so the browser layer could
+  retain an HTTPS tracking image even though normal server ingestion removes it.
+- The full Playwright suite exposed the mismatch once its server teardown was
+  repaired under F73.
+
+Tests:
+- The existing hostile stored-HTML browser scenario must reject scripts, event
+  handlers, remote images, unsafe links, and disallowed styles while preserving
+  safe links.
+
 ### 2026-07-22 — Replace fail-open Workers sanitizer
 
 Type: Security Fix

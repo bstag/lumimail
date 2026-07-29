@@ -26,6 +26,11 @@ function sanitize(html: string): string {
 	});
 	const template = document.createElement("template");
 	template.innerHTML = purified;
+	for (const image of template.content.querySelectorAll<HTMLImageElement>("img")) {
+		if (!/^cid:[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/i.test(image.getAttribute("src") ?? "")) {
+			image.remove();
+		}
+	}
 	for (const element of template.content.querySelectorAll<HTMLElement>("[style]")) {
 		const style = sanitizeEmailStyle(element.localName, element.getAttribute("style"));
 		if (style) element.setAttribute("style", style);

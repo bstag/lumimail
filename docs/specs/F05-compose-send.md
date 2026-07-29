@@ -196,11 +196,11 @@ Implemented:
   for every supported locale.
 
 Verification:
-- `npm run verify` passes with 1,531 application tests at 100% configured
+- `npm run verify` passes with 1,532 application tests at 100% configured
   coverage plus 16 bridge tests.
 - Focused attachment/alt-text, reactive-formatting, and compact-toolbar browser
-  scenarios pass. The Playwright process still does not exit because the
-  configured Wrangler remote proxy lacks `CLOUDFLARE_API_TOKEN`.
+  scenarios pass. F73 subsequently repaired the Playwright server lifecycle;
+  the complete 49-scenario mocked Chromium suite now passes and exits cleanly.
 
 ### 2026-07-28 — Expand the MVP editor and multipart contract
 

@@ -65,8 +65,14 @@ file from `include` to make the gate pass.
 
 ## E2E setup
 
-E2E tests boot `npm run dev` (Playwright `webServer`). For flows touching
-Cloudflare APIs (`CF_TOKEN`), either:
+E2E tests use `tests/e2e-server.ts` as Playwright global setup. It reuses a
+healthy server when one already exists; otherwise it starts Next.js, waits for
+the manifest readiness endpoint, and tears down the exact spawned process tree.
+The mocked suite skips OpenNext binding initialization. `npm run e2e:local`
+enables local Wrangler bindings and uses a writable ignored configuration
+directory under `.wrangler/`.
+
+For flows touching Cloudflare APIs (`CF_TOKEN`), either:
 
 - Run against a `.dev.vars` with a real scoped token against a disposable test
   zone, or

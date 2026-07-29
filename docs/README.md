@@ -76,7 +76,8 @@ Source of truth for behavior. Each follows
    [`F69-navigation-ergonomics`](./specs/F69-navigation-ergonomics.md),
    [`F70-documentation-status-sweep`](./specs/F70-documentation-status-sweep.md),
    [`F71-preference-controls-in-header`](./specs/F71-preference-controls-in-header.md),
-   [`F72-mail-ui-state-synchronization`](./specs/F72-mail-ui-state-synchronization.md).
+   [`F72-mail-ui-state-synchronization`](./specs/F72-mail-ui-state-synchronization.md),
+   [`F73-hermetic-playwright-cloudflare-bindings`](./specs/F73-hermetic-playwright-cloudflare-bindings.md).
 
 ## Implementation notes (`implementation/`)
 

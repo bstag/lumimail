@@ -37,4 +37,6 @@ export default withNextIntl(nextConfig);
 // Enable calling `getCloudflareContext()` in `next dev`.
 // See https://opennext.js.org/cloudflare/bindings#local-access-to-bindings.
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
-initOpenNextCloudflareForDev();
+if (process.env.LUMIMAIL_CLOUDFLARE_DEV !== "false") {
+	initOpenNextCloudflareForDev();
+}
