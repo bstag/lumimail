@@ -22,20 +22,8 @@ export const sendEmailSchema = z.object({
 	mailboxId: z.string().optional(),
 });
 
-export const registerSchema = z.object({
-	email: z.string().email(),
-	password: z.string().min(8),
-	name: z.string().min(1),
-});
-
 export const firstRunRegisterSchema = z.object({
 	domain: z.string().min(3),
-	username: registrationUsername,
-	password: z.string().min(8),
-	resetEmail: z.string().email(),
-});
-
-export const primaryDomainRegisterSchema = z.object({
 	username: registrationUsername,
 	password: z.string().min(8),
 	resetEmail: z.string().email(),
@@ -75,10 +63,6 @@ export const resetPasswordSchema = z.object({
 	token: z.string().trim().min(1),
 	email: z.string().trim().toLowerCase().email(),
 	newPassword: z.string().min(8),
-});
-
-export const domainSchema = z.object({
-	hostname: z.string().min(3),
 });
 
 export const mailboxSchema = z.object({
@@ -200,4 +184,34 @@ export const createLabelSchema = z.object({
 export const updateLabelSchema = z.object({
 	name: z.string().trim().min(1).max(50).optional(),
 	color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+});
+
+export const createContactSchema = z.object({
+	email: z.string().email(),
+	displayName: z.string().min(1).max(200).optional(),
+});
+
+export const createFilterSchema = z.object({
+	name: z.string().trim().min(1).max(100),
+	fromContains: z.string().optional(),
+	toContains: z.string().optional(),
+	subjectContains: z.string().optional(),
+	hasWords: z.string().optional(),
+	actionStar: z.boolean().default(false),
+	actionMarkRead: z.boolean().default(false),
+	actionArchive: z.boolean().default(false),
+	actionLabelId: z.string().optional(),
+	actionMoveToTrash: z.boolean().default(false),
+});
+
+export const vacationResponderSchema = z.object({
+	mailboxId: z.string().min(1),
+	enabled: z.boolean(),
+	subject: z.string().min(1).max(200).optional(),
+	body: z.string().min(1).max(5000).optional(),
+	startDate: z.string().datetime().optional().nullable(),
+	endDate: z.string().datetime().optional().nullable(),
+	// Audience restrictions combine as OR; both false replies to everyone (F64).
+	replyToContacts: z.boolean().optional(),
+	replyToOrganization: z.boolean().optional(),
 });

@@ -50,7 +50,7 @@ import { createDbMock, type DbMock } from "./db";
  *   migrated to the `withUser` wrapper in `src/lib/api/handler.ts`, which
  *   authenticates via `getCurrentUser` from `@/lib/auth/cookies`.
  * - `requireUser`   resolves `{ id: "u1" }`
- * - `guardOrgAdmin` / `guardOrgUser` resolve
+ * - `guardOrgAdmin` resolves
  *   `{ orgUser: { id: "u1", organizationId: "org_1", role: "admin" }, errorResponse: null }`
  *   and `guardOrgOwner` the same with `role: "owner"` — covering both routes
  *   that call the guards directly and routes wrapped in
@@ -71,7 +71,6 @@ export function createRouteMocks() {
 	const requireUser = vi.fn();
 	const guardOrgAdmin = vi.fn();
 	const guardOrgOwner = vi.fn();
-	const guardOrgUser = vi.fn();
 	const rateLimitCheck = vi.fn();
 	const rateLimitIp = vi.fn();
 	const rateLimitUser = vi.fn();
@@ -93,7 +92,6 @@ export function createRouteMocks() {
 		requireUser,
 		guardOrgAdmin,
 		guardOrgOwner,
-		guardOrgUser,
 		rateLimitCheck,
 		rateLimitIp,
 		rateLimitUser,
@@ -120,7 +118,7 @@ export function createRouteMocks() {
 		},
 		/** `vi.mock("@/lib/auth/org-guard", () => m.orgGuardModule())` */
 		orgGuardModule(extra?: Record<string, unknown>) {
-			return { guardOrgAdmin, guardOrgOwner, guardOrgUser, ...extra };
+			return { guardOrgAdmin, guardOrgOwner, ...extra };
 		},
 		/** `vi.mock("@/lib/rate-limit", () => m.rateLimitModule())` */
 		rateLimitModule(extra?: Record<string, unknown>) {
@@ -145,10 +143,6 @@ export function createRouteMocks() {
 			});
 			guardOrgOwner.mockReset().mockResolvedValue({
 				orgUser: { id: "u1", organizationId: "org_1", role: "owner" },
-				errorResponse: null,
-			});
-			guardOrgUser.mockReset().mockResolvedValue({
-				orgUser: { id: "u1", organizationId: "org_1", role: "admin" },
 				errorResponse: null,
 			});
 			rateLimitCheck.mockReset().mockResolvedValue({ allowed: true, remaining: 1 });
