@@ -10,17 +10,17 @@ import { newId } from "@/lib/ids";
 import {
 	firstRunRegisterSchema,
 	inviteRegisterSchema,
-	primaryDomainRegisterSchema,
 } from "@/lib/validators";
 import { addDomainForUser } from "@/lib/domains/service";
 import { ensureEmailRoutingRuleToWorker } from "@/lib/cloudflare-api";
 import { getPrimaryDomain } from "@/lib/user";
 import { ensureUserOrg } from "@/lib/migration/backfill-orgs";
 import { apiError } from "@/lib/api/response";
+import { rateLimitIp, RateLimitUnavailableError } from "@/lib/rate-limit";
 
 async function authenticatedResponse(env: CloudflareEnv, userId: string) {
 	const token = await createSession(env, userId);
-	const response = NextResponse.json({ token, redirect: "/inbox" });
+	const response = NextResponse.json({ redirect: "/inbox" });
 	response.cookies.set(SESSION_COOKIE, token, {
 		httpOnly: true,
 		secure: true,
@@ -104,38 +104,38 @@ async function registerFromInvite(
 }
 
 export async function POST(request: Request) {
+	const env = getEnv();
+	try {
+		const rateLimit = await rateLimitIp(env, request, "register", 5, 60_000);
+		if (!rateLimit.allowed) return apiError("Too many attempts", 429);
+	} catch (error) {
+		if (error instanceof RateLimitUnavailableError) {
+			console.error("Registration rate limit unavailable");
+			return apiError("Service temporarily unavailable", 503);
+		}
+		throw error;
+	}
 	const body = await request.json().catch(() => null);
 	if (!body || typeof body !== "object") return apiError("Invalid registration", 400);
 
 	const record = body as Record<string, unknown>;
 	const inviteToken = typeof record.inviteToken === "string" ? record.inviteToken.trim() : "";
-	const env = getEnv();
 	if (inviteToken) return registerFromInvite(env, record, inviteToken);
 
 	const db = getDb(env);
 	const primaryDomain = await getPrimaryDomain(env);
-	const isFirstRun = !primaryDomain;
-	const firstRunParsed = isFirstRun ? firstRunRegisterSchema.safeParse(record) : null;
-	const registerParsed = isFirstRun ? null : primaryDomainRegisterSchema.safeParse(record);
+	if (primaryDomain) return apiError("Registration requires an invitation", 403);
+	const firstRunParsed = firstRunRegisterSchema.safeParse(record);
 
-	if (firstRunParsed && !firstRunParsed.success) {
+	if (!firstRunParsed.success) {
 		return NextResponse.json({ error: firstRunParsed.error.flatten() }, { status: 400 });
 	}
-	if (registerParsed && !registerParsed.success) {
-		return NextResponse.json({ error: registerParsed.error.flatten() }, { status: 400 });
-	}
 
-	const domainName = firstRunParsed?.success ? firstRunParsed.data.domain.toLowerCase().trim() : null;
-	const username = (firstRunParsed?.success ? firstRunParsed.data.username : registerParsed!.data.username)
-		.toLowerCase()
-		.trim();
-	const email = firstRunParsed?.success
-		? `${username}@${domainName}`
-		: `${username}@${primaryDomain!.hostname}`;
-	const password = firstRunParsed?.success ? firstRunParsed.data.password : registerParsed!.data.password;
-	const resetEmail = firstRunParsed?.success
-		? firstRunParsed.data.resetEmail
-		: registerParsed!.data.resetEmail;
+	const domainName = firstRunParsed.data.domain.toLowerCase().trim();
+	const username = firstRunParsed.data.username.toLowerCase().trim();
+	const email = `${username}@${domainName}`;
+	const password = firstRunParsed.data.password;
+	const resetEmail = firstRunParsed.data.resetEmail;
 
 	const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
 	if (existing) {
@@ -153,51 +153,23 @@ export async function POST(request: Request) {
 	});
 	const orgId = await ensureUserOrg(env, userId);
 
-	if (isFirstRun) {
-		try {
-			const { domain } = await addDomainForUser(env, userId, orgId, domainName!, {
-				enableRouting: true,
-				enableSending: true,
-			});
-			await ensureEmailRoutingRuleToWorker(env, domain.zoneId, email);
-			await db.insert(mailboxes).values({
-				id: newId("mbx"),
-				userId,
-				organizationId: orgId,
-				domainId: domain.id,
-				localPart: username,
-				displayName: username,
-			});
-		} catch {
-			await db.delete(users).where(eq(users.id, userId));
-			return apiError("Domain setup failed", 502);
-		}
-	} else {
-		const [existingMailbox] = await db
-			.select()
-			.from(mailboxes)
-			.where(and(eq(mailboxes.domainId, primaryDomain.id), eq(mailboxes.localPart, username)))
-			.limit(1);
-		if (existingMailbox) {
-			await db.delete(users).where(eq(users.id, userId));
-			return NextResponse.json({ error: "Mailbox already exists" }, { status: 409 });
-		}
-
-		try {
-			await ensureEmailRoutingRuleToWorker(env, primaryDomain.zoneId, email);
-			await db.insert(mailboxes).values({
-				id: newId("mbx"),
-				userId,
-				organizationId: orgId,
-				domainId: primaryDomain.id,
-				localPart: username,
-				displayName: username,
-			});
-		} catch (err) {
-			await db.delete(users).where(eq(users.id, userId));
-			const message = err instanceof Error ? err.message : "Mailbox setup failed";
-			return NextResponse.json({ error: message }, { status: 502 });
-		}
+	try {
+		const { domain } = await addDomainForUser(env, userId, orgId, domainName, {
+			enableRouting: true,
+			enableSending: true,
+		});
+		await ensureEmailRoutingRuleToWorker(env, domain.zoneId, email);
+		await db.insert(mailboxes).values({
+			id: newId("mbx"),
+			userId,
+			organizationId: orgId,
+			domainId: domain.id,
+			localPart: username,
+			displayName: username,
+		});
+	} catch {
+		await db.delete(users).where(eq(users.id, userId));
+		return apiError("Domain setup failed", 502);
 	}
 
 	return authenticatedResponse(env, userId);

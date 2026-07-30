@@ -139,6 +139,17 @@ describe("getUserFromSession", () => {
 			organizationId: "org_1",
 			role: "admin",
 		});
+		const names = new Set<string>();
+		const seen = new WeakSet<object>();
+		function collectColumnNames(value: unknown): void {
+			if (!value || typeof value !== "object" || seen.has(value)) return;
+			seen.add(value);
+			if ("name" in value && typeof value.name === "string") names.add(value.name);
+			for (const child of Object.values(value)) collectColumnNames(child);
+		}
+		collectColumnNames(mock.wheres.at(-1));
+		expect(names).toContain("user_id");
+		expect(names).toContain("organization_id");
 	});
 
 	it("uses a null role when no membership row exists", async () => {

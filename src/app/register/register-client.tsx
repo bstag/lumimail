@@ -101,6 +101,7 @@ export function RegisterClient() {
   }
 
   const firstRun = !inviteToken && hasPrimaryDomain === false;
+  const inviteOnly = !inviteToken && hasPrimaryDomain === true;
   const accountDomain = firstRun ? setupDomain : primaryDomain;
   const showDomainStep = firstRun && step === 1;
 
@@ -135,7 +136,11 @@ export function RegisterClient() {
           {error}
         </p>
       )}
-      {inviteToken && !invite ? null : showDomainStep ? (
+      {inviteOnly ? (
+        <div className="rounded-2xl border border-border bg-surface-subtle px-4 py-4 text-sm leading-6 text-ink-muted">
+          Registration is invitation-only. Ask a workspace administrator to send you an invitation.
+        </div>
+      ) : inviteToken && !invite ? null : showDomainStep ? (
         <form onSubmit={onDomainSubmit} className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="domain">{t("primaryDomain")}</Label>

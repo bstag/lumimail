@@ -7,12 +7,21 @@ import { verifyPassword } from "@/lib/auth/password";
 import { createSession, SESSION_COOKIE } from "@/lib/auth/session";
 import { loginSchema } from "@/lib/validators";
 import { userHasMailboxes } from "@/lib/user";
-import { rateLimitIp } from "@/lib/rate-limit";
+import { rateLimitIp, RateLimitUnavailableError } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
 	const env = getEnv();
 
-	const rl = rateLimitIp(request, "login", 5, 60_000);
+	let rl;
+	try {
+		rl = await rateLimitIp(env, request, "login", 5, 60_000);
+	} catch (error) {
+		if (error instanceof RateLimitUnavailableError) {
+			console.error("Login rate limit unavailable");
+			return NextResponse.json({ error: "Service temporarily unavailable" }, { status: 503 });
+		}
+		throw error;
+	}
 	if (!rl.allowed) {
 		return NextResponse.json({ error: "Too many attempts" }, { status: 429 });
 	}
@@ -33,7 +42,6 @@ export async function POST(request: Request) {
 	const token = await createSession(env, user.id);
 	const response = NextResponse.json({
 		ok: true,
-		token,
 		redirect: hasMailboxes ? "/inbox" : "/onboarding",
 	});
 	response.cookies.set(SESSION_COOKIE, token, {

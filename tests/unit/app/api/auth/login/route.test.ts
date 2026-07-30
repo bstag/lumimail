@@ -7,6 +7,7 @@ const m = vi.hoisted(() => ({
 	createSession: vi.fn(),
 	userHasMailboxes: vi.fn(),
 	rateLimitIp: vi.fn(),
+	RateLimitUnavailableError: class RateLimitUnavailableError extends Error {},
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
@@ -16,7 +17,10 @@ vi.mock("@/lib/auth/session", () => ({
 	SESSION_COOKIE: "ep_session",
 }));
 vi.mock("@/lib/user", () => ({ userHasMailboxes: m.userHasMailboxes }));
-vi.mock("@/lib/rate-limit", () => ({ rateLimitIp: m.rateLimitIp }));
+vi.mock("@/lib/rate-limit", () => ({
+	rateLimitIp: m.rateLimitIp,
+	RateLimitUnavailableError: m.RateLimitUnavailableError,
+}));
 
 import { POST } from "@/app/api/auth/login/route";
 
@@ -28,7 +32,7 @@ beforeEach(() => {
 	m.verifyPassword.mockReset();
 	m.createSession.mockReset().mockResolvedValue("sess-token");
 	m.userHasMailboxes.mockReset();
-	m.rateLimitIp.mockReset().mockReturnValue({ allowed: true });
+	m.rateLimitIp.mockReset().mockResolvedValue({ allowed: true });
 });
 
 function req(body?: unknown) {
@@ -40,7 +44,7 @@ function req(body?: unknown) {
 
 describe("POST /api/auth/login", () => {
 	it("returns 429 when rate limited", async () => {
-		m.rateLimitIp.mockReturnValue({ allowed: false });
+		m.rateLimitIp.mockResolvedValue({ allowed: false });
 		const res = await POST(req({ email: "a@x.test", password: "pw" }));
 		expect(res.status).toBe(429);
 		expect((await res.json()) as any).toEqual({ error: "Too many attempts" });
@@ -71,8 +75,20 @@ describe("POST /api/auth/login", () => {
 		m.userHasMailboxes.mockResolvedValue(true);
 		const res = await POST(req({ email: "a@x.test", password: "pw" }));
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ ok: true, token: "sess-token", redirect: "/inbox" });
+		expect((await res.json()) as any).toEqual({ ok: true, redirect: "/inbox" });
 		expect(res.cookies.get("ep_session")?.value).toBe("sess-token");
+	});
+
+	it("fails closed when shared rate-limit storage is unavailable", async () => {
+		m.rateLimitIp.mockRejectedValue(new m.RateLimitUnavailableError());
+		const res = await POST(req({ email: "a@x.test", password: "pw" }));
+		expect(res.status).toBe(503);
+		expect(m.createSession).not.toHaveBeenCalled();
+	});
+
+	it("rethrows unexpected limiter errors", async () => {
+		m.rateLimitIp.mockRejectedValue(new Error("unexpected"));
+		await expect(POST(req({ email: "a@x.test", password: "pw" }))).rejects.toThrow("unexpected");
 	});
 
 	it("redirects to /onboarding when the user has no mailboxes", async () => {

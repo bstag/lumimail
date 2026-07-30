@@ -5,11 +5,15 @@ const m = vi.hoisted(() => ({
 	guardUser: vi.fn(),
 	sendEmail: vi.fn(),
 	rateLimitUser: vi.fn(),
+	RateLimitUnavailableError: class RateLimitUnavailableError extends Error {},
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/lib/auth/cookies", () => ({ guardUser: m.guardUser }));
 vi.mock("@/lib/email/send", () => ({ sendEmail: m.sendEmail }));
-vi.mock("@/lib/rate-limit", () => ({ rateLimitUser: m.rateLimitUser }));
+vi.mock("@/lib/rate-limit", () => ({
+	rateLimitUser: m.rateLimitUser,
+	RateLimitUnavailableError: m.RateLimitUnavailableError,
+}));
 
 import { POST } from "@/app/api/send/route";
 
@@ -20,7 +24,7 @@ beforeEach(() => {
 	m.guardUser.mockReset();
 	m.sendEmail.mockReset();
 	m.rateLimitUser.mockReset();
-	m.rateLimitUser.mockReturnValue({ allowed: true });
+	m.rateLimitUser.mockResolvedValue({ allowed: true });
 });
 
 function req(body?: unknown) {
@@ -47,7 +51,7 @@ describe("POST /api/send", () => {
 
 	it("returns 429 when the rate limit is exceeded", async () => {
 		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
-		m.rateLimitUser.mockReturnValue({ allowed: false });
+		m.rateLimitUser.mockResolvedValue({ allowed: false });
 		const res = await POST(req(validBody));
 		expect(res.status).toBe(429);
 		expect((await res.json()) as any).toMatchObject({ error: { message: "Send rate limit exceeded" } });
@@ -70,6 +74,20 @@ describe("POST /api/send", () => {
 			data: { messageId: "msg1", status: "queued" },
 		});
 		expect(m.sendEmail).toHaveBeenCalledWith({}, { userId: "u1", ...validBody });
+	});
+
+	it("fails closed when shared rate-limit storage is unavailable", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.rateLimitUser.mockRejectedValue(new m.RateLimitUnavailableError());
+		const res = await POST(req(validBody));
+		expect(res.status).toBe(503);
+		expect(m.sendEmail).not.toHaveBeenCalled();
+	});
+
+	it("rethrows unexpected limiter errors", async () => {
+		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.rateLimitUser.mockRejectedValue(new Error("unexpected"));
+		await expect(POST(req(validBody))).rejects.toThrow("unexpected");
 	});
 
 	it("accepts multipart attachments in the same send request", async () => {

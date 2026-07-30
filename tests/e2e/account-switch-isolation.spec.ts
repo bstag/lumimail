@@ -10,16 +10,13 @@ async function expectReactHydrated(locator: import("@playwright/test").Locator) 
 }
 
 test("clears account-scoped mailbox and message caches across logout and login", async ({ page }) => {
-	await page.addInitScript(() => {
-		if (!sessionStorage.getItem("account-switch-seeded")) {
-			localStorage.setItem("lumimail-session-token", "token-a");
-			sessionStorage.setItem("account-switch-seeded", "true");
-		}
-	});
+	let activeAccount: "a" | "b" = "a";
+	let authenticated = true;
 
 	await mockShellNoise(page);
 	await page.route("**/api/auth/me", (route) => {
-		const accountB = route.request().headers().authorization === "Bearer token-b";
+		if (!authenticated) return route.fulfill({ status: 401, json: { error: "Unauthorized" } });
+		const accountB = activeAccount === "b";
 		return route.fulfill({
 			json: {
 				user: {
@@ -30,14 +27,17 @@ test("clears account-scoped mailbox and message caches across logout and login",
 			},
 		});
 	});
-	await page.route("**/api/auth/logout", (route) =>
-		route.fulfill({ json: { ok: true } }),
-	);
-	await page.route("**/api/auth/login", (route) =>
-		route.fulfill({ json: { token: "token-b", redirect: "/inbox" } }),
-	);
+	await page.route("**/api/auth/logout", (route) => {
+		authenticated = false;
+		return route.fulfill({ json: { ok: true } });
+	});
+	await page.route("**/api/auth/login", (route) => {
+		activeAccount = "b";
+		authenticated = true;
+		return route.fulfill({ json: { redirect: "/inbox" } });
+	});
 	await page.route("**/api/mailboxes", (route) => {
-		const accountB = route.request().headers().authorization === "Bearer token-b";
+		const accountB = activeAccount === "b";
 		return route.fulfill({
 			json: {
 				mailboxes: [{
@@ -69,7 +69,7 @@ test("clears account-scoped mailbox and message caches across logout and login",
 		}),
 	);
 	await page.route("**/api/messages?*", (route) => {
-		const accountB = route.request().headers().authorization === "Bearer token-b";
+		const accountB = activeAccount === "b";
 		const name = accountB ? "Bravo sender" : "Alpha sender";
 		return route.fulfill({
 			json: {

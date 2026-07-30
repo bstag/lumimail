@@ -10,16 +10,27 @@ import {
 import { newId } from "@/lib/ids";
 import { apiError, apiSuccess } from "@/lib/api/response";
 import { forgotPasswordSchema } from "@/lib/validators";
+import { rateLimitIp, RateLimitUnavailableError } from "@/lib/rate-limit";
 
 const genericResponse = {
 	message: "If the account exists, a reset link has been sent.",
 };
 
 export async function POST(request: Request) {
+	const env = getEnv();
+	try {
+		const rateLimit = await rateLimitIp(env, request, "forgot-password", 5, 60_000);
+		if (!rateLimit.allowed) return apiError("Too many attempts", 429);
+	} catch (error) {
+		if (error instanceof RateLimitUnavailableError) {
+			console.error("Password reset rate limit unavailable");
+			return apiError("Service temporarily unavailable", 503);
+		}
+		throw error;
+	}
 	const parsed = forgotPasswordSchema.safeParse(await request.json().catch(() => null));
 	if (!parsed.success) return apiError("A valid email is required", 400);
 
-	const env = getEnv();
 	const db = getDb(env);
 	const [user] = await db.select().from(users).where(eq(users.email, parsed.data.email)).limit(1);
 

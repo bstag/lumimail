@@ -11,6 +11,8 @@ const m = vi.hoisted(() => ({
 	getPrimaryDomainForOrg: vi.fn(),
 	ensureUserOrg: vi.fn(),
 	hashInvitationToken: vi.fn(),
+	rateLimitIp: vi.fn(),
+	RateLimitUnavailableError: class RateLimitUnavailableError extends Error {},
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
@@ -30,6 +32,10 @@ vi.mock("@/lib/user", () => ({
 }));
 vi.mock("@/lib/migration/backfill-orgs", () => ({ ensureUserOrg: m.ensureUserOrg }));
 vi.mock("@/lib/auth/invitation", () => ({ hashInvitationToken: m.hashInvitationToken }));
+vi.mock("@/lib/rate-limit", () => ({
+	rateLimitIp: m.rateLimitIp,
+	RateLimitUnavailableError: m.RateLimitUnavailableError,
+}));
 
 import { POST } from "@/app/api/auth/register/route";
 
@@ -46,6 +52,7 @@ beforeEach(() => {
 	m.getPrimaryDomainForOrg.mockReset();
 	m.ensureUserOrg.mockReset().mockResolvedValue("org_1");
 	m.hashInvitationToken.mockReset().mockResolvedValue("hashed-token");
+	m.rateLimitIp.mockReset().mockResolvedValue({ allowed: true });
 });
 
 function req(body?: unknown) {
@@ -69,6 +76,25 @@ const primaryBody = {
 };
 
 describe("POST /api/auth/register — invite handling", () => {
+	it("returns 429 before registration work when rate limited", async () => {
+		m.rateLimitIp.mockResolvedValue({ allowed: false });
+		const res = await POST(req(firstRunBody));
+		expect(res.status).toBe(429);
+		expect(m.getPrimaryDomain).not.toHaveBeenCalled();
+	});
+
+	it("fails closed when shared rate-limit storage is unavailable", async () => {
+		m.rateLimitIp.mockRejectedValue(new m.RateLimitUnavailableError());
+		const res = await POST(req(firstRunBody));
+		expect(res.status).toBe(503);
+		expect(m.getPrimaryDomain).not.toHaveBeenCalled();
+	});
+
+	it("rethrows unexpected limiter errors", async () => {
+		m.rateLimitIp.mockRejectedValue(new Error("unexpected"));
+		await expect(POST(req(firstRunBody))).rejects.toThrow("unexpected");
+	});
+
 	it("returns 400 for a malformed JSON body", async () => {
 		const res = await POST(req());
 		expect(res.status).toBe(400);
@@ -110,7 +136,7 @@ describe("POST /api/auth/register — first run", () => {
 		});
 		const res = await POST(req(firstRunBody));
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ token: "sess-token", redirect: "/inbox" });
+		expect((await res.json()) as any).toEqual({ redirect: "/inbox" });
 		expect(res.cookies.get("ep_session")?.value).toBe("sess-token");
 		expect(mock.inserts[0].values).toMatchObject({
 			id: "usr_1",
@@ -138,7 +164,7 @@ describe("POST /api/auth/register — primary domain (non-first-run)", () => {
 	it("returns 400 for an invalid primary-domain body", async () => {
 		m.getPrimaryDomain.mockResolvedValue(primaryDomain);
 		const res = await POST(req({ password: "x" })); // missing username/resetEmail, weak password
-		expect(res.status).toBe(400);
+		expect(res.status).toBe(403);
 	});
 
 	it("returns 409 when the mailbox already exists", async () => {
@@ -146,9 +172,11 @@ describe("POST /api/auth/register — primary domain (non-first-run)", () => {
 		mock.queueSelect([]); // no existing user
 		mock.queueSelect([{ id: "mbx-old" }]); // existing mailbox
 		const res = await POST(req(primaryBody));
-		expect(res.status).toBe(409);
-		expect((await res.json()) as any).toEqual({ error: "Mailbox already exists" });
-		expect(mock.deletes.length).toBeGreaterThan(0);
+		expect(res.status).toBe(403);
+		expect((await res.json()) as any).toMatchObject({
+			error: { message: "Registration requires an invitation" },
+		});
+		expect(mock.deletes).toHaveLength(0);
 	});
 
 	it("returns 502 with the error message when routing fails", async () => {
@@ -157,8 +185,8 @@ describe("POST /api/auth/register — primary domain (non-first-run)", () => {
 		mock.queueSelect([]); // no existing mailbox
 		m.ensureEmailRoutingRuleToWorker.mockRejectedValue(new Error("routing down"));
 		const res = await POST(req(primaryBody));
-		expect(res.status).toBe(502);
-		expect((await res.json()) as any).toEqual({ error: "routing down" });
+		expect(res.status).toBe(403);
+		expect(m.ensureEmailRoutingRuleToWorker).not.toHaveBeenCalled();
 	});
 
 	it("returns 502 with a default message for a non-Error rejection", async () => {
@@ -167,8 +195,8 @@ describe("POST /api/auth/register — primary domain (non-first-run)", () => {
 		mock.queueSelect([]); // no existing mailbox
 		m.ensureEmailRoutingRuleToWorker.mockRejectedValue("nope");
 		const res = await POST(req(primaryBody));
-		expect(res.status).toBe(502);
-		expect((await res.json()) as any).toEqual({ error: "Mailbox setup failed" });
+		expect(res.status).toBe(403);
+		expect(m.ensureEmailRoutingRuleToWorker).not.toHaveBeenCalled();
 	});
 
 	it("registers against the primary domain on success", async () => {
@@ -176,10 +204,9 @@ describe("POST /api/auth/register — primary domain (non-first-run)", () => {
 		mock.queueSelect([]); // no existing user
 		mock.queueSelect([]); // no existing mailbox
 		const res = await POST(req(primaryBody));
-		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ token: "sess-token", redirect: "/inbox" });
-		expect(mock.inserts.find((i) => (i.values as { email?: string }).email === "ada@team.test")).toBeTruthy();
-		expect(m.ensureEmailRoutingRuleToWorker).toHaveBeenCalledWith({}, "zone_p", "ada@team.test");
+		expect(res.status).toBe(403);
+		expect(mock.inserts).toHaveLength(0);
+		expect(m.ensureEmailRoutingRuleToWorker).not.toHaveBeenCalled();
 	});
 });
 

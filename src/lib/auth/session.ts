@@ -83,7 +83,10 @@ export async function getUserFromSession(
 		const [membership] = await db
 			.select({ role: organizationMembers.role })
 			.from(organizationMembers)
-			.where(eq(organizationMembers.userId, user.id))
+			.where(and(
+				eq(organizationMembers.userId, user.id),
+				eq(organizationMembers.organizationId, user.organizationId),
+			))
 			.limit(1);
 		return { ...user, role: membership?.role ?? null };
 	}

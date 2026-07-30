@@ -2,7 +2,7 @@ import { getEnv } from "@/lib/cloudflare";
 import { guardUser } from "@/lib/auth/cookies";
 import { sendEmailSchema } from "@/lib/validators";
 import { sendEmail } from "@/lib/email/send";
-import { rateLimitUser } from "@/lib/rate-limit";
+import { rateLimitUser, RateLimitUnavailableError } from "@/lib/rate-limit";
 import { apiSuccess, apiError } from "@/lib/api/response";
 import {
 	AttachmentValidationError,
@@ -81,7 +81,16 @@ export async function POST(request: Request) {
 	const { user, errorResponse } = await guardUser(env, request);
 	if (errorResponse) return errorResponse;
 
-	const rl = rateLimitUser(user.id, "send", 50, 3_600_000);
+	let rl;
+	try {
+		rl = await rateLimitUser(env, user.id, "send", 50, 3_600_000);
+	} catch (error) {
+		if (error instanceof RateLimitUnavailableError) {
+			console.error("Send rate limit unavailable");
+			return apiError("Service temporarily unavailable", 503);
+		}
+		throw error;
+	}
 	if (!rl.allowed) return apiError("Send rate limit exceeded", 429);
 
 	let requestData: Awaited<ReturnType<typeof parseRequest>>;

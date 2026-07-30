@@ -77,7 +77,8 @@ Source of truth for behavior. Each follows
    [`F70-documentation-status-sweep`](./specs/F70-documentation-status-sweep.md),
    [`F71-preference-controls-in-header`](./specs/F71-preference-controls-in-header.md),
    [`F72-mail-ui-state-synchronization`](./specs/F72-mail-ui-state-synchronization.md),
-   [`F73-hermetic-playwright-cloudflare-bindings`](./specs/F73-hermetic-playwright-cloudflare-bindings.md).
+   [`F73-hermetic-playwright-cloudflare-bindings`](./specs/F73-hermetic-playwright-cloudflare-bindings.md),
+   [`F74-authentication-and-registration-hardening`](./specs/F74-authentication-and-registration-hardening.md).
 
 ## Implementation notes (`implementation/`)
 

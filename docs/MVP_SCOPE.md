@@ -72,6 +72,7 @@ gates later in this document must also pass.
 | F33 | Pluggable outbound providers: Cloudflare and Resend | Shipped | [F33](specs/F33-outbound-mail-providers.md) | send APIs via `MAIL_PROVIDER` | Queueing/retry and domain provisioning are separate production gates. |
 | F34 | Workers-compatible inbound HTML sanitization | Shipped | [F34](specs/F34-workers-html-sanitization.md) | inbound parsing, message view | Strict formatting/link allowlist, remote-resource removal, fail-closed storage sanitization, and browser defense are verified locally and in production. |
 | F35 | Installable PWA shell | Shipped | [F35](specs/F35-pwa-installability.md) | global app shell | Mailbox data remains network-only. |
+| F74 | Authentication and registration hardening | Shipped | [F74](specs/F74-authentication-and-registration-hardening.md) | browser sessions, `/api/auth/*`, `/register`, durable limits | Cookie-only sessions, invitation-only post-bootstrap registration, D1-backed abuse limits, and active-organization role binding are implemented. Public self-registration is design-only and remains disabled. |
 
 Implementation notes for shipped features live in `docs/implementation/`, but those
 notes are not substitutes for feature specifications and executable tests.
@@ -153,7 +154,7 @@ The final gate covers four separate things and is checked only when all four hol
 | Clause | Status |
 |--------|--------|
 | `npm run verify` | Passing 2026-07-29 — 1,532 application tests at 100% configured coverage plus 16 bridge tests. |
-| Required E2E suite | Passing 2026-07-29 — all 49 mocked Chromium scenarios pass and Playwright exits cleanly without Cloudflare credentials. F73 provides bounded cross-platform server teardown and keeps the mocked suite off remote bindings. |
+| Required E2E suite | Passing 2026-07-30 — all 50 mocked Chromium scenarios pass and Playwright exits cleanly without Cloudflare credentials. F73 provides bounded cross-platform server teardown and keeps the mocked suite off remote bindings. |
 | Deployment smoke tests | Not automated. Every deployment records ad-hoc HTTP 200/401 checks in the remediation log; there is no repeatable script, so this is an operator habit rather than a test. |
 | Traced mail-flow tests | Absent. No automated test follows a message from inbound receipt through storage to outbound reply with a traceable identifier. |
 

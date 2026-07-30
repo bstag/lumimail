@@ -285,6 +285,18 @@ export const imapUidCounter = sqliteTable("imap_uid_counter", {
 	value: integer("value").notNull(),
 });
 
+export const rateLimits = sqliteTable(
+	"rate_limits",
+	{
+		keyHash: text("key_hash").primaryKey(),
+		count: integer("count").notNull(),
+		resetAt: integer("reset_at").notNull(),
+	},
+	(table) => ({
+		resetAtIdx: index("rate_limits_reset_at_idx").on(table.resetAt),
+	}),
+);
+
 export const messageBodies = sqliteTable("message_bodies", {
 	id: text("id").primaryKey(),
 	messageId: text("message_id")
@@ -537,6 +549,7 @@ export const schema = {
 	groupMembers,
 	forwardingDestinations,
 	passwordResetTokens,
+	rateLimits,
 	contacts,
 	apiKeys,
 	messages,

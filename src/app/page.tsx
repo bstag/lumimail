@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { authFetch, getClientSessionToken } from "@/lib/auth/client";
+import { authFetch, clearLegacySessionToken } from "@/lib/auth/client";
 import { getHomeActions, heroMessages, sidebarItems } from "./utils";
 import { ArrowRight, Inbox, Mail, Search, ShieldCheck } from "lucide-react";
 
@@ -14,7 +14,7 @@ export default function HomePage() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!getClientSessionToken()) return;
+    clearLegacySessionToken();
 
     authFetch("/api/auth/me", { redirectOnUnauthorized: false })
       .then((response) => {

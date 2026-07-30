@@ -2,9 +2,6 @@ import { expect, test, type Page } from "@playwright/test";
 import { mockShellNoise } from "./shell";
 
 async function mockAdminSession(page: Page) {
-	await page.addInitScript(() => {
-		localStorage.setItem("lumimail-session-token", "e2e-session");
-	});
 	await mockShellNoise(page);
 	await page.route("**/api/auth/me", (route) =>
 		route.fulfill({ json: { user: { id: "owner_1", role: "owner" }, hasMailboxes: true } }),
@@ -100,5 +97,22 @@ test.describe("identity-bound organization invitations", () => {
 		await expect(page.getByText("teammate@external.test")).toBeVisible();
 		await expect(page.getByLabel("Username")).toHaveCount(0);
 		await expect(page.getByText("@workspace.test")).toHaveCount(0);
+	});
+
+	test("shows an invite-only explanation on a configured instance", async ({ page }) => {
+		await page.route("**/api/setup/status", (route) =>
+			route.fulfill({
+				json: {
+					hasPrimaryDomain: true,
+					primaryDomain: { hostname: "workspace.test" },
+				},
+			}),
+		);
+
+		await page.goto("/register");
+
+		await expect(page.getByText(/Registration is invitation-only/)).toBeVisible();
+		await expect(page.getByLabel("Username")).toHaveCount(0);
+		await expect(page.getByLabel("Password")).toHaveCount(0);
 	});
 });

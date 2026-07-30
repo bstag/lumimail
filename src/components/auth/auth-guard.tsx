@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { authFetch, getClientSessionToken } from "@/lib/auth/client";
+import { authFetch, clearLegacySessionToken } from "@/lib/auth/client";
 import { isOrganizationAdminRole } from "@/lib/auth/roles";
 import {
 	AuthSessionContext,
@@ -24,12 +24,7 @@ export function AuthGuard({
 
 	useEffect(() => {
 		let cancelled = false;
-		const token = getClientSessionToken();
-
-		if (!token) {
-			if (mode === "protected") router.replace("/login");
-			return;
-		}
+		clearLegacySessionToken();
 
 		async function checkSession() {
 			const response = await authFetch("/api/auth/me", { redirectOnUnauthorized: mode === "protected" });

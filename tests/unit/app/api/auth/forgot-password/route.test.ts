@@ -9,6 +9,8 @@ const m = vi.hoisted(() => ({
 	} as CloudflareEnv,
 	hashToken: vi.fn(),
 	sendResetEmail: vi.fn(),
+	rateLimitIp: vi.fn(),
+	RateLimitUnavailableError: class RateLimitUnavailableError extends Error {},
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => m.env }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
@@ -21,6 +23,10 @@ vi.mock("@/lib/auth/password-reset", () => ({
 	sendPasswordResetEmail: m.sendResetEmail,
 }));
 vi.mock("@/lib/ids", () => ({ newId: (prefix?: string) => (prefix ? `${prefix}_secret` : "id_1") }));
+vi.mock("@/lib/rate-limit", () => ({
+	rateLimitIp: m.rateLimitIp,
+	RateLimitUnavailableError: m.RateLimitUnavailableError,
+}));
 
 import { POST } from "@/app/api/auth/forgot-password/route";
 
@@ -33,6 +39,7 @@ beforeEach(() => {
 	m.env.PASSWORD_RESET_FROM = "noreply@example.com";
 	m.hashToken.mockReset().mockResolvedValue("token-hash");
 	m.sendResetEmail.mockReset().mockResolvedValue(undefined);
+	m.rateLimitIp.mockReset().mockResolvedValue({ allowed: true });
 	vi.restoreAllMocks();
 });
 
@@ -49,6 +56,25 @@ const genericBody = {
 };
 
 describe("POST /api/auth/forgot-password", () => {
+	it("returns 429 when the caller exceeds the shared limit", async () => {
+		m.rateLimitIp.mockResolvedValue({ allowed: false });
+		const res = await POST(req({ email: "a@x.test" }));
+		expect(res.status).toBe(429);
+		expect(mock.db.select).not.toHaveBeenCalled();
+	});
+
+	it("fails closed when shared rate-limit storage is unavailable", async () => {
+		m.rateLimitIp.mockRejectedValue(new m.RateLimitUnavailableError());
+		const res = await POST(req({ email: "a@x.test" }));
+		expect(res.status).toBe(503);
+		expect(mock.db.select).not.toHaveBeenCalled();
+	});
+
+	it("rethrows unexpected limiter errors", async () => {
+		m.rateLimitIp.mockRejectedValue(new Error("unexpected"));
+		await expect(POST(req({ email: "a@x.test" }))).rejects.toThrow("unexpected");
+	});
+
 	it.each([{}, { email: 123 }, { email: "not-an-email" }])(
 		"returns 400 for invalid input %#",
 		async (body) => {
