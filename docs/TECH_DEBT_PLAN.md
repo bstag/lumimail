@@ -145,19 +145,19 @@ Deletions (safe, verified unreferenced):
 
 ## Wave 2 — Structural refactors (behavior-preserving)
 
-- [ ] **T-30 Split `src/lib/email/send.ts` (735 lines) into
+- [x] **T-30 Split `src/lib/email/send.ts` (735 lines) into
   `src/lib/email/outbound/`:** `authorization.ts`, `snapshot.ts` (the
   producer/consumer contract), `submit.ts`, `consumer.ts`, `recovery.ts`;
   keep `send.ts` as a re-export barrel. Merge the duplicated authorization
   queries (`getSenderContext` folds into `resolveSenderAuthorization`'s returned
   mailbox row). Extract `failJobQueueUnavailable`. Effort M.
-- [ ] **T-31 Hoist the Cloudflare rule mutation out of send-time authorization.**
+- [x] **T-31 Hoist the Cloudflare rule mutation out of send-time authorization.**
   `resolveSenderAuthorization` currently calls `ensureEmailRoutingRuleToWorker`
   on every send. Provision at mailbox-create/domain-provision time (plus a
   reconcile path); make authorization pure DB. Confirm no flow depends on
   send-time provisioning before removal — if one does, move it out of the
   authorization function and off the common path. Effort M.
-- [ ] **T-32 Break the inbound↔send module cycle:** move `AUTO_REPLY_HEADERS` to
+- [x] **T-32 Break the inbound↔send module cycle:** move `AUTO_REPLY_HEADERS` to
   a constants module; extract `maybeVacationRespond` into
   `vacation-responder.ts` (options object instead of 8 positional params) with a
   static `sendEmail` import; extract `applyMessageFilters` (merge per-filter
@@ -188,9 +188,9 @@ Deletions (safe, verified unreferenced):
   extract shared `MessageBody` in `inbox/[messageId]` (removes the duplicated
   renderer); `LabelFilterBar` + `FolderPagination` out of
   `message-folder-page.tsx`. Effort M.
-- [ ] **T-37 Fix `queue-health.ts` insert-row cast** (`row as $inferSelect`) and
+- [x] **T-37 Fix `queue-health.ts` insert-row cast** (`row as $inferSelect`) and
   index-coupled arrays: build `{definition, row}` pairs. Effort S.
-- [ ] **T-38 Error-regime convergence:** result unions (per `forwarding.ts`) for
+- [x] **T-38 Error-regime convergence:** result unions (per `forwarding.ts`) for
   expected outcomes, typed errors for exceptional ones. Add
   `DomainAlreadyRegisteredError` so duplicate-domain is distinguishable from a
   CF failure at `/api/domains`; route boundaries stop collapsing distinct
