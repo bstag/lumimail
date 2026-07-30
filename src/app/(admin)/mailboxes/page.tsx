@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { domainKeys, mailboxKeys } from "@/lib/query-keys";
 import { authFetch } from "@/lib/auth/client";
 import { parseApiResponse } from "@/lib/api/client-response";
 import type { Domain, Mailbox } from "./types";
@@ -28,7 +29,7 @@ export default function MailboxesPage() {
 	const [createOpen, setCreateOpen] = useState(false);
 
 	const domains = useQuery({
-		queryKey: ["domains"],
+		queryKey: domainKeys.list({ includeDns: false }),
 		queryFn: async () => {
 			const res = await authFetch("/api/domains");
 			return (await res.json()) as { domains: Domain[] };
@@ -36,7 +37,7 @@ export default function MailboxesPage() {
 	});
 
 	const mailboxes = useQuery({
-		queryKey: ["admin", "mailboxes"],
+		queryKey: mailboxKeys.admin,
 		queryFn: async () => {
 			const res = await authFetch("/api/admin/mailboxes");
 			return (await res.json()) as {
@@ -57,8 +58,8 @@ export default function MailboxesPage() {
 			await parseApiResponse<{ id: string }>(res);
 		},
 		onSuccess: () => {
-			qc.invalidateQueries({ queryKey: ["admin", "mailboxes"] });
-			qc.invalidateQueries({ queryKey: ["mailboxes"] });
+			qc.invalidateQueries({ queryKey: mailboxKeys.admin });
+			qc.invalidateQueries({ queryKey: mailboxKeys.user });
 		},
 	});
 
@@ -75,8 +76,8 @@ export default function MailboxesPage() {
 		},
 		onSuccess: () => {
 			setCreateOpen(false);
-			qc.invalidateQueries({ queryKey: ["admin", "mailboxes"] });
-			qc.invalidateQueries({ queryKey: ["mailboxes"] });
+			qc.invalidateQueries({ queryKey: mailboxKeys.admin });
+			qc.invalidateQueries({ queryKey: mailboxKeys.user });
 		},
 	});
 

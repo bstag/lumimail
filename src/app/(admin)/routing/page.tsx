@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { domainKeys, mailboxKeys } from "@/lib/query-keys";
 import { authFetch } from "@/lib/auth/client";
 import {
 	canSubmitRoutingRule,
@@ -42,7 +43,7 @@ export default function RoutingPage() {
 	const [priority, setPriority] = useState(10);
 
 	const domains = useQuery({
-		queryKey: ["domains"],
+		queryKey: domainKeys.list({ includeDns: false }),
 		queryFn: async () => {
 			const res = await authFetch("/api/domains");
 			return (await res.json()) as { domains: Domain[] };
@@ -50,7 +51,7 @@ export default function RoutingPage() {
 	});
 
 	const mailboxes = useQuery({
-		queryKey: ["mailboxes"],
+		queryKey: mailboxKeys.user,
 		queryFn: async () => {
 			const res = await authFetch("/api/mailboxes");
 			return (await res.json()) as { mailboxes: Mailbox[] };

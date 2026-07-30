@@ -25,6 +25,7 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
+import { domainKeys } from "@/lib/query-keys";
 import { authFetch } from "@/lib/auth/client";
 import type { DnsRecord, DnsStatusSummary, Domain } from "./types";
 import {
@@ -45,7 +46,7 @@ export default function DomainsPage() {
   } | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["domains"],
+    queryKey: domainKeys.list({ includeDns: true }),
     queryFn: async () => {
       const res = await authFetch("/api/domains?includeDns=true");
       return (await res.json()) as {
@@ -62,7 +63,7 @@ export default function DomainsPage() {
     onSuccess: () => {
       setHostname("");
       setCreateOpen(false);
-      qc.invalidateQueries({ queryKey: ["domains"] });
+      qc.invalidateQueries({ queryKey: domainKeys.all });
     },
   });
 
@@ -71,7 +72,7 @@ export default function DomainsPage() {
       const res = await authFetch(`/api/domains/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to remove");
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["domains"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: domainKeys.all }),
   });
 
   const sending = useMutation({
@@ -81,7 +82,7 @@ export default function DomainsPage() {
     },
     onSuccess: (result) => {
       setDnsView(result);
-      qc.invalidateQueries({ queryKey: ["domains"] });
+      qc.invalidateQueries({ queryKey: domainKeys.all });
     },
   });
 

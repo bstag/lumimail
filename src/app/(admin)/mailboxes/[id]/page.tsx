@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { mailboxKeys } from "@/lib/query-keys";
 import { ArrowLeft, Mail, Save, Trash2, UserPlus, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -53,8 +54,8 @@ export default function MailboxSettingsPage() {
 		mutationFn: () => updateMailboxName(mailboxId, displayName),
 		onSuccess: (updatedMailbox) => {
 			qc.setQueryData(["mailbox", mailboxId], updatedMailbox);
-			qc.invalidateQueries({ queryKey: ["mailboxes"] });
-			qc.invalidateQueries({ queryKey: ["admin", "mailboxes"] });
+			qc.invalidateQueries({ queryKey: mailboxKeys.user });
+			qc.invalidateQueries({ queryKey: mailboxKeys.admin });
 		},
 	});
 
@@ -62,8 +63,8 @@ export default function MailboxSettingsPage() {
 		mutationFn: () => deleteMailbox(mailboxId, deleteConfirmation),
 		onSuccess: () => {
 			qc.removeQueries({ queryKey: ["mailbox", mailboxId] });
-			qc.invalidateQueries({ queryKey: ["mailboxes"] });
-			qc.invalidateQueries({ queryKey: ["admin", "mailboxes"] });
+			qc.invalidateQueries({ queryKey: mailboxKeys.user });
+			qc.invalidateQueries({ queryKey: mailboxKeys.admin });
 			router.push("/mailboxes");
 		},
 	});

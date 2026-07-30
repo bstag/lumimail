@@ -10,6 +10,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { useCompose } from "@/components/compose/compose-context";
 import { useMailSearch } from "@/components/mail-search/mail-search-context";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
+import { labelKeys } from "@/lib/query-keys";
 import { useMessages } from "@/hooks/use-messages";
 import { useQuery } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth/client";
@@ -167,7 +168,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 	const [selectedIds, setSelectedIds] = useState<string[]>([]);
 	const [pendingBulkAction, setPendingBulkAction] = useState(false);
 	const [activeLabelId, setActiveLabelId] = useState<string | null>(null);
-	const { data: labels = [] } = useQuery({ queryKey: ["labels"], queryFn: fetchLabels });
+	const { data: labels = [] } = useQuery({ queryKey: labelKeys.all, queryFn: fetchLabels });
 	const { messages, isLoading, total, limit, setMessages } = useMessages(config.folder, selectedMailbox?.id, {
 		query,
 		limit: pageSize,

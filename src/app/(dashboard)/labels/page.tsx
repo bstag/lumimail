@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, Tag, X } from "lucide-react";
 import { authFetch } from "@/lib/auth/client";
 import { parseApiResponse } from "@/lib/api/client-response";
+import { labelKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
 
 type Label = {
@@ -39,7 +40,7 @@ export default function LabelsPage() {
 	const [formError, setFormError] = useState<string | null>(null);
 
 	const { data: labels = [], isLoading } = useQuery({
-		queryKey: ["labels"],
+		queryKey: labelKeys.all,
 		queryFn: fetchLabels,
 	});
 
@@ -53,7 +54,7 @@ export default function LabelsPage() {
 			await parseApiResponse<Label>(res);
 		},
 		onSuccess: () => {
-			void queryClient.invalidateQueries({ queryKey: ["labels"] });
+			void queryClient.invalidateQueries({ queryKey: labelKeys.all });
 			setName("");
 			setColor(PRESET_COLORS[0]);
 			setFormError(null);
@@ -69,7 +70,7 @@ export default function LabelsPage() {
 			await parseApiResponse<{ id: string }>(res);
 		},
 		onSuccess: () => {
-			void queryClient.invalidateQueries({ queryKey: ["labels"] });
+			void queryClient.invalidateQueries({ queryKey: labelKeys.all });
 		},
 	});
 

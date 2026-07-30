@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Filter } from "lucide-react";
 import { authFetch } from "@/lib/auth/client";
 import { parseApiResponse } from "@/lib/api/client-response";
+import { labelKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +31,7 @@ export default function FiltersPage() {
 	});
 
 	const labels = useQuery({
-		queryKey: ["labels"],
+		queryKey: labelKeys.all,
 		queryFn: fetchFilterLabels,
 	});
 
