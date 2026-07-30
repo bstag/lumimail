@@ -1,14 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { domains, mailboxMemberships, mailboxes } from "@/db/schema";
-import { guardOrgAdmin } from "@/lib/auth/org-guard";
-import { getEnv } from "@/lib/cloudflare";
+import { withOrgAdmin } from "@/lib/api/handler";
 
-export async function GET(request: Request) {
-	const env = getEnv();
-	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-	if (errorResponse) return errorResponse;
-
+export const GET = withOrgAdmin(async ({ env, user: orgUser }) => {
 	const db = getDb(env);
 	const organizationId = orgUser.organizationId;
 	const rows = await db
@@ -41,4 +36,4 @@ export async function GET(request: Request) {
 		canSelfAssign: orgUser.role === "owner",
 		currentUserId: orgUser.id,
 	});
-}
+});

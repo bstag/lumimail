@@ -1,19 +1,19 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getDb } from "@/db";
 import { mailboxes } from "@/db/schema";
-import { guardUser } from "@/lib/auth/cookies";
-import { guardOrgAdmin } from "@/lib/auth/org-guard";
-import { getEnv } from "@/lib/cloudflare";
+import { withOrgAdmin, withUser } from "@/lib/api/handler";
+import { parseJsonBody } from "@/lib/api/response";
 import { updateMailboxSchema } from "@/lib/validators";
-import type { MailboxRouteParams } from "./types";
 import { getMailboxUpdateValues, selectMailboxForOrganization, selectMailboxForUser } from "./utils";
 
-export async function GET(request: Request, { params }: MailboxRouteParams) {
-	const { id } = await params;
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
+const deleteMailboxSchema = z.object({
+	confirmAddress: z.string().optional(),
+});
+
+export const GET = withUser<{ id: string }>(async ({ env, user, params }) => {
+	const { id } = params;
 	if (!user.organizationId) return NextResponse.json({ error: "No organization" }, { status: 400 });
 	const db = getDb(env);
 	const [mailbox] = await selectMailboxForUser(db, user.organizationId, user.id, id, ["viewer", "responder", "manager"]);
@@ -28,19 +28,13 @@ export async function GET(request: Request, { params }: MailboxRouteParams) {
 			isPrimary: `${mailbox.localPart}@${mailbox.hostname}` === user.email,
 		},
 	});
-}
+});
 
-export async function PATCH(request: Request, { params }: MailboxRouteParams) {
-	const { id } = await params;
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
+export const PATCH = withUser<{ id: string }>(async ({ request, env, user, params }) => {
+	const { id } = params;
 	if (!user.organizationId) return NextResponse.json({ error: "No organization" }, { status: 400 });
-	const parsed = updateMailboxSchema.safeParse(await request.json());
-
-	if (!parsed.success) {
-		return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-	}
+	const { data, errorResponse } = await parseJsonBody(request, updateMailboxSchema);
+	if (errorResponse) return errorResponse;
 
 	const db = getDb(env);
 	const [existing] = await selectMailboxForUser(db, user.organizationId, user.id, id, ["manager"]);
@@ -49,7 +43,7 @@ export async function PATCH(request: Request, { params }: MailboxRouteParams) {
 		return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
 	}
 
-	const updateValues = getMailboxUpdateValues(parsed.data);
+	const updateValues = getMailboxUpdateValues(data);
 	if (Object.keys(updateValues).length > 0) {
 		await db
 			.update(mailboxes)
@@ -65,35 +59,26 @@ export async function PATCH(request: Request, { params }: MailboxRouteParams) {
 			isPrimary: `${mailbox!.localPart}@${mailbox!.hostname}` === user.email,
 		},
 	});
-}
+});
 
-export async function DELETE(request: Request, { params }: MailboxRouteParams) {
-	const { id } = await params;
-	const env = getEnv();
-	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-	if (errorResponse) return errorResponse;
-
+export const DELETE = withOrgAdmin<{ id: string }>(async ({ request, env, user, params }) => {
+	const { id } = params;
 	const db = getDb(env);
-	const [mailbox] = await selectMailboxForOrganization(db, orgUser.organizationId, id);
+	const [mailbox] = await selectMailboxForOrganization(db, user.organizationId, id);
 
 	if (!mailbox) {
 		return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
 	}
 
-	let body: { confirmAddress?: unknown };
-	try {
-		body = await request.json() as { confirmAddress?: unknown };
-	} catch {
-		return NextResponse.json({ error: "Address confirmation required" }, { status: 400 });
-	}
+	const { data, errorResponse } = await parseJsonBody(request, deleteMailboxSchema);
+	if (errorResponse) return errorResponse;
+
 	const expectedAddress = `${mailbox.localPart}@${mailbox.hostname}`.toLowerCase();
-	const confirmedAddress = typeof body.confirmAddress === "string"
-		? body.confirmAddress.trim().toLowerCase()
-		: "";
+	const confirmedAddress = (data.confirmAddress ?? "").trim().toLowerCase();
 	if (confirmedAddress !== expectedAddress) {
 		return NextResponse.json({ error: "Address confirmation does not match" }, { status: 400 });
 	}
 
 	await db.delete(mailboxes).where(eq(mailboxes.id, id));
 	return NextResponse.json({ ok: true });
-}
+});

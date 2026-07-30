@@ -24,34 +24,43 @@ function req(body?: unknown, raw?: string) {
 
 describe("PATCH /api/labels/[id]", () => {
 	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: m.unauthorized() });
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await PATCH(req({ name: "X" }), params());
 		expect(res.status).toBe(401);
 	});
 
 	it("returns 400 for invalid JSON", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		const res = await PATCH(req(undefined, "bad"), params());
 		expect(res.status).toBe(400);
 		expect((await res.json()) as any).toEqual({ success: false, error: { message: "Invalid JSON" } });
 	});
 
 	it("returns 400 for an invalid body", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		const res = await PATCH(req({ color: "nothex" }), params());
 		expect(res.status).toBe(400);
 	});
 
 	it("returns 404 when the label is missing or not owned", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		m.dbMock.queueSelect([]); // .get() -> undefined
 		const res = await PATCH(req({ name: "New" }), params());
 		expect(res.status).toBe(404);
 		expect(m.dbMock.updates).toHaveLength(0);
 	});
 
+	it("trims the updated name (shared updateLabelSchema)", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		m.dbMock.queueSelect([{ id: "lbl_1", userId: "u1" }]);
+		m.dbMock.queueSelect([{ id: "lbl_1", name: "New" }]);
+		const res = await PATCH(req({ name: "  New  " }), params());
+		expect(res.status).toBe(200);
+		expect(m.dbMock.updates[0].set).toEqual({ name: "New" });
+	});
+
 	it("updates an existing label", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		m.dbMock.queueSelect([{ id: "lbl_1", userId: "u1" }]); // existing
 		m.dbMock.queueSelect([{ id: "lbl_1", name: "New" }]); // updated returning
 		const res = await PATCH(req({ name: "New" }), params());
@@ -63,13 +72,13 @@ describe("PATCH /api/labels/[id]", () => {
 
 describe("DELETE /api/labels/[id]", () => {
 	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: m.unauthorized() });
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await DELETE(req(), params());
 		expect(res.status).toBe(401);
 	});
 
 	it("returns 404 when the label is missing or not owned", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		m.dbMock.queueSelect([]); // .get() -> undefined
 		const res = await DELETE(req(), params());
 		expect(res.status).toBe(404);
@@ -77,7 +86,7 @@ describe("DELETE /api/labels/[id]", () => {
 	});
 
 	it("deletes an existing label", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		m.dbMock.queueSelect([{ id: "lbl_1", userId: "u1" }]);
 		const res = await DELETE(req(), params());
 		expect(res.status).toBe(200);

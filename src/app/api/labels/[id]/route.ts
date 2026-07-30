@@ -1,33 +1,15 @@
 import { eq, and } from "drizzle-orm";
-import { z } from "zod";
-import { getEnv } from "@/lib/cloudflare";
-import { guardUser } from "@/lib/auth/cookies";
 import { getDb } from "@/db";
 import { labels } from "@/db/schema";
-import { apiSuccess, apiError } from "@/lib/api/response";
+import { withUser } from "@/lib/api/handler";
+import { apiSuccess, apiError, parseJsonBody } from "@/lib/api/response";
+import { updateLabelSchema } from "@/lib/validators";
 
-const updateLabelSchema = z.object({
-	name: z.string().min(1).max(50).optional(),
-	color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
-});
+export const PATCH = withUser<{ id: string }>(async ({ request, env, user, params }) => {
+	const { id } = params;
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
+	const { data, errorResponse } = await parseJsonBody(request, updateLabelSchema);
 	if (errorResponse) return errorResponse;
-
-	const { id } = await params;
-
-	let body: unknown;
-	try {
-		body = await request.json();
-	} catch {
-		return apiError("Invalid JSON", 400);
-	}
-
-	const parsed = updateLabelSchema.safeParse(body);
-	/* v8 ignore next -- a Zod failure always carries an issue; the ?? fallback is defensive */
-	if (!parsed.success) return apiError(parsed.error.issues[0]?.message ?? "Invalid input", 400);
 
 	const db = getDb(env);
 	const existing = await db
@@ -40,19 +22,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 	const [updated] = await db
 		.update(labels)
-		.set({ ...parsed.data })
+		.set({ ...data })
 		.where(and(eq(labels.id, id), eq(labels.userId, user.id)))
 		.returning();
 
 	return apiSuccess(updated);
-}
+});
 
-export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
-
-	const { id } = await params;
+export const DELETE = withUser<{ id: string }>(async ({ env, user, params }) => {
+	const { id } = params;
 
 	const db = getDb(env);
 	const existing = await db
@@ -66,4 +44,4 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 	await db.delete(labels).where(and(eq(labels.id, id), eq(labels.userId, user.id)));
 
 	return apiSuccess({ id });
-}
+});

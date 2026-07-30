@@ -1,8 +1,7 @@
 import { and, eq } from "drizzle-orm";
-import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
 import { domains, forwardingDestinations } from "@/db/schema";
-import { guardOrgAdmin } from "@/lib/auth/org-guard";
+import { withOrgAdmin } from "@/lib/api/handler";
 import { apiError, apiSuccess } from "@/lib/api/response";
 import { newId } from "@/lib/ids";
 import { parseAddress } from "@/lib/utils";
@@ -12,11 +11,7 @@ import {
 	listDestinationAddresses,
 } from "@/lib/cloudflare-api";
 
-export async function GET(request: Request) {
-	const env = getEnv();
-	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-	if (errorResponse) return errorResponse;
-
+export const GET = withOrgAdmin(async ({ env, user: orgUser }) => {
 	const db = getDb(env);
 	const rows = await db
 		.select({
@@ -32,13 +27,9 @@ export async function GET(request: Request) {
 	return apiSuccess(
 		rows.map((row) => ({ ...row, verified: row.verifiedAt !== null })),
 	);
-}
+});
 
-export async function POST(request: Request) {
-	const env = getEnv();
-	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-	if (errorResponse) return errorResponse;
-
+export const POST = withOrgAdmin(async ({ request, env, user: orgUser }) => {
 	const body = (await request.json().catch(() => null)) as { address?: unknown } | null;
 	const rawAddress = typeof body?.address === "string" ? body.address : "";
 	const address = normalizeDestinationAddress(rawAddress);
@@ -100,4 +91,4 @@ export async function POST(request: Request) {
 	});
 
 	return apiSuccess({ id, address, verified: verifiedAt !== null }, 201);
-}
+});

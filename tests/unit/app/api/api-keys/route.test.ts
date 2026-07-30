@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 import { createDbMock, type DbMock } from "../../../helpers/db";
 
-const m = vi.hoisted(() => ({ db: null as unknown, guardUser: vi.fn() }));
+const m = vi.hoisted(() => ({ db: null as unknown, getCurrentUser: vi.fn() }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
-vi.mock("@/lib/auth/cookies", () => ({ guardUser: m.guardUser }));
+vi.mock("@/lib/auth/cookies", () => ({ getCurrentUser: m.getCurrentUser }));
 vi.mock("@/lib/api-keys", () => ({
 	generateApiKey: () => ({ fullKey: "full-key", prefix: "pre_123", hash: "hash" }),
 	scopesToJson: (s: unknown) => JSON.stringify(s),
@@ -20,7 +20,7 @@ const unauth = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 beforeEach(() => {
 	mock = createDbMock();
 	m.db = mock.db;
-	m.guardUser.mockReset();
+	m.getCurrentUser.mockReset();
 });
 
 function req(body?: unknown) {
@@ -32,13 +32,13 @@ function req(body?: unknown) {
 
 describe("GET /api/api-keys", () => {
 	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: unauth });
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await GET(new Request("https://x.test/api/api-keys"));
 		expect(res.status).toBe(401);
 	});
 
 	it("lists the user's keys", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		mock.queueSelect([{ id: "k1", name: "CI", prefix: "pre_1" }]);
 		const res = await GET(new Request("https://x.test/api/api-keys"));
 		expect(res.status).toBe(200);
@@ -48,19 +48,19 @@ describe("GET /api/api-keys", () => {
 
 describe("POST /api/api-keys", () => {
 	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: unauth });
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await POST(req({ name: "x", scopes: ["send"] }));
 		expect(res.status).toBe(401);
 	});
 
 	it("returns 400 for an invalid body", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		const res = await POST(req({ name: "", scopes: [] }));
 		expect(res.status).toBe(400);
 	});
 
 	it("creates a key and returns the secret once", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		const res = await POST(req({ name: "CI", scopes: ["send"] }));
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({ id: "key_1", name: "CI", prefix: "pre_123", key: "full-key" });

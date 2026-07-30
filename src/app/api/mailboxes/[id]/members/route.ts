@@ -1,22 +1,14 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { mailboxMemberships, organizationMembers, users } from "@/db/schema";
+import { withUser } from "@/lib/api/handler";
 import { apiError, apiSuccess } from "@/lib/api/response";
-import { guardUser } from "@/lib/auth/cookies";
 import { getMailboxAccess } from "@/lib/auth/mailbox-access";
-import { getEnv } from "@/lib/cloudflare";
 import { newId } from "@/lib/ids";
 import { mailboxMembershipSchema } from "@/lib/validators";
 
-interface RouteParams {
-	params: Promise<{ id: string }>;
-}
-
-export async function GET(request: Request, { params }: RouteParams) {
-	const { id: mailboxId } = await params;
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
+export const GET = withUser<{ id: string }>(async ({ env, user, params }) => {
+	const { id: mailboxId } = params;
 	if (!user.organizationId) return apiError("Mailbox not found", 404);
 
 	const db = getDb(env);
@@ -43,13 +35,10 @@ export async function GET(request: Request, { params }: RouteParams) {
 		.where(eq(organizationMembers.organizationId, user.organizationId));
 
 	return apiSuccess({ members, workspaceMembers });
-}
+});
 
-export async function POST(request: Request, { params }: RouteParams) {
-	const { id: mailboxId } = await params;
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
+export const POST = withUser<{ id: string }>(async ({ request, env, user, params }) => {
+	const { id: mailboxId } = params;
 	if (!user.organizationId) return apiError("Mailbox not found", 404);
 
 	const parsed = mailboxMembershipSchema.safeParse(await request.json());
@@ -108,4 +97,4 @@ export async function POST(request: Request, { params }: RouteParams) {
 	});
 
 	return apiSuccess({ id: membershipId });
-}
+});

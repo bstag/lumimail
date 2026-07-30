@@ -1,20 +1,13 @@
 import { and, eq } from "drizzle-orm";
-import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
-import { aliases, forwardingDestinations, routingRules } from "@/db/schema";
-import { guardOrgAdmin } from "@/lib/auth/org-guard";
+import { forwardingDestinations, routingRules } from "@/db/schema";
+import { withOrgAdmin } from "@/lib/api/handler";
 import { apiError, apiSuccess } from "@/lib/api/response";
 
-type Params = { params: Promise<{ id: string }> };
-
-export async function DELETE(request: Request, { params }: Params) {
-	const { id } = await params;
-	const env = getEnv();
-	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-	if (errorResponse) return errorResponse;
-
+export const DELETE = withOrgAdmin<{ id: string }>(async ({ env, user, params }) => {
+	const { id } = params;
 	const db = getDb(env);
-	const organizationId = orgUser.organizationId;
+	const organizationId = user.organizationId;
 	const [destination] = await db
 		.select({ id: forwardingDestinations.id, address: forwardingDestinations.address })
 		.from(forwardingDestinations)
@@ -27,7 +20,10 @@ export async function DELETE(request: Request, { params }: Params) {
 	if (!destination) return apiError("Destination not found", 404);
 
 	// Removing ownership while a rule still points at the address would recreate the
-	// silent-drop defect, so dependents must be cleared first.
+	// silent-drop defect, so dependents must be cleared first. Only routing rules can
+	// reference a destination: the app never writes a non-null aliases.forwardTo
+	// (aliases are created with forwardTo: null and never updated), so no alias
+	// dependency check is needed.
 	const [dependentRule] = await db
 		.select({ id: routingRules.id })
 		.from(routingRules)
@@ -36,16 +32,8 @@ export async function DELETE(request: Request, { params }: Params) {
 			eq(routingRules.forwardTo, destination.address),
 		))
 		.limit(1);
-	const [dependentAlias] = await db
-		.select({ id: aliases.id })
-		.from(aliases)
-		.where(and(
-			eq(aliases.organizationId, organizationId),
-			eq(aliases.forwardTo, destination.address),
-		))
-		.limit(1);
 
-	if (dependentRule || dependentAlias) {
+	if (dependentRule) {
 		return apiError("Remove the rules forwarding to this destination first", 409);
 	}
 
@@ -59,4 +47,4 @@ export async function DELETE(request: Request, { params }: Params) {
 	// The account-level Cloudflare address is intentionally left in place: it may be
 	// registered by another organization on the same account.
 	return apiSuccess({ id });
-}
+});

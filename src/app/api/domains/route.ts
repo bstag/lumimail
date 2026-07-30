@@ -1,18 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getEnv } from "@/lib/cloudflare";
-import { guardOrgAdmin } from "@/lib/auth/org-guard";
+import { NextResponse } from "next/server";
+import { withOrgAdmin } from "@/lib/api/handler";
 import { addDomainSchema } from "@/lib/validators";
 import { addDomainForUser, getDomainDns, listUserDomains } from "@/lib/domains/service";
 import { summariseDns, type DnsStatusSummary } from "@/lib/dns-status";
 import { apiSuccess, apiError } from "@/lib/api/response";
 
-export async function GET(request: NextRequest) {
-	const env = getEnv();
-	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-	if (errorResponse) return errorResponse;
-	const domains = await listUserDomains(env, orgUser.organizationId);
+export const GET = withOrgAdmin(async ({ request, env, user }) => {
+	const domains = await listUserDomains(env, user.organizationId);
 
-	const includeDns = request.nextUrl.searchParams.get("includeDns") === "true";
+	const includeDns = new URL(request.url).searchParams.get("includeDns") === "true";
 
 	const dns: Record<string, DnsStatusSummary> = {};
 	if (includeDns) {
@@ -33,17 +29,14 @@ export async function GET(request: NextRequest) {
 	}
 
 	return NextResponse.json({ domains, dns: includeDns ? dns : undefined });
-}
+});
 
-export async function POST(request: Request) {
-	const env = getEnv();
-	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-	if (errorResponse) return errorResponse;
+export const POST = withOrgAdmin(async ({ request, env, user }) => {
 	const parsed = addDomainSchema.safeParse(await request.json());
 	if (!parsed.success) return apiError("Validation failed", 400, parsed.error.flatten());
 
 	try {
-		const result = await addDomainForUser(env, orgUser.id, orgUser.organizationId, parsed.data.hostname, {
+		const result = await addDomainForUser(env, user.id, user.organizationId, parsed.data.hostname, {
 			enableRouting: parsed.data.enableRouting,
 			enableSending: parsed.data.enableSending,
 		});
@@ -51,4 +44,4 @@ export async function POST(request: Request) {
 	} catch {
 		return apiError("Failed to add domain", 400);
 	}
-}
+});

@@ -1,30 +1,12 @@
 import { eq } from "drizzle-orm";
-import { z } from "zod";
-import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
 import { messageFilters } from "@/db/schema";
-import { guardUser } from "@/lib/auth/cookies";
+import { withUser } from "@/lib/api/handler";
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { newId } from "@/lib/ids";
+import { createFilterSchema } from "@/lib/validators";
 
-const createFilterSchema = z.object({
-	name: z.string().trim().min(1).max(100),
-	fromContains: z.string().optional(),
-	toContains: z.string().optional(),
-	subjectContains: z.string().optional(),
-	hasWords: z.string().optional(),
-	actionStar: z.boolean().default(false),
-	actionMarkRead: z.boolean().default(false),
-	actionArchive: z.boolean().default(false),
-	actionLabelId: z.string().optional(),
-	actionMoveToTrash: z.boolean().default(false),
-});
-
-export async function GET(request: Request) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
-
+export const GET = withUser(async ({ env, user }) => {
 	const db = getDb(env);
 	const rows = await db
 		.select()
@@ -32,13 +14,9 @@ export async function GET(request: Request) {
 		.where(eq(messageFilters.userId, user.id));
 
 	return apiSuccess({ filters: rows });
-}
+});
 
-export async function POST(request: Request) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
-
+export const POST = withUser(async ({ request, env, user }) => {
 	const parsed = createFilterSchema.safeParse(await request.json());
 	if (!parsed.success) return apiError("Validation failed", 400, parsed.error.flatten());
 
@@ -56,4 +34,4 @@ export async function POST(request: Request) {
 	});
 
 	return apiSuccess({ id });
-}
+});

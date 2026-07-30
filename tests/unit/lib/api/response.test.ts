@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { z } from "zod";
-import { apiError, apiSuccess, parseJsonBody } from "@/lib/api/response";
+import { ZodError, z } from "zod";
+import { apiError, apiSuccess, firstZodMessage, parseJsonBody } from "@/lib/api/response";
 
 describe("apiSuccess", () => {
 	it("wraps data with success:true and default 200 status", async () => {
@@ -46,6 +46,26 @@ describe("apiError", () => {
 		expect(res.status).toBe(500);
 		expect(await res.json()).toEqual({ success: false, error: { message: "secret detail" } });
 		expect(errorSpy).not.toHaveBeenCalled();
+	});
+});
+
+describe("firstZodMessage", () => {
+	it("names the offending field so the envelope's single string stays useful", () => {
+		const result = z.object({ priority: z.number() }).safeParse({ priority: "high" });
+
+		expect(result.success).toBe(false);
+		expect(firstZodMessage(result.error!)).toMatch(/^priority: /);
+	});
+
+	it("returns the bare message when the issue has no path to name", () => {
+		const result = z.number().safeParse("nope");
+
+		// No field prefix is prepended; the message is passed through unchanged.
+		expect(firstZodMessage(result.error!)).toBe(result.error!.issues[0].message);
+	});
+
+	it("falls back when an error carries no issues at all", () => {
+		expect(firstZodMessage(new ZodError([]))).toBe("Invalid request");
 	});
 });
 

@@ -1,24 +1,13 @@
-import { NextResponse } from "next/server";
 import { eq, and, desc } from "drizzle-orm";
-import { z } from "zod";
-import { getEnv } from "@/lib/cloudflare";
-import { guardUser } from "@/lib/auth/cookies";
 import { getDb } from "@/db";
 import { contacts } from "@/db/schema";
+import { withUser } from "@/lib/api/handler";
 import { normalizeEmailAddress } from "@/lib/email/address";
 import { getContactId } from "@/lib/contacts/utils";
-import { apiSuccess, apiError } from "@/lib/api/response";
+import { apiSuccess, apiError, parseJsonBody } from "@/lib/api/response";
+import { createContactSchema } from "@/lib/validators";
 
-const createContactSchema = z.object({
-	email: z.string().email(),
-	displayName: z.string().min(1).max(200).optional(),
-});
-
-export async function GET(request: Request) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
-
+export const GET = withUser(async ({ env, user }) => {
 	const db = getDb(env);
 	const rows = await db
 		.select()
@@ -28,27 +17,13 @@ export async function GET(request: Request) {
 		.limit(100);
 
 	return apiSuccess(rows);
-}
+});
 
-export async function POST(request: Request) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
+export const POST = withUser(async ({ request, env, user }) => {
+	const { data, errorResponse } = await parseJsonBody(request, createContactSchema);
 	if (errorResponse) return errorResponse;
 
-	let body: unknown;
-	try {
-		body = await request.json();
-	} catch {
-		return apiError("Invalid JSON", 400);
-	}
-
-	const parsed = createContactSchema.safeParse(body);
-	if (!parsed.success) {
-		/* v8 ignore next -- a Zod failure always carries an issue; the ?? fallback is defensive */
-		return apiError(parsed.error.issues[0]?.message ?? "Invalid input", 400);
-	}
-
-	const email = normalizeEmailAddress(parsed.data.email);
+	const email = normalizeEmailAddress(data.email);
 	if (!email) return apiError("Invalid email address", 400);
 
 	const db = getDb(env);
@@ -63,7 +38,7 @@ export async function POST(request: Request) {
 		const [updated] = await db
 			.update(contacts)
 			.set({
-				displayName: parsed.data.displayName ?? existing.displayName,
+				displayName: data.displayName ?? existing.displayName,
 				source: "manual",
 				lastSeenAt: new Date(),
 			})
@@ -79,11 +54,11 @@ export async function POST(request: Request) {
 			id,
 			userId: user.id,
 			email,
-			displayName: parsed.data.displayName ?? null,
+			displayName: data.displayName ?? null,
 			source: "manual",
 			lastSeenAt: new Date(),
 		})
 		.returning();
 
-	return NextResponse.json({ success: true, data: created }, { status: 201 });
-}
+	return apiSuccess(created, 201);
+});

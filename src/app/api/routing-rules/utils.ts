@@ -1,9 +1,5 @@
 import type { ForwardRefusalReason } from "@/lib/email/forwarding";
 
-// Promoted to the shared response module (T-11); re-exported so existing
-// imports keep working until routes migrate.
-export { firstZodMessage } from "@/lib/api/response";
-
 export function forwardRefusalMessage(reason: ForwardRefusalReason): string {
 	switch (reason) {
 		case "invalid_address":

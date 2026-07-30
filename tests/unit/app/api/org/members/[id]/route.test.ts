@@ -37,7 +37,17 @@ describe("PATCH /api/org/members/[id]", () => {
 		m.guardOrgAdmin.mockResolvedValue({ orgUser: { organizationId: "o1" } });
 		const res = await PATCH(patchReq({ role: "superuser" }), params());
 		expect(res.status).toBe(400);
-		expect((await res.json()) as any).toMatchObject({ error: { message: "Invalid role" } });
+		expect((await res.json()) as any).toMatchObject({ error: { message: "role: Invalid role" } });
+	});
+
+	it("returns 400 for a malformed JSON body", async () => {
+		m.guardOrgAdmin.mockResolvedValue({ orgUser: { organizationId: "o1" } });
+		const res = await PATCH(
+			new Request("https://x.test/api/org/members/mem1", { method: "PATCH", body: "not json" }),
+			params(),
+		);
+		expect(res.status).toBe(400);
+		expect((await res.json()) as any).toMatchObject({ error: { message: "Invalid JSON" } });
 	});
 
 	it("returns 404 when the membership is missing", async () => {

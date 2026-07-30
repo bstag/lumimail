@@ -1,8 +1,7 @@
 import { and, eq, ne } from "drizzle-orm";
-import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
 import { domains, mailboxes, routingRules } from "@/db/schema";
-import { guardUser } from "@/lib/auth/cookies";
+import { withUser } from "@/lib/api/handler";
 import { routingRuleSchema, routingRuleUpdateSchema } from "@/lib/validators";
 import { normalizeRoutingPattern } from "@/lib/email/routing-pattern";
 import {
@@ -10,10 +9,8 @@ import {
   ensureEmailRoutingCatchAllToWorker,
 } from "@/lib/cloudflare-api";
 import { authorizeForwardDestination } from "@/lib/email/forwarding";
-import { apiError, apiSuccess } from "@/lib/api/response";
-import { firstZodMessage, forwardRefusalMessage } from "../utils";
-
-type Params = { params: Promise<{ id: string }> };
+import { apiError, apiSuccess, firstZodMessage, parseJsonBody } from "@/lib/api/response";
+import { forwardRefusalMessage } from "../utils";
 
 async function hasOtherCatchAllInZone(
   db: ReturnType<typeof getDb>,
@@ -36,11 +33,8 @@ async function hasOtherCatchAllInZone(
   });
 }
 
-export async function GET(request: Request, { params }: Params) {
-  const { id } = await params;
-  const env = getEnv();
-  const { user, errorResponse } = await guardUser(env, request);
-  if (errorResponse) return errorResponse;
+export const GET = withUser<{ id: string }>(async ({ env, user, params }) => {
+  const { id } = params;
   if (!user.organizationId) return apiError("No organization", 400);
 
   const db = getDb(env);
@@ -52,16 +46,12 @@ export async function GET(request: Request, { params }: Params) {
 
   if (!rule) return apiError("Not found", 404);
   return apiSuccess({ rule });
-}
+});
 
-export async function PATCH(request: Request, { params }: Params) {
-  const { id } = await params;
-  const env = getEnv();
-  const { user, errorResponse } = await guardUser(env, request);
-  if (errorResponse) return errorResponse;
+export const PATCH = withUser<{ id: string }>(async ({ request, env, user, params }) => {
+  const { id } = params;
   if (!user.organizationId) return apiError("No organization", 400);
 
-  const body = await request.json();
   const db = getDb(env);
   const [rule] = await db
     .select()
@@ -71,9 +61,9 @@ export async function PATCH(request: Request, { params }: Params) {
 
   if (!rule) return apiError("Not found", 404);
 
-  const update = routingRuleUpdateSchema.safeParse(body);
-  if (!update.success) return apiError(firstZodMessage(update.error), 400);
-  if (Object.keys(update.data).length === 0) {
+  const { data: update, errorResponse } = await parseJsonBody(request, routingRuleUpdateSchema);
+  if (errorResponse) return errorResponse;
+  if (Object.keys(update).length === 0) {
     return apiError("No valid fields to update", 400);
   }
 
@@ -86,11 +76,11 @@ export async function PATCH(request: Request, { params }: Params) {
 
   const merged = routingRuleSchema.safeParse({
     domainId: rule.domainId,
-    pattern: update.data.pattern ?? rule.pattern,
-    action: update.data.action ?? rule.action,
-    mailboxId: Object.hasOwn(update.data, "mailboxId") ? update.data.mailboxId : rule.mailboxId,
-    forwardTo: Object.hasOwn(update.data, "forwardTo") ? update.data.forwardTo : rule.forwardTo,
-    priority: update.data.priority ?? rule.priority,
+    pattern: update.pattern ?? rule.pattern,
+    action: update.action ?? rule.action,
+    mailboxId: Object.hasOwn(update, "mailboxId") ? update.mailboxId : rule.mailboxId,
+    forwardTo: Object.hasOwn(update, "forwardTo") ? update.forwardTo : rule.forwardTo,
+    priority: update.priority ?? rule.priority,
   });
   if (!merged.success) return apiError(firstZodMessage(merged.error), 400);
 
@@ -166,13 +156,10 @@ export async function PATCH(request: Request, { params }: Params) {
 
   const [updated] = await db.select().from(routingRules).where(eq(routingRules.id, id)).limit(1);
   return apiSuccess({ rule: updated });
-}
+});
 
-export async function DELETE(request: Request, { params }: Params) {
-  const { id } = await params;
-  const env = getEnv();
-  const { user, errorResponse } = await guardUser(env, request);
-  if (errorResponse) return errorResponse;
+export const DELETE = withUser<{ id: string }>(async ({ env, user, params }) => {
+  const { id } = params;
   if (!user.organizationId) return apiError("No organization", 400);
 
   const db = getDb(env);
@@ -204,4 +191,4 @@ export async function DELETE(request: Request, { params }: Params) {
 
   await db.delete(routingRules).where(eq(routingRules.id, id));
   return apiSuccess({ ok: true });
-}
+});

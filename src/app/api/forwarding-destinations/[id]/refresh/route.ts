@@ -1,21 +1,14 @@
 import { and, eq } from "drizzle-orm";
-import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
 import { forwardingDestinations } from "@/db/schema";
-import { guardOrgAdmin } from "@/lib/auth/org-guard";
+import { withOrgAdmin } from "@/lib/api/handler";
 import { apiError, apiSuccess } from "@/lib/api/response";
 import { listDestinationAddresses } from "@/lib/cloudflare-api";
 
-type Params = { params: Promise<{ id: string }> };
-
-export async function POST(request: Request, { params }: Params) {
-	const { id } = await params;
-	const env = getEnv();
-	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-	if (errorResponse) return errorResponse;
-
+export const POST = withOrgAdmin<{ id: string }>(async ({ env, user, params }) => {
+	const { id } = params;
 	const db = getDb(env);
-	const organizationId = orgUser.organizationId;
+	const organizationId = user.organizationId;
 	const [destination] = await db
 		.select({ id: forwardingDestinations.id, address: forwardingDestinations.address })
 		.from(forwardingDestinations)
@@ -46,4 +39,4 @@ export async function POST(request: Request, { params }: Params) {
 		));
 
 	return apiSuccess({ id, address: destination.address, verified: verifiedAt !== null });
-}
+});

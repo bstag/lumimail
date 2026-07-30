@@ -1,22 +1,14 @@
 import { eq, and, inArray } from "drizzle-orm";
-import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
 import { aliases, domains, groupMembers, mailboxes } from "@/db/schema";
-import { guardOrgAdmin } from "@/lib/auth/org-guard";
+import { withOrgAdmin } from "@/lib/api/handler";
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { deleteEmailRoutingRule } from "@/lib/cloudflare-api";
 import { updateAliasGroupSchema } from "@/lib/validators";
 import { newId } from "@/lib/ids";
 
-export async function DELETE(
-	request: Request,
-	{ params }: { params: Promise<{ id: string }> },
-) {
-	const { id } = await params;
-	const env = getEnv();
-	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-	if (errorResponse) return errorResponse;
-
+export const DELETE = withOrgAdmin<{ id: string }>(async ({ env, user: orgUser, params }) => {
+	const { id } = params;
 	const db = getDb(env);
 	const [alias] = await db
 		.select({
@@ -42,17 +34,10 @@ export async function DELETE(
 
 	await db.delete(aliases).where(eq(aliases.id, id));
 	return apiSuccess({ ok: true });
-}
+});
 
-export async function PATCH(
-	request: Request,
-	{ params }: { params: Promise<{ id: string }> },
-) {
-	const { id } = await params;
-	const env = getEnv();
-	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-	if (errorResponse) return errorResponse;
-
+export const PATCH = withOrgAdmin<{ id: string }>(async ({ request, env, user: orgUser, params }) => {
+	const { id } = params;
 	const parsed = updateAliasGroupSchema.safeParse(await request.json().catch(() => null));
 	if (!parsed.success) return apiError("Validation failed", 400, parsed.error.flatten());
 
@@ -95,4 +80,4 @@ export async function PATCH(
 	]);
 
 	return apiSuccess({ mailboxIds: parsed.data.mailboxIds });
-}
+});

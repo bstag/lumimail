@@ -1,28 +1,26 @@
 import { eq, and } from "drizzle-orm";
-import { getEnv } from "@/lib/cloudflare";
+import { z } from "zod";
 import { getDb } from "@/db";
 import { users, organizationMembers, mailboxMemberships } from "@/db/schema";
-import { guardOrgAdmin } from "@/lib/auth/org-guard";
-import { apiSuccess, apiError } from "@/lib/api/response";
+import { withOrgAdmin } from "@/lib/api/handler";
+import { apiSuccess, apiError, parseJsonBody } from "@/lib/api/response";
+import { ORG_INVITE_ROLES } from "@/lib/constants";
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
-  const env = getEnv();
-  const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
+const updateMemberRoleSchema = z.object({
+  role: z.enum(ORG_INVITE_ROLES, { message: "Invalid role" }),
+});
+
+export const PATCH = withOrgAdmin<{ id: string }>(async ({ request, env, user, params }) => {
+  const { id } = params;
+  const { data, errorResponse } = await parseJsonBody(request, updateMemberRoleSchema);
   if (errorResponse) return errorResponse;
-
-  const body = await request.json() as Record<string, unknown>;
-  const role = body.role;
-  if (role !== "admin" && role !== "member") return apiError("Invalid role", 400);
+  const { role } = data;
 
   const db = getDb(env);
   const [membership] = await db
     .select()
     .from(organizationMembers)
-    .where(and(eq(organizationMembers.id, id), eq(organizationMembers.organizationId, orgUser.organizationId)))
+    .where(and(eq(organizationMembers.id, id), eq(organizationMembers.organizationId, user.organizationId)))
     .limit(1);
 
   if (!membership) return apiError("Member not found", 404);
@@ -38,22 +36,15 @@ export async function PATCH(
     .limit(1);
 
   return apiSuccess({ member: updated });
-}
+});
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
-  const env = getEnv();
-  const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-  if (errorResponse) return errorResponse;
-
+export const DELETE = withOrgAdmin<{ id: string }>(async ({ env, user, params }) => {
+  const { id } = params;
   const db = getDb(env);
   const [membership] = await db
     .select()
     .from(organizationMembers)
-    .where(and(eq(organizationMembers.id, id), eq(organizationMembers.organizationId, orgUser.organizationId)))
+    .where(and(eq(organizationMembers.id, id), eq(organizationMembers.organizationId, user.organizationId)))
     .limit(1);
 
   if (!membership) return apiError("Member not found", 404);
@@ -66,4 +57,4 @@ export async function DELETE(
   ]);
 
   return apiSuccess({ ok: true });
-}
+});

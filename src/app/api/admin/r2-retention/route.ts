@@ -1,21 +1,12 @@
-import { guardOrgOwner } from "@/lib/auth/org-guard";
-import { getEnv } from "@/lib/cloudflare";
+import { withOrgOwner } from "@/lib/api/handler";
 import { apiError, apiSuccess } from "@/lib/api/response";
 import { deleteR2Orphans, reportR2Retention } from "@/lib/r2-retention";
 
-export async function GET(request: Request) {
-	const env = getEnv();
-	const { errorResponse } = await guardOrgOwner(env, request);
-	if (errorResponse) return errorResponse;
-
+export const GET = withOrgOwner(async ({ env }) => {
 	return apiSuccess(await reportR2Retention(env));
-}
+});
 
-export async function POST(request: Request) {
-	const env = getEnv();
-	const { errorResponse } = await guardOrgOwner(env, request);
-	if (errorResponse) return errorResponse;
-
+export const POST = withOrgOwner(async ({ request, env }) => {
 	const body = (await request.json().catch(() => null)) as
 		| { confirm?: unknown; limit?: unknown }
 		| null;
@@ -28,4 +19,4 @@ export async function POST(request: Request) {
 
 	const limit = typeof body.limit === "number" && body.limit > 0 ? body.limit : undefined;
 	return apiSuccess(await deleteR2Orphans(env, { limit }));
-}
+});

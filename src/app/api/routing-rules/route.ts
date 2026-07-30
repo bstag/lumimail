@@ -1,30 +1,23 @@
 import { and, eq } from "drizzle-orm";
-import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
 import { domains, mailboxes, routingRules } from "@/db/schema";
-import { guardUser } from "@/lib/auth/cookies";
+import { withUser } from "@/lib/api/handler";
 import { newId } from "@/lib/ids";
 import { routingRuleSchema } from "@/lib/validators";
 import { normalizeRoutingPattern } from "@/lib/email/routing-pattern";
 import { ensureEmailRoutingCatchAllToWorker } from "@/lib/cloudflare-api";
 import { authorizeForwardDestination } from "@/lib/email/forwarding";
-import { apiError, apiSuccess } from "@/lib/api/response";
-import { firstZodMessage, forwardRefusalMessage } from "./utils";
+import { apiError, apiSuccess, firstZodMessage } from "@/lib/api/response";
+import { forwardRefusalMessage } from "./utils";
 
-export async function GET(request: Request) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
+export const GET = withUser(async ({ env, user }) => {
 	if (!user.organizationId) return apiError("No organization", 400);
 	const db = getDb(env);
 	const rows = await db.select().from(routingRules).where(eq(routingRules.organizationId, user.organizationId));
 	return apiSuccess({ rules: rows });
-}
+});
 
-export async function POST(request: Request) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
+export const POST = withUser(async ({ request, env, user }) => {
 	if (!user.organizationId) return apiError("No organization", 400);
 	const parsed = routingRuleSchema.safeParse(await request.json());
 	if (!parsed.success) {
@@ -114,4 +107,4 @@ export async function POST(request: Request) {
 		mailboxId,
 		forwardTo,
 	});
-}
+});

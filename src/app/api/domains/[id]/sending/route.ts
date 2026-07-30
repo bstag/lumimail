@@ -1,19 +1,12 @@
 import { z } from "zod";
-import { guardOrgAdmin } from "@/lib/auth/org-guard";
-import { getEnv } from "@/lib/cloudflare";
+import { withOrgAdmin } from "@/lib/api/handler";
 import { getDomainForUser, reconcileDomainSending } from "@/lib/domains/service";
 import { apiError, apiSuccess } from "@/lib/api/response";
 
 const requestSchema = z.object({ action: z.enum(["verify", "enable"]) });
-type Params = { params: Promise<{ id: string }> };
 
-export async function POST(request: Request, { params }: Params) {
-	const env = getEnv();
-	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-	if (errorResponse) return errorResponse;
-
-	const { id } = await params;
-	const domain = await getDomainForUser(env, orgUser.organizationId, id);
+export const POST = withOrgAdmin<{ id: string }>(async ({ request, env, user, params }) => {
+	const domain = await getDomainForUser(env, user.organizationId, params.id);
 	if (!domain) return apiError("Not found", 404);
 
 	const body = await request.json().catch(() => null);
@@ -25,4 +18,4 @@ export async function POST(request: Request, { params }: Params) {
 	} catch {
 		return apiError("Cloudflare could not verify Email Sending", 400);
 	}
-}
+});

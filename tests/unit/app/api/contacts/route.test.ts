@@ -28,13 +28,13 @@ function postReq(body?: unknown, raw?: string) {
 
 describe("GET /api/contacts", () => {
 	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: m.unauthorized() });
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await GET(new Request("https://x.test/api/contacts"));
 		expect(res.status).toBe(401);
 	});
 
 	it("lists the user's contacts", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		m.dbMock.queueSelect([{ id: "c1", email: "a@x.test" }]);
 		const res = await GET(new Request("https://x.test/api/contacts"));
 		expect(res.status).toBe(200);
@@ -44,26 +44,26 @@ describe("GET /api/contacts", () => {
 
 describe("POST /api/contacts", () => {
 	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: m.unauthorized() });
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await POST(postReq({ email: "a@x.test" }));
 		expect(res.status).toBe(401);
 	});
 
 	it("returns 400 for invalid JSON", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		const res = await POST(postReq(undefined, "{not json"));
 		expect(res.status).toBe(400);
 		expect((await res.json()) as any).toMatchObject({ error: { message: "Invalid JSON" } });
 	});
 
 	it("returns 400 for an invalid body", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		const res = await POST(postReq({ email: "not-an-email" }));
 		expect(res.status).toBe(400);
 	});
 
 	it("returns 400 when the normalized email is empty", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		normalizeEmailAddress.mockReturnValueOnce("");
 		const res = await POST(postReq({ email: "valid@x.test" }));
 		expect(res.status).toBe(400);
@@ -71,7 +71,7 @@ describe("POST /api/contacts", () => {
 	});
 
 	it("updates an existing contact (keeps existing displayName when none provided)", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		m.dbMock.queueSelect([{ id: "c1", displayName: "Old Name" }]); // existing
 		m.dbMock.queueSelect([{ id: "c1", displayName: "Old Name", source: "manual" }]); // returning
 		const res = await POST(postReq({ email: "valid@x.test" }));
@@ -84,7 +84,7 @@ describe("POST /api/contacts", () => {
 	});
 
 	it("updates an existing contact using a provided displayName", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		m.dbMock.queueSelect([{ id: "c1", displayName: "Old Name" }]);
 		m.dbMock.queueSelect([{ id: "c1", displayName: "New Name" }]);
 		const res = await POST(postReq({ email: "valid@x.test", displayName: "New Name" }));
@@ -93,7 +93,7 @@ describe("POST /api/contacts", () => {
 	});
 
 	it("creates a new contact when none exists (null displayName default)", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		m.dbMock.queueSelect([]); // no existing
 		m.dbMock.queueSelect([{ id: "u1:valid@x.test", email: "valid@x.test" }]); // returning
 		const res = await POST(postReq({ email: "valid@x.test" }));
@@ -112,7 +112,7 @@ describe("POST /api/contacts", () => {
 	});
 
 	it("creates a new contact carrying the provided displayName", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		m.dbMock.queueSelect([]);
 		m.dbMock.queueSelect([{ id: "u1:valid@x.test" }]);
 		const res = await POST(postReq({ email: "valid@x.test", displayName: "Jane" }));

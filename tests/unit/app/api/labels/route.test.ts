@@ -20,13 +20,13 @@ function post(body?: unknown, raw?: string) {
 
 describe("GET /api/labels", () => {
 	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: m.unauthorized() });
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await GET(new Request("https://x.test/api/labels"));
 		expect(res.status).toBe(401);
 	});
 
 	it("lists the user's labels", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		m.dbMock.queueSelect([{ id: "lbl_1", name: "Work" }]);
 		const res = await GET(new Request("https://x.test/api/labels"));
 		expect(res.status).toBe(200);
@@ -36,27 +36,27 @@ describe("GET /api/labels", () => {
 
 describe("POST /api/labels", () => {
 	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: m.unauthorized() });
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await POST(post({ name: "Work" }));
 		expect(res.status).toBe(401);
 	});
 
 	it("returns 400 for invalid JSON", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		const res = await POST(post(undefined, "not json"));
 		expect(res.status).toBe(400);
 		expect((await res.json()) as any).toEqual({ success: false, error: { message: "Invalid JSON" } });
 	});
 
 	it("returns 400 for an invalid body", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		const res = await POST(post({ name: "" }));
 		expect(res.status).toBe(400);
 		expect(((await res.json()) as any).success).toBe(false);
 	});
 
 	it("creates a label with provided color and organizationId", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "org1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: "org1" });
 		m.dbMock.queueSelect([{ id: "lbl_1", name: "Work", color: "#abcdef" }]);
 		const res = await POST(post({ name: "Work", color: "#abcdef" }));
 		expect(res.status).toBe(201);
@@ -73,8 +73,22 @@ describe("POST /api/labels", () => {
 		});
 	});
 
+	it("trims the label name (shared createLabelSchema)", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		m.dbMock.queueSelect([{ id: "lbl_1", name: "Work" }]);
+		const res = await POST(post({ name: "  Work  " }));
+		expect(res.status).toBe(201);
+		expect(m.dbMock.inserts[0].values).toMatchObject({ name: "Work" });
+	});
+
+	it("rejects a whitespace-only name", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		const res = await POST(post({ name: "   " }));
+		expect(res.status).toBe(400);
+	});
+
 	it("defaults color and null organizationId when omitted", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		m.dbMock.queueSelect([{ id: "lbl_1" }]);
 		const res = await POST(post({ name: "Work" }));
 		expect(res.status).toBe(201);

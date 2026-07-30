@@ -28,9 +28,7 @@ beforeEach(() => {
 });
 
 function getReq(url = "https://x.test/api/domains") {
-	// minimal NextRequest-like: only nextUrl.searchParams is used
-	const u = new URL(url);
-	return { nextUrl: { searchParams: u.searchParams } } as unknown as Parameters<typeof GET>[0];
+	return new Request(url);
 }
 
 function postReq(body?: unknown) {

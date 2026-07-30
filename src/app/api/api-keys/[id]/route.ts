@@ -2,18 +2,10 @@ import { and, eq, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { apiKeys } from "@/db/schema";
-import { guardUser } from "@/lib/auth/cookies";
-import { getEnv } from "@/lib/cloudflare";
+import { withUser } from "@/lib/api/handler";
 
-export async function DELETE(
-	request: Request,
-	{ params }: { params: Promise<{ id: string }> },
-) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
-
-	const { id } = await params;
+export const DELETE = withUser<{ id: string }>(async ({ env, user, params }) => {
+	const { id } = params;
 	const db = getDb(env);
 	const [revoked] = await db
 		.update(apiKeys)
@@ -27,4 +19,4 @@ export async function DELETE(
 		return NextResponse.json({ error: "API key not found" }, { status: 404 });
 	}
 	return NextResponse.json({ ok: true });
-}
+});
