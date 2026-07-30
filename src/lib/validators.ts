@@ -1,4 +1,16 @@
 import { z } from "zod";
+import {
+	DEFAULT_LABEL_COLOR,
+	DOMAIN_HOSTNAME_REGEX,
+	MAILBOX_ROLES,
+	ORG_INVITE_ROLES,
+	ROUTING_ACTIONS,
+} from "@/lib/constants";
+
+// Registration usernames allow `%` (full RFC-style local-part charset); alias
+// local parts forbid it (see aliasLocalPart below). The divergence is preserved
+// as-is pending a product decision on one canonical local-part rule.
+const registrationUsername = z.string().min(1).max(64).regex(/^[a-zA-Z0-9._%+-]+$/);
 
 export const sendEmailSchema = z.object({
 	from: z.string().min(3),
@@ -18,13 +30,13 @@ export const registerSchema = z.object({
 
 export const firstRunRegisterSchema = z.object({
 	domain: z.string().min(3),
-	username: z.string().min(1).max(64).regex(/^[a-zA-Z0-9._%+-]+$/),
+	username: registrationUsername,
 	password: z.string().min(8),
 	resetEmail: z.string().email(),
 });
 
 export const primaryDomainRegisterSchema = z.object({
-	username: z.string().min(1).max(64).regex(/^[a-zA-Z0-9._%+-]+$/),
+	username: registrationUsername,
 	password: z.string().min(8),
 	resetEmail: z.string().email(),
 });
@@ -37,15 +49,15 @@ export const inviteRegisterSchema = z.object({
 
 export const organizationInviteSchema = z.object({
 	email: z.string().trim().toLowerCase().email(),
-	role: z.enum(["admin", "member"]),
+	role: z.enum(ORG_INVITE_ROLES),
 });
 
 export const setupDomainSchema = z.object({
-	hostname: z.string().regex(/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/),
+	hostname: z.string().regex(DOMAIN_HOSTNAME_REGEX),
 });
 
 export const addDomainSchema = z.object({
-	hostname: z.string().regex(/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/),
+	hostname: z.string().regex(DOMAIN_HOSTNAME_REGEX),
 	enableRouting: z.boolean().optional(),
 	enableSending: z.boolean().optional(),
 });
@@ -81,11 +93,11 @@ export const updateMailboxSchema = z.object({
 
 export const mailboxMembershipSchema = z.object({
 	userId: z.string().min(1),
-	role: z.enum(["viewer", "responder", "manager"]),
+	role: z.enum(MAILBOX_ROLES),
 });
 
 export const updateMailboxMembershipSchema = z.object({
-	role: z.enum(["viewer", "responder", "manager"]),
+	role: z.enum(MAILBOX_ROLES),
 });
 
 export const updateProfileSchema = z.object({
@@ -99,7 +111,7 @@ export const updateProfileSchema = z.object({
 const routingRuleFields = z.object({
 	domainId: z.string().min(1),
 	pattern: z.string().min(1),
-	action: z.enum(["store", "forward", "reject"]),
+	action: z.enum(ROUTING_ACTIONS),
 	mailboxId: z.string().nullable().optional(),
 	forwardTo: z.string().email().nullable().optional(),
 	priority: z.number().int().default(0),
@@ -120,7 +132,7 @@ function validateRoutingRuleTarget(
 export const routingRuleSchema = routingRuleFields.superRefine(validateRoutingRuleTarget);
 export const routingRuleUpdateSchema = z.object({
 	pattern: z.string().min(1).optional(),
-	action: z.enum(["store", "forward", "reject"]).optional(),
+	action: z.enum(ROUTING_ACTIONS).optional(),
 	mailboxId: z.string().nullable().optional(),
 	forwardTo: z.string().email().nullable().optional(),
 	priority: z.number().int().optional(),
@@ -131,6 +143,9 @@ export const webhookSchema = z.object({
 	events: z.array(z.string()).min(1),
 });
 
+// Alias local parts forbid `%`, which registration usernames allow (see
+// registrationUsername above). The divergence is preserved as-is pending a
+// product decision on one canonical local-part rule.
 const aliasLocalPart = z.string()
 	.trim()
 	.min(1)
@@ -179,7 +194,7 @@ export const updateAliasGroupSchema = z.object({
 
 export const createLabelSchema = z.object({
 	name: z.string().trim().min(1).max(50),
-	color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#6366f1"),
+	color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default(DEFAULT_LABEL_COLOR),
 });
 
 export const updateLabelSchema = z.object({

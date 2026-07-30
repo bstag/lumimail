@@ -1,32 +1,40 @@
 import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+	DEFAULT_LABEL_COLOR,
+	MAILBOX_ROLES,
+	MESSAGE_STATUSES,
+	ORG_INVITE_ROLES,
+	ROUTING_ACTIONS,
+	WEBHOOK_DELIVERY_STATUSES,
+} from "@/lib/constants";
 
 export const organizations = sqliteTable("organizations", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	id: text("id").primaryKey(),
+	name: text("name").notNull(),
+	createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
 
 export const organizationMembers = sqliteTable(
-  "organization_members",
-  {
-    id: text("id").primaryKey(),
-    organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-    role: text("role", { enum: ["owner", "admin", "member"] }).notNull().default("member"),
-    createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-  },
-  (t) => [uniqueIndex("org_members_user_org_idx").on(t.userId, t.organizationId)],
+	"organization_members",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+		role: text("role", { enum: ["owner", "admin", "member"] }).notNull().default("member"),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [uniqueIndex("org_members_user_org_idx").on(t.userId, t.organizationId)],
 );
 
 export const orgInvites = sqliteTable("org_invites", {
-  id: text("id").primaryKey(),
-  organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  email: text("email").notNull(),
-  role: text("role", { enum: ["admin", "member"] }).notNull().default("member"),
-  token: text("token").notNull().unique(),
-  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	id: text("id").primaryKey(),
+	organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+	email: text("email").notNull(),
+	role: text("role", { enum: ORG_INVITE_ROLES }).notNull().default("member"),
+	token: text("token").notNull().unique(),
+	expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+	createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
 
 export const users = sqliteTable("users", {
@@ -102,7 +110,7 @@ export const mailboxMemberships = sqliteTable(
 		userId: text("user_id")
 			.notNull()
 			.references(() => users.id, { onDelete: "cascade" }),
-		role: text("role", { enum: ["viewer", "responder", "manager"] })
+		role: text("role", { enum: MAILBOX_ROLES })
 			.notNull()
 			.default("viewer"),
 		createdAt: integer("created_at", { mode: "timestamp" })
@@ -120,19 +128,19 @@ export const mailboxMemberships = sqliteTable(
 );
 
 export const aliases = sqliteTable(
-  "aliases",
-  {
-    id: text("id").primaryKey(),
-    organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-    domainId: text("domain_id").notNull().references(() => domains.id, { onDelete: "cascade" }),
-    localPart: text("local_part").notNull(),
-    targetMailboxId: text("target_mailbox_id").references(() => mailboxes.id, { onDelete: "set null" }),
-    forwardTo: text("forward_to"),
-    isGroup: integer("is_group", { mode: "boolean" }).notNull().default(false),
-    cloudflareRuleId: text("cloudflare_rule_id"),
-    createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-  },
-  (t) => [uniqueIndex("aliases_address_idx").on(t.domainId, t.localPart)],
+	"aliases",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		domainId: text("domain_id").notNull().references(() => domains.id, { onDelete: "cascade" }),
+		localPart: text("local_part").notNull(),
+		targetMailboxId: text("target_mailbox_id").references(() => mailboxes.id, { onDelete: "set null" }),
+		forwardTo: text("forward_to"),
+		isGroup: integer("is_group", { mode: "boolean" }).notNull().default(false),
+		cloudflareRuleId: text("cloudflare_rule_id"),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [uniqueIndex("aliases_address_idx").on(t.domainId, t.localPart)],
 );
 
 /**
@@ -183,12 +191,12 @@ export const groupMembers = sqliteTable(
 );
 
 export const passwordResetTokens = sqliteTable("password_reset_tokens", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  tokenHash: text("token_hash").notNull(),
-  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
-  used: integer("used", { mode: "boolean" }).notNull().default(false),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	id: text("id").primaryKey(),
+	userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+	tokenHash: text("token_hash").notNull(),
+	expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+	used: integer("used", { mode: "boolean" }).notNull().default(false),
+	createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 }, (t) => [index("password_reset_tokens_user_idx").on(t.userId)]);
 
 export const contacts = sqliteTable(
@@ -252,7 +260,9 @@ export const messages = sqliteTable(
 		toAddr: text("to_addr").notNull(),
 		subject: text("subject"),
 		snippet: text("snippet"),
-		status: text("status").notNull().default("received"),
+		// Enum listed in MESSAGE_STATUSES but typed wide there; see that constant
+		// for why the column's TS data type stays `string` for now.
+		status: text("status", { enum: MESSAGE_STATUSES }).notNull().default("received"),
 		attachmentStatus: text("attachment_status", {
 			enum: ["none", "stored", "omitted"],
 		}).notNull().default("none"),
@@ -290,11 +300,13 @@ export const rateLimits = sqliteTable(
 	{
 		keyHash: text("key_hash").primaryKey(),
 		count: integer("count").notNull(),
+		// Deliberately a plain integer (epoch milliseconds), not timestamp mode:
+		// rate-limit.ts compares and assigns reset_at inside raw SQL against
+		// Date.now(), so the stored value must be numeric ms with no Drizzle
+		// Date mapping in between.
 		resetAt: integer("reset_at").notNull(),
 	},
-	(table) => ({
-		resetAtIdx: index("rate_limits_reset_at_idx").on(table.resetAt),
-	}),
+	(t) => [index("rate_limits_reset_at_idx").on(t.resetAt)],
 );
 
 export const messageBodies = sqliteTable("message_bodies", {
@@ -359,7 +371,7 @@ export const routingRules = sqliteTable("routing_rules", {
 		.references(() => domains.id, { onDelete: "cascade" }),
 	pattern: text("pattern").notNull(),
 	mailboxId: text("mailbox_id").references(() => mailboxes.id, { onDelete: "set null" }),
-	action: text("action", { enum: ["store", "forward", "reject"] }).notNull().default("store"),
+	action: text("action", { enum: ROUTING_ACTIONS }).notNull().default("store"),
 	forwardTo: text("forward_to"),
 	priority: integer("priority").notNull().default(0),
 	createdAt: integer("created_at", { mode: "timestamp" })
@@ -393,7 +405,7 @@ export const webhookDeliveries = sqliteTable("webhook_deliveries", {
 		.references(() => webhooks.id, { onDelete: "cascade" }),
 	eventType: text("event_type").notNull(),
 	payload: text("payload").notNull(),
-	status: text("status").notNull().default("pending"),
+	status: text("status", { enum: WEBHOOK_DELIVERY_STATUSES }).notNull().default("pending"),
 	attempts: integer("attempts").notNull().default(0),
 	createdAt: integer("created_at", { mode: "timestamp" })
 		.notNull()
@@ -433,7 +445,7 @@ export const labels = sqliteTable(
 		userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
 		organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
-		color: text("color").notNull().default("#6366f1"),
+		color: text("color").notNull().default(DEFAULT_LABEL_COLOR),
 		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 	},
 	(t) => [uniqueIndex("labels_user_name_idx").on(t.userId, t.name)],
