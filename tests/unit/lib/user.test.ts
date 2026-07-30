@@ -7,6 +7,7 @@ vi.mock("@/db", () => ({ getDb: () => h.db }));
 import {
 	getPrimaryDomain,
 	getPrimaryDomainForOrg,
+	hasAnyUser,
 	markMessageAsRead,
 	updateMessageStatus,
 	userHasMailboxes,
@@ -44,6 +45,18 @@ describe("userHasMailboxes", () => {
 	it("returns false when a non-org user has no mailboxes", async () => {
 		mock.queueSelect([{ organizationId: null }]).queueSelect([]);
 		expect(await userHasMailboxes(env, "u1")).toBe(false);
+	});
+});
+
+describe("hasAnyUser", () => {
+	it("returns true when a user row exists", async () => {
+		mock.queueSelect([{ id: "u1" }]);
+		expect(await hasAnyUser(env)).toBe(true);
+	});
+
+	it("returns false on an empty users table", async () => {
+		mock.queueSelect([]);
+		expect(await hasAnyUser(env)).toBe(false);
 	});
 });
 

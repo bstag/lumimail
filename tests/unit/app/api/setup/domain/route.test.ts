@@ -2,10 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
 	getPrimaryDomain: vi.fn(),
+	hasAnyUser: vi.fn(),
 	provisionDomainOnCloudflare: vi.fn(),
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
-vi.mock("@/lib/user", () => ({ getPrimaryDomain: m.getPrimaryDomain }));
+vi.mock("@/lib/user", () => ({
+	getPrimaryDomain: m.getPrimaryDomain,
+	hasAnyUser: m.hasAnyUser,
+}));
 vi.mock("@/lib/domains/provision", () => ({
 	provisionDomainOnCloudflare: m.provisionDomainOnCloudflare,
 }));
@@ -14,6 +18,8 @@ import { POST } from "@/app/api/setup/domain/route";
 
 beforeEach(() => {
 	m.getPrimaryDomain.mockReset();
+	m.hasAnyUser.mockReset();
+	m.hasAnyUser.mockResolvedValue(false);
 	m.provisionDomainOnCloudflare.mockReset();
 });
 
@@ -30,6 +36,17 @@ describe("POST /api/setup/domain", () => {
 		const res = await POST(req({ hostname: "example.com" }));
 		expect(res.status).toBe(409);
 		expect((await res.json()) as any).toMatchObject({ error: { message: "Primary domain already exists" } });
+	});
+
+	it("returns 403 when users exist even without a primary domain", async () => {
+		// The route is first-boot only. Removing every domain later must not
+		// reopen unauthenticated provisioning on an instance that has users.
+		m.getPrimaryDomain.mockResolvedValue(null);
+		m.hasAnyUser.mockResolvedValue(true);
+		const res = await POST(req({ hostname: "example.com" }));
+		expect(res.status).toBe(403);
+		expect((await res.json()) as any).toMatchObject({ error: { message: "Setup is complete" } });
+		expect(m.provisionDomainOnCloudflare).not.toHaveBeenCalled();
 	});
 
 	it("returns 400 for an invalid hostname", async () => {
