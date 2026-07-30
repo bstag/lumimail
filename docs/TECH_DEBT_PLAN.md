@@ -133,7 +133,7 @@ UI primitives:
 
 Deletions (safe, verified unreferenced):
 
-- [~] **T-24 (in progress — search route, folder-page props, textarea, comment blocks done) Delete dead code:** `/api/messages/search` (no client callers —
+- [x] **T-24 (complete) Delete dead code:** `/api/messages/search` (no client callers —
   verified 2026-07-30), `src/components/ui/textarea.tsx` (wire vacation form to
   it instead if trivial, else delete), `MessageFolderConfig.title`, inert
   `headerIcons`, dead validator exports (`registerSchema`,
