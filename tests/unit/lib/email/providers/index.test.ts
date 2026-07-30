@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { selectOutboundProvider } from "@/lib/email/providers";
+import { OutboundProviderError } from "@/lib/email/providers/types";
 
 describe("selectOutboundProvider", () => {
 	it("defaults to cloudflare when MAIL_PROVIDER is unset", () => {
@@ -20,9 +21,18 @@ describe("selectOutboundProvider", () => {
 		expect(provider.id).toBe("resend");
 	});
 
-	it("throws on an unknown provider", () => {
-		expect(() =>
-			selectOutboundProvider({ MAIL_PROVIDER: "sendgrid" } as CloudflareEnv),
-		).toThrow("Unknown MAIL_PROVIDER: sendgrid");
+	it("throws a retryable provider error on an unknown provider", () => {
+		let thrown: unknown;
+		try {
+			selectOutboundProvider({ MAIL_PROVIDER: "sendgrid" } as CloudflareEnv);
+		} catch (error) {
+			thrown = error;
+		}
+		// Config errors must be retryable: a transient deploy misconfiguration
+		// (wrong MAIL_PROVIDER) must not permanently fail queued jobs.
+		expect(thrown).toBeInstanceOf(OutboundProviderError);
+		expect((thrown as OutboundProviderError).retryable).toBe(true);
+		expect((thrown as OutboundProviderError).code).toBe("PROVIDER_CONFIG");
+		expect((thrown as Error).message).toContain("Unknown MAIL_PROVIDER: sendgrid");
 	});
 });
