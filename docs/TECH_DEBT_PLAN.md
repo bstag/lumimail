@@ -29,12 +29,14 @@ schema/tests/config) performed 2026-07-30. This plan supersedes nothing —
 
 ## Wave 0 — Correctness fixes (each spec-first, with failing test)
 
-- [ ] **T-01 Read-scope API keys must not mutate messages.**
-  `src/app/api/v1/messages/[messageId]/route.ts` gates PATCH behind
-  `requireScope(auth.scopes, "read")`. Add a `write` (or `modify`) scope check for
-  PATCH; failing test: a read-only key receives `403` on PATCH. Update
-  [F44](specs/F44-api-key-lifecycle.md) / [F52](specs/F52-imap-smtp-bridge-contract-repair.md)
-  for the scope contract. Effort S.
+- [x] **T-01 Read-scope API keys mutating message state — resolved as
+  working-as-specified.** [F52](specs/F52-imap-smtp-bridge-contract-repair.md)
+  (decision 2026-07-23) fixes the scope vocabulary at `read`/`send`, and the
+  IMAP contract requires the `read` scope to cover client state flags
+  (read/unread, trash) — PATCH's schema is already narrowed to exactly those
+  reversible flags, and scope denial is tested. Disposition: comment added at
+  the `authorize()` site citing F52 so the pattern is not re-flagged as a
+  privilege escalation. No behavior change.
 - [ ] **T-02 Declining a routing-rule delete must not report success.**
   `src/app/(admin)/routing/page.tsx:87` calls `confirm()` inside `mutationFn`;
   Cancel resolves as success and invalidates queries. Move confirmation before

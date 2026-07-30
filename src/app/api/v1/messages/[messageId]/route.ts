@@ -24,6 +24,10 @@ function getMailboxId(request: Request): string | null {
 	return mailboxId || null;
 }
 
+// The `read` scope deliberately covers PATCH: per F52 the scope vocabulary is
+// fixed at read/send, and IMAP clients authenticate with `read` yet must set
+// reversible state flags (read/unread, trash). updateSchema restricts PATCH to
+// exactly those flags, so this is not a write-capability escalation.
 async function authorize(request: Request) {
 	const env = getEnv();
 	const auth = await authenticateApiKey(env, request.headers.get("authorization"));
