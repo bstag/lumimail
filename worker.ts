@@ -15,6 +15,8 @@ import {
 	isOutboundQueueMessage,
 } from "./worker-utils";
 import { runQueueHealthCheck } from "./src/lib/queue-health";
+import { purgeExpiredRateLimits } from "./src/lib/rate-limit";
+import { RETRY_DELAY_SECONDS } from "./src/lib/constants";
 import { deleteR2Orphans, shouldRunSweep } from "./src/lib/r2-retention";
 import { getDb } from "./src/db";
 import { resolveInboundTargets } from "./src/lib/email/routing";
@@ -99,7 +101,7 @@ export default {
 					messageId: msg.id,
 					error: err instanceof Error ? err.message : "Unknown error",
 				});
-				msg.retry({ delaySeconds: 30 });
+				msg.retry({ delaySeconds: RETRY_DELAY_SECONDS });
 			}
 		}
 	},
@@ -109,6 +111,11 @@ export default {
 		env: CloudflareEnv,
 	): Promise<void> {
 		await runQueueHealthCheck(env);
+
+		// Expired counters are ignored by the rate-limit check itself; this purge
+		// only keeps the table from growing without bound (F74). It swallows its
+		// own failures, so it cannot block the sweep below.
+		await purgeExpiredRateLimits(env);
 
 		// Ships disabled. The existing production backlog would otherwise be removed
 		// on the first run, before an operator has seen the report (F63).
