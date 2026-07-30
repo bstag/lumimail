@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, MailOpen, Star } from "lucide-react";
+import { Star } from "lucide-react";
 import { MessageFolderPage } from "@/components/messages/message-folder-page";
 
 export default function InboxPage() {
@@ -8,11 +8,9 @@ export default function InboxPage() {
 		<MessageFolderPage
 			config={{
 				folder: "inbox",
-				title: "Inbox",
 				emptyText: "No emails",
 				hrefPrefix: "/inbox",
 				icon: Star,
-				headerIcons: [MailOpen, Clock],
 				showRowBadge: false,
 			}}
 		/>

@@ -175,7 +175,6 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 		offset,
 		labelId: activeLabelId ?? undefined,
 	}, !mailboxesLoading);
-	const headerIcons = config.headerIcons ?? [];
 	const hasActiveFilters = !!query.trim();
 	const pageRange = getPageRange(offset, messages.length, total);
 	const selectedMessages = useMemo(
@@ -286,7 +285,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 							aria-label={t("selectAll")}
 						/>
 					</Tooltip>
-					{selectedIds.length > 0 ? (
+					{selectedIds.length > 0 && (
 						<BulkMessageToolbar
 							selectedCount={selectedIds.length}
 							hasUnreadSelection={hasUnreadSelection}
@@ -294,8 +293,6 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 							onClearSelection={() => setSelectedIds([])}
 							pending={pendingBulkAction}
 						/>
-					) : (
-						null
 					)}
 				</div>
 				{selectedIds.length === 0 && (
@@ -325,9 +322,6 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 								<ChevronRight className="h-4 w-4" />
 							</Button>
 						</Tooltip>
-						{headerIcons.map((HeaderIcon, index) => (
-							<HeaderIcon key={index} className="h-4 w-4" />
-						))}
 					</div>
 				)}
 			</div>

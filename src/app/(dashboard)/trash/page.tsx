@@ -8,7 +8,6 @@ export default function TrashPage() {
 		<MessageFolderPage
 			config={{
 				folder: "trash",
-				title: "Trash",
 				emptyText: "No emails in trash",
 				hrefPrefix: "/trash",
 				icon: Trash2,

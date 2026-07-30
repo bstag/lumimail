@@ -8,7 +8,6 @@ export default function SpamPage() {
 		<MessageFolderPage
 			config={{
 				folder: "spam",
-				title: "Spam",
 				emptyText: "No spam",
 				hrefPrefix: "/spam",
 				icon: ShieldAlert,

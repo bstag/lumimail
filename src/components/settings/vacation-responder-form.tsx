@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DEFAULT_RESPONDER, findResponderForMailbox } from "./vacation-responder-utils";
 import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
 type VacationResponder = {
 	mailboxId: string;
@@ -158,8 +159,8 @@ export function VacationResponderForm() {
 								</div>
 								<div className="space-y-2">
 									<Label>Message</Label>
-									<textarea
-										className="w-full min-h-[100px] rounded-md border border-border px-3 py-2 text-sm resize-y"
+									<Textarea
+										className="min-h-[100px] resize-y"
 										value={body}
 										onChange={(e) => setBody(e.target.value)}
 									/>

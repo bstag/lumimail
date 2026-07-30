@@ -8,7 +8,6 @@ export default function StarredPage() {
 		<MessageFolderPage
 			config={{
 				folder: "starred",
-				title: "Starred",
 				emptyText: "No starred emails",
 				hrefPrefix: "/inbox",
 				icon: Star,

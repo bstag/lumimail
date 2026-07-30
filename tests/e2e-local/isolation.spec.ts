@@ -45,13 +45,13 @@ test.describe("a member cannot reach a mailbox they were not granted", () => {
 	test("cannot search into it", async ({ page }) => {
 		await page.goto("/inbox");
 
-		const denied = await api(page, "/api/messages/search?q=private");
+		const denied = await api(page, "/api/messages?q=private");
 		expect(denied.status).toBe(200);
 		expect(denied.body).not.toContain(PRIVATE.subject);
 
 		// Control: the same endpoint does return results the member may see, so the
 		// absence above is authorization and not a search that matches nothing.
-		const allowed = await api(page, "/api/messages/search?q=shared");
+		const allowed = await api(page, "/api/messages?q=shared");
 		expect(allowed.status).toBe(200);
 		expect(allowed.body).toContain(SHARED.subject);
 	});

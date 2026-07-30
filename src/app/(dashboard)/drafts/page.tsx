@@ -8,7 +8,6 @@ export default function DraftsPage() {
 		<MessageFolderPage
 			config={{
 				folder: "drafts",
-				title: "Drafts",
 				emptyText: "No drafts",
 				hrefPrefix: "/drafts",
 				icon: FileText,

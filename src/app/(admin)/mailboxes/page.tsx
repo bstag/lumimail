@@ -143,11 +143,6 @@ export default function MailboxesPage() {
 				</Dialog>
 			</div>
 			<section className="space-y-3">
-				{/* <div className="flex items-center justify-between">
-					<span className="text-sm text-ink-muted">
-						{(mailboxes.data?.mailboxes ?? []).length} total
-					</span>
-				</div> */}
 				{mailboxes.isLoading && (
 					<p className="rounded-lg border border-border bg-surface-raised px-4 py-3 text-sm text-ink-muted">
 						Loading mailboxes...

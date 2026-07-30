@@ -45,14 +45,6 @@ export default function HomePage() {
           </span>
         </Link>
 
-        {/* <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted md:flex">
-					{landingNavItems.map((item) => (
-						<a key={item.href} href={item.href} className="transition-colors hover:text-ink">
-							{item.label}
-						</a>
-					))}
-				</nav> */}
-
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <LanguageSwitcher />
           <ThemeToggle />
