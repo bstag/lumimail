@@ -424,7 +424,12 @@ describe("sendEmail producer", () => {
 			],
 		})).rejects.toThrow("R2 unavailable");
 
-		expect(bucketDelete).toHaveBeenCalledTimes(2);
+		// One bulk delete covers every attempted key (both share the mocked id).
+		expect(bucketDelete).toHaveBeenCalledTimes(1);
+		expect(bucketDelete).toHaveBeenCalledWith([
+			"attachments/u1/msg_id/att_id",
+			"attachments/u1/msg_id/att_id",
+		]);
 		expect(queueSend).not.toHaveBeenCalled();
 	});
 
@@ -445,7 +450,7 @@ describe("sendEmail producer", () => {
 				content: new ArrayBuffer(1),
 			}],
 		})).rejects.toThrow("D1 unavailable");
-		expect(consoleError).toHaveBeenCalledWith("Failed to clean up an outbound attachment object");
+		expect(consoleError).toHaveBeenCalledWith("Failed to clean up attachment objects");
 		consoleError.mockRestore();
 	});
 });
@@ -991,6 +996,19 @@ describe("processOutboundQueue consumer", () => {
 			messageId: "msg_1",
 			error: "Permanent provider failure",
 		});
+	});
+
+	it("truncates stored provider diagnostics at 500 characters", async () => {
+		mock
+			.queueSelect([storedJob])
+			.queueSelect([{ id: "job_1", userId: "u1", messageId: "msg_1" }]);
+		providerSend.mockRejectedValue(
+			new OutboundProviderError("x".repeat(600), { retryable: false }),
+		);
+
+		await processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1");
+		const stored = (mock.updates[1].set as { error: string }).error;
+		expect(stored).toBe("x".repeat(500));
 	});
 
 	it("fails closed with a generic diagnostic for an unclassified provider error", async () => {

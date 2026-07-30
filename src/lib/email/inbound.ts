@@ -23,6 +23,10 @@ import {
 	withinVacationReplyWindow,
 } from "@/lib/email/vacation";
 import { prepareInboundAttachments } from "@/lib/email/inbound-attachments";
+import {
+	attachmentKey,
+	cleanupAttachmentObjects,
+} from "@/lib/email/attachment-storage";
 import { resolveInboundThreading } from "@/lib/email/threading";
 
 export type InboundQueueMessage = {
@@ -115,7 +119,7 @@ async function deliverToMailbox(
 			filename: attachment.filename,
 			contentType: attachment.contentType,
 			size: attachment.size,
-			r2Key: `attachments/${mailbox.userId}/${messageId}/${id}`,
+			r2Key: attachmentKey(mailbox.userId, messageId, id),
 			content: attachment.content,
 			disposition: attachment.disposition,
 			contentId: attachment.contentId,
@@ -207,7 +211,7 @@ async function deliverToMailbox(
 			...(attachmentInsert ? [attachmentInsert] : []),
 		]);
 	} catch (error) {
-		await cleanupInboundAttachmentObjects(env, attemptedKeys);
+		await cleanupAttachmentObjects(env, attemptedKeys);
 		throw error;
 	}
 
@@ -230,18 +234,6 @@ async function deliverToMailbox(
 		mailbox.organizationId,
 		mailbox.mailboxId,
 	);
-}
-
-async function cleanupInboundAttachmentObjects(
-	env: CloudflareEnv,
-	keys: string[],
-): Promise<void> {
-	if (keys.length === 0) return;
-	try {
-		await env.BUCKET.delete(keys.length === 1 ? keys[0] : keys);
-	} catch {
-		console.error("Failed to clean up inbound attachment objects");
-	}
 }
 
 async function applyMessageFilters(

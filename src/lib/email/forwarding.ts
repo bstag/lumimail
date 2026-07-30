@@ -14,6 +14,13 @@ export type ForwardAuthorization =
 	| { allowed: true; address: string }
 	| { allowed: false; reason: ForwardRefusalReason };
 
+/**
+ * Deliberately NOT delegated to `normalizeEmailAddress` (address.ts): that
+ * helper extracts the bare address from display-name forms ("Name <a@b>"),
+ * while destination handling normalizes and stores the caller's full string —
+ * the forwarding-destinations route feeds raw request input through here, and
+ * extracting would silently loosen what it accepts and stores.
+ */
 export function normalizeDestinationAddress(address: string): string {
 	return address.trim().toLowerCase();
 }

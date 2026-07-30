@@ -1,6 +1,7 @@
 import { and, eq, gt } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { newId } from "@/lib/ids";
+import { sha256Hex } from "@/lib/crypto-utils";
 import { getDb } from "@/db";
 import { sessions, users, organizationMembers } from "@/db/schema";
 
@@ -19,10 +20,6 @@ export function verifySessionToken(token: string, hash: string): boolean {
 	return bcrypt.compareSync(token, hash);
 }
 
-function bytesToHex(bytes: Uint8Array): string {
-	return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 /**
  * Digest used to locate a session row in one indexed lookup (F66).
  *
@@ -31,8 +28,7 @@ function bytesToHex(bytes: Uint8Array): string {
  * session token is high-entropy random material, not a user-chosen password.
  */
 export async function lookupSessionToken(token: string): Promise<string> {
-	const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
-	return bytesToHex(new Uint8Array(digest));
+	return sha256Hex(token);
 }
 
 export async function createSession(env: CloudflareEnv, userId: string): Promise<string> {

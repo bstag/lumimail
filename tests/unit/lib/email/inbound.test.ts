@@ -418,7 +418,7 @@ describe("processInboundMessage", () => {
 
 		await expect(processInboundMessage(env, payload)).rejects.toThrow("d1 unavailable");
 		expect(errorSpy).toHaveBeenCalledWith(
-			"Failed to clean up inbound attachment objects",
+			"Failed to clean up attachment objects",
 		);
 	});
 

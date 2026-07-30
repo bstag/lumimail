@@ -1,3 +1,5 @@
+import { sanitizeAttachmentFilename } from "@/lib/email/attachment-storage";
+
 export const MAX_ATTACHMENT_COUNT = 10;
 export const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
 export const MAX_ENCODED_MESSAGE_BYTES = 4.5 * 1024 * 1024;
@@ -39,13 +41,6 @@ export class AttachmentValidationError extends Error {
 	}
 }
 
-function sanitizeFilename(value: string): string {
-	const pieces = value.replace(/\\/g, "/").split("/");
-	const leaf = pieces[pieces.length - 1];
-	const cleaned = leaf.replace(/[\u0000-\u001f\u007f]/g, "").trim();
-	return (cleaned || "attachment").slice(0, 255);
-}
-
 function encodedLength(size: number): number {
 	return 4 * Math.ceil(size / 3);
 }
@@ -62,7 +57,7 @@ export function validateOutboundAttachments(input: {
 	}
 
 	const normalized = values.map((attachment) => {
-		const filename = sanitizeFilename(attachment.filename);
+		const filename = sanitizeAttachmentFilename(attachment.filename);
 		const contentType = attachment.contentType.toLowerCase().trim() || "application/octet-stream";
 		const size = attachment.content.byteLength;
 		if (size > MAX_ATTACHMENT_BYTES) {

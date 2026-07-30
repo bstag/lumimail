@@ -21,10 +21,20 @@ import { upsertContactFromAddress } from "@/lib/contacts/service";
 import { formatEmailAddress, getEmailAddress } from "@/lib/email/address";
 import { parseAddress } from "@/lib/utils";
 import {
+	MAX_ATTACHMENT_COUNT,
 	validateOutboundAttachments,
 	type OutboundAttachmentInput,
 	type ValidatedOutboundAttachment,
 } from "@/lib/email/outbound-attachments";
+import {
+	attachmentKey,
+	cleanupAttachmentObjects,
+} from "@/lib/email/attachment-storage";
+import {
+	MAX_STORED_ERROR_LENGTH,
+	RETRY_DELAY_SECONDS,
+	SENDER_ROLES,
+} from "@/lib/constants";
 import {
 	buildReplyThreading,
 	normalizeRfcMessageId,
@@ -137,16 +147,6 @@ async function resolveReplySource(
 	};
 }
 
-async function cleanupAttachmentObjects(env: CloudflareEnv, keys: string[]): Promise<void> {
-	await Promise.all(keys.map(async (key) => {
-		try {
-			await env.BUCKET.delete(key);
-		} catch {
-			console.error("Failed to clean up an outbound attachment object");
-		}
-	}));
-}
-
 async function resolveSenderAuthorization(
 	env: CloudflareEnv,
 	userId: string,
@@ -177,7 +177,7 @@ async function resolveSenderAuthorization(
 				...baseConditions,
 				eq(mailboxes.organizationId, orgId),
 				eq(mailboxMemberships.userId, userId),
-				inArray(mailboxMemberships.role, ["responder", "manager"]),
+				inArray(mailboxMemberships.role, SENDER_ROLES),
 			))
 			.limit(1)
 		: await mailboxQuery
@@ -238,7 +238,7 @@ export async function sendEmail(
 			filename: attachment.filename,
 			contentType: attachment.contentType,
 			size: attachment.size,
-			r2Key: `attachments/${input.userId}/${messageId}/${id}`,
+			r2Key: attachmentKey(input.userId, messageId, id),
 			disposition: attachment.disposition,
 			...(attachment.contentId ? { contentId: attachment.contentId } : {}),
 		};
@@ -360,7 +360,7 @@ async function getSenderContext(
 					? and(
 						eq(mailboxes.organizationId, orgId),
 						eq(mailboxMemberships.userId, input.userId),
-						inArray(mailboxMemberships.role, ["responder", "manager"]),
+						inArray(mailboxMemberships.role, SENDER_ROLES),
 					)
 					: eq(mailboxes.userId, input.userId),
 			),
@@ -429,7 +429,7 @@ function isThreadingHeaders(value: unknown): value is NonNullable<ReplyThreading
 }
 
 function isAttachmentSnapshotArray(value: unknown): value is OutboundAttachmentSnapshot[] {
-	return Array.isArray(value) && value.length <= 10 && value.every((attachment) =>
+	return Array.isArray(value) && value.length <= MAX_ATTACHMENT_COUNT && value.every((attachment) =>
 		typeof attachment === "object" &&
 		attachment !== null &&
 		typeof attachment.id === "string" &&
@@ -457,7 +457,10 @@ async function loadOutboundAttachments(
 	if (!snapshots?.length) return [];
 	const loaded: ValidatedOutboundAttachment[] = [];
 	for (const snapshot of snapshots) {
-		if (snapshot.r2Key !== `attachments/${userId}/${messageId}/${snapshot.id}`) return null;
+		// Security check: a stored snapshot may only name a key under the owning
+		// user and message. The expected prefix is derived from the same helper
+		// that wrote the key, so the two cannot drift apart.
+		if (snapshot.r2Key !== attachmentKey(userId, messageId, snapshot.id)) return null;
 		const object = await env.BUCKET.get(snapshot.r2Key);
 		if (!object || object.size !== snapshot.size) return null;
 		const content = await object.arrayBuffer();
@@ -476,7 +479,7 @@ async function loadOutboundAttachments(
 
 function providerFailureMessage(error: unknown): string {
 	if (!(error instanceof OutboundProviderError)) return "Outbound provider failed";
-	const message = error.message.slice(0, 400);
+	const message = error.message.slice(0, MAX_STORED_ERROR_LENGTH);
 	return error.code ? `${error.code}: ${message}` : message;
 }
 
@@ -490,7 +493,7 @@ async function markOutboundFailed(
 		.update(outboundJobs)
 		.set({
 			status: "failed",
-			error: error.slice(0, 500),
+			error: error.slice(0, MAX_STORED_ERROR_LENGTH),
 			deliveryToken: null,
 			updatedAt: new Date(),
 		})
@@ -594,7 +597,7 @@ export async function processOutboundQueue(
 				eq(outboundJobs.status, "processing"),
 				eq(outboundJobs.deliveryToken, deliveryToken),
 			));
-		return { action: "retry", delaySeconds: 30 };
+		return { action: "retry", delaySeconds: RETRY_DELAY_SECONDS };
 	}
 	if (!loadedAttachments) {
 		await markOutboundFailed(env, job.id, "Stored outbound attachment is missing or corrupt");
@@ -665,7 +668,7 @@ export async function processOutboundQueue(
 					eq(outboundJobs.status, "processing"),
 					eq(outboundJobs.deliveryToken, deliveryToken),
 				));
-			return { action: "retry", delaySeconds: 30 };
+			return { action: "retry", delaySeconds: RETRY_DELAY_SECONDS };
 		}
 
 		await markOutboundFailed(env, job.id, failureMessage);

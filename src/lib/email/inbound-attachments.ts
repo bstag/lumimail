@@ -1,4 +1,5 @@
 import type { ParsedAttachment } from "@/lib/email/parse";
+import { sanitizeAttachmentFilename } from "@/lib/email/attachment-storage";
 
 export const MAX_INBOUND_ATTACHMENT_COUNT = 50;
 export const MAX_INBOUND_ATTACHMENT_BYTES = 25 * 1024 * 1024;
@@ -19,17 +20,6 @@ export type PreparedInboundAttachments = {
 	error: string | null;
 	attachments: PreparedInboundAttachment[];
 };
-
-function sanitizeFilename(value: string | null): string {
-	const leaf = (value ?? "")
-		.replaceAll("\\", "/")
-		.split("/")
-		.at(-1)
-		?.replace(/[\u0000-\u001f\u007f]/g, "")
-		.trim()
-		.slice(0, 255);
-	return leaf || "attachment";
-}
 
 function sanitizeContentType(value: string): string {
 	const normalized = value.trim().toLowerCase();
@@ -73,7 +63,7 @@ export function prepareInboundAttachments(
 		const contentType = sanitizeContentType(value.contentType);
 		const contentId = sanitizeContentId(value.contentId);
 		attachments.push({
-			filename: sanitizeFilename(value.filename),
+			filename: sanitizeAttachmentFilename(value.filename),
 			contentType,
 			size,
 			content: value.content,
