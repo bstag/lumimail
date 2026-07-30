@@ -1,3 +1,4 @@
+import type { NextResponse } from "next/server";
 import { and, eq, gt } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { newId } from "@/lib/ids";
@@ -87,6 +88,21 @@ export async function getUserFromSession(
 		return { ...user, role: membership?.role ?? null };
 	}
 	return user;
+}
+
+/**
+ * Attaches the session cookie to a response with the canonical attributes
+ * (httpOnly, secure, lax, site-wide, expiry matching SESSION_DAYS). Login and
+ * registration must set byte-identical cookies, so the literal lives here.
+ */
+export function setSessionCookie(response: NextResponse, token: string): void {
+	response.cookies.set(SESSION_COOKIE, token, {
+		httpOnly: true,
+		secure: true,
+		sameSite: "lax",
+		path: "/",
+		maxAge: 60 * 60 * 24 * SESSION_DAYS,
+	});
 }
 
 export async function deleteSession(env: CloudflareEnv, token: string): Promise<void> {

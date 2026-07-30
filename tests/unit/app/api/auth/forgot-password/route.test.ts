@@ -10,7 +10,6 @@ const m = vi.hoisted(() => ({
 	hashToken: vi.fn(),
 	sendResetEmail: vi.fn(),
 	rateLimitIp: vi.fn(),
-	RateLimitUnavailableError: class RateLimitUnavailableError extends Error {},
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => m.env }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
@@ -23,12 +22,15 @@ vi.mock("@/lib/auth/password-reset", () => ({
 	sendPasswordResetEmail: m.sendResetEmail,
 }));
 vi.mock("@/lib/ids", () => ({ newId: (prefix?: string) => (prefix ? `${prefix}_secret` : "id_1") }));
-vi.mock("@/lib/rate-limit", () => ({
+// Partial mock: enforceRateLimit stays real so the route's 429/503 handling
+// (and the RateLimitUnavailableError instanceof check) run genuine code.
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/lib/rate-limit")>()),
 	rateLimitIp: m.rateLimitIp,
-	RateLimitUnavailableError: m.RateLimitUnavailableError,
 }));
 
 import { POST } from "@/app/api/auth/forgot-password/route";
+import { RateLimitUnavailableError } from "@/lib/rate-limit";
 
 let mock: DbMock;
 
@@ -64,7 +66,7 @@ describe("POST /api/auth/forgot-password", () => {
 	});
 
 	it("fails closed when shared rate-limit storage is unavailable", async () => {
-		m.rateLimitIp.mockRejectedValue(new m.RateLimitUnavailableError());
+		m.rateLimitIp.mockRejectedValue(new RateLimitUnavailableError());
 		const res = await POST(req({ email: "a@x.test" }));
 		expect(res.status).toBe(503);
 		expect(mock.db.select).not.toHaveBeenCalled();

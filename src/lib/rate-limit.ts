@@ -83,3 +83,40 @@ export function rateLimitUser(
 ) {
 	return rateLimitCheck(env, `${action}::user::${userId}`, maxRequests, windowMs);
 }
+
+export type EnforceRateLimitOptions<R extends Response = Response> = {
+	/** Logged (message only, no cause) when the shared store is unavailable. */
+	unavailableLog: string;
+	/** Message for the 429 produced when the counter is exhausted. */
+	limitedMessage: string;
+	/**
+	 * Builds the error response body. Routes pass their own shape here so the
+	 * limiter never dictates it (auth/login uses a bare `{ error }` body while
+	 * envelope routes pass `apiError`).
+	 */
+	respond: (message: string, status: 429 | 503) => R;
+};
+
+/**
+ * Awaits a rate-limit check and turns its two failure modes into the route's
+ * error responses: storage unavailable fails closed as a 503 and an exhausted
+ * counter becomes a 429. Returns `null` when the request may proceed.
+ * Unexpected (non-limiter) errors are rethrown untouched.
+ */
+export async function enforceRateLimit<R extends Response>(
+	check: Promise<RateLimitResult>,
+	options: EnforceRateLimitOptions<R>,
+): Promise<R | null> {
+	let result: RateLimitResult;
+	try {
+		result = await check;
+	} catch (error) {
+		if (error instanceof RateLimitUnavailableError) {
+			console.error(options.unavailableLog);
+			return options.respond("Service temporarily unavailable", 503);
+		}
+		throw error;
+	}
+	if (!result.allowed) return options.respond(options.limitedMessage, 429);
+	return null;
+}

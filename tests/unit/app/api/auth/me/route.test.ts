@@ -20,11 +20,14 @@ function req() {
 }
 
 describe("GET /api/auth/me", () => {
-	it("returns 401 when unauthenticated", async () => {
+	it("returns 401 in the envelope when unauthenticated", async () => {
 		m.getCurrentUser.mockResolvedValue(null);
 		const res = await GET(req());
 		expect(res.status).toBe(401);
-		expect((await res.json()) as any).toEqual({ error: "Unauthorized" });
+		expect((await res.json()) as any).toEqual({
+			success: false,
+			error: { message: "Unauthorized" },
+		});
 	});
 
 	it("returns the current user and mailbox flag", async () => {

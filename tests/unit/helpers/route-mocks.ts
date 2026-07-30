@@ -49,7 +49,6 @@ import { createDbMock, type DbMock } from "./db";
  * - `getCurrentUser` resolves `{ id: "u1" }` — this also covers routes
  *   migrated to the `withUser` wrapper in `src/lib/api/handler.ts`, which
  *   authenticates via `getCurrentUser` from `@/lib/auth/cookies`.
- * - `requireUser`   resolves `{ id: "u1" }`
  * - `guardOrgAdmin` resolves
  *   `{ orgUser: { id: "u1", organizationId: "org_1", role: "admin" }, errorResponse: null }`
  *   and `guardOrgOwner` the same with `role: "owner"` — covering both routes
@@ -68,7 +67,6 @@ import { createDbMock, type DbMock } from "./db";
 export function createRouteMocks() {
 	const guardUser = vi.fn();
 	const getCurrentUser = vi.fn();
-	const requireUser = vi.fn();
 	const guardOrgAdmin = vi.fn();
 	const guardOrgOwner = vi.fn();
 	const rateLimitCheck = vi.fn();
@@ -89,7 +87,6 @@ export function createRouteMocks() {
 		dbMock: createDbMock() as DbMock,
 		guardUser,
 		getCurrentUser,
-		requireUser,
 		guardOrgAdmin,
 		guardOrgOwner,
 		rateLimitCheck,
@@ -114,7 +111,7 @@ export function createRouteMocks() {
 		},
 		/** `vi.mock("@/lib/auth/cookies", () => m.cookiesModule())` */
 		cookiesModule(extra?: Record<string, unknown>) {
-			return { guardUser, getCurrentUser, requireUser, ...extra };
+			return { guardUser, getCurrentUser, ...extra };
 		},
 		/** `vi.mock("@/lib/auth/org-guard", () => m.orgGuardModule())` */
 		orgGuardModule(extra?: Record<string, unknown>) {
@@ -136,7 +133,6 @@ export function createRouteMocks() {
 			bag.dbMock = createDbMock();
 			guardUser.mockReset().mockResolvedValue({ user: { id: "u1" }, errorResponse: null });
 			getCurrentUser.mockReset().mockResolvedValue({ id: "u1" });
-			requireUser.mockReset().mockResolvedValue({ id: "u1" });
 			guardOrgAdmin.mockReset().mockResolvedValue({
 				orgUser: { id: "u1", organizationId: "org_1", role: "admin" },
 				errorResponse: null,

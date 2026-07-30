@@ -36,11 +36,14 @@ function get(qs = "") {
 }
 
 describe("GET /api/messages", () => {
-	it("returns 401 when unauthenticated", async () => {
+	it("returns 401 in the envelope when unauthenticated", async () => {
 		m.getCurrentUser.mockResolvedValue(null);
 		const res = await get();
 		expect(res.status).toBe(401);
-		expect((await res.json()) as any).toEqual({ error: "Unauthorized" });
+		expect((await res.json()) as any).toEqual({
+			success: false,
+			error: { message: "Unauthorized" },
+		});
 	});
 
 	it("lists messages with no filters and enriches rows", async () => {

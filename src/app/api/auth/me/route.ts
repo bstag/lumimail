@@ -1,15 +1,9 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth/cookies";
-import { getEnv } from "@/lib/cloudflare";
+import { withUser } from "@/lib/api/handler";
+import type { SessionUser } from "@/lib/auth/session";
 import { userHasMailboxes } from "@/lib/user";
 
-export async function GET(request: Request) {
-	const env = getEnv();
-	const user = await getCurrentUser(env, request);
-	if (!user) {
-		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-	}
-
+export const GET = withUser(async ({ env, user }) => {
 	const hasMailboxes = await userHasMailboxes(env, user.id);
 	return NextResponse.json({
 		user: {
@@ -17,8 +11,10 @@ export async function GET(request: Request) {
 			email: user.email,
 			name: user.name,
 			resetEmail: user.resetEmail,
-			role: user.role,
+			// getCurrentUser resolves a SessionUser; the wrapper's static type
+			// just doesn't carry the optional org-membership role.
+			role: (user as SessionUser).role,
 		},
 		hasMailboxes,
 	});
-}
+});

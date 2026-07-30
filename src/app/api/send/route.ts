@@ -1,9 +1,9 @@
-import { getEnv } from "@/lib/cloudflare";
-import { guardUser } from "@/lib/auth/cookies";
+import { withUser } from "@/lib/api/handler";
 import { sendEmailSchema } from "@/lib/validators";
 import { sendEmail } from "@/lib/email/send";
-import { rateLimitUser, RateLimitUnavailableError } from "@/lib/rate-limit";
+import { enforceRateLimit, rateLimitUser } from "@/lib/rate-limit";
 import { apiSuccess, apiError } from "@/lib/api/response";
+import { mapSendError } from "@/lib/api/send-error";
 import {
 	AttachmentValidationError,
 	MAX_ATTACHMENT_BYTES,
@@ -76,22 +76,13 @@ async function parseRequest(request: Request): Promise<{
 	};
 }
 
-export async function POST(request: Request) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
-
-	let rl;
-	try {
-		rl = await rateLimitUser(env, user.id, "send", 50, 3_600_000);
-	} catch (error) {
-		if (error instanceof RateLimitUnavailableError) {
-			console.error("Send rate limit unavailable");
-			return apiError("Service temporarily unavailable", 503);
-		}
-		throw error;
-	}
-	if (!rl.allowed) return apiError("Send rate limit exceeded", 429);
+export const POST = withUser(async ({ request, env, user }) => {
+	const limited = await enforceRateLimit(rateLimitUser(env, user.id, "send", 50, 3_600_000), {
+		unavailableLog: "Send rate limit unavailable",
+		limitedMessage: "Send rate limit exceeded",
+		respond: apiError,
+	});
+	if (limited) return limited;
 
 	let requestData: Awaited<ReturnType<typeof parseRequest>>;
 	try {
@@ -114,12 +105,6 @@ export async function POST(request: Request) {
 		});
 		return apiSuccess(result, 202);
 	} catch (error) {
-		if (error instanceof Error && error.name === "SenderNotAllowedError") {
-			return apiError("Mailbox not found", 404);
-		}
-		if (error instanceof Error && error.name === "ReplySourceNotAllowedError") {
-			return apiError("Reply source not found", 404);
-		}
-		return apiError("Send failed", 500);
+		return mapSendError(error);
 	}
-}
+});

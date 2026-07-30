@@ -20,6 +20,7 @@ vi.mock("@/lib/ids", () => ({
 }));
 
 import bcrypt from "bcryptjs";
+import type { NextResponse } from "next/server";
 import {
 	SESSION_COOKIE,
 	createSession,
@@ -27,6 +28,7 @@ import {
 	generateSessionToken,
 	getUserFromSession,
 	hashSessionToken,
+	setSessionCookie,
 	verifySessionToken,
 } from "@/lib/auth/session";
 
@@ -189,6 +191,24 @@ describe("getUserFromSession", () => {
 		// Authentication still depends on bcrypt, so the digest alone never admits.
 		expect(await getUserFromSession(env, "tok")).toBeNull();
 		expect(vi.mocked(bcrypt.compareSync)).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("setSessionCookie", () => {
+	it("sets the session cookie with the canonical attributes", () => {
+		const set = vi.fn();
+		const response = { cookies: { set } } as unknown as NextResponse;
+
+		setSessionCookie(response, "sess_tok");
+
+		expect(set).toHaveBeenCalledTimes(1);
+		expect(set).toHaveBeenCalledWith(SESSION_COOKIE, "sess_tok", {
+			httpOnly: true,
+			secure: true,
+			sameSite: "lax",
+			path: "/",
+			maxAge: 60 * 60 * 24 * 30,
+		});
 	});
 });
 

@@ -1,21 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextResponse } from "next/server";
 import { createDbMock, type DbMock } from "../../../../../helpers/db";
 
-const m = vi.hoisted(() => ({ db: null as unknown, guardUser: vi.fn() }));
+const m = vi.hoisted(() => ({ db: null as unknown, getCurrentUser: vi.fn() }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
-vi.mock("@/lib/auth/cookies", () => ({ guardUser: m.guardUser }));
+vi.mock("@/lib/auth/cookies", () => ({ getCurrentUser: m.getCurrentUser }));
 
 import { GET } from "@/app/api/messages/[messageId]/attachments/route";
 
 let mock: DbMock;
-const unauth = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
 beforeEach(() => {
 	mock = createDbMock();
 	m.db = mock.db;
-	m.guardUser.mockReset();
+	m.getCurrentUser.mockReset().mockResolvedValue({ id: "u1" });
 });
 
 function get(messageId = "m1") {
@@ -25,14 +23,17 @@ function get(messageId = "m1") {
 }
 
 describe("GET /api/messages/[messageId]/attachments", () => {
-	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ user: null, errorResponse: unauth });
+	it("returns 401 in the envelope when unauthenticated", async () => {
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await get();
 		expect(res.status).toBe(401);
+		expect((await res.json()) as any).toEqual({
+			success: false,
+			error: { message: "Unauthorized" },
+		});
 	});
 
 	it("returns 404 when the message is not found (cross-tenant denial)", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" }, errorResponse: null });
 		mock.queueSelect([]); // [msg] => undefined => 404
 		const res = await get();
 		expect(res.status).toBe(404);
@@ -40,7 +41,6 @@ describe("GET /api/messages/[messageId]/attachments", () => {
 	});
 
 	it("returns the attachments for a message", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" }, errorResponse: null });
 		mock.queueSelect([{ id: "m1", attachmentStatus: "stored", attachmentError: null }]); // message exists
 		mock.queueSelect([
 			{ id: "a1", filename: "f.pdf", contentType: "application/pdf", size: 10 },
@@ -60,7 +60,6 @@ describe("GET /api/messages/[messageId]/attachments", () => {
 	});
 
 	it("returns an omission reason even when no attachment rows exist", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" }, errorResponse: null });
 		mock.queueSelect([{
 			id: "m1",
 			attachmentStatus: "omitted",

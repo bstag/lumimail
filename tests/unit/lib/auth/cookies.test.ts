@@ -26,7 +26,7 @@ vi.mock("next/server", () => ({
 }));
 
 import { NextResponse } from "next/server";
-import { getCurrentUser, guardUser, requireUser } from "@/lib/auth/cookies";
+import { getCurrentUser, guardUser } from "@/lib/auth/cookies";
 
 const env = {} as CloudflareEnv;
 
@@ -73,19 +73,6 @@ describe("getCurrentUser", () => {
 		h.getUserFromSession.mockResolvedValue(null);
 		await getCurrentUser(env);
 		expect(h.getUserFromSession).toHaveBeenCalledWith(env, undefined);
-	});
-});
-
-describe("requireUser", () => {
-	it("returns the user when authenticated", async () => {
-		h.cookieValue = "tok";
-		h.getUserFromSession.mockResolvedValue({ id: "u1" });
-		expect(await requireUser(env)).toEqual({ id: "u1" });
-	});
-
-	it("throws when unauthenticated", async () => {
-		h.getUserFromSession.mockResolvedValue(null);
-		await expect(requireUser(env)).rejects.toThrow("Unauthorized");
 	});
 });
 

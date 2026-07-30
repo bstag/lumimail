@@ -7,22 +7,25 @@ const m = vi.hoisted(() => ({
 	createSession: vi.fn(),
 	userHasMailboxes: vi.fn(),
 	rateLimitIp: vi.fn(),
-	RateLimitUnavailableError: class RateLimitUnavailableError extends Error {},
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
 vi.mock("@/lib/auth/password", () => ({ verifyPassword: m.verifyPassword }));
-vi.mock("@/lib/auth/session", () => ({
+// Partial mock: the route also uses the real setSessionCookie helper.
+vi.mock("@/lib/auth/session", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/lib/auth/session")>()),
 	createSession: m.createSession,
-	SESSION_COOKIE: "ep_session",
 }));
 vi.mock("@/lib/user", () => ({ userHasMailboxes: m.userHasMailboxes }));
-vi.mock("@/lib/rate-limit", () => ({
+// Partial mock: enforceRateLimit stays real so the route's 429/503 handling
+// (and the RateLimitUnavailableError instanceof check) run genuine code.
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/lib/rate-limit")>()),
 	rateLimitIp: m.rateLimitIp,
-	RateLimitUnavailableError: m.RateLimitUnavailableError,
 }));
 
 import { POST } from "@/app/api/auth/login/route";
+import { RateLimitUnavailableError } from "@/lib/rate-limit";
 
 let mock: DbMock;
 
@@ -80,9 +83,10 @@ describe("POST /api/auth/login", () => {
 	});
 
 	it("fails closed when shared rate-limit storage is unavailable", async () => {
-		m.rateLimitIp.mockRejectedValue(new m.RateLimitUnavailableError());
+		m.rateLimitIp.mockRejectedValue(new RateLimitUnavailableError());
 		const res = await POST(req({ email: "a@x.test", password: "pw" }));
 		expect(res.status).toBe(503);
+		expect((await res.json()) as any).toEqual({ error: "Service temporarily unavailable" });
 		expect(m.createSession).not.toHaveBeenCalled();
 	});
 

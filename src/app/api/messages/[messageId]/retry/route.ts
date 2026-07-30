@@ -1,21 +1,13 @@
 import { and, eq } from "drizzle-orm";
-import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
 import { messages } from "@/db/schema";
-import { guardUser } from "@/lib/auth/cookies";
+import { withUser } from "@/lib/api/handler";
 import { apiError, apiSuccess } from "@/lib/api/response";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 import { recoverOutboundJob } from "@/lib/email/send";
 
-export async function POST(
-	request: Request,
-	{ params }: { params: Promise<{ messageId: string }> },
-) {
-	const { messageId } = await params;
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
-
+export const POST = withUser<{ messageId: string }>(async ({ env, user, params }) => {
+	const { messageId } = params;
 	const db = getDb(env);
 	// Send capability, not read: recovery emits mail, so it must be gated exactly
 	// as composing from this mailbox is. A caller without it gets 404 rather than
@@ -41,4 +33,4 @@ export async function POST(
 	}
 
 	return apiSuccess({ messageId, status: "queued" }, 202);
-}
+});

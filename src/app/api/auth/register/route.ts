@@ -5,7 +5,7 @@ import { getDb } from "@/db";
 import { mailboxes, users, orgInvites, organizationMembers } from "@/db/schema";
 import { hashInvitationToken } from "@/lib/auth/invitation";
 import { hashPassword } from "@/lib/auth/password";
-import { createSession, SESSION_COOKIE } from "@/lib/auth/session";
+import { createSession, setSessionCookie } from "@/lib/auth/session";
 import { newId } from "@/lib/ids";
 import {
 	firstRunRegisterSchema,
@@ -16,18 +16,12 @@ import { ensureEmailRoutingRuleToWorker } from "@/lib/cloudflare-api";
 import { getPrimaryDomain } from "@/lib/user";
 import { ensureUserOrg } from "@/lib/migration/backfill-orgs";
 import { apiError } from "@/lib/api/response";
-import { rateLimitIp, RateLimitUnavailableError } from "@/lib/rate-limit";
+import { enforceRateLimit, rateLimitIp } from "@/lib/rate-limit";
 
 async function authenticatedResponse(env: CloudflareEnv, userId: string) {
 	const token = await createSession(env, userId);
 	const response = NextResponse.json({ redirect: "/inbox" });
-	response.cookies.set(SESSION_COOKIE, token, {
-		httpOnly: true,
-		secure: true,
-		sameSite: "lax",
-		path: "/",
-		maxAge: 60 * 60 * 24 * 30,
-	});
+	setSessionCookie(response, token);
 	return response;
 }
 
@@ -105,16 +99,12 @@ async function registerFromInvite(
 
 export async function POST(request: Request) {
 	const env = getEnv();
-	try {
-		const rateLimit = await rateLimitIp(env, request, "register", 5, 60_000);
-		if (!rateLimit.allowed) return apiError("Too many attempts", 429);
-	} catch (error) {
-		if (error instanceof RateLimitUnavailableError) {
-			console.error("Registration rate limit unavailable");
-			return apiError("Service temporarily unavailable", 503);
-		}
-		throw error;
-	}
+	const limited = await enforceRateLimit(rateLimitIp(env, request, "register", 5, 60_000), {
+		unavailableLog: "Registration rate limit unavailable",
+		limitedMessage: "Too many attempts",
+		respond: apiError,
+	});
+	if (limited) return limited;
 	const body = await request.json().catch(() => null);
 	if (!body || typeof body !== "object") return apiError("Invalid registration", 400);
 

@@ -1,16 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextResponse } from "next/server";
 import { createDbMock, type DbMock } from "../../../../helpers/db";
 
 const m = vi.hoisted(() => ({
 	db: null as unknown,
-	guardUser: vi.fn(),
+	getCurrentUser: vi.fn(),
 	selectDraftWithBody: vi.fn(),
 	getMailboxAccess: vi.fn(),
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
-vi.mock("@/lib/auth/cookies", () => ({ guardUser: m.guardUser }));
+vi.mock("@/lib/auth/cookies", () => ({ getCurrentUser: m.getCurrentUser }));
 vi.mock("@/lib/email/parse", () => ({ buildSnippet: () => "snippet" }));
 vi.mock("@/app/api/drafts/[id]/utils", () => ({ selectDraftWithBody: m.selectDraftWithBody }));
 vi.mock("@/lib/auth/mailbox-access", async (importOriginal) => ({
@@ -21,13 +20,12 @@ vi.mock("@/lib/auth/mailbox-access", async (importOriginal) => ({
 import { GET, PATCH, DELETE } from "@/app/api/drafts/[id]/route";
 
 let mock: DbMock;
-const unauth = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 const params = (id = "msg_1") => ({ params: Promise.resolve({ id }) });
 
 beforeEach(() => {
 	mock = createDbMock();
 	m.db = mock.db;
-	m.guardUser.mockReset();
+	m.getCurrentUser.mockReset();
 	m.selectDraftWithBody.mockReset();
 	m.getMailboxAccess.mockReset();
 });
@@ -40,14 +38,18 @@ function req(body?: unknown) {
 }
 
 describe("GET /api/drafts/[id]", () => {
-	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: unauth });
+	it("returns 401 in the envelope when unauthenticated", async () => {
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await GET(req(), params());
 		expect(res.status).toBe(401);
+		expect((await res.json()) as any).toEqual({
+			success: false,
+			error: { message: "Unauthorized" },
+		});
 	});
 
 	it("returns 404 when the draft is not found / cross-tenant", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: "o1" });
 		m.selectDraftWithBody.mockResolvedValue(null);
 		const res = await GET(req(), params());
 		expect(res.status).toBe(404);
@@ -55,7 +57,7 @@ describe("GET /api/drafts/[id]", () => {
 	});
 
 	it("returns the draft on success", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: "o1" });
 		m.selectDraftWithBody.mockResolvedValue({ id: "msg_1", status: "draft" });
 		const res = await GET(req(), params());
 		expect(res.status).toBe(200);
@@ -66,34 +68,48 @@ describe("GET /api/drafts/[id]", () => {
 
 describe("PATCH /api/drafts/[id]", () => {
 	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: unauth });
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await PATCH(req({}), params());
 		expect(res.status).toBe(401);
 	});
 
+	it("returns an enveloped 400 for malformed JSON", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		const res = await PATCH(
+			new Request("https://x.test/api/drafts/msg_1", { method: "PATCH", body: "{" }),
+			params(),
+		);
+		expect(res.status).toBe(400);
+		expect((await res.json()) as any).toEqual({
+			success: false,
+			error: { message: "Invalid JSON" },
+		});
+		expect(mock.updates).toHaveLength(0);
+	});
+
 	it("returns 404 when the draft does not exist", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		mock.queueSelect([]); // no draft
 		const res = await PATCH(req({}), params());
 		expect(res.status).toBe(404);
 	});
 
 	it("returns 404 when the draft belongs to another user", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		mock.queueSelect([]);
 		const res = await PATCH(req({}), params());
 		expect(res.status).toBe(404);
 	});
 
 	it("returns 404 when the message is not a draft", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		mock.queueSelect([{ id: "msg_1", userId: "u1", status: "sent" }]);
 		const res = await PATCH(req({}), params());
 		expect(res.status).toBe(404);
 	});
 
 	it("updates draft fields and body, defaulting omitted fields", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		mock.queueSelect([{ id: "msg_1", userId: "u1", status: "draft" }]);
 		const res = await PATCH(req({}), params());
 		expect(res.status).toBe(200);
@@ -108,7 +124,7 @@ describe("PATCH /api/drafts/[id]", () => {
 	});
 
 	it("updates draft with provided field values", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: "o1" });
 		mock.queueSelect([{ id: "msg_1", userId: "u1", status: "draft" }]);
 		m.getMailboxAccess.mockResolvedValue({ role: "responder" });
 		const res = await PATCH(
@@ -136,14 +152,14 @@ describe("PATCH /api/drafts/[id]", () => {
 	});
 
 	it("rejects malformed reply source input before updating", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		const res = await PATCH(req({ replyToMessageId: "" }), params());
 		expect(res.status).toBe(400);
 		expect(mock.updates).toHaveLength(0);
 	});
 
 	it("persists an accessible reply source while updating a draft", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: "o1" });
 		mock
 			.queueSelect([{ id: "msg_1", userId: "u1", status: "draft" }])
 			.queueSelect([{ id: "msg_parent" }]);
@@ -161,7 +177,7 @@ describe("PATCH /api/drafts/[id]", () => {
 	});
 
 	it("rejects an inaccessible reply source while updating a draft", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: "o1" });
 		mock
 			.queueSelect([{ id: "msg_1", userId: "u1", status: "draft" }])
 			.queueSelect([]);
@@ -177,7 +193,7 @@ describe("PATCH /api/drafts/[id]", () => {
 	});
 
 	it("rejects moving a draft into a viewer-only mailbox", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: "o1" });
 		mock.queueSelect([{ id: "msg_1", userId: "u1", status: "draft" }]);
 		m.getMailboxAccess.mockResolvedValue({ role: "viewer" });
 		const res = await PATCH(req({ mailboxId: "mb_1" }), params());
@@ -186,7 +202,7 @@ describe("PATCH /api/drafts/[id]", () => {
 	});
 
 	it("rejects moving a draft into a mailbox without an organization", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: null } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: null });
 		mock.queueSelect([{ id: "msg_1", userId: "u1", status: "draft" }]);
 		const res = await PATCH(req({ mailboxId: "mb_1" }), params());
 		expect(res.status).toBe(404);
@@ -196,34 +212,34 @@ describe("PATCH /api/drafts/[id]", () => {
 
 describe("DELETE /api/drafts/[id]", () => {
 	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: unauth });
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await DELETE(req(), params());
 		expect(res.status).toBe(401);
 	});
 
 	it("returns 404 when the draft does not exist", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		mock.queueSelect([]);
 		const res = await DELETE(req(), params());
 		expect(res.status).toBe(404);
 	});
 
 	it("returns 404 when the draft belongs to another user", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		mock.queueSelect([]);
 		const res = await DELETE(req(), params());
 		expect(res.status).toBe(404);
 	});
 
 	it("returns 404 when the message is not a draft", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		mock.queueSelect([{ id: "msg_1", userId: "u1", status: "sent" }]);
 		const res = await DELETE(req(), params());
 		expect(res.status).toBe(404);
 	});
 
 	it("deletes an existing draft", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		mock.queueSelect([{ id: "msg_1", userId: "u1", status: "draft" }]);
 		const res = await DELETE(req(), params());
 		expect(res.status).toBe(200);

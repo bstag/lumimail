@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
 import { verifyPassword, hashPassword } from "@/lib/auth/password";
-import { guardUser } from "@/lib/auth/cookies";
+import { withUser } from "@/lib/api/handler";
 import { z } from "zod";
 
 const changePasswordSchema = z.object({
@@ -12,11 +11,7 @@ const changePasswordSchema = z.object({
 	newPassword: z.string().min(8),
 });
 
-export async function POST(request: Request) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
-
+export const POST = withUser(async ({ request, env, user }) => {
 	const body = await request.json() as Record<string, unknown>;
 	const parsed = changePasswordSchema.safeParse(body);
 	if (!parsed.success) {
@@ -33,4 +28,4 @@ export async function POST(request: Request) {
 	await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, user.id));
 
 	return NextResponse.json({ ok: true });
-}
+});

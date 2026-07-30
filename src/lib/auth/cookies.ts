@@ -19,15 +19,6 @@ export async function getCurrentUser(env: CloudflareEnv, request?: Request) {
 	return getUserFromSession(env, token);
 }
 
-export async function requireUser(
-	env: CloudflareEnv,
-	request?: Request,
-): Promise<User> {
-	const user = await getCurrentUser(env, request);
-	if (!user) throw new Error("Unauthorized");
-	return user;
-}
-
 type GuardResult = { user: User; errorResponse: null } | { user: null; errorResponse: NextResponse };
 export async function guardUser(env: CloudflareEnv, request?: Request): Promise<GuardResult> {
 	const user = await getCurrentUser(env, request);

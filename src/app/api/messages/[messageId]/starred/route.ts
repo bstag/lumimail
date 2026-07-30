@@ -1,22 +1,19 @@
 import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
-import { getEnv } from "@/lib/cloudflare";
-import { guardUser } from "@/lib/auth/cookies";
+import { z } from "zod";
+import { withUser } from "@/lib/api/handler";
+import { parseJsonBody } from "@/lib/api/response";
 import { getDb } from "@/db";
 import { messages } from "@/db/schema";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
-export async function PATCH(
-	request: Request,
-	{ params }: { params: Promise<{ messageId: string }> },
-) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
+const starredSchema = z.object({ starred: z.boolean() });
 
-	const { messageId } = await params;
-	const body = await request.json() as { starred: boolean };
-	const { starred } = body;
+export const PATCH = withUser<{ messageId: string }>(async ({ request, env, user, params }) => {
+	const { messageId } = params;
+	const { data, errorResponse } = await parseJsonBody(request, starredSchema);
+	if (errorResponse) return errorResponse;
+	const { starred } = data;
 
 	const db = getDb(env);
 	const [updated] = await db
@@ -30,4 +27,4 @@ export async function PATCH(
 	}
 
 	return NextResponse.json({ starred: updated.starred });
-}
+});

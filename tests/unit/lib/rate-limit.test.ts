@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	RateLimitUnavailableError,
+	enforceRateLimit,
 	purgeExpiredRateLimits,
 	rateLimitCheck,
 	rateLimitIp,
@@ -151,6 +152,57 @@ describe("durable rate limits", () => {
 			allowed: true,
 			remaining: 0,
 		});
+	});
+});
+
+describe("enforceRateLimit", () => {
+	const respond = vi.fn(
+		(message: string, status: 429 | 503) =>
+			new Response(JSON.stringify({ error: message }), { status }),
+	);
+	const options = {
+		unavailableLog: "Test rate limit unavailable",
+		limitedMessage: "Too many attempts",
+		respond,
+	};
+
+	it("returns null and builds no response when the request is allowed", async () => {
+		respond.mockClear();
+		const result = await enforceRateLimit(
+			Promise.resolve({ allowed: true, remaining: 1 }),
+			options,
+		);
+		expect(result).toBeNull();
+		expect(respond).not.toHaveBeenCalled();
+	});
+
+	it("answers 429 with the route's message when the counter is exhausted", async () => {
+		respond.mockClear();
+		const result = await enforceRateLimit(
+			Promise.resolve({ allowed: false, remaining: 0 }),
+			options,
+		);
+		expect(result?.status).toBe(429);
+		expect(respond).toHaveBeenCalledWith("Too many attempts", 429);
+	});
+
+	it("fails closed as 503 and logs when the store is unavailable", async () => {
+		respond.mockClear();
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		const result = await enforceRateLimit(
+			Promise.reject(new RateLimitUnavailableError(new Error("down"))),
+			options,
+		);
+		expect(result?.status).toBe(503);
+		expect(respond).toHaveBeenCalledWith("Service temporarily unavailable", 503);
+		expect(errorSpy).toHaveBeenCalledWith("Test rate limit unavailable");
+	});
+
+	it("rethrows unexpected (non-limiter) errors untouched", async () => {
+		respond.mockClear();
+		const failure = new Error("unexpected");
+		await expect(enforceRateLimit(Promise.reject(failure), options)).rejects.toBe(failure);
+		expect(respond).not.toHaveBeenCalled();
 	});
 });
 
