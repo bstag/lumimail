@@ -86,13 +86,19 @@ export default function RoutingPage() {
 
 	const remove = useMutation({
 		mutationFn: async (id: string) => {
-			const rule = rules.data?.rules.find((candidate) => candidate.id === id);
-			if (rule?.pattern === "*" && !confirm("Remove this catch-all and disable unmatched delivery for this domain?")) return;
 			const res = await authFetch(`/api/routing-rules/${id}`, { method: "DELETE" });
 			await readRoutingResponse(res);
 		},
 		onSuccess: () => qc.invalidateQueries({ queryKey: ["routing-rules"] }),
 	});
+
+	// Confirmation must happen before mutate(): a declined confirm inside
+	// mutationFn resolves as success and invalidates caches for a delete that
+	// never ran.
+	const confirmRemove = (rule: RoutingRule) => {
+		if (rule.pattern === "*" && !confirm("Remove this catch-all and disable unmatched delivery for this domain?")) return;
+		remove.mutate(rule.id);
+	};
 
 	const destinations = useQuery({
 		queryKey: ["forwarding-destinations"],
@@ -355,7 +361,7 @@ export default function RoutingPage() {
 										<Button
 											variant="ghost"
 											size="sm"
-											onClick={() => remove.mutate(r.id)}
+											onClick={() => confirmRemove(r)}
 											className="text-danger hover:text-danger"
 											aria-label={`Remove ${r.pattern} rule for ${domainHostname(r.domainId)}`}
 										>
