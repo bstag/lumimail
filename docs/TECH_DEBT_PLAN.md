@@ -23,7 +23,7 @@ schema/tests/config) performed 2026-07-30. This plan supersedes nothing —
 
 ## Precondition (before the branch is cut)
 
-- [ ] **T-00 Land the in-flight F74 work.** The working tree holds the F74
+- [x] **T-00 Land the in-flight F74 work.** The working tree holds the F74
   auth-hardening changes and migration `0027`. Commit and verify them on `main`
   first so the batch contains only debt work.
 
@@ -37,29 +37,29 @@ schema/tests/config) performed 2026-07-30. This plan supersedes nothing —
   reversible flags, and scope denial is tested. Disposition: comment added at
   the `authorize()` site citing F52 so the pattern is not re-flagged as a
   privilege escalation. No behavior change.
-- [ ] **T-02 Declining a routing-rule delete must not report success.**
+- [x] **T-02 Declining a routing-rule delete must not report success.**
   `src/app/(admin)/routing/page.tsx:87` calls `confirm()` inside `mutationFn`;
   Cancel resolves as success and invalidates queries. Move confirmation before
   `mutate()` (interim), replaced by `ConfirmDialog` in T-21. Effort S.
-- [ ] **T-03 Fix the `["domains"]` query-key collision.** `domains/page.tsx`
+- [x] **T-03 Fix the `["domains"]` query-key collision.** `domains/page.tsx`
   (`?includeDns=true`) and `routing`/`mailboxes` pages share one key with two
   payload shapes. Introduce `src/lib/query-keys.ts`; key becomes
   `["domains", { includeDns }]`. Audit `["mailboxes"]` for the same hazard. Effort S.
-- [ ] **T-04 Provider misconfiguration must be retryable, not terminal.**
+- [x] **T-04 Provider misconfiguration must be retryable, not terminal.**
   `selectOutboundProvider` throws plain `Error` inside the consumer's send
   try-block (`src/lib/email/send.ts:605`), so an unknown `MAIL_PROVIDER` or
   missing `RESEND_API_KEY` marks queued jobs `failed`. Wrap config errors as
   `OutboundProviderError` with `retryable: true` (or pre-flight the provider
   outside classification). Update [F54](specs/F54-durable-outbound-delivery.md).
   Effort S.
-- [ ] **T-05 Neutralize the `db:generate` trap.** `drizzle/migrations/meta/_journal.json`
+- [x] **T-05 Neutralize the `db:generate` trap.** `drizzle/migrations/meta/_journal.json`
   stops at 0009 with 4 snapshots against 28 SQL migrations; the documented
   `npm run db:generate` would emit a wrong mega-migration. Decision: **commit to
   hand-written migrations** — delete `meta/`, remove the `db:generate` script,
   update `CLAUDE.md` and `MVP_SCOPE.md` conventions. (Alternative — regenerating
   snapshots — costs more and preserves a workflow nobody has used since 0006.)
   Effort S.
-- [ ] **T-06 Guard or document `/api/setup/domain`.** The unauthenticated POST
+- [x] **T-06 Guard or document `/api/setup/domain`.** The unauthenticated POST
   provisions Cloudflare DNS; only defense is the primary-domain 409. Add an
   explicit first-boot guard (reject when any user exists) plus a comment naming
   the invariant. Effort S.
