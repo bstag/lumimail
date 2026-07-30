@@ -79,7 +79,7 @@ API layer:
 - [x] **T-12 Narrow `guardOrgAdmin` result type** so `organizationId: string`
   (removes 32 `as string`/`!` casts); add a `guardOrgMember` variant for
   non-admin routes that hand-check `user.organizationId` today. Effort S.
-- [ ] **T-13 Small shared helpers:** `enforceRateLimit` (4 copies),
+- [x] **T-13 Small shared helpers:** `enforceRateLimit` (4 copies),
   `setSessionCookie` (register/login literal), `mapSendError`
   (`/api/send` vs `/api/v1/send`), `validateDraftInput` (drafts POST/PATCH ~30
   duplicated lines), `enrichMessagesWithContacts`. Effort S each.
