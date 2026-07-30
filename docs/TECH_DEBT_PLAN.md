@@ -121,14 +121,14 @@ Tests:
 
 UI primitives:
 
-- [ ] **T-21 `ConfirmDialog`** modeled on the api-keys revoke dialog; replace the
+- [x] **T-21 `ConfirmDialog`** modeled on the api-keys revoke dialog; replace the
   5 native `confirm()` calls (completes T-02 properly). Effort S.
-- [ ] **T-22 `apiJson.get/post/patch/delete`** wrapper using `parseApiResponse`
+- [x] **T-22 `apiJson.get/post/patch/delete`** wrapper using `parseApiResponse`
   (kills 35 header/stringify blocks); fold `readRoutingResponse`'s bare-string
   tolerance into `parseApiResponse` and delete it. Global `MutationCache.onError`
   → shared toast so no mutation fails silently (members role change, labels
   delete, bulk actions today). Effort M.
-- [ ] **T-23 `ListSection` / empty-state and `FormField` primitives** to collapse
+- [x] **T-23 `ListSection` / empty-state and `FormField` primitives** to collapse
   the three divergent loading/empty stylings and ~30 label+input triples. Effort S.
 
 Deletions (safe, verified unreferenced):
