@@ -29,6 +29,7 @@ There is no separate backend/frontend split — everything lives in `src/`.
 - **Auth**: Session cookie (`ep_session`) with bcrypt-hashed tokens, 30-day expiry. Server-side: `requireUser()` from `src/lib/auth/cookies.ts`. Client-side: `authFetch` from `src/lib/auth/client.ts`. Also supports Bearer token auth for API keys.
 - **Validation**: All request bodies validated with Zod schemas in `src/lib/validators.ts`.
 - **Cross-tenant isolation**: Every query that reads/writes mailbox, message, domain, or routing data must filter by the authenticated user. New endpoints must have a cross-tenant denial test.
+- **Migrations are hand-written**: add the next numbered `.sql` file in `drizzle/migrations/` (append-only, never edit an applied migration) and update `src/db/schema/index.ts` to match. `tests/unit/db/migrations.test.ts` verifies the SQL produces exact Drizzle-schema parity on fresh and upgraded databases. There is no `drizzle-kit generate` workflow.
 - **i18n**: 11 locales via `next-intl`, RTL support for Arabic. Messages in `src/i18n/messages/`.
 
 ## Commands
@@ -42,7 +43,6 @@ npm run test:watch      # vitest watch
 npm run test:cov        # vitest --coverage (100% gate on included files)
 npm run e2e             # playwright test
 npm run verify          # typecheck + lint + test:cov
-npm run db:generate     # drizzle-kit generate
 npm run db:migrate:local  # wrangler d1 migrations apply --local
 npm run db:migrate:remote # wrangler d1 migrations apply --remote
 ```
