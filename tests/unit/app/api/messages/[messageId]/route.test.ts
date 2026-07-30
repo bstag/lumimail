@@ -6,7 +6,7 @@ const m = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/lib/auth/cookies", () => ({ getCurrentUser: m.getCurrentUser }));
-vi.mock("@/lib/email/inbound", () => ({ getMessageWithBody: m.getMessageWithBody }));
+vi.mock("@/lib/messages/queries", () => ({ getMessageWithBody: m.getMessageWithBody }));
 
 import { GET } from "@/app/api/messages/[messageId]/route";
 

@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { withOrgAdmin } from "@/lib/api/handler";
 import { addDomainSchema } from "@/lib/validators";
-import { addDomainForUser, getDomainDns, listUserDomains } from "@/lib/domains/service";
+import {
+	addDomainForUser,
+	DomainAlreadyRegisteredError,
+	getDomainDns,
+	listUserDomains,
+} from "@/lib/domains/service";
 import { summariseDns, type DnsStatusSummary } from "@/lib/dns-status";
 import { apiSuccess, apiError } from "@/lib/api/response";
 
@@ -41,7 +46,11 @@ export const POST = withOrgAdmin(async ({ request, env, user }) => {
 			enableSending: parsed.data.enableSending,
 		});
 		return apiSuccess(result);
-	} catch {
+	} catch (error) {
+		// Expected conflict: the hostname belongs to another organization (T-38).
+		if (error instanceof DomainAlreadyRegisteredError) {
+			return apiError(error.message, 409);
+		}
 		return apiError("Failed to add domain", 400);
 	}
 });

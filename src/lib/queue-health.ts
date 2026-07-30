@@ -21,11 +21,13 @@ const ATTENTION_AFTER_MS = 2 * 60 * 1000;
 const QUEUED_STALE_AFTER_MS = 2 * 60 * 1000;
 const PROCESSING_STALE_AFTER_MS = 10 * 60 * 1000;
 
-const queueDefinitions: ReadonlyArray<{
+type QueueDefinition = {
 	key: QueueHealthKey;
 	label: string;
 	getBinding: (env: CloudflareEnv) => Queue;
-}> = [
+};
+
+const queueDefinitions: ReadonlyArray<QueueDefinition> = [
 	{ key: "inbound", label: "Inbound mail", getBinding: (env) => env.INBOUND_QUEUE },
 	{ key: "outbound", label: "Outbound mail", getBinding: (env) => env.OUTBOUND_QUEUE },
 	{
@@ -84,10 +86,24 @@ async function countStaleOutboundJobs(
 	}
 }
 
-function publicSnapshot(
-	row: typeof queueHealthSnapshots.$inferSelect,
-	label: string,
-): QueueHealthSnapshot {
+/**
+ * The persisted per-queue health row. Both the freshly computed rows in
+ * `runQueueHealthCheck` and the stored rows read back in
+ * `readQueueHealthSnapshots` satisfy this shape, so `publicSnapshot` needs no
+ * cast from an insert row to a select row (T-37).
+ */
+type QueueHealthRow = {
+	queueKey: QueueHealthKey;
+	status: QueueHealthStatus;
+	backlogCount: number;
+	backlogBytes: number;
+	oldestMessageAt: Date | null;
+	staleJobCount: number;
+	detail: string | null;
+	checkedAt: Date;
+};
+
+function publicSnapshot(row: QueueHealthRow, label: string): QueueHealthSnapshot {
 	return {
 		queue: row.queueKey,
 		label,
@@ -121,43 +137,49 @@ export async function runQueueHealthCheck(
 		})),
 	]);
 
-	const rows: Array<typeof queueHealthSnapshots.$inferInsert> = metricResults.map((result) => {
-		const metrics = result.metrics;
-		const backlogCount = normalizeCount(metrics?.backlogCount ?? 0);
-		const backlogBytes = normalizeCount(metrics?.backlogBytes ?? 0);
-		const oldestMessageAt = backlogCount > 0
-			? normalizeTimestamp(metrics?.oldestMessageTimestamp)
-			: null;
-		const isOutbound = result.definition.key === "outbound";
-		const staleJobCount = isOutbound ? staleJobs.count : 0;
-		const unavailable = result.error || (isOutbound && staleJobs.error);
-		const detail = result.error
-			? "Queue metrics could not be read"
-			: isOutbound && staleJobs.error
-				? "Outbound job state could not be read"
+	// Each computed row stays paired with its queue definition, so the label is
+	// carried alongside the data instead of re-correlated by array index (T-37).
+	const snapshots: Array<{ definition: QueueDefinition; row: QueueHealthRow }> =
+		metricResults.map((result) => {
+			const metrics = result.metrics;
+			const backlogCount = normalizeCount(metrics?.backlogCount ?? 0);
+			const backlogBytes = normalizeCount(metrics?.backlogBytes ?? 0);
+			const oldestMessageAt = backlogCount > 0
+				? normalizeTimestamp(metrics?.oldestMessageTimestamp)
 				: null;
+			const isOutbound = result.definition.key === "outbound";
+			const staleJobCount = isOutbound ? staleJobs.count : 0;
+			const unavailable = result.error || (isOutbound && staleJobs.error);
+			const detail = result.error
+				? "Queue metrics could not be read"
+				: isOutbound && staleJobs.error
+					? "Outbound job state could not be read"
+					: null;
 
-		return {
-			queueKey: result.definition.key,
-			status: unavailable
-				? "unavailable"
-				: classifyQueueHealth(
-					result.definition.key,
+			return {
+				definition: result.definition,
+				row: {
+					queueKey: result.definition.key,
+					status: unavailable
+						? "unavailable" as const
+						: classifyQueueHealth(
+							result.definition.key,
+							backlogCount,
+							oldestMessageAt,
+							staleJobCount,
+							now,
+						),
 					backlogCount,
+					backlogBytes,
 					oldestMessageAt,
 					staleJobCount,
-					now,
-				),
-			backlogCount,
-			backlogBytes,
-			oldestMessageAt,
-			staleJobCount,
-			detail,
-			checkedAt: now,
-		};
-	});
+					detail,
+					checkedAt: now,
+				},
+			};
+		});
 
-	for (const row of rows) {
+	for (const { row } of snapshots) {
 		await db
 			.insert(queueHealthSnapshots)
 			.values(row)
@@ -176,11 +198,7 @@ export async function runQueueHealthCheck(
 			});
 	}
 
-	return rows.map((row, index) =>
-		publicSnapshot(
-			row as typeof queueHealthSnapshots.$inferSelect,
-			queueDefinitions[index].label,
-		));
+	return snapshots.map(({ definition, row }) => publicSnapshot(row, definition.label));
 }
 
 export async function readQueueHealthSnapshots(

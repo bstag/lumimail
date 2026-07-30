@@ -177,6 +177,30 @@ autosave, and automatic forwarding of original attachments.
 
 ## 11. Bug / Change Log
 
+### 2026-07-30 — Outbound module split; send-time authorization is pure DB (T-30/T-31)
+
+Type: Refactor (behavior-preserving except as noted).
+
+Implemented:
+- `src/lib/email/send.ts` (735 lines) is split into `src/lib/email/outbound/`
+  (`authorization.ts`, `snapshot.ts`, `submit.ts`, `consumer.ts`,
+  `recovery.ts`); `send.ts` remains as a re-export barrel so existing imports
+  keep working. The claim/fencing/idempotency logic moved verbatim.
+- The duplicated sender-authorization queries are merged: authorization now
+  returns the mailbox identity row (local part, hostname, display name, org),
+  and the second per-send sender-context query is gone. The canonical
+  formatted From header is derived from that row, as before.
+- **Send no longer provisions Cloudflare Email Routing rules lazily.**
+  `resolveSenderAuthorization` previously called
+  `ensureEmailRoutingRuleToWorker` (a CF list + possible POST) on every send;
+  authorization is now a pure DB check. Rules are provisioned at the creation
+  points, which already existed before this change: mailbox creation
+  (`POST /api/mailboxes`, fails 502 if the rule cannot be created), first-run
+  registration, and alias provisioning (`ensureOwnedEmailRoutingRuleToWorker`).
+  Operational implication: a mailbox whose rule was never created
+  (pre-existing drift) is no longer silently repaired at send time and needs
+  the existing reconcile/re-provisioning paths instead.
+
 ### 2026-07-29 — Editor usability quick wins
 
 Type: Feature / UX.

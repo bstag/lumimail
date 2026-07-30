@@ -92,6 +92,15 @@ verify/enable sending, and remove the Lumimail domain with routing cleanup.
 
 ## 11. Bug / Change Log
 
+### 2026-07-30 — Duplicate-domain conflict is a distinct 409 (T-38)
+
+`POST /api/domains` previously collapsed every `addDomainForUser` failure into
+`400 Failed to add domain`. The expected conflict — the hostname already
+registered to another organization — is now the typed
+`DomainAlreadyRegisteredError` in `src/lib/domains/service.ts` and answers
+`409 Domain is already registered`, distinct from the generic 400 kept for
+Cloudflare provisioning failures. No other error semantics changed.
+
 ### 2026-07-30 — First-boot setup route fails closed once users exist (T-06)
 
 `POST /api/setup/domain` is deliberately unauthenticated (the register page

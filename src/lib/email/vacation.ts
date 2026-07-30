@@ -12,17 +12,9 @@ export const VACATION_REPLY_WINDOW_DAYS = 4;
 
 const WINDOW_MS = VACATION_REPLY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
-/**
- * Headers every Lumimail auto-reply carries.
- *
- * `Auto-Submitted: auto-replied` is the RFC 3834 marker. It is what makes two
- * enabled responders terminate instead of answering each other forever, because
- * our own suppression rules recognise it on the way back in.
- */
-export const AUTO_REPLY_HEADERS: Record<string, string> = {
-	"Auto-Submitted": "auto-replied",
-	"X-Auto-Response-Suppress": "All",
-};
+// Re-exported for existing importers; the constant lives in its own module so
+// the outbound consumer does not need to import the vacation rules (T-32).
+export { AUTO_REPLY_HEADERS } from "@/lib/email/auto-reply";
 
 export type VacationSuppressionReason =
 	| "null_sender"

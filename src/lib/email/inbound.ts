@@ -4,24 +4,15 @@ import {
 	attachments,
 	messageBodies,
 	messages,
-	messageFilters,
-	messageLabels,
-	vacationReplyLog,
-	vacationResponders,
 } from "@/db/schema";
 import { newId } from "@/lib/ids";
-import { buildSnippet, parseRawMime } from "@/lib/email/parse";
+import { buildSnippet, parseRawMime, type ParsedEmail } from "@/lib/email/parse";
 import { resolveInboundTargets, type ResolvedMailbox } from "@/lib/email/routing";
 import { dispatchWebhooks } from "@/lib/email/webhooks";
-import { getMessageContactNames, upsertContactFromAddress } from "@/lib/contacts/service";
+import { upsertContactFromAddress } from "@/lib/contacts/service";
 import { formatEmailAddress, getEmailAddress } from "@/lib/email/address";
-import { messageAccessCondition } from "@/lib/auth/mailbox-access";
-import {
-	isVacationAudienceAllowed,
-	normalizeVacationAddress,
-	shouldSuppressVacationReply,
-	withinVacationReplyWindow,
-} from "@/lib/email/vacation";
+import { applyMessageFilters } from "@/lib/email/message-filters";
+import { maybeVacationRespond } from "@/lib/email/vacation-responder";
 import { prepareInboundAttachments } from "@/lib/email/inbound-attachments";
 import {
 	attachmentKey,
@@ -93,7 +84,7 @@ async function deliverToMailbox(
 	env: CloudflareEnv,
 	db: ReturnType<typeof getDb>,
 	payload: InboundQueueMessage,
-	parsed: Awaited<ReturnType<typeof parseRawMime>>,
+	parsed: ParsedEmail,
 	fromAddr: string,
 	mailbox: ResolvedMailbox,
 ): Promise<void> {
@@ -224,129 +215,15 @@ async function deliverToMailbox(
 		subject: parsed.subject,
 	});
 
-	await maybeVacationRespond(
-		env,
-		mailbox.userId,
+	await maybeVacationRespond(env, {
+		userId: mailbox.userId,
 		fromAddr,
 		toAddr,
-		parsed.subject ?? undefined,
-		payload.headers ?? {},
-		mailbox.organizationId,
-		mailbox.mailboxId,
-	);
-}
-
-async function applyMessageFilters(
-	db: ReturnType<typeof getDb>,
-	userId: string,
-	messageId: string,
-	fromAddr: string,
-	toAddr: string,
-	subject: string | undefined,
-) {
-	const filters = await db
-		.select()
-		.from(messageFilters)
-		.where(eq(messageFilters.userId, userId));
-
-	for (const filter of filters) {
-		if (!filter.enabled) continue;
-
-		const matchesFrom = !filter.fromContains || fromAddr.includes(filter.fromContains);
-		const matchesTo = !filter.toContains || toAddr.includes(filter.toContains);
-		const matchesSubject = !filter.subjectContains || (subject ?? "").includes(filter.subjectContains);
-		const matchesWords = !filter.hasWords || (subject ?? "").includes(filter.hasWords) || fromAddr.includes(filter.hasWords);
-
-		if (!matchesFrom || !matchesTo || !matchesSubject || !matchesWords) continue;
-
-		const updates: Partial<typeof messages.$inferSelect> = {};
-		if (filter.actionStar) updates.starred = true;
-		if (filter.actionMarkRead) updates.read = true;
-		if (filter.actionMoveToTrash) updates.status = "trash";
-		if (filter.actionArchive) updates.status = "archived" as string;
-
-		if (Object.keys(updates).length > 0) {
-			await db.update(messages).set(updates).where(eq(messages.id, messageId));
-		}
-
-		if (filter.actionLabelId) {
-			await db.insert(messageLabels).values({ messageId, labelId: filter.actionLabelId }).onConflictDoNothing();
-		}
-	}
-}
-
-async function maybeVacationRespond(
-	env: CloudflareEnv,
-	userId: string,
-	fromAddr: string,
-	toAddr: string,
-	subject: string | undefined,
-	headers: Record<string, string>,
-	organizationId: string | null,
-	mailboxId: string,
-) {
-	// Header- and sender-based suppression comes first: it decides whether this
-	// message may be answered at all, before any per-correspondent bookkeeping.
-	const suppression = shouldSuppressVacationReply({ fromAddr, toAddr, headers });
-	if (suppression) return;
-
-	const db = getDb(env);
-	const [responder] = await db
-		.select()
-		.from(vacationResponders)
-		.where(eq(vacationResponders.mailboxId, mailboxId))
-		.limit(1);
-
-	if (!responder?.enabled) return;
-
-	const now = new Date();
-	if (responder.startDate && now < responder.startDate) return;
-	if (responder.endDate && now > responder.endDate) return;
-
-	const audienceAllowed = await isVacationAudienceAllowed(db, {
-		userId,
-		organizationId,
-		fromAddr,
-		responder,
+		subject: parsed.subject ?? undefined,
+		headers: payload.headers ?? {},
+		organizationId: mailbox.organizationId,
+		mailboxId: mailbox.mailboxId,
 	});
-	if (!audienceAllowed) return;
-
-	if (await withinVacationReplyWindow(db, mailboxId, fromAddr, now)) return;
-
-	const { sendEmail } = await import("@/lib/email/send");
-	try {
-		await sendEmail(env, {
-			userId,
-			from: toAddr,
-			to: fromAddr,
-			subject: `Re: ${subject ?? ""} — ${responder.subject}`,
-			text: responder.body,
-			autoReply: true,
-		});
-	} catch {
-		// vacation reply is best-effort
-		return;
-	}
-
-	// Recorded only after a successful send, so a failed reply does not consume the
-	// correspondent's window. A failure here means one possible duplicate later,
-	// which is preferable to failing inbound delivery.
-	try {
-		await db
-			.insert(vacationReplyLog)
-			.values({
-				id: newId("vrl"),
-				mailboxId,
-				senderAddress: normalizeVacationAddress(fromAddr),
-				lastRepliedAt: now,
-			})
-			.onConflictDoUpdate({
-				target: [vacationReplyLog.mailboxId, vacationReplyLog.senderAddress],
-				set: { lastRepliedAt: now },
-			});
-	} catch {
-		console.warn("Vacation reply log could not be updated");
-	}
 }
 
 export async function storeRawToR2(
@@ -362,31 +239,4 @@ export async function storeRawToR2(
 		customMetadata: { from, to },
 	});
 	return key;
-}
-
-export async function getMessageWithBody(
-	env: CloudflareEnv,
-	userId: string,
-	organizationId: string | null,
-	messageId: string,
-	mailboxId?: string,
-) {
-	const db = getDb(env);
-	const [message] = await db
-		.select()
-		.from(messages)
-		.where(and(
-			eq(messages.id, messageId),
-			...(mailboxId ? [eq(messages.mailboxId, mailboxId)] : []),
-			messageAccessCondition(db, userId, organizationId, "read"),
-		))
-		.limit(1);
-	if (!message) return null;
-	const [body] = await db
-		.select()
-		.from(messageBodies)
-		.where(eq(messageBodies.messageId, messageId))
-		.limit(1);
-	const contactNames = await getMessageContactNames(env, userId, message.fromAddr, message.toAddr);
-	return { message: { ...message, ...contactNames }, body };
 }

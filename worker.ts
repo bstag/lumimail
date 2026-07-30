@@ -8,7 +8,7 @@ import {
 import {
 	processOutboundDeadLetter,
 	processOutboundQueue,
-} from "./src/lib/email/send";
+} from "./src/lib/email/outbound/consumer";
 import {
 	isInboundQueueMessage,
 	isOutboundDeadLetterQueue,

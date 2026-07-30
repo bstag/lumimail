@@ -2,7 +2,7 @@ import { z } from "zod";
 import { apiError, apiSuccess } from "@/lib/api/response";
 import { authenticateApiKey, requireScope } from "@/lib/api/auth";
 import { getEnv } from "@/lib/cloudflare";
-import { getMessageWithBody } from "@/lib/email/inbound";
+import { getMessageWithBody } from "@/lib/messages/queries";
 import { updateMessageForImap } from "@/lib/email/imap-state";
 
 type MessageRouteParams = {

@@ -25,6 +25,7 @@ vi.mock("@/lib/domains/provision", () => ({
 
 import {
 	addDomainForUser,
+	DomainAlreadyRegisteredError,
 	getDomainDns,
 	getDomainForUser,
 	listUserDomains,
@@ -84,13 +85,13 @@ describe("addDomainForUser", () => {
 		routingStatus: "ready",
 	};
 
-	it("throws when the domain belongs to a different organization", async () => {
+	it("throws the typed conflict error when the domain belongs to a different organization", async () => {
 		provisionMock.mockResolvedValue(baseProvisioned);
 		mock.queueSelect([{ id: "dom_x", organizationId: "other-org", hostname: "mail.example.com" }]);
 
-		await expect(addDomainForUser(env, "u1", "org1", "mail.example.com")).rejects.toThrow(
-			"Domain is already registered",
-		);
+		const failure = addDomainForUser(env, "u1", "org1", "mail.example.com");
+		await expect(failure).rejects.toBeInstanceOf(DomainAlreadyRegisteredError);
+		await expect(failure).rejects.toThrow("Domain is already registered");
 	});
 
 	it("inserts a new domain (active status) when none exists and reads it back with DNS", async () => {

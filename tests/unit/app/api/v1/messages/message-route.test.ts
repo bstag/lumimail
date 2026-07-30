@@ -12,7 +12,7 @@ vi.mock("@/lib/api/auth", () => ({
 	authenticateApiKey: m.authenticateApiKey,
 	requireScope: m.requireScope,
 }));
-vi.mock("@/lib/email/inbound", () => ({ getMessageWithBody: m.getMessageWithBody }));
+vi.mock("@/lib/messages/queries", () => ({ getMessageWithBody: m.getMessageWithBody }));
 vi.mock("@/lib/email/imap-state", () => ({ updateMessageForImap: m.updateMessageForImap }));
 
 import { GET, PATCH } from "@/app/api/v1/messages/[messageId]/route";

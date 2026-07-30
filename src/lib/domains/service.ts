@@ -14,6 +14,18 @@ import {
 import { deleteEmailRoutingRulesForDomain } from "@/lib/domains/cloudflare-cleanup";
 import { provisionDomainOnCloudflare } from "@/lib/domains/provision";
 
+/**
+ * A domain hostname is already claimed by a different organization. Kept as a
+ * typed error (T-38) so the API boundary can answer 409 for the expected
+ * conflict instead of collapsing it into the generic provisioning failure.
+ */
+export class DomainAlreadyRegisteredError extends Error {
+	constructor() {
+		super("Domain is already registered");
+		this.name = "DomainAlreadyRegisteredError";
+	}
+}
+
 export type DomainDnsView = {
 	routing: { records: CfDnsRecord[]; missing: CfDnsRecord[]; status?: string };
 	sending: { enabled: boolean; records: CfDnsRecord[] };
@@ -36,7 +48,7 @@ export async function addDomainForUser(
 	const db = getDb(env);
 	const [existing] = await db.select().from(domains).where(eq(domains.hostname, provisioned.hostname)).limit(1);
 	if (existing && existing.organizationId !== organizationId) {
-		throw new Error("Domain is already registered");
+		throw new DomainAlreadyRegisteredError();
 	}
 
 	const domainId = existing?.id ?? newId("dom");

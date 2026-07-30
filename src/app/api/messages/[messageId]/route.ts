@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { withUser } from "@/lib/api/handler";
-import { getMessageWithBody } from "@/lib/email/inbound";
+import { getMessageWithBody } from "@/lib/messages/queries";
 
 export const GET = withUser<{ messageId: string }>(async ({ env, user, params }) => {
 	const { messageId } = params;

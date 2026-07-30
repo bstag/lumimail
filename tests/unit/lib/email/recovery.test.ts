@@ -5,7 +5,6 @@ const h = vi.hoisted(() => ({ db: null as unknown }));
 vi.mock("@/db", () => ({ getDb: () => h.db }));
 vi.mock("@/lib/email/providers", () => ({ selectOutboundProvider: vi.fn() }));
 vi.mock("@/lib/email/webhooks", () => ({ dispatchWebhooks: vi.fn() }));
-vi.mock("@/lib/cloudflare-api", () => ({ ensureEmailRoutingRuleToWorker: vi.fn() }));
 vi.mock("@/lib/contacts/service", () => ({ upsertContactFromAddress: vi.fn() }));
 vi.mock("@/lib/email/parse", () => ({ buildSnippet: vi.fn(() => "snippet") }));
 vi.mock("@/lib/ids", () => ({ newId: vi.fn((p?: string) => (p ? `${p}_id` : "raw_id")) }));
