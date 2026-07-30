@@ -13,11 +13,11 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ListSection } from "@/components/ui/list-section";
 import { domainKeys, mailboxKeys } from "@/lib/query-keys";
-import { authFetch } from "@/lib/auth/client";
-import { parseApiResponse } from "@/lib/api/client-response";
+import { apiJson } from "@/lib/api/client-response";
 import type { Domain, Mailbox } from "./types";
 import { getMailboxAddress, getMailboxName } from "./utils";
 import { Select } from "@/components/ui/select";
@@ -30,32 +30,25 @@ export default function MailboxesPage() {
 
 	const domains = useQuery({
 		queryKey: domainKeys.list({ includeDns: false }),
-		queryFn: async () => {
-			const res = await authFetch("/api/domains");
-			return (await res.json()) as { domains: Domain[] };
-		},
+		queryFn: () => apiJson.get<{ domains: Domain[] }>("/api/domains"),
 	});
 
 	const mailboxes = useQuery({
 		queryKey: mailboxKeys.admin,
-		queryFn: async () => {
-			const res = await authFetch("/api/admin/mailboxes");
-			return (await res.json()) as {
+		queryFn: () =>
+			apiJson.get<{
 				mailboxes: Mailbox[];
 				canSelfAssign: boolean;
 				currentUserId: string;
-			};
-		},
+			}>("/api/admin/mailboxes"),
 	});
 
 	const claimAccess = useMutation({
 		mutationFn: async (mailboxId: string) => {
-			const res = await authFetch(`/api/mailboxes/${mailboxId}/members`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ userId: mailboxes.data?.currentUserId, role: "manager" }),
+			await apiJson.post<{ id: string }>(`/api/mailboxes/${mailboxId}/members`, {
+				userId: mailboxes.data?.currentUserId,
+				role: "manager",
 			});
-			await parseApiResponse<{ id: string }>(res);
 		},
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: mailboxKeys.admin });
@@ -65,15 +58,15 @@ export default function MailboxesPage() {
 
 	const create = useMutation({
 		mutationFn: async () => {
-			const res = await authFetch("/api/mailboxes", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ domainId, localPart, displayName: localPart }),
+			await apiJson.post<{ id: string; address: string }>("/api/mailboxes", {
+				domainId,
+				localPart,
+				displayName: localPart,
 			});
-			await parseApiResponse<{ id: string; address: string }>(res);
 			setLocalPart("");
 			setDomainId("");
 		},
+		meta: { suppressErrorToast: true },
 		onSuccess: () => {
 			setCreateOpen(false);
 			qc.invalidateQueries({ queryKey: mailboxKeys.admin });
@@ -102,8 +95,7 @@ export default function MailboxesPage() {
 							<DialogDescription>Add a mailbox and provision its routing rule automatically.</DialogDescription>
 						</DialogHeader>
 						<div className="space-y-4">
-							<div className="space-y-2">
-								<Label>Domain</Label>
+							<FormField label="Domain">
 								<Select
 									value={domainId}
 									onChange={(event) => setDomainId(event.target.value)}
@@ -115,9 +107,8 @@ export default function MailboxesPage() {
 										</option>
 									))}
 								</Select>
-							</div>
-							<div className="space-y-2 relative">
-								<Label>Username</Label>
+							</FormField>
+							<FormField label="Username" className="relative">
 								<Input
 									value={localPart}
 									onChange={(event) => setLocalPart(event.target.value)}
@@ -128,7 +119,7 @@ export default function MailboxesPage() {
 										@{domainMap.get(domainId)}
 									</span>
 								)}
-							</div>
+							</FormField>
 							{create.isError && (
 								<p className="text-sm text-danger">{(create.error as Error).message}</p>
 							)}
@@ -143,16 +134,13 @@ export default function MailboxesPage() {
 				</Dialog>
 			</div>
 			<section className="space-y-3">
-				{mailboxes.isLoading && (
-					<p className="rounded-lg border border-border bg-surface-raised px-4 py-3 text-sm text-ink-muted">
-						Loading mailboxes...
-					</p>
-				)}
-				{!mailboxes.isLoading && (mailboxes.data?.mailboxes ?? []).length === 0 && (
-					<p className="rounded-lg border border-border bg-surface-raised px-4 py-3 text-sm text-ink-muted">
-						No mailboxes yet
-					</p>
-				)}
+				<ListSection
+					loading={mailboxes.isLoading}
+					loadingLabel="Loading mailboxes..."
+					empty={(mailboxes.data?.mailboxes ?? []).length === 0}
+					emptyLabel="No mailboxes yet"
+					emptyIcon={Mail}
+				>
 				<div className="grid gap-3 md:grid-cols-2">
 					{(mailboxes.data?.mailboxes ?? []).map((mailbox) => {
 						const mailboxWithHostname = {
@@ -201,6 +189,7 @@ export default function MailboxesPage() {
 						);
 					})}
 				</div>
+				</ListSection>
 			</section>
 		</div>
 	);

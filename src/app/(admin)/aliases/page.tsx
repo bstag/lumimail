@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Trash2, ArrowRight, Users } from "lucide-react";
-import { authFetch } from "@/lib/auth/client";
-import { parseApiResponse } from "@/lib/api/client-response";
+import { Plus, Trash2, ArrowRight, Users, AtSign } from "lucide-react";
+import { apiJson } from "@/lib/api/client-response";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ListSection } from "@/components/ui/list-section";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/ui/page-header";
@@ -53,27 +54,27 @@ export default function AliasesPage() {
 	const [groupEdits, setGroupEdits] = useState<Record<string, string[]>>({});
 	const [creating, setCreating] = useState(false);
 	const [savingGroupId, setSavingGroupId] = useState<string | null>(null);
+	const [removeTarget, setRemoveTarget] = useState<AliasRow | null>(null);
 
 	const load = useCallback(async () => {
-		const [aRes, dRes, mRes] = await Promise.all([
-			authFetch("/api/aliases"),
-			authFetch("/api/domains"),
-			authFetch("/api/admin/mailboxes"),
-		]);
-		const aJson = (await aRes.json()) as { success: boolean; data?: { aliases: AliasRow[] } };
-		const dJson = (await dRes.json()) as { domains: Domain[] };
-		const mJson = (await mRes.json()) as { mailboxes: Mailbox[] };
-		if (aJson.success) {
-			const nextAliases = aJson.data?.aliases ?? [];
+		try {
+			const [aliasData, domainData, mailboxData] = await Promise.all([
+				apiJson.get<{ aliases: AliasRow[] }>("/api/aliases"),
+				apiJson.get<{ domains: Domain[] }>("/api/domains"),
+				apiJson.get<{ mailboxes: Mailbox[] }>("/api/admin/mailboxes"),
+			]);
+			const nextAliases = aliasData.aliases ?? [];
 			setAliases(nextAliases);
 			setGroupEdits(Object.fromEntries(
 				nextAliases
 					.filter((alias) => alias.isGroup)
 					.map((alias) => [alias.id, alias.members.map((member) => member.mailboxId)]),
 			));
+			setDomains(domainData.domains ?? []);
+			setMailboxes(mailboxData.mailboxes ?? []);
+		} catch (requestError) {
+			setError(requestError instanceof Error ? requestError.message : "Failed to load aliases");
 		}
-		setDomains(dJson.domains ?? []);
-		setMailboxes(mJson.mailboxes ?? []);
 		setLoading(false);
 	}, []);
 
@@ -88,13 +89,8 @@ export default function AliasesPage() {
 		const body = kind === "mailbox"
 			? { kind, domainId, localPart, targetMailboxId }
 			: { kind, domainId, localPart, mailboxIds: groupMailboxIds };
-		const res = await authFetch("/api/aliases", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(body),
-		});
 		try {
-			await parseApiResponse(res);
+			await apiJson.post("/api/aliases", body);
 			setLocalPart("");
 			setTargetMailboxId("");
 			setGroupMailboxIds([]);
@@ -123,13 +119,8 @@ export default function AliasesPage() {
 		}
 		setSavingGroupId(aliasId);
 		setError(null);
-		const res = await authFetch(`/api/aliases/${aliasId}`, {
-			method: "PATCH",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ mailboxIds }),
-		});
 		try {
-			await parseApiResponse(res);
+			await apiJson.patch(`/api/aliases/${aliasId}`, { mailboxIds });
 			await load();
 		} catch (requestError) {
 			setError(requestError instanceof Error ? requestError.message : "Failed to update group");
@@ -138,11 +129,9 @@ export default function AliasesPage() {
 	}
 
 	async function remove(id: string) {
-		if (!confirm("Delete this alias?")) return;
 		setError(null);
-		const res = await authFetch(`/api/aliases/${id}`, { method: "DELETE" });
 		try {
-			await parseApiResponse(res);
+			await apiJson.delete(`/api/aliases/${id}`);
 			await load();
 		} catch (requestError) {
 			setError(requestError instanceof Error ? requestError.message : "Failed to delete alias");
@@ -165,13 +154,31 @@ export default function AliasesPage() {
 
 			{error && <p className="text-sm text-danger">{error}</p>}
 
+			<ConfirmDialog
+				open={removeTarget !== null}
+				onOpenChange={(open) => {
+					if (!open) setRemoveTarget(null);
+				}}
+				title="Delete alias?"
+				description={
+					removeTarget
+						? `${removeTarget.localPart}@${removeTarget.domainHostname} will stop receiving mail immediately.`
+						: ""
+				}
+				confirmLabel="Delete alias"
+				danger
+				onConfirm={() => {
+					if (removeTarget) void remove(removeTarget.id);
+					setRemoveTarget(null);
+				}}
+			/>
+
 			<Card>
 				<CardHeader>
 					<CardTitle>Create alias</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<div className="space-y-2">
-						<Label htmlFor="alias-type">Alias type</Label>
+					<FormField label="Alias type" htmlFor="alias-type">
 						<Select
 							id="alias-type"
 							value={kind}
@@ -180,19 +187,17 @@ export default function AliasesPage() {
 							<option value="mailbox">Mailbox alias</option>
 							<option value="group">Group alias</option>
 						</Select>
-					</div>
+					</FormField>
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-						<div className="space-y-2">
-							<Label htmlFor="alias-local-part">Local part</Label>
+						<FormField label="Local part" htmlFor="alias-local-part">
 							<Input
 								id="alias-local-part"
 								placeholder="support"
 								value={localPart}
 								onChange={(e) => setLocalPart(e.target.value)}
 							/>
-						</div>
-						<div className="space-y-2">
-							<Label htmlFor="alias-domain">Domain</Label>
+						</FormField>
+						<FormField label="Domain" htmlFor="alias-domain">
 							<Select
 								id="alias-domain"
 								value={domainId}
@@ -203,11 +208,10 @@ export default function AliasesPage() {
 									<option key={d.id} value={d.id}>{d.hostname}</option>
 								))}
 							</Select>
-						</div>
+						</FormField>
 					</div>
 					{kind === "mailbox" ? (
-						<div className="space-y-2">
-							<Label htmlFor="alias-target">Deliver to mailbox</Label>
+						<FormField label="Deliver to mailbox" htmlFor="alias-target">
 							<Select
 								id="alias-target"
 								value={targetMailboxId}
@@ -221,7 +225,7 @@ export default function AliasesPage() {
 									</option>
 								))}
 							</Select>
-						</div>
+						</FormField>
 					) : (
 						<MailboxChecklist
 							mailboxes={mailboxes}
@@ -254,9 +258,13 @@ export default function AliasesPage() {
 					<CardTitle>Active aliases</CardTitle>
 				</CardHeader>
 				<CardContent>
-					{aliases.length === 0 ? (
-						<p className="text-sm text-ink-faint">No aliases yet.</p>
-					) : (
+					<ListSection
+						loading={false}
+						loadingLabel="Loading aliases..."
+						empty={aliases.length === 0}
+						emptyLabel="No aliases yet."
+						emptyIcon={AtSign}
+					>
 						<ul className="divide-y divide-border">
 							{aliases.map((a) => (
 								<li key={a.id} className="space-y-3 py-4">
@@ -277,7 +285,7 @@ export default function AliasesPage() {
 										<Button
 											variant="ghost"
 											size="sm"
-											onClick={() => remove(a.id)}
+											onClick={() => setRemoveTarget(a)}
 											className="text-danger hover:text-danger"
 											aria-label={`Delete ${a.localPart}@${a.domainHostname}`}
 										>
@@ -316,7 +324,7 @@ export default function AliasesPage() {
 								</li>
 							))}
 						</ul>
-					)}
+					</ListSection>
 				</CardContent>
 			</Card>
 		</div>

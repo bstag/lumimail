@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Mail, Clock, Plus, X } from "lucide-react";
-import { authFetch } from "@/lib/auth/client";
+import { apiJson } from "@/lib/api/client-response";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { InviteMemberDialog } from "@/components/admin/invite-member-dialog";
 import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/ui/page-header";
@@ -37,19 +38,17 @@ export default function MembersPage() {
   const [loading, setLoading] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
 
   const fetchMembers = useCallback(async () => {
-    const res = await authFetch("/api/org/members");
-    const json = (await res.json()) as {
-      success: boolean;
-      data?: { members?: Member[]; invites?: Invite[] };
-      error?: { message: string };
-    };
-    if (json.success) {
-      setMembers(json.data?.members ?? []);
-      setInvites(json.data?.invites ?? []);
-    } else {
-      setError(json.error?.message ?? "Failed to load members");
+    try {
+      const data = await apiJson.get<{ members?: Member[]; invites?: Invite[] }>(
+        "/api/org/members",
+      );
+      setMembers(data.members ?? []);
+      setInvites(data.invites ?? []);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to load members");
     }
     setLoading(false);
   }, []);
@@ -59,18 +58,23 @@ export default function MembersPage() {
   }, [fetchMembers]);
 
   async function changeRole(memberId: string, newRole: string) {
-    const res = await authFetch(`/api/org/members/${memberId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: newRole }),
-    });
-    if (res.ok) void fetchMembers();
+    setError(null);
+    try {
+      await apiJson.patch(`/api/org/members/${memberId}`, { role: newRole });
+      void fetchMembers();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to change role");
+    }
   }
 
   async function removeMember(memberId: string) {
-    if (!confirm("Remove this member from the workspace?")) return;
-    const res = await authFetch(`/api/org/members/${memberId}`, { method: "DELETE" });
-    if (res.ok) void fetchMembers();
+    setError(null);
+    try {
+      await apiJson.delete(`/api/org/members/${memberId}`);
+      void fetchMembers();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to remove member");
+    }
   }
 
   if (loading) {
@@ -99,6 +103,25 @@ export default function MembersPage() {
         <p className="rounded-lg border border-danger/30 bg-danger-muted px-4 py-3 text-sm text-danger">{error}</p>
       )}
 
+      <ConfirmDialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRemoveTarget(null);
+        }}
+        title="Remove member?"
+        description={
+          removeTarget
+            ? `${removeTarget.email} will lose access to this workspace immediately.`
+            : ""
+        }
+        confirmLabel="Remove member"
+        danger
+        onConfirm={() => {
+          if (removeTarget) void removeMember(removeTarget.id);
+          setRemoveTarget(null);
+        }}
+      />
+
       <div className="space-y-2">
         {members.map((member) => (
           <div
@@ -122,7 +145,9 @@ export default function MembersPage() {
               ) : (
                 <Select
                   value={member.role}
-                  onChange={(e) => changeRole(member.id, e.target.value)}
+                  onChange={(e) => {
+                    void changeRole(member.id, e.target.value);
+                  }}
                   size="sm" className="w-auto"
                 >
                   <option value="admin">Admin</option>
@@ -132,7 +157,7 @@ export default function MembersPage() {
               {member.role !== "owner" && (
                 <button
                   type="button"
-                  onClick={() => removeMember(member.id)}
+                  onClick={() => setRemoveTarget(member)}
                   className="text-ink-faint hover:text-danger"
                   title="Remove member"
                 >

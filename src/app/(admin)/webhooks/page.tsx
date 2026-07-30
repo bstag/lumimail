@@ -2,37 +2,30 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Webhook } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { authFetch } from "@/lib/auth/client";
+import { ListSection } from "@/components/ui/list-section";
+import { apiJson } from "@/lib/api/client-response";
 
 export default function WebhooksPage() {
 	const qc = useQueryClient();
 	const [url, setUrl] = useState("");
 	const [secret, setSecret] = useState<string | null>(null);
 
-	const { data } = useQuery({
+	const { data, isLoading } = useQuery({
 		queryKey: ["webhooks"],
-		queryFn: async () => {
-			const res = await authFetch("/api/webhooks");
-			return (await res.json()) as { webhooks: { id: string; url: string }[] };
-		},
+		queryFn: () => apiJson.get<{ webhooks: { id: string; url: string }[] }>("/api/webhooks"),
 	});
 
 	const create = useMutation({
 		mutationFn: async () => {
-			const res = await authFetch("/api/webhooks", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					url,
-					events: ["message.inbound", "message.outbound", "message.failed"],
-				}),
+			const json = await apiJson.post<{ secret?: string }>("/api/webhooks", {
+				url,
+				events: ["message.inbound", "message.outbound", "message.failed"],
 			});
-			const json = (await res.json()) as { secret?: string };
-			if (!res.ok) throw new Error("Failed");
 			setSecret(json.secret ?? null);
 			setUrl("");
 		},
@@ -55,10 +48,9 @@ export default function WebhooksPage() {
 					<CardTitle>Add webhook</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<div className="space-y-2">
-						<Label>URL</Label>
-						<Input value={url} onChange={(e) => setUrl(e.target.value)} />
-					</div>
+					<FormField label="URL" htmlFor="webhook-url">
+						<Input id="webhook-url" value={url} onChange={(e) => setUrl(e.target.value)} />
+					</FormField>
 					<Button onClick={() => create.mutate()} disabled={!url || create.isPending}>
 						Add
 					</Button>
@@ -68,12 +60,22 @@ export default function WebhooksPage() {
 				<CardHeader>
 					<CardTitle>Endpoints</CardTitle>
 				</CardHeader>
-				<CardContent className="text-sm font-mono space-y-1">
-					{(data?.webhooks ?? []).map((w) => (
-						<p key={w.id} className="truncate">
-							{w.url}
-						</p>
-					))}
+				<CardContent>
+					<ListSection
+						loading={isLoading}
+						loadingLabel="Loading webhooks..."
+						empty={(data?.webhooks ?? []).length === 0}
+						emptyLabel="No webhooks yet."
+						emptyIcon={Webhook}
+					>
+						<div className="text-sm font-mono space-y-1">
+							{(data?.webhooks ?? []).map((w) => (
+								<p key={w.id} className="truncate">
+									{w.url}
+								</p>
+							))}
+						</div>
+					</ListSection>
 				</CardContent>
 			</Card>
 		</div>

@@ -68,12 +68,14 @@ test.describe("domain catch-all routing", () => {
 			] } } });
 		});
 
-		page.on("dialog", (dialog) => dialog.dismiss());
 		await page.goto("/routing");
 		await expect(page.getByRole("listitem").getByText("*", { exact: true })).toBeVisible();
 		const listCountAfterLoad = listCount;
 
 		await page.getByRole("button", { name: "Remove * rule for lucidkith.com" }).click();
+		await expect(page.getByRole("dialog").getByText("Remove catch-all rule?")).toBeVisible();
+		await page.getByRole("button", { name: "Cancel" }).click();
+		await expect(page.getByRole("dialog")).toBeHidden();
 		// Declining must leave the mutation un-run: no DELETE, and no
 		// success-driven cache invalidation refetching the list.
 		await page.waitForTimeout(500);
@@ -100,11 +102,11 @@ test.describe("domain catch-all routing", () => {
 			] } } });
 		});
 
-		page.on("dialog", (dialog) => dialog.accept());
 		await page.goto("/routing");
 		await expect(page.getByRole("listitem").getByText("*", { exact: true })).toBeVisible();
 
 		await page.getByRole("button", { name: "Remove * rule for lucidkith.com" }).click();
+		await page.getByRole("button", { name: "Remove rule" }).click();
 		await expect.poll(() => deleted).toBe(true);
 		await expect(page.getByText("No routing rules yet.")).toBeVisible();
 	});

@@ -15,8 +15,9 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
 	addMailboxMember,
 	deleteMailbox,
@@ -27,7 +28,7 @@ import {
 	updateMailboxMemberRole,
 	updateMailboxName,
 } from "./utils";
-import type { MailboxRole } from "./types";
+import type { MailboxMember, MailboxRole } from "./types";
 import { Select } from "@/components/ui/select";
 
 export default function MailboxSettingsPage() {
@@ -39,6 +40,7 @@ export default function MailboxSettingsPage() {
 	const [deleteConfirmation, setDeleteConfirmation] = useState("");
 	const [newMemberId, setNewMemberId] = useState("");
 	const [newMemberRole, setNewMemberRole] = useState<MailboxRole>("responder");
+	const [removeMemberTarget, setRemoveMemberTarget] = useState<MailboxMember | null>(null);
 
 	const mailbox = useQuery({
 		queryKey: ["mailbox", mailboxId],
@@ -52,6 +54,7 @@ export default function MailboxSettingsPage() {
 
 	const updateName = useMutation({
 		mutationFn: () => updateMailboxName(mailboxId, displayName),
+		meta: { suppressErrorToast: true },
 		onSuccess: (updatedMailbox) => {
 			qc.setQueryData(["mailbox", mailboxId], updatedMailbox);
 			qc.invalidateQueries({ queryKey: mailboxKeys.user });
@@ -61,6 +64,7 @@ export default function MailboxSettingsPage() {
 
 	const removeMailbox = useMutation({
 		mutationFn: () => deleteMailbox(mailboxId, deleteConfirmation),
+		meta: { suppressErrorToast: true },
 		onSuccess: () => {
 			qc.removeQueries({ queryKey: ["mailbox", mailboxId] });
 			qc.invalidateQueries({ queryKey: mailboxKeys.user });
@@ -77,6 +81,7 @@ export default function MailboxSettingsPage() {
 
 	const addMember = useMutation({
 		mutationFn: () => addMailboxMember(mailboxId, newMemberId, newMemberRole),
+		meta: { suppressErrorToast: true },
 		onSuccess: () => {
 			setNewMemberId("");
 			qc.invalidateQueries({ queryKey: ["mailbox-members", mailboxId] });
@@ -86,15 +91,35 @@ export default function MailboxSettingsPage() {
 	const changeMemberRole = useMutation({
 		mutationFn: ({ membershipId, role }: { membershipId: string; role: MailboxRole }) =>
 			updateMailboxMemberRole(mailboxId, membershipId, role),
+		meta: { suppressErrorToast: true },
 		onSuccess: () => qc.invalidateQueries({ queryKey: ["mailbox-members", mailboxId] }),
 	});
 
 	const removeMember = useMutation({
 		mutationFn: (membershipId: string) => removeMailboxMember(mailboxId, membershipId),
+		meta: { suppressErrorToast: true },
 		onSuccess: () => qc.invalidateQueries({ queryKey: ["mailbox-members", mailboxId] }),
 	});
 
 	const address = mailbox.data ? getMailboxAddress(mailbox.data) : "";
+	const memberRemovalDialog = (
+		<ConfirmDialog
+			open={removeMemberTarget !== null}
+			onOpenChange={(open) => {
+				if (!open) setRemoveMemberTarget(null);
+			}}
+			title="Remove mailbox access?"
+			description={
+				removeMemberTarget ? `Remove ${removeMemberTarget.email} from this mailbox?` : ""
+			}
+			confirmLabel="Remove access"
+			danger
+			onConfirm={() => {
+				if (removeMemberTarget) removeMember.mutate(removeMemberTarget.id);
+				setRemoveMemberTarget(null);
+			}}
+		/>
+	);
 	const assignedUserIds = new Set((members.data?.members ?? []).map((member) => member.userId));
 	const availableMembers = (members.data?.workspaceMembers ?? []).filter(
 		(member) => !assignedUserIds.has(member.userId),
@@ -102,6 +127,7 @@ export default function MailboxSettingsPage() {
 
 	return (
 		<div className="space-y-6">
+			{memberRemovalDialog}
 			<div className="flex items-center gap-3">
 				<Button asChild variant="ghost" size="sm">
 					<Link href="/mailboxes">
@@ -137,8 +163,7 @@ export default function MailboxSettingsPage() {
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<div className="space-y-2">
-						<Label htmlFor="displayName">Name</Label>
+					<FormField label="Name" htmlFor="displayName">
 						<Input
 							id="displayName"
 							value={displayName}
@@ -146,7 +171,7 @@ export default function MailboxSettingsPage() {
 							placeholder={mailbox.data?.localPart ?? "Mailbox name"}
 							disabled={mailbox.isLoading || updateName.isPending}
 						/>
-					</div>
+					</FormField>
 					{updateName.isError && (
 						<p className="text-sm text-danger">
 							{updateName.error instanceof Error
@@ -227,9 +252,7 @@ export default function MailboxSettingsPage() {
 										<Button
 											variant="ghost"
 											size="sm"
-											onClick={() => {
-												if (confirm(`Remove ${member.email} from this mailbox?`)) removeMember.mutate(member.id);
-											}}
+											onClick={() => setRemoveMemberTarget(member)}
 											aria-label={`Remove ${member.email}`}
 										>
 											<X className="h-4 w-4" />
@@ -285,8 +308,7 @@ export default function MailboxSettingsPage() {
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<div className="space-y-2">
-						<Label htmlFor="deleteConfirmation">Confirm mailbox address</Label>
+					<FormField label="Confirm mailbox address" htmlFor="deleteConfirmation">
 						<Input
 							id="deleteConfirmation"
 							value={deleteConfirmation}
@@ -294,7 +316,7 @@ export default function MailboxSettingsPage() {
 							placeholder={address}
 							autoComplete="off"
 						/>
-					</div>
+					</FormField>
 					{removeMailbox.isError && (
 						<p className="text-sm text-danger">
 							{removeMailbox.error instanceof Error

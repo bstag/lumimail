@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { Plus, Tag, X } from "lucide-react";
-import { authFetch } from "@/lib/auth/client";
-import { parseApiResponse } from "@/lib/api/client-response";
+import { apiJson } from "@/lib/api/client-response";
 import { labelKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
+import { ListSection } from "@/components/ui/list-section";
 
 type Label = {
 	id: string;
@@ -28,9 +28,9 @@ const PRESET_COLORS = [
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 async function fetchLabels(): Promise<Label[]> {
-	const res = await authFetch("/api/labels");
-	const json = (await res.json()) as { success: boolean; data?: Label[] };
-	return json.data ?? [];
+	// Tolerates the legacy `{ labels: [] }` shape some clients still mock.
+	const data = await apiJson.get<unknown>("/api/labels");
+	return Array.isArray(data) ? (data as Label[]) : [];
 }
 
 export default function LabelsPage() {
@@ -46,12 +46,7 @@ export default function LabelsPage() {
 
 	const createMutation = useMutation({
 		mutationFn: async () => {
-			const res = await authFetch("/api/labels", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: name.trim(), color }),
-			});
-			await parseApiResponse<Label>(res);
+			await apiJson.post<Label>("/api/labels", { name: name.trim(), color });
 		},
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: labelKeys.all });
@@ -66,8 +61,7 @@ export default function LabelsPage() {
 
 	const deleteMutation = useMutation({
 		mutationFn: async (id: string) => {
-			const res = await authFetch(`/api/labels/${id}`, { method: "DELETE" });
-			await parseApiResponse<{ id: string }>(res);
+			await apiJson.delete<{ id: string }>(`/api/labels/${id}`);
 		},
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: labelKeys.all });
@@ -128,14 +122,13 @@ export default function LabelsPage() {
 				</div>
 			</form>
 
-			{isLoading ? (
-				<p className="text-sm text-ink-muted">Loading...</p>
-			) : labels.length === 0 ? (
-				<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-12 text-center">
-					<Tag className="mb-3 h-8 w-8 text-ink-faint" />
-					<p className="text-sm text-ink-muted">No labels yet. Create one above.</p>
-				</div>
-			) : (
+			<ListSection
+				loading={isLoading}
+				loadingLabel="Loading..."
+				empty={labels.length === 0}
+				emptyLabel="No labels yet. Create one above."
+				emptyIcon={Tag}
+			>
 				<div className="space-y-2">
 					{labels.map((label) => (
 						<div
@@ -161,7 +154,7 @@ export default function LabelsPage() {
 						</div>
 					))}
 				</div>
-			)}
+			</ListSection>
 		</div>
 	);
 }

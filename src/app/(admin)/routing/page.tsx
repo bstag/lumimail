@@ -5,14 +5,15 @@ import { useState } from "react";
 import { Plus, Trash2, GitBranch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ListSection } from "@/components/ui/list-section";
 import { domainKeys, mailboxKeys } from "@/lib/query-keys";
-import { authFetch } from "@/lib/auth/client";
+import { apiJson } from "@/lib/api/client-response";
 import {
 	canSubmitRoutingRule,
 	filterMailboxesByDomain,
-	readRoutingResponse,
 	sortRoutingRules,
 } from "./utils";
 import { Select } from "@/components/ui/select";
@@ -41,28 +42,21 @@ export default function RoutingPage() {
 	const [forwardTo, setForwardTo] = useState("");
 	const [newDestination, setNewDestination] = useState("");
 	const [priority, setPriority] = useState(10);
+	const [removeTarget, setRemoveTarget] = useState<RoutingRule | null>(null);
 
 	const domains = useQuery({
 		queryKey: domainKeys.list({ includeDns: false }),
-		queryFn: async () => {
-			const res = await authFetch("/api/domains");
-			return (await res.json()) as { domains: Domain[] };
-		},
+		queryFn: () => apiJson.get<{ domains: Domain[] }>("/api/domains"),
 	});
 
 	const mailboxes = useQuery({
 		queryKey: mailboxKeys.user,
-		queryFn: async () => {
-			const res = await authFetch("/api/mailboxes");
-			return (await res.json()) as { mailboxes: Mailbox[] };
-		},
+		queryFn: () => apiJson.get<{ mailboxes: Mailbox[] }>("/api/mailboxes"),
 	});
 
 	const rules = useQuery({
 		queryKey: ["routing-rules"],
-		queryFn: async () => readRoutingResponse<{ rules: RoutingRule[] }>(
-			await authFetch("/api/routing-rules"),
-		),
+		queryFn: () => apiJson.get<{ rules: RoutingRule[] }>("/api/routing-rules"),
 	});
 
 	const create = useMutation({
@@ -70,13 +64,9 @@ export default function RoutingPage() {
 			const body: Record<string, unknown> = { domainId, pattern, action, priority };
 			if (action === "store" && mailboxId) body.mailboxId = mailboxId;
 			if (action === "forward" && forwardTo) body.forwardTo = forwardTo;
-			const res = await authFetch("/api/routing-rules", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(body),
-			});
-			await readRoutingResponse(res);
+			await apiJson.post("/api/routing-rules", body);
 		},
+		meta: { suppressErrorToast: true },
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["routing-rules"] });
 			setPattern("*");
@@ -86,39 +76,31 @@ export default function RoutingPage() {
 	});
 
 	const remove = useMutation({
-		mutationFn: async (id: string) => {
-			const res = await authFetch(`/api/routing-rules/${id}`, { method: "DELETE" });
-			await readRoutingResponse(res);
-		},
+		mutationFn: (id: string) => apiJson.delete(`/api/routing-rules/${id}`),
+		meta: { suppressErrorToast: true },
 		onSuccess: () => qc.invalidateQueries({ queryKey: ["routing-rules"] }),
 	});
 
-	// Confirmation must happen before mutate(): a declined confirm inside
+	// Confirmation must complete before mutate(): a declined confirmation inside
 	// mutationFn resolves as success and invalidates caches for a delete that
 	// never ran.
 	const confirmRemove = (rule: RoutingRule) => {
-		if (rule.pattern === "*" && !confirm("Remove this catch-all and disable unmatched delivery for this domain?")) return;
+		if (rule.pattern === "*") {
+			setRemoveTarget(rule);
+			return;
+		}
 		remove.mutate(rule.id);
 	};
 
 	const destinations = useQuery({
 		queryKey: ["forwarding-destinations"],
-		queryFn: async () => {
-			const res = await authFetch("/api/forwarding-destinations");
-			const json = (await res.json()) as { success: boolean; data?: ForwardingDestination[] };
-			return json.data ?? [];
-		},
+		queryFn: async () =>
+			(await apiJson.get<ForwardingDestination[] | null>("/api/forwarding-destinations")) ?? [],
 	});
 
 	const addDestination = useMutation({
-		mutationFn: async () => {
-			const res = await authFetch("/api/forwarding-destinations", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ address: newDestination }),
-			});
-			await readRoutingResponse(res);
-		},
+		mutationFn: () => apiJson.post("/api/forwarding-destinations", { address: newDestination }),
+		meta: { suppressErrorToast: true },
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["forwarding-destinations"] });
 			setNewDestination("");
@@ -126,10 +108,7 @@ export default function RoutingPage() {
 	});
 
 	const refreshDestination = useMutation({
-		mutationFn: async (id: string) => {
-			const res = await authFetch(`/api/forwarding-destinations/${id}/refresh`, { method: "POST" });
-			await readRoutingResponse(res);
-		},
+		mutationFn: (id: string) => apiJson.post(`/api/forwarding-destinations/${id}/refresh`),
 		onSuccess: () => qc.invalidateQueries({ queryKey: ["forwarding-destinations"] }),
 	});
 
@@ -149,6 +128,7 @@ export default function RoutingPage() {
 	const availableMailboxes = filterMailboxesByDomain(mailboxes.data?.mailboxes ?? [], domainId);
 	const isCatchAllInput = pattern.trim() === "*" || pattern.trim().toLowerCase() === `*@${selectedHostname.toLowerCase()}`;
 	const canSubmit = canSubmitRoutingRule({ domainId, pattern, action, mailboxId, forwardTo });
+	const activeRules = rules.data?.rules ?? [];
 
 	return (
 		<div className="space-y-6">
@@ -157,14 +137,28 @@ export default function RoutingPage() {
 				description="Named addresses are matched before real mailboxes; catch-all runs only for otherwise unmatched addresses. Priority applies within each match type."
 			/>
 
+			<ConfirmDialog
+				open={removeTarget !== null}
+				onOpenChange={(open) => {
+					if (!open) setRemoveTarget(null);
+				}}
+				title="Remove catch-all rule?"
+				description="Removing this catch-all disables unmatched delivery for this domain."
+				confirmLabel="Remove rule"
+				danger
+				onConfirm={() => {
+					if (removeTarget) remove.mutate(removeTarget.id);
+					setRemoveTarget(null);
+				}}
+			/>
+
 			<Card>
 				<CardHeader>
 					<CardTitle>Add rule</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-4">
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-						<div className="space-y-2">
-							<Label htmlFor="routing-domain">Domain</Label>
+						<FormField label="Domain" htmlFor="routing-domain">
 							<Select
 								id="routing-domain"
 								value={domainId}
@@ -175,23 +169,21 @@ export default function RoutingPage() {
 									<option key={d.id} value={d.id}>{d.hostname}</option>
 								))}
 							</Select>
-						</div>
-						<div className="space-y-2">
-							<Label htmlFor="routing-pattern">Pattern</Label>
+						</FormField>
+						<FormField label="Pattern" htmlFor="routing-pattern">
 							<Input
 								id="routing-pattern"
 								placeholder="*, support, or support@domain.com"
 								value={pattern}
 								onChange={(e) => setPattern(e.target.value)}
 							/>
-						</div>
+						</FormField>
 					</div>
 					<p className="text-xs text-ink-muted">
 						Use <span className="font-mono">*</span> for all otherwise unmatched addresses on the selected domain. Adding it enables that domain&apos;s Cloudflare catch-all for Lumimail.
 					</p>
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-						<div className="space-y-2">
-							<Label htmlFor="routing-action">Action</Label>
+						<FormField label="Action" htmlFor="routing-action">
 							<Select
 								id="routing-action"
 								value={action}
@@ -201,21 +193,19 @@ export default function RoutingPage() {
 								<option value="forward">Forward to address</option>
 								<option value="reject">Reject</option>
 							</Select>
-						</div>
-						<div className="space-y-2">
-							<Label htmlFor="routing-priority">Priority</Label>
+						</FormField>
+						<FormField label="Priority" htmlFor="routing-priority">
 							<Input
 								id="routing-priority"
 								type="number"
 								value={priority}
 								onChange={(e) => setPriority(parseInt(e.target.value) || 0)}
 							/>
-						</div>
+						</FormField>
 					</div>
 
 					{action === "store" && (
-						<div className="space-y-2">
-							<Label htmlFor="routing-mailbox">Target mailbox</Label>
+						<FormField label="Target mailbox" htmlFor="routing-mailbox">
 							<Select
 								id="routing-mailbox"
 								value={mailboxId}
@@ -228,12 +218,11 @@ export default function RoutingPage() {
 									</option>
 								))}
 							</Select>
-						</div>
+						</FormField>
 					)}
 
 					{action === "forward" && (
-						<div className="space-y-2">
-							<Label htmlFor="routing-forward">Forward to</Label>
+						<FormField label="Forward to" htmlFor="routing-forward">
 							{verifiedDestinations.length > 0 ? (
 								<Select
 									id="routing-forward"
@@ -258,7 +247,7 @@ export default function RoutingPage() {
 									Awaiting verification: {pendingDestinations.map((d) => d.address).join(", ")}
 								</p>
 							)}
-						</div>
+						</FormField>
 					)}
 
 					<Button
@@ -339,11 +328,15 @@ export default function RoutingPage() {
 					<CardTitle>Active rules</CardTitle>
 				</CardHeader>
 				<CardContent>
-					{(rules.data?.rules ?? []).length === 0 ? (
-						<p className="text-sm text-ink-faint">No routing rules yet.</p>
-					) : (
+					<ListSection
+						loading={rules.isLoading}
+						loadingLabel="Loading routing rules..."
+						empty={activeRules.length === 0}
+						emptyLabel="No routing rules yet."
+						emptyIcon={GitBranch}
+					>
 						<ul className="divide-y divide-border">
-							{sortRoutingRules(rules.data?.rules ?? [])
+							{sortRoutingRules(activeRules)
 								.map((r) => (
 									<li key={r.id} className="flex items-center justify-between py-3">
 										<div className="flex items-center gap-3 text-sm">
@@ -371,7 +364,7 @@ export default function RoutingPage() {
 									</li>
 								))}
 						</ul>
-					)}
+					</ListSection>
 				</CardContent>
 			</Card>
 		</div>

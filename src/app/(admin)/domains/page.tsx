@@ -12,8 +12,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ListSection } from "@/components/ui/list-section";
 import { Badge } from "@/components/ui/badge";
 import {
   Check,
@@ -26,7 +27,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { domainKeys } from "@/lib/query-keys";
-import { authFetch } from "@/lib/auth/client";
+import { apiJson } from "@/lib/api/client-response";
 import type { DnsRecord, DnsStatusSummary, Domain } from "./types";
 import {
   createDomain as requestDomainCreation,
@@ -47,19 +48,18 @@ export default function DomainsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: domainKeys.list({ includeDns: true }),
-    queryFn: async () => {
-      const res = await authFetch("/api/domains?includeDns=true");
-      return (await res.json()) as {
+    queryFn: () =>
+      apiJson.get<{
         domains: Domain[];
         dns: Record<string, DnsStatusSummary>;
-      };
-    },
+      }>("/api/domains?includeDns=true"),
   });
 
   const create = useMutation({
     mutationFn: async () => {
       return requestDomainCreation(hostname);
     },
+    meta: { suppressErrorToast: true },
     onSuccess: () => {
       setHostname("");
       setCreateOpen(false);
@@ -68,10 +68,7 @@ export default function DomainsPage() {
   });
 
   const remove = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await authFetch(`/api/domains/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to remove");
-    },
+    mutationFn: (id: string) => apiJson.delete(`/api/domains/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: domainKeys.all }),
   });
 
@@ -80,6 +77,7 @@ export default function DomainsPage() {
       setSendingTargetId(id);
       return reconcileDomainSending(id, action);
     },
+    meta: { suppressErrorToast: true },
     onSuccess: (result) => {
       setDnsView(result);
       qc.invalidateQueries({ queryKey: domainKeys.all });
@@ -115,15 +113,14 @@ export default function DomainsPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="hostname">Hostname</Label>
+              <FormField label="Hostname" htmlFor="hostname">
                 <Input
                   id="hostname"
                   value={hostname}
                   onChange={(e) => setHostname(e.target.value)}
                   placeholder="example.com"
                 />
-              </div>
+              </FormField>
               {create.isError && (
                 <p className="text-sm text-danger">
                   {(create.error as Error).message}
@@ -140,16 +137,13 @@ export default function DomainsPage() {
         </Dialog>
       </div>
       <section className="space-y-3">
-        {isLoading && (
-          <p className="rounded-lg border border-border bg-surface-raised px-4 py-3 text-sm text-ink-muted">
-            Loading DNS status...
-          </p>
-        )}
-        {!isLoading && (data?.domains ?? []).length === 0 && (
-          <p className="rounded-lg border border-border bg-surface-raised px-4 py-3 text-sm text-ink-muted">
-            No domains yet
-          </p>
-        )}
+        <ListSection
+          loading={isLoading}
+          loadingLabel="Loading DNS status..."
+          empty={(data?.domains ?? []).length === 0}
+          emptyLabel="No domains yet"
+          emptyIcon={Globe2}
+        >
         <div className="grid gap-3 md:grid-cols-2">
           {(data?.domains ?? []).map((d) => {
             const dns = data?.dns?.[d.id];
@@ -270,6 +264,7 @@ export default function DomainsPage() {
             );
           })}
         </div>
+        </ListSection>
       </section>
       {dnsView && (
         <Card>

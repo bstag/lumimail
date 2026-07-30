@@ -5,6 +5,7 @@ import { Ban, Copy, KeyRound, Plus } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
 	Dialog,
 	DialogContent,
@@ -13,8 +14,9 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ListSection } from "@/components/ui/list-section";
 import type { ApiKey } from "./types";
 import {
 	createApiKey,
@@ -51,6 +53,7 @@ export default function ApiKeysPage() {
 
 	const revoke = useMutation({
 		mutationFn: (id: string) => revokeApiKey(id),
+		meta: { suppressErrorToast: true },
 		onSuccess: () => {
 			setRevokeTarget(null);
 			queryClient.invalidateQueries({ queryKey: ["api-keys"] });
@@ -99,15 +102,14 @@ export default function ApiKeysPage() {
 							<DialogDescription>Create a key with send and read permissions.</DialogDescription>
 						</DialogHeader>
 						<div className="space-y-4">
-							<div className="space-y-2">
-								<Label htmlFor="api-key-name">Name</Label>
+							<FormField label="Name" htmlFor="api-key-name">
 								<Input
 									id="api-key-name"
 									value={name}
 									onChange={(event) => setName(event.target.value)}
 									placeholder="Production app"
 								/>
-							</div>
+							</FormField>
 							{create.isError && <p className="text-sm text-danger">{create.error.message}</p>}
 							<Button onClick={() => create.mutate()} disabled={!name.trim() || create.isPending}>
 								{create.isPending ? "Creating..." : "Create key"}
@@ -139,7 +141,7 @@ export default function ApiKeysPage() {
 				</DialogContent>
 			</Dialog>
 
-			<Dialog
+			<ConfirmDialog
 				open={revokeTarget !== null}
 				onOpenChange={(open) => {
 					if (!open) {
@@ -147,49 +149,24 @@ export default function ApiKeysPage() {
 						revoke.reset();
 					}
 				}}
-			>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Revoke API key?</DialogTitle>
-						<DialogDescription>
-							{revokeTarget?.name} will stop working immediately. This action cannot be undone.
-						</DialogDescription>
-					</DialogHeader>
-					{revoke.isError && <p className="text-sm text-danger">{revoke.error.message}</p>}
-					<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-						<Button
-							variant="outline"
-							onClick={() => {
-								setRevokeTarget(null);
-								revoke.reset();
-							}}
-							disabled={revoke.isPending}
-						>
-							Cancel
-						</Button>
-						<Button
-							variant="destructive"
-							onClick={() => revokeTarget && revoke.mutate(revokeTarget.id)}
-							disabled={revoke.isPending}
-						>
-							{revoke.isPending ? "Revoking..." : "Revoke key"}
-						</Button>
-					</div>
-				</DialogContent>
-			</Dialog>
+				title="Revoke API key?"
+				description={`${revokeTarget?.name ?? ""} will stop working immediately. This action cannot be undone.`}
+				confirmLabel={revoke.isPending ? "Revoking..." : "Revoke key"}
+				danger
+				pending={revoke.isPending}
+				error={revoke.isError ? revoke.error.message : null}
+				onConfirm={() => revokeTarget && revoke.mutate(revokeTarget.id)}
+			/>
 
 			<section className="space-y-3">
 				<span className="text-sm text-ink-muted">{apiKeys.length} total</span>
-				{isLoading && (
-					<p className="rounded-lg border border-border bg-surface-raised px-4 py-3 text-sm text-ink-muted">
-						Loading API keys...
-					</p>
-				)}
-				{!isLoading && apiKeys.length === 0 && (
-					<p className="rounded-lg border border-border bg-surface-raised px-4 py-3 text-sm text-ink-muted">
-						No API keys yet
-					</p>
-				)}
+				<ListSection
+					loading={isLoading}
+					loadingLabel="Loading API keys..."
+					empty={apiKeys.length === 0}
+					emptyLabel="No API keys yet"
+					emptyIcon={KeyRound}
+				>
 				<div className="grid gap-3 md:grid-cols-2">
 					{apiKeys.map((key) => (
 						<div
@@ -235,6 +212,7 @@ export default function ApiKeysPage() {
 						</div>
 					))}
 				</div>
+				</ListSection>
 			</section>
 		</div>
 	);
