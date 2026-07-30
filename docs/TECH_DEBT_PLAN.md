@@ -68,15 +68,15 @@ schema/tests/config) performed 2026-07-30. This plan supersedes nothing —
 
 API layer:
 
-- [ ] **T-10 `withUser` / `withOrgAdmin` / `withOrgOwner` route wrappers** in
+- [x] **T-10 `withUser` / `withOrgAdmin` / `withOrgOwner` route wrappers** in
   `src/lib/api/handler.ts`: `getEnv` + guard + enveloped 401/403. Migrate the 8
   legacy `getCurrentUser` routes first, then mechanically the rest (75 preamble
   repetitions across 43 files). Effort M.
-- [ ] **T-11 `parseJsonBody(request, schema)`** returning `{data} | {errorResponse}`:
+- [x] **T-11 `parseJsonBody(request, schema)`** returning `{data} | {errorResponse}`:
   kills 14 raw `as`-cast handlers, unguarded `request.json()` 500s, and the three
   competing Zod-error formats. Promote `firstZodMessage` from
   `src/app/api/routing-rules/utils.ts` into `src/lib/api/response.ts`. Effort M.
-- [ ] **T-12 Narrow `guardOrgAdmin` result type** so `organizationId: string`
+- [x] **T-12 Narrow `guardOrgAdmin` result type** so `organizationId: string`
   (removes 32 `as string`/`!` casts); add a `guardOrgMember` variant for
   non-admin routes that hand-check `user.organizationId` today. Effort S.
 - [ ] **T-13 Small shared helpers:** `enforceRateLimit` (4 copies),
@@ -110,13 +110,13 @@ Constants and schema hygiene:
 
 Tests:
 
-- [ ] **T-18 Unit-test harness:** `tests/unit/helpers/route-mocks.ts` exposing
+- [x] **T-18 Unit-test harness:** `tests/unit/helpers/route-mocks.ts` exposing
   `mockRouteDeps()` (standard `@/db`, `@/lib/cloudflare`, `@/lib/auth/cookies`,
   `@/lib/rate-limit` mock bag) and shared `jsonRequest()` builders. Adopt in
   files touched by this batch; opportunistic elsewhere. Effort M (incremental).
-- [ ] **T-19 Promote `mockOwnerShell` into `tests/e2e/shell.ts`** with options for
+- [x] **T-19 Promote `mockOwnerShell` into `tests/e2e/shell.ts`** with options for
   role/mailboxes/counts; adopt in the 13 specs that hand-mock the shell. Effort S.
-- [ ] **T-20 Harden `wrangler-local-bindings.test.ts`:** parse the JSONC and
+- [x] **T-20 Harden `wrangler-local-bindings.test.ts`:** parse the JSONC and
   assert structure instead of raw substrings. Effort S.
 
 UI primitives:
@@ -133,7 +133,7 @@ UI primitives:
 
 Deletions (safe, verified unreferenced):
 
-- [ ] **T-24 Delete dead code:** `/api/messages/search` (no client callers —
+- [~] **T-24 (in progress — search route, folder-page props, textarea, comment blocks done) Delete dead code:** `/api/messages/search` (no client callers —
   verified 2026-07-30), `src/components/ui/textarea.tsx` (wire vacation form to
   it instead if trivial, else delete), `MessageFolderConfig.title`, inert
   `headerIcons`, dead validator exports (`registerSchema`,
