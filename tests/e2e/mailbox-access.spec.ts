@@ -1,40 +1,21 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockShellNoise } from "./shell";
+import { flatCounts, folderCounts, mockAuthShell } from "./shell";
 
 async function mockAuthenticatedShell(page: Page) {
-	await page.addInitScript(() => {
-		localStorage.setItem("lumimail-session-token", "e2e-session");
+	await mockAuthShell(page, {
+		user: { id: "user_owner", role: "owner" },
+		mailboxes: [
+			{
+				id: "mbx_support",
+				localPart: "support",
+				hostname: "example.com",
+				displayName: "Support",
+				isPrimary: true,
+				role: "manager",
+			},
+		],
+		counts: flatCounts(),
 	});
-	await mockShellNoise(page);
-	await page.route("**/api/auth/me", (route) =>
-		route.fulfill({
-			json: {
-				user: { id: "user_owner", role: "owner" },
-				hasMailboxes: true,
-			},
-		}),
-	);
-	await page.route("**/api/mailboxes", (route) =>
-		route.fulfill({
-			json: {
-				mailboxes: [
-					{
-						id: "mbx_support",
-						localPart: "support",
-						hostname: "example.com",
-						displayName: "Support",
-						isPrimary: true,
-						role: "manager",
-					},
-				],
-			},
-		}),
-	);
-	await page.route("**/api/messages/counts**", (route) =>
-		route.fulfill({
-			json: { inbox: 0, starred: 0, drafts: 0, sent: 0, spam: 0, trash: 0 },
-		}),
-	);
 	await page.route("**/api/domains", (route) =>
 		route.fulfill({
 			json: {
@@ -56,51 +37,20 @@ async function mockRoleShell(
 	page: Page,
 	role: "viewer" | "responder" | "manager",
 ) {
-	await page.addInitScript(() => {
-		localStorage.setItem("lumimail-session-token", "e2e-session");
+	await mockAuthShell(page, {
+		user: { id: "user_role", role: "member" },
+		mailboxes: [
+			{
+				id: "mbx_role",
+				localPart: "support",
+				hostname: "example.com",
+				displayName: "Support",
+				isPrimary: true,
+				role,
+			},
+		],
+		counts: folderCounts({ inbox: { total: 1, unread: 0 } }),
 	});
-	await mockShellNoise(page);
-	await page.route("**/api/auth/me", (route) =>
-		route.fulfill({
-			json: {
-				user: { id: "user_role", role: "member" },
-				hasMailboxes: true,
-			},
-		}),
-	);
-	await page.route("**/api/mailboxes", (route) =>
-		route.fulfill({
-			json: {
-				mailboxes: [
-					{
-						id: "mbx_role",
-						localPart: "support",
-						hostname: "example.com",
-						displayName: "Support",
-						isPrimary: true,
-						role,
-					},
-				],
-			},
-		}),
-	);
-	await page.route("**/api/messages/counts**", (route) =>
-		route.fulfill({
-			json: {
-				counts: {
-					folders: {
-						inbox: { total: 1, unread: 0 },
-						sent: { total: 0, unread: 0 },
-						drafts: { total: 0, unread: 0 },
-						trash: { total: 0, unread: 0 },
-						spam: { total: 0, unread: 0 },
-						starred: { total: 0, unread: 0 },
-					},
-					mailboxes: [],
-				},
-			},
-		}),
-	);
 }
 
 async function mockMessageDetail(page: Page) {

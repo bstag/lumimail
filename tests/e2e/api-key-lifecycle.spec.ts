@@ -1,35 +1,20 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockShellNoise } from "./shell";
+import { flatCounts, mockAuthShell } from "./shell";
 
 async function mockAuthenticatedShell(page: Page) {
-	await page.addInitScript(() => {
-		localStorage.setItem("lumimail-session-token", "e2e-session");
-	});
-	await mockShellNoise(page);
-	await page.route("**/api/auth/me", (route) =>
-		route.fulfill({ json: { user: { id: "user_1", role: "owner" }, hasMailboxes: true } }),
-	);
-	await page.route("**/api/mailboxes", (route) =>
-		route.fulfill({
-			json: {
-				mailboxes: [
-					{
-						id: "mbx_1",
-						localPart: "owner",
-						hostname: "example.com",
-						displayName: "Owner",
-						isPrimary: true,
-						role: "manager",
-					},
-				],
+	await mockAuthShell(page, {
+		mailboxes: [
+			{
+				id: "mbx_1",
+				localPart: "owner",
+				hostname: "example.com",
+				displayName: "Owner",
+				isPrimary: true,
+				role: "manager",
 			},
-		}),
-	);
-	await page.route("**/api/messages/counts**", (route) =>
-		route.fulfill({
-			json: { inbox: 0, starred: 0, drafts: 0, sent: 0, spam: 0, trash: 0 },
-		}),
-	);
+		],
+		counts: flatCounts(),
+	});
 }
 
 test.describe("API key lifecycle", () => {

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockShellNoise } from "./shell";
+import { flatCounts, mockAuthShell } from "./shell";
 
 const mailbox = {
 	id: "mbx_1",
@@ -11,19 +11,7 @@ const mailbox = {
 };
 
 async function mockAuthenticatedShell(page: Page) {
-	await page.addInitScript(() => {
-		localStorage.setItem("lumimail-session-token", "e2e-session");
-	});
-	await mockShellNoise(page);
-	await page.route("**/api/auth/me", (route) =>
-		route.fulfill({ json: { user: { id: "user_1", role: "owner" }, hasMailboxes: true } }),
-	);
-	await page.route("**/api/mailboxes", (route) =>
-		route.fulfill({ json: { mailboxes: [mailbox] } }),
-	);
-	await page.route("**/api/messages/counts**", (route) =>
-		route.fulfill({ json: { inbox: 0, starred: 0, drafts: 0, sent: 0, spam: 0, trash: 0 } }),
-	);
+	await mockAuthShell(page, { mailboxes: [mailbox], counts: flatCounts() });
 }
 
 test.describe("canonical API client contracts", () => {

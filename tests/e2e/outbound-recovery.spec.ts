@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockShellNoise } from "./shell";
+import { flatCounts, mockAuthShell } from "./shell";
 
 const sendCapableMailbox = {
 	id: "mbx_1",
@@ -27,17 +27,10 @@ const failedMessage = {
 };
 
 async function mockSentFolder(page: Page, mailbox: Record<string, unknown>) {
-	await page.addInitScript(() => {
-		localStorage.setItem("lumimail-session-token", "e2e-session");
+	await mockAuthShell(page, {
+		mailboxes: [mailbox],
+		counts: flatCounts({ sent: 1 }),
 	});
-	await mockShellNoise(page);
-	await page.route("**/api/auth/me", (route) =>
-		route.fulfill({ json: { user: { id: "user_1", role: "owner" }, hasMailboxes: true } }),
-	);
-	await page.route("**/api/mailboxes", (route) => route.fulfill({ json: { mailboxes: [mailbox] } }));
-	await page.route("**/api/messages/counts**", (route) =>
-		route.fulfill({ json: { inbox: 0, starred: 0, drafts: 0, sent: 1, spam: 0, trash: 0 } }),
-	);
 	await page.route("**/api/labels", (route) => route.fulfill({ json: { success: true, data: [] } }));
 	await page.route("**/api/messages?**", (route) =>
 		route.fulfill({ json: { messages: [failedMessage], total: 1, limit: 25, offset: 0 } }),

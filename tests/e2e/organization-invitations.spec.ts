@@ -1,14 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockShellNoise } from "./shell";
+import { mockAuthShell } from "./shell";
 
 async function mockAdminSession(page: Page) {
-	await mockShellNoise(page);
-	await page.route("**/api/auth/me", (route) =>
-		route.fulfill({ json: { user: { id: "owner_1", role: "owner" }, hasMailboxes: true } }),
-	);
-	await page.route("**/api/mailboxes", (route) =>
-		route.fulfill({ json: { mailboxes: [] } }),
-	);
+	// This spec never seeded a session token; the mocked /api/auth/me is enough.
+	await mockAuthShell(page, {
+		sessionToken: null,
+		user: { id: "owner_1", role: "owner" },
+	});
 }
 
 test.describe("identity-bound organization invitations", () => {
