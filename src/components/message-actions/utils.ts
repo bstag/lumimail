@@ -1,5 +1,6 @@
+import type { QueryClient } from "@tanstack/react-query";
 import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
-import { notifyMessagesChanged } from "@/hooks/utils";
+import { invalidateMessageQueries } from "@/lib/query-keys";
 import { authFetch } from "@/lib/auth/client";
 
 export function getMessageBackHref(direction: "inbound" | "outbound", status: string) {
@@ -9,7 +10,11 @@ export function getMessageBackHref(direction: "inbound" | "outbound", status: st
 	return direction === "inbound" ? "/inbox" : "/sent";
 }
 
-export async function runSingleMessageAction(messageId: string, action: BulkMessageAction) {
+export async function runSingleMessageAction(
+	queryClient: QueryClient,
+	messageId: string,
+	action: BulkMessageAction,
+) {
 	const response = await authFetch("/api/messages/bulk", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
@@ -20,7 +25,7 @@ export async function runSingleMessageAction(messageId: string, action: BulkMess
 		throw new Error("Unable to update message");
 	}
 
-	notifyMessagesChanged();
+	void invalidateMessageQueries(queryClient);
 }
 
 export function getMessageActionRedirect(action: BulkMessageAction, direction: "inbound" | "outbound") {

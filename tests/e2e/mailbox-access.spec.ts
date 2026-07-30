@@ -260,9 +260,9 @@ test.describe("role-aware mail actions", () => {
 		await page.goto("/drafts");
 
 		// Wait for the empty state, not just the request count. The count rises when
-		// the route is intercepted, but `fetchMessageList` coalesces onto an in-flight
-		// request for the same key even when forced — so a focus fired between those
-		// two moments is dropped and the second request never happens. The empty text
+		// the route is intercepted, but TanStack Query coalesces a focus refetch onto
+		// an in-flight request for the same key — so a focus fired between those two
+		// moments is dropped and the second request never happens. The empty text
 		// renders only once loading has finished, which is the point the first request
 		// has actually settled.
 		await expect(page.getByText("No drafts")).toBeVisible();

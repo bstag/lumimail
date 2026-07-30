@@ -10,12 +10,11 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { useCompose } from "@/components/compose/compose-context";
 import { useMailSearch } from "@/components/mail-search/mail-search-context";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
-import { labelKeys } from "@/lib/query-keys";
+import { invalidateMessageQueries, labelKeys } from "@/lib/query-keys";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useMessages } from "@/hooks/use-messages";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth/client";
-import { notifyMessagesChanged } from "@/hooks/utils";
 import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
 import { BulkMessageToolbar } from "./bulk-message-toolbar";
 import type { MessageListRowProps, MessageFolderConfig } from "./types";
@@ -52,6 +51,7 @@ function MessageListRow({
 	const t = useTranslations("messages");
 	const Icon = config.icon;
 	const { openDraftComposer } = useCompose();
+	const queryClient = useQueryClient();
 	const [retrying, setRetrying] = useState(false);
 	const [retryConfirmOpen, setRetryConfirmOpen] = useState(false);
 	const unread = message.direction === "inbound" && !message.read;
@@ -61,7 +61,7 @@ function MessageListRow({
 		setRetryConfirmOpen(false);
 		setRetrying(true);
 		try {
-			await retryMessageDelivery(message.id);
+			await retryMessageDelivery(queryClient, message.id);
 		} finally {
 			setRetrying(false);
 		}
@@ -177,6 +177,7 @@ function MessageListRow({
 
 export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 	const t = useTranslations("messages");
+	const queryClient = useQueryClient();
 	const { selectedMailbox, isLoading: mailboxesLoading } = useSelectedMailbox();
 	const { query } = useMailSearch();
 	const [offset, setOffset] = useState(0);
@@ -227,7 +228,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 
 		setPendingBulkAction(true);
 		try {
-			await runBulkMessageAction(selectedIds, action);
+			await runBulkMessageAction(queryClient, selectedIds, action);
 			setSelectedIds([]);
 		} finally {
 			setPendingBulkAction(false);
@@ -245,13 +246,13 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 				body: JSON.stringify({ starred }),
 			});
 			if (!response.ok) throw new Error("Unable to update starred state");
-			notifyMessagesChanged();
+			void invalidateMessageQueries(queryClient);
 		} catch {
 			setMessages((current) =>
 				current.map((m) => (m.id === messageId ? { ...m, starred: !starred } : m)),
 			);
 		}
-	}, [setMessages]);
+	}, [queryClient, setMessages]);
 
 	return (
 		<div className="flex h-full flex-col">

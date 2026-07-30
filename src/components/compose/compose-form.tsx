@@ -13,8 +13,9 @@ import {
 	canMailboxSend,
 	findSendCapableMailbox,
 } from "@/components/mailbox-provider-utils";
+import { useQueryClient } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth/client";
-import { notifyMessagesChanged } from "@/hooks/utils";
+import { invalidateMessageQueries } from "@/lib/query-keys";
 import { formatEmailAddress } from "@/lib/email/address";
 import { cn } from "@/lib/utils";
 import { fetchDraft, submitMessage } from "./utils";
@@ -71,6 +72,7 @@ export function ComposeForm({
 	onClose?: () => void;
 }) {
 	const t = useTranslations("compose");
+	const queryClient = useQueryClient();
 	const searchParams = useSearchParams();
 	const { selectedMailbox, setSelectedMailbox, mailboxes } = useSelectedMailbox();
 	const [draftId, setDraftId] = useState<string | null>(null);
@@ -213,14 +215,14 @@ export function ComposeForm({
 			const data = (await res.json()) as { draft?: { id: string } };
 			if (res.ok && data.draft?.id) {
 				setDraftId(data.draft.id);
-				notifyMessagesChanged();
+				void invalidateMessageQueries(queryClient);
 			}
 		}, 900);
 
 		return () => {
 			if (saveTimer.current) clearTimeout(saveTimer.current);
 		};
-	}, [draftId, fromAddr, html, loadingDraft, replyToMessageId, selectedMailbox?.id, subject, text, to]);
+	}, [draftId, fromAddr, html, loadingDraft, queryClient, replyToMessageId, selectedMailbox?.id, subject, text, to]);
 
 	function handleFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
 		const files = Array.from(event.target.files ?? []);
@@ -327,7 +329,7 @@ export function ComposeForm({
 
 		if (draftId) {
 			void authFetch(`/api/drafts/${draftId}`, { method: "DELETE" }).then((response) => {
-				if (response.ok) notifyMessagesChanged();
+				if (response.ok) void invalidateMessageQueries(queryClient);
 			});
 		}
 		setDraftId(null);
@@ -338,7 +340,7 @@ export function ComposeForm({
 		setReplyToMessageId(null);
 		setAttachedFiles([]);
 		setToast({ type: "success", message: t("sendSuccess") });
-		notifyMessagesChanged();
+		void invalidateMessageQueries(queryClient);
 	}
 
 	const frameClass =

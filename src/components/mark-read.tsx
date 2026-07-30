@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { notifyMessagesChanged } from "@/hooks/utils";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateMessageQueries } from "@/lib/query-keys";
 import { authFetch } from "@/lib/auth/client";
 
 export function MarkAsRead({
@@ -11,12 +12,14 @@ export function MarkAsRead({
 	messageId: string;
 	onMarkedRead?: () => void;
 }) {
+	const queryClient = useQueryClient();
+
 	useEffect(() => {
 		authFetch(`/api/messages/${messageId}/read`, { method: "POST" })
 			.then((response) => {
 				if (response.ok) {
 					onMarkedRead?.();
-					notifyMessagesChanged();
+					void invalidateMessageQueries(queryClient);
 				}
 			})
 			.catch(() => {
@@ -24,7 +27,7 @@ export function MarkAsRead({
 					console.error("Failed to mark message as read:", messageId);
 				}
 			});
-	}, [messageId, onMarkedRead]);
+	}, [messageId, onMarkedRead, queryClient]);
 
 	return null;
 }

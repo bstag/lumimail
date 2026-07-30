@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+	configureQueryFocusEvents,
 	registerQueryClientAccountReset,
 	shouldToastMutationError,
 	toMutationErrorMessage,
@@ -18,6 +19,98 @@ describe("registerQueryClientAccountReset", () => {
 		unsubscribe();
 		resetAccountScopedClientState();
 		expect(client.clear).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("configureQueryFocusEvents", () => {
+	function fakeEventTarget() {
+		const listeners = new Map<string, () => void>();
+		return {
+			listeners,
+			addEventListener: vi.fn((type: string, listener: () => void) => {
+				listeners.set(type, listener);
+			}),
+			removeEventListener: vi.fn((type: string) => {
+				listeners.delete(type);
+			}),
+		};
+	}
+
+	it("signals focus for both visibilitychange and plain window focus", () => {
+		const eventTarget = fakeEventTarget();
+		const onFocus = vi.fn();
+		const manager = {
+			setEventListener: vi.fn(
+				(setup: (setFocused: () => void) => (() => void) | undefined) => {
+					setup(onFocus);
+				},
+			),
+		};
+
+		configureQueryFocusEvents(manager, eventTarget as never);
+
+		expect(eventTarget.addEventListener).toHaveBeenCalledWith(
+			"visibilitychange",
+			expect.any(Function),
+			false,
+		);
+		expect(eventTarget.addEventListener).toHaveBeenCalledWith(
+			"focus",
+			expect.any(Function),
+			false,
+		);
+		eventTarget.listeners.get("focus")?.();
+		eventTarget.listeners.get("visibilitychange")?.();
+		expect(onFocus).toHaveBeenCalledTimes(2);
+	});
+
+	it("removes both listeners when the manager tears the setup down", () => {
+		const eventTarget = fakeEventTarget();
+		let cleanup: (() => void) | undefined;
+		const manager = {
+			setEventListener: vi.fn(
+				(setup: (setFocused: () => void) => (() => void) | undefined) => {
+					cleanup = setup(vi.fn()) ?? undefined;
+				},
+			),
+		};
+
+		configureQueryFocusEvents(manager, eventTarget as never);
+		cleanup?.();
+
+		expect(eventTarget.removeEventListener).toHaveBeenCalledWith(
+			"visibilitychange",
+			expect.any(Function),
+		);
+		expect(eventTarget.removeEventListener).toHaveBeenCalledWith("focus", expect.any(Function));
+	});
+
+	it("does nothing without a browser event target", () => {
+		const manager = { setEventListener: vi.fn() };
+		// Explicit null and the node default (no window) both bail out; the
+		// zero-argument call also exercises the real focusManager default.
+		configureQueryFocusEvents(manager, null);
+		configureQueryFocusEvents(manager);
+		expect(manager.setEventListener).not.toHaveBeenCalled();
+		expect(() => configureQueryFocusEvents()).not.toThrow();
+	});
+
+	it("defaults to the browser window when one exists", () => {
+		const addEventListener = vi.fn();
+		const removeEventListener = vi.fn();
+		vi.stubGlobal("window", { addEventListener, removeEventListener });
+		const manager = {
+			setEventListener: vi.fn(
+				(setup: (setFocused: () => void) => (() => void) | undefined) => {
+					setup(vi.fn());
+				},
+			),
+		};
+
+		configureQueryFocusEvents(manager);
+
+		expect(addEventListener).toHaveBeenCalledWith("focus", expect.any(Function), false);
+		vi.unstubAllGlobals();
 	});
 });
 

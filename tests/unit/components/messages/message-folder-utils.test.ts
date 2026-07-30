@@ -1,16 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { shouldRefreshSharedDrafts } from "@/components/messages/message-folder-utils";
+import {
+	DRAFTS_REFRESH_INTERVAL_MS,
+	getMessagesRefetchInterval,
+} from "@/components/messages/message-folder-utils";
 
-describe("shouldRefreshSharedDrafts", () => {
-	it("refreshes drafts while the document is visible", () => {
-		expect(shouldRefreshSharedDrafts("drafts", "visible")).toBe(true);
+describe("getMessagesRefetchInterval — drafts", () => {
+	it("polls the drafts folder for shared-draft edits", () => {
+		expect(getMessagesRefetchInterval("drafts", [])).toBe(DRAFTS_REFRESH_INTERVAL_MS);
 	});
 
-	it.each([
-		["drafts", "hidden"],
-		["inbox", "visible"],
-		["sent", "visible"],
-	] as const)("does not refresh %s while visibility is %s", (folder, visibility) => {
-		expect(shouldRefreshSharedDrafts(folder, visibility)).toBe(false);
+	it("polls drafts regardless of row statuses", () => {
+		expect(getMessagesRefetchInterval("drafts", ["draft", "draft"])).toBe(
+			DRAFTS_REFRESH_INTERVAL_MS,
+		);
 	});
+
+	it.each(["inbox", "trash", "spam", "starred"] as const)(
+		"does not poll the %s folder",
+		(folder) => {
+			expect(getMessagesRefetchInterval(folder, ["queued"])).toBe(false);
+		},
+	);
 });

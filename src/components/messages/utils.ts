@@ -1,5 +1,6 @@
+import type { QueryClient } from "@tanstack/react-query";
 import type { Message } from "@/hooks/types";
-import { notifyMessagesChanged } from "@/hooks/utils";
+import { invalidateMessageQueries } from "@/lib/query-keys";
 import { authFetch } from "@/lib/auth/client";
 import { getEmailDisplayName } from "@/lib/email/address";
 import type { MessageFolderConfig } from "./types";
@@ -40,14 +41,18 @@ export function getPageRange(offset: number, count: number, total: number): Page
 	};
 }
 
-export async function retryMessageDelivery(messageId: string) {
+export async function retryMessageDelivery(queryClient: QueryClient, messageId: string) {
 	const response = await authFetch(`/api/messages/${messageId}/retry`, { method: "POST" });
 
 	if (!response.ok) throw new Error("Unable to retry delivery");
-	notifyMessagesChanged();
+	void invalidateMessageQueries(queryClient);
 }
 
-export async function runBulkMessageAction(messageIds: string[], action: string) {
+export async function runBulkMessageAction(
+	queryClient: QueryClient,
+	messageIds: string[],
+	action: string,
+) {
 	const response = await authFetch("/api/messages/bulk", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
@@ -55,5 +60,5 @@ export async function runBulkMessageAction(messageIds: string[], action: string)
 	});
 
 	if (!response.ok) throw new Error("Unable to update selected messages");
-	notifyMessagesChanged();
+	void invalidateMessageQueries(queryClient);
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Archive, Mail, MailOpen, MoreVertical, Reply, ShieldAlert, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ export function MessageActions({
 }: MessageActionsProps) {
 	const t = useTranslations("actions");
 	const router = useRouter();
+	const queryClient = useQueryClient();
 
 	function replyTo() {
 		const replyAddr = direction === "inbound" ? fromAddr : toAddr;
@@ -47,7 +49,7 @@ export function MessageActions({
 		setPendingAction(action);
 		setError(null);
 		try {
-			await runSingleMessageAction(messageId, action);
+			await runSingleMessageAction(queryClient, messageId, action);
 			onActionSuccess?.(action);
 			const redirect = getMessageActionRedirect(action, direction);
 			if (redirect) router.push(redirect);

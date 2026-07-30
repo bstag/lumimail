@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth/client";
+import { fetchMailboxOptions } from "@/components/mailbox-provider-utils";
+import { mailboxKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +31,22 @@ type Mailbox = {
 	role?: string;
 };
 
+/** Key for the vacation responder list; used only by this form. */
+const vacationKeys = {
+	all: ["vacation"] as const,
+};
+
+async function fetchVacationResponders(): Promise<VacationResponder[]> {
+	const res = await authFetch("/api/vacation");
+	const json = (await res.json()) as {
+		success: boolean;
+		data?: { responders: VacationResponder[] };
+	};
+	return json.data?.responders ?? [];
+}
+
 export function VacationResponderForm() {
+	const queryClient = useQueryClient();
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
 	const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
@@ -55,25 +73,36 @@ export function VacationResponderForm() {
 		setReplyToOrganization(r?.replyToOrganization ?? false);
 	}, []);
 
+	const mailboxesQuery = useQuery({
+		queryKey: mailboxKeys.options,
+		queryFn: fetchMailboxOptions,
+		retry: false,
+	});
+	const respondersQuery = useQuery({
+		queryKey: vacationKeys.all,
+		queryFn: fetchVacationResponders,
+		retry: false,
+	});
+
+	// The form is an editing buffer: seed it once from the two queries, then
+	// let local state own the values (a later background refetch must not
+	// clobber in-progress edits).
+	const initialized = useRef(false);
 	useEffect(() => {
-		Promise.all([
-			authFetch("/api/mailboxes").then((res) => res.json() as Promise<{ mailboxes: Mailbox[] }>),
-			authFetch("/api/vacation").then(
-				(res) => res.json() as Promise<{ success: boolean; data?: { responders: VacationResponder[] } }>,
-			),
-		])
-			.then(([mailboxJson, vacationJson]) => {
-				// Only a manager may change how a mailbox answers everyone who writes to it.
-				const manageable = (mailboxJson.mailboxes ?? []).filter((m) => m.role === "manager");
-				const rows = vacationJson.data?.responders ?? [];
-				setMailboxes(manageable);
-				setResponders(rows);
-				const first = manageable[0]?.id ?? "";
-				setMailboxId(first);
-				applyResponder(rows, first);
-			})
-			.finally(() => setLoading(false));
-	}, [applyResponder]);
+		if (initialized.current) return;
+		if (mailboxesQuery.isPending || respondersQuery.isPending) return;
+		initialized.current = true;
+
+		// Only a manager may change how a mailbox answers everyone who writes to it.
+		const manageable = (mailboxesQuery.data ?? []).filter((m) => m.role === "manager");
+		const rows = respondersQuery.data ?? [];
+		setMailboxes(manageable);
+		setResponders(rows);
+		const first = manageable[0]?.id ?? "";
+		setMailboxId(first);
+		applyResponder(rows, first);
+		setLoading(false);
+	}, [applyResponder, mailboxesQuery.data, mailboxesQuery.isPending, respondersQuery.data, respondersQuery.isPending]);
 
 	function selectMailbox(id: string) {
 		setMailboxId(id);
@@ -104,6 +133,8 @@ export function VacationResponderForm() {
 			...rows.filter((row) => row.mailboxId !== mailboxId),
 			payload as VacationResponder,
 		]);
+		// Refresh the cached responder list so the next mount sees the save.
+		void queryClient.invalidateQueries({ queryKey: vacationKeys.all });
 		setSaving(false);
 		setSaved(true);
 		setTimeout(() => setSaved(false), 2000);

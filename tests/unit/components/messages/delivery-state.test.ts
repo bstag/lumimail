@@ -3,7 +3,8 @@ import { getMessageQueryParams } from "@/hooks/utils";
 import { getMessageBadge } from "@/components/messages/utils";
 import {
 	canRecoverMessage,
-	shouldRefreshDeliveryStatus,
+	getMessagesRefetchInterval,
+	SENT_DELIVERY_REFRESH_INTERVAL_MS,
 } from "@/components/messages/message-folder-utils";
 import type { Message } from "@/hooks/types";
 
@@ -44,10 +45,12 @@ describe("outbound delivery state UI", () => {
 		expect(canRecoverMessage("inbox", "failed", true)).toBe(false);
 	});
 
-	it("refreshes a visible Sent page only while queued work is present", () => {
-		expect(shouldRefreshDeliveryStatus("sent", "visible", ["sent", "queued"])).toBe(true);
-		expect(shouldRefreshDeliveryStatus("sent", "visible", ["sent", "failed"])).toBe(false);
-		expect(shouldRefreshDeliveryStatus("sent", "hidden", ["queued"])).toBe(false);
-		expect(shouldRefreshDeliveryStatus("inbox", "visible", ["queued"])).toBe(false);
+	it("polls the Sent page only while queued work is present", () => {
+		expect(getMessagesRefetchInterval("sent", ["sent", "queued"])).toBe(
+			SENT_DELIVERY_REFRESH_INTERVAL_MS,
+		);
+		expect(getMessagesRefetchInterval("sent", ["sent", "failed"])).toBe(false);
+		expect(getMessagesRefetchInterval("sent", [])).toBe(false);
+		expect(getMessagesRefetchInterval("inbox", ["queued"])).toBe(false);
 	});
 });

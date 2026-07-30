@@ -1,31 +1,38 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { QueryClient } from "@tanstack/react-query";
 
 const authFetch = vi.fn();
 vi.mock("@/lib/auth/client", () => ({ authFetch: (...args: unknown[]) => authFetch(...args) }));
 
 import { runSingleMessageAction } from "@/components/message-actions/utils";
+import { messageKeys } from "@/lib/query-keys";
+
+function mockQueryClient() {
+	return { invalidateQueries: vi.fn().mockResolvedValue(undefined) } as unknown as QueryClient;
+}
 
 beforeEach(() => {
 	authFetch.mockReset();
-	vi.stubGlobal("window", { dispatchEvent: vi.fn() });
 });
 
 describe("runSingleMessageAction", () => {
-	it("announces a successful message mutation", async () => {
+	it("invalidates every message query after a successful mutation", async () => {
 		authFetch.mockResolvedValue({ ok: true });
+		const queryClient = mockQueryClient();
 
-		await runSingleMessageAction("msg_1", "read");
+		await runSingleMessageAction(queryClient, "msg_1", "read");
 
-		expect(window.dispatchEvent).toHaveBeenCalledWith(
-			expect.objectContaining({ type: "lumimail:messages-changed" }),
-		);
+		expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: messageKeys.all });
 	});
 
-	it("rejects and does not announce a failed message mutation", async () => {
+	it("rejects and does not invalidate after a failed mutation", async () => {
 		authFetch.mockResolvedValue({ ok: false });
+		const queryClient = mockQueryClient();
 
-		await expect(runSingleMessageAction("msg_1", "read")).rejects.toThrow("Unable to update message");
+		await expect(runSingleMessageAction(queryClient, "msg_1", "read")).rejects.toThrow(
+			"Unable to update message",
+		);
 
-		expect(window.dispatchEvent).not.toHaveBeenCalled();
+		expect(queryClient.invalidateQueries).not.toHaveBeenCalled();
 	});
 });

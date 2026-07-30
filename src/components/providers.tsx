@@ -4,12 +4,14 @@ import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react
 import { useEffect, useState } from "react";
 import { Toaster, showErrorToast } from "./ui/toast";
 import {
+	configureQueryFocusEvents,
 	registerQueryClientAccountReset,
 	shouldToastMutationError,
 	toMutationErrorMessage,
 } from "./providers-utils";
 
 export function Providers({ children }: { children: React.ReactNode }) {
+	useEffect(() => configureQueryFocusEvents(), []);
 	const [client] = useState(
 		() =>
 			new QueryClient({

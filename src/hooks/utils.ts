@@ -1,5 +1,4 @@
 import { authFetch } from "@/lib/auth/client";
-import { registerAccountStateReset } from "@/lib/auth/account-state";
 import type { MessageFilterOptions, MessageFolder } from "./types";
 import type { MessageCounts, MessageListResponse } from "./types";
 
@@ -69,84 +68,23 @@ export function getMessageQueryParams(
 	return params;
 }
 
-const messageCountsCache = new Map<string, MessageCounts>();
-const messageCountsRequests = new Map<string, Promise<MessageCounts | undefined>>();
-const messageListCache = new Map<string, MessageListResponse>();
-const messageListRequests = new Map<string, Promise<MessageListResponse>>();
-let messageCountsGeneration = 0;
-let messageListGeneration = 0;
-
-export function clearMessageCountsCache() {
-	messageCountsGeneration += 1;
-	messageCountsCache.clear();
-	messageCountsRequests.clear();
+/**
+ * Plain fetchers for the message endpoints. Caching, request dedupe, and
+ * cross-component invalidation all belong to TanStack Query now (T-34): these
+ * run as `queryFn`s under `messageKeys` from `src/lib/query-keys.ts`, and the
+ * account-switch isolation contract (F50) is met by the root QueryClient
+ * clearing itself via the account-state reset coordinator.
+ */
+export async function fetchMessageCounts(mailboxId?: string | null): Promise<MessageCounts | undefined> {
+	const params = new URLSearchParams();
+	if (mailboxId) params.set("mailboxId", mailboxId);
+	const query = params.toString();
+	const res = await authFetch(`/api/messages/counts${query ? `?${query}` : ""}`);
+	const data = (await res.json()) as { counts?: MessageCounts };
+	return data.counts;
 }
 
-export function clearMessageListCache() {
-	messageListGeneration += 1;
-	messageListCache.clear();
-	messageListRequests.clear();
-}
-
-export function notifyMessagesChanged() {
-	clearMessageCountsCache();
-	clearMessageListCache();
-	window.dispatchEvent(new Event("lumimail:messages-changed"));
-}
-
-registerAccountStateReset(() => {
-	clearMessageCountsCache();
-	clearMessageListCache();
-});
-
-export async function fetchMessageCounts(mailboxId?: string | null, force = false): Promise<MessageCounts | undefined> {
-	const key = mailboxId ?? "all";
-	if (!force && messageCountsCache.has(key)) return messageCountsCache.get(key);
-	if (messageCountsRequests.has(key)) return messageCountsRequests.get(key);
-
-	const requestGeneration = messageCountsGeneration;
-	const request = (async () => {
-		const params = new URLSearchParams();
-		if (mailboxId) params.set("mailboxId", mailboxId);
-		const query = params.toString();
-		const res = await authFetch(`/api/messages/counts${query ? `?${query}` : ""}`);
-		const data = (await res.json()) as { counts?: MessageCounts };
-		const counts = data.counts;
-		if (counts && messageCountsGeneration === requestGeneration) {
-			messageCountsCache.set(key, counts);
-		}
-		return counts;
-	})().finally(() => {
-		if (messageCountsRequests.get(key) === request) {
-			messageCountsRequests.delete(key);
-		}
-	});
-
-	messageCountsRequests.set(key, request);
-	return request;
-}
-
-export async function fetchMessageList(params: URLSearchParams, force = false): Promise<MessageListResponse> {
-	const key = params.toString();
-	if (!force && messageListCache.has(key)) return messageListCache.get(key) ?? {};
-	if (messageListRequests.has(key)) return messageListRequests.get(key) ?? {};
-
-	const requestGeneration = messageListGeneration;
-	const request = authFetch(`/api/messages?${key}`)
-		.then((res) => res.json())
-		.then((data) => {
-			const response = data as MessageListResponse;
-			if (messageListGeneration === requestGeneration) {
-				messageListCache.set(key, response);
-			}
-			return response;
-		})
-		.finally(() => {
-			if (messageListRequests.get(key) === request) {
-				messageListRequests.delete(key);
-			}
-		});
-
-	messageListRequests.set(key, request);
-	return request;
+export async function fetchMessageList(params: URLSearchParams): Promise<MessageListResponse> {
+	const res = await authFetch(`/api/messages?${params.toString()}`);
+	return (await res.json()) as MessageListResponse;
 }
