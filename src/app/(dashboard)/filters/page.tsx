@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Filter } from "lucide-react";
-import { authFetch } from "@/lib/auth/client";
-import { parseApiResponse } from "@/lib/api/client-response";
+import { apiJson } from "@/lib/api/client-response";
 import { labelKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,21 +36,16 @@ export default function FiltersPage() {
 
 	const create = useMutation({
 		mutationFn: async () => {
-			const res = await authFetch("/api/filters", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					name: name || "My filter",
-					fromContains: fromContains || undefined,
-					subjectContains: subjectContains || undefined,
-					actionStar,
-					actionMarkRead,
-					actionArchive,
-					actionLabelId: actionLabelId || undefined,
-					actionMoveToTrash,
-				}),
+			await apiJson.post<{ id: string }>("/api/filters", {
+				name: name || "My filter",
+				fromContains: fromContains || undefined,
+				subjectContains: subjectContains || undefined,
+				actionStar,
+				actionMarkRead,
+				actionArchive,
+				actionLabelId: actionLabelId || undefined,
+				actionMoveToTrash,
 			});
-			await parseApiResponse<{ id: string }>(res);
 		},
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["filters"] });
@@ -68,8 +62,7 @@ export default function FiltersPage() {
 
 	const remove = useMutation({
 		mutationFn: async (id: string) => {
-			const res = await authFetch(`/api/filters/${id}`, { method: "DELETE" });
-			await parseApiResponse<{ ok: true }>(res);
+			await apiJson.delete<{ ok: true }>(`/api/filters/${id}`);
 		},
 		onSuccess: () => qc.invalidateQueries({ queryKey: ["filters"] }),
 	});

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Plus, Users, X } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { authFetch } from "@/lib/auth/client";
+import { apiJson } from "@/lib/api/client-response";
 import { Button } from "@/components/ui/button";
 
 type ContactSource = "manual" | "inbound" | "outbound";
@@ -34,9 +34,7 @@ function formatDate(value: string | null): string {
 }
 
 async function fetchContacts(): Promise<Contact[]> {
-	const res = await authFetch("/api/contacts");
-	const json = (await res.json()) as { success: boolean; data?: Contact[] };
-	return json.data ?? [];
+	return (await apiJson.get<Contact[] | null>("/api/contacts")) ?? [];
 }
 
 export default function ContactsPage() {
@@ -54,14 +52,12 @@ export default function ContactsPage() {
 
 	const createMutation = useMutation({
 		mutationFn: async () => {
-			const res = await authFetch("/api/contacts", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ email: email.trim(), displayName: displayName.trim() || undefined }),
+			await apiJson.post("/api/contacts", {
+				email: email.trim(),
+				displayName: displayName.trim() || undefined,
 			});
-			const json = (await res.json()) as { success: boolean; error?: { message: string } };
-			if (!res.ok) throw new Error(json.error?.message ?? "Failed to create contact");
 		},
+		meta: { suppressErrorToast: true },
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: ["contacts"] });
 			setEmail("");
