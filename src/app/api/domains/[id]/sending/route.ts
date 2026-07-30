@@ -13,7 +13,7 @@ export async function POST(request: Request, { params }: Params) {
 	if (errorResponse) return errorResponse;
 
 	const { id } = await params;
-	const domain = await getDomainForUser(env, orgUser.organizationId!, id);
+	const domain = await getDomainForUser(env, orgUser.organizationId, id);
 	if (!domain) return apiError("Not found", 404);
 
 	const body = await request.json().catch(() => null);

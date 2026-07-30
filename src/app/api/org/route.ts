@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   if (errorResponse) return errorResponse;
 
   const db = getDb(env);
-  const [org] = await db.select().from(organizations).where(eq(organizations.id, orgUser.organizationId as string)).limit(1);
+  const [org] = await db.select().from(organizations).where(eq(organizations.id, orgUser.organizationId)).limit(1);
   if (!org) return apiError("Organization not found", 404);
 
   return apiSuccess({ organization: org });
@@ -27,8 +27,8 @@ export async function PATCH(request: Request) {
   if (!name) return apiError("Name is required", 400);
 
   const db = getDb(env);
-  await db.update(organizations).set({ name, updatedAt: new Date() }).where(eq(organizations.id, orgUser.organizationId as string));
-  const [org] = await db.select().from(organizations).where(eq(organizations.id, orgUser.organizationId as string)).limit(1);
+  await db.update(organizations).set({ name, updatedAt: new Date() }).where(eq(organizations.id, orgUser.organizationId));
+  const [org] = await db.select().from(organizations).where(eq(organizations.id, orgUser.organizationId)).limit(1);
 
   return apiSuccess({ organization: org });
 }

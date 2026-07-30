@@ -74,7 +74,7 @@ export async function DELETE(request: Request, { params }: MailboxRouteParams) {
 	if (errorResponse) return errorResponse;
 
 	const db = getDb(env);
-	const [mailbox] = await selectMailboxForOrganization(db, orgUser.organizationId as string, id);
+	const [mailbox] = await selectMailboxForOrganization(db, orgUser.organizationId, id);
 
 	if (!mailbox) {
 		return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });

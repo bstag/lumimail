@@ -10,7 +10,7 @@ export async function GET(request: Request, { params }: Params) {
 	const env = getEnv();
 	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
 	if (errorResponse) return errorResponse;
-	const domain = await getDomainForUser(env, orgUser.organizationId!, id);
+	const domain = await getDomainForUser(env, orgUser.organizationId, id);
 	if (!domain) return apiError("Not found", 404);
 
 	try {

@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 	const env = getEnv();
 	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
 	if (errorResponse) return errorResponse;
-	const domains = await listUserDomains(env, orgUser.organizationId!);
+	const domains = await listUserDomains(env, orgUser.organizationId);
 
 	const includeDns = request.nextUrl.searchParams.get("includeDns") === "true";
 
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 	if (!parsed.success) return apiError("Validation failed", 400, parsed.error.flatten());
 
 	try {
-		const result = await addDomainForUser(env, orgUser.id, orgUser.organizationId!, parsed.data.hostname, {
+		const result = await addDomainForUser(env, orgUser.id, orgUser.organizationId, parsed.data.hostname, {
 			enableRouting: parsed.data.enableRouting,
 			enableSending: parsed.data.enableSending,
 		});

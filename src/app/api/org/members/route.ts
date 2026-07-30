@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     })
     .from(organizationMembers)
     .innerJoin(users, eq(organizationMembers.userId, users.id))
-    .where(eq(organizationMembers.organizationId, orgUser.organizationId as string));
+    .where(eq(organizationMembers.organizationId, orgUser.organizationId));
 
   const invites = await db
     .select({
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
     .from(orgInvites)
     .where(
       and(
-        eq(orgInvites.organizationId, orgUser.organizationId as string),
+        eq(orgInvites.organizationId, orgUser.organizationId),
         gt(orgInvites.expiresAt, new Date()),
       ),
     );
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     .innerJoin(users, eq(organizationMembers.userId, users.id))
     .where(
       and(
-        eq(organizationMembers.organizationId, orgUser.organizationId as string),
+        eq(organizationMembers.organizationId, orgUser.organizationId),
         eq(users.email, inviteEmail),
       ),
     )
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
     .from(orgInvites)
     .where(
       and(
-        eq(orgInvites.organizationId, orgUser.organizationId as string),
+        eq(orgInvites.organizationId, orgUser.organizationId),
         eq(orgInvites.email, inviteEmail),
         gt(orgInvites.expiresAt, new Date()),
       ),
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
   const inviteId = newId("inv");
   await db.insert(orgInvites).values({
     id: inviteId,
-    organizationId: orgUser.organizationId as string,
+    organizationId: orgUser.organizationId,
     email: inviteEmail,
     role,
     token: tokenHash,

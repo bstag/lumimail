@@ -27,7 +27,7 @@ export async function GET(request: Request) {
 			createdAt: forwardingDestinations.createdAt,
 		})
 		.from(forwardingDestinations)
-		.where(eq(forwardingDestinations.organizationId, orgUser.organizationId as string));
+		.where(eq(forwardingDestinations.organizationId, orgUser.organizationId));
 
 	return apiSuccess(
 		rows.map((row) => ({ ...row, verified: row.verifiedAt !== null })),
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 		return apiError("Cannot forward to an address on a domain Lumimail manages", 422);
 	}
 
-	const organizationId = orgUser.organizationId as string;
+	const organizationId = orgUser.organizationId;
 	const [existing] = await db
 		.select({ id: forwardingDestinations.id })
 		.from(forwardingDestinations)

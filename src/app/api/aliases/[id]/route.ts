@@ -27,7 +27,7 @@ export async function DELETE(
 		})
 		.from(aliases)
 		.innerJoin(domains, eq(aliases.domainId, domains.id))
-		.where(and(eq(aliases.id, id), eq(aliases.organizationId, orgUser.organizationId as string)))
+		.where(and(eq(aliases.id, id), eq(aliases.organizationId, orgUser.organizationId)))
 		.limit(1);
 
 	if (!alias) return apiError("Alias not found", 404);
@@ -66,7 +66,7 @@ export async function PATCH(
 		.from(aliases)
 		.where(and(
 			eq(aliases.id, id),
-			eq(aliases.organizationId, orgUser.organizationId as string),
+			eq(aliases.organizationId, orgUser.organizationId),
 		))
 		.limit(1);
 	if (!alias) return apiError("Alias not found", 404);
@@ -76,7 +76,7 @@ export async function PATCH(
 		.select({ id: mailboxes.id })
 		.from(mailboxes)
 		.where(and(
-			eq(mailboxes.organizationId, orgUser.organizationId as string),
+			eq(mailboxes.organizationId, orgUser.organizationId),
 			inArray(mailboxes.id, parsed.data.mailboxIds),
 		));
 	if (targets.length !== parsed.data.mailboxIds.length) {

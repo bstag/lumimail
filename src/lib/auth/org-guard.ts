@@ -1,8 +1,17 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/cookies";
 
+/**
+ * The success arm narrows `organizationId` to `string` — every guard already
+ * rejects a null org at runtime, so callers must not need `as string` casts.
+ */
+export type OrgUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>> & {
+  organizationId: string;
+  role: string;
+};
+
 type OrgGuardResult =
-  | { orgUser: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>> & { role: string }; errorResponse: null }
+  | { orgUser: OrgUser; errorResponse: null }
   | { orgUser: null; errorResponse: NextResponse };
 
 export async function guardOrgAdmin(env: CloudflareEnv, request?: Request): Promise<OrgGuardResult> {

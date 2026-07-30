@@ -22,7 +22,7 @@ export async function PATCH(
   const [membership] = await db
     .select()
     .from(organizationMembers)
-    .where(and(eq(organizationMembers.id, id), eq(organizationMembers.organizationId, orgUser.organizationId as string)))
+    .where(and(eq(organizationMembers.id, id), eq(organizationMembers.organizationId, orgUser.organizationId)))
     .limit(1);
 
   if (!membership) return apiError("Member not found", 404);
@@ -53,7 +53,7 @@ export async function DELETE(
   const [membership] = await db
     .select()
     .from(organizationMembers)
-    .where(and(eq(organizationMembers.id, id), eq(organizationMembers.organizationId, orgUser.organizationId as string)))
+    .where(and(eq(organizationMembers.id, id), eq(organizationMembers.organizationId, orgUser.organizationId)))
     .limit(1);
 
   if (!membership) return apiError("Member not found", 404);

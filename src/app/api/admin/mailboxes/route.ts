@@ -10,7 +10,7 @@ export async function GET(request: Request) {
 	if (errorResponse) return errorResponse;
 
 	const db = getDb(env);
-	const organizationId = orgUser.organizationId as string;
+	const organizationId = orgUser.organizationId;
 	const rows = await db
 		.select({
 			id: mailboxes.id,

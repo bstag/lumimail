@@ -15,7 +15,7 @@ export async function POST(request: Request, { params }: Params) {
 	if (errorResponse) return errorResponse;
 
 	const db = getDb(env);
-	const organizationId = orgUser.organizationId as string;
+	const organizationId = orgUser.organizationId;
 	const [destination] = await db
 		.select({ id: forwardingDestinations.id, address: forwardingDestinations.address })
 		.from(forwardingDestinations)

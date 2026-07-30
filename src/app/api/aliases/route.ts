@@ -30,7 +30,7 @@ export async function GET(request: Request) {
 		})
 		.from(aliases)
 		.innerJoin(domains, eq(aliases.domainId, domains.id))
-		.where(eq(aliases.organizationId, orgUser.organizationId as string));
+		.where(eq(aliases.organizationId, orgUser.organizationId));
 
 	const memberRows = rows.length
 		? await db
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
 			.innerJoin(aliases, eq(groupMembers.aliasId, aliases.id))
 			.innerJoin(mailboxes, eq(groupMembers.mailboxId, mailboxes.id))
 			.innerJoin(domains, eq(mailboxes.domainId, domains.id))
-			.where(eq(aliases.organizationId, orgUser.organizationId as string))
+			.where(eq(aliases.organizationId, orgUser.organizationId))
 		: [];
 	const membersByAlias = Map.groupBy(memberRows, (member) => member.aliasId);
 
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
 		.from(domains)
 		.where(and(
 			eq(domains.id, parsed.data.domainId),
-			eq(domains.organizationId, orgUser.organizationId as string),
+			eq(domains.organizationId, orgUser.organizationId),
 			eq(domains.status, "active"),
 		))
 		.limit(1);
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
 		.select({ id: mailboxes.id })
 		.from(mailboxes)
 		.where(and(
-			eq(mailboxes.organizationId, orgUser.organizationId as string),
+			eq(mailboxes.organizationId, orgUser.organizationId),
 			inArray(mailboxes.id, mailboxIds),
 		));
 	if (targetRows.length !== mailboxIds.length) {
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
 	const id = newId("alias");
 	const aliasInsert = db.insert(aliases).values({
 		id,
-		organizationId: orgUser.organizationId as string,
+		organizationId: orgUser.organizationId,
 		domainId: parsed.data.domainId,
 		localPart: parsed.data.localPart,
 		targetMailboxId: parsed.data.kind === "mailbox" ? parsed.data.targetMailboxId : null,
