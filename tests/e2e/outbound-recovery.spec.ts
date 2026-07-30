@@ -53,21 +53,20 @@ test.describe("operator-confirmed outbound recovery", () => {
 		const retry = page.getByRole("button", { name: "Retry delivery" });
 		await expect(retry).toBeVisible();
 
-		// Dismissing the confirmation must not send the request.
-		page.once("dialog", (dialog) => dialog.dismiss());
+		// Dismissing the confirmation must not send the request. The disclosure
+		// names the recipient and the duplicate-delivery risk.
+		const dialog = page.getByRole("dialog");
 		await retry.click();
+		await expect(dialog.getByText(/recipient@example\.net/)).toBeVisible();
+		await expect(dialog.getByText(/twice/)).toBeVisible();
+		await dialog.getByRole("button", { name: "Cancel" }).click();
+		await expect(dialog).toBeHidden();
 		await expect.poll(() => retryRequests).toBe(0);
 
-		// Accepting it does, and the disclosure names the recipient.
-		let dialogMessage = "";
-		page.once("dialog", (dialog) => {
-			dialogMessage = dialog.message();
-			return dialog.accept();
-		});
+		// Accepting it sends exactly one request.
 		await retry.click();
+		await dialog.getByRole("button", { name: "Retry delivery" }).click();
 		await expect.poll(() => retryRequests).toBe(1);
-		expect(dialogMessage).toContain("recipient@example.net");
-		expect(dialogMessage).toContain("twice");
 	});
 
 	test("hides recovery from a viewer-capability user", async ({ page }) => {

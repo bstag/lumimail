@@ -11,6 +11,7 @@ import { useCompose } from "@/components/compose/compose-context";
 import { useMailSearch } from "@/components/mail-search/mail-search-context";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { labelKeys } from "@/lib/query-keys";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useMessages } from "@/hooks/use-messages";
 import { useQuery } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth/client";
@@ -52,16 +53,12 @@ function MessageListRow({
 	const Icon = config.icon;
 	const { openDraftComposer } = useCompose();
 	const [retrying, setRetrying] = useState(false);
+	const [retryConfirmOpen, setRetryConfirmOpen] = useState(false);
 	const unread = message.direction === "inbound" && !message.read;
 	const showRetry = canRecoverMessage(config.folder, message.status, canSend);
 
-	async function handleRetryClick(event: React.MouseEvent) {
-		event.preventDefault();
-		event.stopPropagation();
-		// A failure can be ambiguous: the provider may have accepted the message
-		// before the error surfaced. The operator decides whether to accept that.
-		if (!window.confirm(t("retryDeliveryConfirm", { recipient: message.toAddr ?? "" }))) return;
-
+	async function runRetry() {
+		setRetryConfirmOpen(false);
 		setRetrying(true);
 		try {
 			await retryMessageDelivery(message.id);
@@ -71,14 +68,32 @@ function MessageListRow({
 	}
 
 	const retryButton = showRetry ? (
-		<button
-			type="button"
-			onClick={handleRetryClick}
-			disabled={retrying}
-			className="rounded px-2 py-1 text-xs font-medium text-accent hover:bg-surface-subtle disabled:opacity-50"
-		>
-			{t("retryDelivery")}
-		</button>
+		<>
+			<button
+				type="button"
+				onClick={(event) => {
+					event.preventDefault();
+					event.stopPropagation();
+					setRetryConfirmOpen(true);
+				}}
+				disabled={retrying}
+				className="rounded px-2 py-1 text-xs font-medium text-accent hover:bg-surface-subtle disabled:opacity-50"
+			>
+				{t("retryDelivery")}
+			</button>
+			<ConfirmDialog
+				open={retryConfirmOpen}
+				onOpenChange={setRetryConfirmOpen}
+				title={t("retryDelivery")}
+				// A failure can be ambiguous: the provider may have accepted the
+				// message before the error surfaced. The operator decides whether
+				// to accept that.
+				description={t("retryDeliveryConfirm", { recipient: message.toAddr ?? "" })}
+				confirmLabel={t("retryDelivery")}
+				pending={retrying}
+				onConfirm={runRetry}
+			/>
+		</>
 	) : null;
 	const className =
 		`grid min-h-12 w-full grid-cols-[24px_32px_minmax(96px,180px)_1fr_auto_auto] items-center gap-2 px-4 text-left text-sm sm:grid-cols-[24px_32px_minmax(160px,240px)_1fr_auto_auto] sm:gap-3 sm:px-6 hover:relative hover:z-10 hover:bg-surface-subtle hover:shadow-sm ${
