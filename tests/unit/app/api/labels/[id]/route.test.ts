@@ -1,34 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextResponse } from "next/server";
-import { createDbMock, type DbMock } from "../../../../helpers/db";
 
-const m = vi.hoisted(() => ({ db: null as unknown, guardUser: vi.fn() }));
-vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
-vi.mock("@/db", () => ({ getDb: () => m.db }));
-vi.mock("@/lib/auth/cookies", () => ({ guardUser: m.guardUser }));
+const m = await vi.hoisted(async () => {
+	const { createRouteMocks } = await import("../../../../helpers/route-mocks");
+	return createRouteMocks();
+});
+vi.mock("@/lib/cloudflare", () => m.cloudflareModule());
+vi.mock("@/db", () => m.dbModule());
+vi.mock("@/lib/auth/cookies", () => m.cookiesModule());
 
 import { PATCH, DELETE } from "@/app/api/labels/[id]/route";
+import { jsonRequest, routeContext } from "../../../../helpers/route-mocks";
 
-let mock: DbMock;
-const unauth = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-const params = (id = "lbl_1") => ({ params: Promise.resolve({ id }) });
+const params = (id = "lbl_1") => routeContext({ id });
 
-beforeEach(() => {
-	mock = createDbMock();
-	m.db = mock.db;
-	m.guardUser.mockReset();
-});
+beforeEach(() => m.reset());
 
 function req(body?: unknown, raw?: string) {
-	return new Request("https://x.test/api/labels/lbl_1", {
+	return jsonRequest("https://x.test/api/labels/lbl_1", body, {
 		method: "PATCH",
-		body: raw !== undefined ? raw : body === undefined ? undefined : JSON.stringify(body),
+		...(raw !== undefined ? { rawBody: raw } : {}),
 	});
 }
 
 describe("PATCH /api/labels/[id]", () => {
 	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: unauth });
+		m.guardUser.mockResolvedValue({ errorResponse: m.unauthorized() });
 		const res = await PATCH(req({ name: "X" }), params());
 		expect(res.status).toBe(401);
 	});
@@ -48,44 +44,44 @@ describe("PATCH /api/labels/[id]", () => {
 
 	it("returns 404 when the label is missing or not owned", async () => {
 		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
-		mock.queueSelect([]); // .get() -> undefined
+		m.dbMock.queueSelect([]); // .get() -> undefined
 		const res = await PATCH(req({ name: "New" }), params());
 		expect(res.status).toBe(404);
-		expect(mock.updates).toHaveLength(0);
+		expect(m.dbMock.updates).toHaveLength(0);
 	});
 
 	it("updates an existing label", async () => {
 		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
-		mock.queueSelect([{ id: "lbl_1", userId: "u1" }]); // existing
-		mock.queueSelect([{ id: "lbl_1", name: "New" }]); // updated returning
+		m.dbMock.queueSelect([{ id: "lbl_1", userId: "u1" }]); // existing
+		m.dbMock.queueSelect([{ id: "lbl_1", name: "New" }]); // updated returning
 		const res = await PATCH(req({ name: "New" }), params());
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({ success: true, data: { id: "lbl_1", name: "New" } });
-		expect(mock.updates[0].set).toEqual({ name: "New" });
+		expect(m.dbMock.updates[0].set).toEqual({ name: "New" });
 	});
 });
 
 describe("DELETE /api/labels/[id]", () => {
 	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: unauth });
+		m.guardUser.mockResolvedValue({ errorResponse: m.unauthorized() });
 		const res = await DELETE(req(), params());
 		expect(res.status).toBe(401);
 	});
 
 	it("returns 404 when the label is missing or not owned", async () => {
 		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
-		mock.queueSelect([]); // .get() -> undefined
+		m.dbMock.queueSelect([]); // .get() -> undefined
 		const res = await DELETE(req(), params());
 		expect(res.status).toBe(404);
-		expect(mock.deletes).toHaveLength(0);
+		expect(m.dbMock.deletes).toHaveLength(0);
 	});
 
 	it("deletes an existing label", async () => {
 		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
-		mock.queueSelect([{ id: "lbl_1", userId: "u1" }]);
+		m.dbMock.queueSelect([{ id: "lbl_1", userId: "u1" }]);
 		const res = await DELETE(req(), params());
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({ success: true, data: { id: "lbl_1" } });
-		expect(mock.deletes.length).toBe(1);
+		expect(m.dbMock.deletes.length).toBe(1);
 	});
 });
