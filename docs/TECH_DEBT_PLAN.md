@@ -183,7 +183,7 @@ Deletions (safe, verified unreferenced):
   missing keys for labels/filters/contacts pages. Follow-up guard: a test that
   fails on untranslated literals in client components (scoped to a lintable
   pattern, not a full grep of prose). Effort M.
-- [ ] **T-36 Split god components when touched:** `compose-form.tsx` →
+- [x] **T-36 Split god components when touched:** `compose-form.tsx` →
   `useComposeDraft`, `useComposePrefill`, `useAttachments`, `AttachmentChips`;
   extract shared `MessageBody` in `inbox/[messageId]` (removes the duplicated
   renderer); `LabelFilterBar` + `FolderPagination` out of
@@ -198,24 +198,24 @@ Deletions (safe, verified unreferenced):
 
 ## Wave 3 — Larger extractions (still in-batch, last because widest blast radius)
 
-- [ ] **T-40 Service extractions for the god routes:**
+- [x] **T-40 Service extractions for the god routes:**
   `src/lib/email/routing-rules-service.ts` (catch-all dance shared by POST/PATCH),
   `src/lib/email/alias-service.ts` (provision + compensation saga),
   `src/lib/auth/registration.ts` (invite-claim and first-run flows with their
   rollbacks). Model: the existing `domains/service.ts`. The compensation logic
   gains isolated unit tests. Effort L.
-- [ ] **T-41 Single source of truth for org membership.** Today
+- [x] **T-41 Single source of truth for org membership.** Today
   `users.organizationId` and `organizationMembers` coexist and `session.ts`
   reads both. In-batch scope: document the invariant where both are read, add a
   consistency assertion/test, and stop *new* code from touching the column
   directly (accessor in `src/lib/auth/`). Full column retirement (migration +
   backfill removal) is deliberately **out of batch** — schedule after the batch
   ships. Effort M (in-batch portion).
-- [ ] **T-42 `routing.ts` `resolveInboundTargets` split:** `resolveAliasDecisions`
+- [x] **T-42 `routing.ts` `resolveInboundTargets` split:** `resolveAliasDecisions`
   / `resolveGroupMembers`, pass the loaded domain into the fallback (removes the
   doubled query), remove or justify the unreachable legacy arm with a test.
   Effort M.
-- [ ] **T-43 Seed isolation:** move fixtures to `seed-fixtures.ts`; gate the seed
+- [x] **T-43 Seed isolation:** move fixtures to `seed-fixtures.ts`; gate the seed
   route on an explicit env binding (`SEED_ENABLED`) instead of `NODE_ENV`;
   seeds populate `organizationId` (current org-scoped shape, not the legacy
   single-user shape). Effort S.
