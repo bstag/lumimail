@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,8 @@ type Props = {
 };
 
 export function InviteMemberDialog({ open, onOpenChange, onInviteCreated }: Props) {
+  const t = useTranslations("admin");
+  const tCommon = useTranslations("common");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "member">("member");
   const [loading, setLoading] = useState(false);
@@ -43,7 +46,7 @@ export function InviteMemberDialog({ open, onOpenChange, onInviteCreated }: Prop
     };
     setLoading(false);
     if (!res.ok || !json.success) {
-      setError(typeof json.error?.message === "string" ? json.error.message : "Failed to create invite");
+      setError(typeof json.error?.message === "string" ? json.error.message : t("createInviteFailed"));
       return;
     }
     const link = `${window.location.origin}/register?token=${json.data!.invite.token}`;
@@ -71,50 +74,50 @@ export function InviteMemberDialog({ open, onOpenChange, onInviteCreated }: Prop
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Invite member</DialogTitle>
+          <DialogTitle>{t("inviteMember")}</DialogTitle>
         </DialogHeader>
         {inviteLink ? (
           <div className="space-y-4">
             <p className="text-sm text-ink-muted">
-              Share this link with {email}. They will join as {role}.
+              {t("inviteShareLink", { email, role })}
             </p>
             <div className="flex items-center gap-2">
               <Input value={inviteLink} readOnly className="flex-1" />
               <Button type="button" variant="outline" size="sm" onClick={copyLink}>
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                {copied ? "Copied" : "Copy"}
+                {copied ? tCommon("copied") : tCommon("copy")}
               </Button>
             </div>
             <Button type="button" variant="outline" className="w-full" onClick={handleClose}>
-              Close
+              {tCommon("close")}
             </Button>
           </div>
         ) : (
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="invite-email">Email address</Label>
+              <Label htmlFor="invite-email">{t("inviteEmailLabel")}</Label>
               <Input
                 id="invite-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="colleague@example.com"
+                placeholder={t("inviteEmailPlaceholder")}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="invite-role">Role</Label>
+              <Label htmlFor="invite-role">{t("inviteRoleLabel")}</Label>
               <Select
                 id="invite-role"
                 value={role}
                 onChange={(e) => setRole(e.target.value as "admin" | "member")}
                 
               >
-                <option value="member">Member</option>
-                <option value="admin">Admin</option>
+                <option value="member">{t("roleMember")}</option>
+                <option value="admin">{t("roleAdmin")}</option>
               </Select>
               <p className="text-xs text-ink-muted">
-                Admins can manage members. Members can only use mail.
+                {t("inviteRoleHint")}
               </p>
             </div>
             {error && (
@@ -123,7 +126,7 @@ export function InviteMemberDialog({ open, onOpenChange, onInviteCreated }: Prop
               </p>
             )}
             <Button type="submit" className="w-full" disabled={loading || !email.trim()}>
-              {loading ? "Creating..." : "Create invite link"}
+              {loading ? t("creating") : t("createInviteLink")}
             </Button>
           </form>
         )}

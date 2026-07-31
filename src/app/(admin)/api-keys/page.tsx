@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Copy, KeyRound, Plus } from "lucide-react";
 import { useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -28,6 +29,9 @@ import {
 } from "./utils";
 
 export default function ApiKeysPage() {
+	const t = useTranslations("admin");
+	const tCommon = useTranslations("common");
+	const locale = useLocale();
 	const queryClient = useQueryClient();
 	const [name, setName] = useState("");
 	const [createOpen, setCreateOpen] = useState(false);
@@ -79,10 +83,16 @@ export default function ApiKeysPage() {
 		setCopyError(false);
 	}
 
+	const formatTimestamp = (value: string | null | undefined) =>
+		formatApiKeyTimestamp(value, locale, undefined, {
+			never: t("never"),
+			unknown: t("unknown"),
+		});
+
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between gap-4">
-				<h1 className="text-2xl font-semibold text-ink">API Keys</h1>
+				<h1 className="text-2xl font-semibold text-ink">{t("apiKeysTitle")}</h1>
 				<Dialog
 					open={createOpen}
 					onOpenChange={(open) => {
@@ -93,26 +103,26 @@ export default function ApiKeysPage() {
 					<DialogTrigger asChild>
 						<Button>
 							<Plus className="h-4 w-4" />
-							New API key
+							{t("newApiKey")}
 						</Button>
 					</DialogTrigger>
 					<DialogContent>
 						<DialogHeader>
-							<DialogTitle>Create API key</DialogTitle>
-							<DialogDescription>Create a key with send and read permissions.</DialogDescription>
+							<DialogTitle>{t("createApiKeyTitle")}</DialogTitle>
+							<DialogDescription>{t("createApiKeyDesc")}</DialogDescription>
 						</DialogHeader>
 						<div className="space-y-4">
-							<FormField label="Name" htmlFor="api-key-name">
+							<FormField label={t("apiKeyName")} htmlFor="api-key-name">
 								<Input
 									id="api-key-name"
 									value={name}
 									onChange={(event) => setName(event.target.value)}
-									placeholder="Production app"
+									placeholder={t("apiKeyNamePlaceholder")}
 								/>
 							</FormField>
 							{create.isError && <p className="text-sm text-danger">{create.error.message}</p>}
 							<Button onClick={() => create.mutate()} disabled={!name.trim() || create.isPending}>
-								{create.isPending ? "Creating..." : "Create key"}
+								{create.isPending ? t("creating") : t("createKey")}
 							</Button>
 						</div>
 					</DialogContent>
@@ -122,21 +132,21 @@ export default function ApiKeysPage() {
 			<Dialog open={createdKey !== null} onOpenChange={closeSecretDialog}>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>Save this API key now</DialogTitle>
+						<DialogTitle>{t("saveKeyTitle")}</DialogTitle>
 						<DialogDescription>
-							This secret is shown only once and cannot be recovered after you close this window.
+							{t("saveKeyDesc")}
 						</DialogDescription>
 					</DialogHeader>
 					<code className="block break-all rounded-md border bg-surface-subtle p-3 text-xs font-semibold">
 						{createdKey?.key}
 					</code>
-					{copyError && <p className="text-sm text-danger">Copy failed. Select and copy the key manually.</p>}
+					{copyError && <p className="text-sm text-danger">{t("copyKeyFailed")}</p>}
 					<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
 						<Button variant="outline" onClick={copyCreatedKey}>
 							<Copy className="h-4 w-4" />
-							{copied ? "Copied" : "Copy key"}
+							{copied ? tCommon("copied") : t("copyKeyButton")}
 						</Button>
-						<Button onClick={() => closeSecretDialog(false)}>Done</Button>
+						<Button onClick={() => closeSecretDialog(false)}>{tCommon("done")}</Button>
 					</div>
 				</DialogContent>
 			</Dialog>
@@ -149,9 +159,10 @@ export default function ApiKeysPage() {
 						revoke.reset();
 					}
 				}}
-				title="Revoke API key?"
-				description={`${revokeTarget?.name ?? ""} will stop working immediately. This action cannot be undone.`}
-				confirmLabel={revoke.isPending ? "Revoking..." : "Revoke key"}
+				title={t("revokeKeyTitle")}
+				description={t("revokeKeyDesc", { name: revokeTarget?.name ?? "" })}
+				confirmLabel={revoke.isPending ? t("revokingKey") : t("revokeKeyConfirm")}
+				cancelLabel={tCommon("cancel")}
 				danger
 				pending={revoke.isPending}
 				error={revoke.isError ? revoke.error.message : null}
@@ -159,12 +170,12 @@ export default function ApiKeysPage() {
 			/>
 
 			<section className="space-y-3">
-				<span className="text-sm text-ink-muted">{apiKeys.length} total</span>
+				<span className="text-sm text-ink-muted">{t("total", { count: apiKeys.length })}</span>
 				<ListSection
 					loading={isLoading}
-					loadingLabel="Loading API keys..."
+					loadingLabel={t("loadingApiKeys")}
 					empty={apiKeys.length === 0}
-					emptyLabel="No API keys yet"
+					emptyLabel={t("noApiKeys")}
 					emptyIcon={KeyRound}
 				>
 				<div className="grid gap-3 md:grid-cols-2">
@@ -180,7 +191,7 @@ export default function ApiKeysPage() {
 								<span className="flex items-center justify-between gap-2">
 									<span className="truncate text-sm font-semibold text-ink">{key.name}</span>
 									<Badge variant={key.revokedAt ? "secondary" : "outline"}>
-										{key.revokedAt ? "Revoked" : "Active"}
+										{key.revokedAt ? t("revoked") : t("active")}
 									</Badge>
 								</span>
 								<span className="block truncate font-mono text-sm text-ink-muted">{key.prefix}...</span>
@@ -192,20 +203,20 @@ export default function ApiKeysPage() {
 									))}
 								</span>
 								<span className="block text-xs text-ink-muted">
-									Created {formatApiKeyTimestamp(key.createdAt)}
+									{t("createdAt", { timestamp: formatTimestamp(key.createdAt) })}
 								</span>
 								<span className="block text-xs text-ink-muted">
-									Last used {formatApiKeyTimestamp(key.lastUsedAt)}
+									{t("lastUsedAt", { timestamp: formatTimestamp(key.lastUsedAt) })}
 								</span>
 								{key.revokedAt && (
 									<span className="block text-xs text-ink-muted">
-										Revoked {formatApiKeyTimestamp(key.revokedAt)}
+										{t("revokedAt", { timestamp: formatTimestamp(key.revokedAt) })}
 									</span>
 								)}
 								{!key.revokedAt && (
 									<Button size="sm" variant="outline" onClick={() => setRevokeTarget(key)}>
 										<Ban className="h-4 w-4" />
-										Revoke
+										{t("revoke")}
 									</Button>
 								)}
 							</span>

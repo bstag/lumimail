@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Plus, Trash2, GitBranch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +35,8 @@ type Domain = { id: string; hostname: string };
 type Mailbox = { id: string; localPart: string; domainId: string; displayName: string | null };
 
 export default function RoutingPage() {
+	const t = useTranslations("admin");
+	const tCommon = useTranslations("common");
 	const qc = useQueryClient();
 	const [pattern, setPattern] = useState("*");
 	const [domainId, setDomainId] = useState("");
@@ -120,8 +123,8 @@ export default function RoutingPage() {
 		domains.data?.domains.find((d) => d.id === id)?.hostname ?? "";
 
 	const actionLabel = (rule: RoutingRule) => {
-		if (rule.action === "store" && rule.mailboxId) return `→ mailbox`;
-		if (rule.action === "forward" && rule.forwardTo) return `→ ${rule.forwardTo}`;
+		if (rule.action === "store" && rule.mailboxId) return t("actionToMailbox");
+		if (rule.action === "forward" && rule.forwardTo) return t("actionForwardTo", { address: rule.forwardTo });
 		return rule.action;
 	};
 	const selectedHostname = domainHostname(domainId);
@@ -133,8 +136,8 @@ export default function RoutingPage() {
 	return (
 		<div className="space-y-6">
 			<PageHeader
-				title="Routing rules"
-				description="Named addresses are matched before real mailboxes; catch-all runs only for otherwise unmatched addresses. Priority applies within each match type."
+				title={t("routingTitle")}
+				description={t("routingPageDesc")}
 			/>
 
 			<ConfirmDialog
@@ -142,9 +145,10 @@ export default function RoutingPage() {
 				onOpenChange={(open) => {
 					if (!open) setRemoveTarget(null);
 				}}
-				title="Remove catch-all rule?"
-				description="Removing this catch-all disables unmatched delivery for this domain."
-				confirmLabel="Remove rule"
+				title={t("removeCatchAllTitle")}
+				description={t("removeCatchAllDesc")}
+				confirmLabel={t("removeRuleConfirm")}
+				cancelLabel={tCommon("cancel")}
 				danger
 				onConfirm={() => {
 					if (removeTarget) remove.mutate(removeTarget.id);
@@ -154,47 +158,49 @@ export default function RoutingPage() {
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Add rule</CardTitle>
+					<CardTitle>{t("addRuleCard")}</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-4">
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-						<FormField label="Domain" htmlFor="routing-domain">
+						<FormField label={t("domain")} htmlFor="routing-domain">
 							<Select
 								id="routing-domain"
 								value={domainId}
 								onChange={(e) => { setDomainId(e.target.value); setMailboxId(""); }}
 							>
-								<option value="">Select domain</option>
+								<option value="">{t("selectDomain")}</option>
 								{(domains.data?.domains ?? []).map((d) => (
 									<option key={d.id} value={d.id}>{d.hostname}</option>
 								))}
 							</Select>
 						</FormField>
-						<FormField label="Pattern" htmlFor="routing-pattern">
+						<FormField label={t("pattern")} htmlFor="routing-pattern">
 							<Input
 								id="routing-pattern"
-								placeholder="*, support, or support@domain.com"
+								placeholder={t("patternPlaceholder")}
 								value={pattern}
 								onChange={(e) => setPattern(e.target.value)}
 							/>
 						</FormField>
 					</div>
 					<p className="text-xs text-ink-muted">
-						Use <span className="font-mono">*</span> for all otherwise unmatched addresses on the selected domain. Adding it enables that domain&apos;s Cloudflare catch-all for Lumimail.
+						{t.rich("catchAllHint", {
+							mono: (chunks) => <span className="font-mono">{chunks}</span>,
+						})}
 					</p>
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-						<FormField label="Action" htmlFor="routing-action">
+						<FormField label={t("action")} htmlFor="routing-action">
 							<Select
 								id="routing-action"
 								value={action}
 								onChange={(e) => setAction(e.target.value as "store" | "forward" | "reject")}
 							>
-								<option value="store">Store in mailbox</option>
-								<option value="forward">Forward to address</option>
-								<option value="reject">Reject</option>
+								<option value="store">{t("actionStore")}</option>
+								<option value="forward">{t("actionForward")}</option>
+								<option value="reject">{t("actionReject")}</option>
 							</Select>
 						</FormField>
-						<FormField label="Priority" htmlFor="routing-priority">
+						<FormField label={t("priority")} htmlFor="routing-priority">
 							<Input
 								id="routing-priority"
 								type="number"
@@ -205,13 +211,13 @@ export default function RoutingPage() {
 					</div>
 
 					{action === "store" && (
-						<FormField label="Target mailbox" htmlFor="routing-mailbox">
+						<FormField label={t("targetMailbox")} htmlFor="routing-mailbox">
 							<Select
 								id="routing-mailbox"
 								value={mailboxId}
 								onChange={(e) => setMailboxId(e.target.value)}
 							>
-								<option value="">Select mailbox</option>
+								<option value="">{t("selectMailbox")}</option>
 								{availableMailboxes.map((m) => (
 									<option key={m.id} value={m.id}>
 										{m.localPart}@{domainHostname(m.domainId)}
@@ -222,14 +228,14 @@ export default function RoutingPage() {
 					)}
 
 					{action === "forward" && (
-						<FormField label="Forward to" htmlFor="routing-forward">
+						<FormField label={t("forwardTo")} htmlFor="routing-forward">
 							{verifiedDestinations.length > 0 ? (
 								<Select
 									id="routing-forward"
 									value={forwardTo}
 									onChange={(e) => setForwardTo(e.target.value)}
 								>
-									<option value="">Select a verified destination</option>
+									<option value="">{t("selectVerifiedDestination")}</option>
 									{verifiedDestinations.map((destination) => (
 										<option key={destination.id} value={destination.address}>
 											{destination.address}
@@ -238,13 +244,12 @@ export default function RoutingPage() {
 								</Select>
 							) : (
 								<p className="text-sm text-ink-muted">
-									Add and verify a destination below before forwarding. Mail cannot be
-									forwarded to an unverified address.
+									{t("verifyDestinationFirst")}
 								</p>
 							)}
 							{pendingDestinations.length > 0 && (
 								<p className="text-sm text-ink-muted">
-									Awaiting verification: {pendingDestinations.map((d) => d.address).join(", ")}
+									{t("awaitingVerification", { addresses: pendingDestinations.map((d) => d.address).join(", ") })}
 								</p>
 							)}
 						</FormField>
@@ -255,31 +260,30 @@ export default function RoutingPage() {
 						disabled={!canSubmit || create.isPending}
 					>
 						<Plus className="h-4 w-4 mr-2" />
-						{isCatchAllInput ? "Enable catch-all and add rule" : "Add rule"}
+						{isCatchAllInput ? t("enableCatchAllAndAdd") : t("addRuleCard")}
 					</Button>
 					{create.isError && (
-						<p className="text-sm text-danger">{create.error instanceof Error ? create.error.message : "Failed to create rule"}</p>
+						<p className="text-sm text-danger">{create.error instanceof Error ? create.error.message : t("createRuleFailed")}</p>
 					)}
 					{remove.isError && (
-						<p className="text-sm text-danger">{remove.error instanceof Error ? remove.error.message : "Failed to remove rule"}</p>
+						<p className="text-sm text-danger">{remove.error instanceof Error ? remove.error.message : t("removeRuleFailed")}</p>
 					)}
 				</CardContent>
 			</Card>
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Forwarding destinations</CardTitle>
+					<CardTitle>{t("forwardingDestinations")}</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-4">
 					<p className="text-sm text-ink-muted">
-						Cloudflare emails each destination a verification link. Until the recipient
-						confirms it, mail cannot be forwarded there and rules using it are refused.
+						{t("destinationVerificationInfo")}
 					</p>
 					<div className="flex gap-2">
 						<Input
 							id="new-forwarding-destination"
 							type="email"
-							placeholder="destination@example.com"
+							placeholder={t("destinationPlaceholder")}
 							value={newDestination}
 							onChange={(e) => setNewDestination(e.target.value)}
 						/>
@@ -288,16 +292,16 @@ export default function RoutingPage() {
 							disabled={!newDestination.trim() || addDestination.isPending}
 						>
 							<Plus className="h-4 w-4 mr-2" />
-							Add
+							{tCommon("add")}
 						</Button>
 					</div>
 					{addDestination.isError && (
 						<p className="text-sm text-danger">
-							{addDestination.error instanceof Error ? addDestination.error.message : "Failed to add destination"}
+							{addDestination.error instanceof Error ? addDestination.error.message : t("addDestinationFailed")}
 						</p>
 					)}
 					{allDestinations.length === 0 && (
-						<p className="text-sm text-ink-muted">No forwarding destinations yet.</p>
+						<p className="text-sm text-ink-muted">{t("noDestinations")}</p>
 					)}
 					<ul className="divide-y divide-border">
 						{allDestinations.map((destination) => (
@@ -305,7 +309,7 @@ export default function RoutingPage() {
 								<span className="text-sm text-ink">{destination.address}</span>
 								<span className="flex items-center gap-3">
 									<span className={`text-xs ${destination.verified ? "text-success" : "text-ink-muted"}`}>
-										{destination.verified ? "Verified" : "Pending verification"}
+										{destination.verified ? t("verified") : t("pendingVerification")}
 									</span>
 									{!destination.verified && (
 										<Button
@@ -313,7 +317,7 @@ export default function RoutingPage() {
 											onClick={() => refreshDestination.mutate(destination.id)}
 											disabled={refreshDestination.isPending}
 										>
-											Check again
+											{t("checkAgain")}
 										</Button>
 									)}
 								</span>
@@ -325,14 +329,14 @@ export default function RoutingPage() {
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Active rules</CardTitle>
+					<CardTitle>{t("activeRules")}</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<ListSection
 						loading={rules.isLoading}
-						loadingLabel="Loading routing rules..."
+						loadingLabel={t("loadingRoutingRules")}
 						empty={activeRules.length === 0}
-						emptyLabel="No routing rules yet."
+						emptyLabel={t("noRoutingRules")}
 						emptyIcon={GitBranch}
 					>
 						<ul className="divide-y divide-border">
@@ -343,12 +347,14 @@ export default function RoutingPage() {
 											<GitBranch className="h-4 w-4 text-ink-faint" />
 											<div>
 												<div className="font-medium">
-													<span className="font-mono">{r.pattern}</span>
-													{" "}on{" "}
-													<span className="font-mono">{domainHostname(r.domainId)}</span>
+													{t.rich("ruleSummary", {
+														pattern: r.pattern,
+														domain: domainHostname(r.domainId),
+														mono: (chunks) => <span className="font-mono">{chunks}</span>,
+													})}
 												</div>
 												<div className="text-xs text-ink-muted">
-													{actionLabel(r)} · priority {r.priority}
+													{actionLabel(r)} · {t("priorityLabel", { priority: r.priority })}
 												</div>
 											</div>
 										</div>
@@ -357,7 +363,7 @@ export default function RoutingPage() {
 											size="sm"
 											onClick={() => confirmRemove(r)}
 											className="text-danger hover:text-danger"
-											aria-label={`Remove ${r.pattern} rule for ${domainHostname(r.domainId)}`}
+											aria-label={t("removeRuleAria", { pattern: r.pattern, hostname: domainHostname(r.domainId) })}
 										>
 											<Trash2 className="h-4 w-4" />
 										</Button>

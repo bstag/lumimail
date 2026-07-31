@@ -36,14 +36,22 @@ export async function revokeApiKey(id: string): Promise<void> {
 	await readApiKeyResponse<{ ok: true }>(response);
 }
 
+export type ApiKeyTimestampLabels = {
+	/** Shown for a key that has never been used. */
+	never: string;
+	/** Shown for malformed stored metadata. */
+	unknown: string;
+};
+
 export function formatApiKeyTimestamp(
 	value: string | null | undefined,
 	locale?: string,
 	timeZone?: string,
+	labels: ApiKeyTimestampLabels = { never: "Never", unknown: "Unknown" },
 ): string {
-	if (!value) return "Never";
+	if (!value) return labels.never;
 	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return "Unknown";
+	if (Number.isNaN(date.getTime())) return labels.unknown;
 	return new Intl.DateTimeFormat(locale, {
 		year: "numeric",
 		month: "short",

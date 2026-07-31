@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Mail, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +24,7 @@ import { getMailboxAddress, getMailboxName } from "./utils";
 import { Select } from "@/components/ui/select";
 
 export default function MailboxesPage() {
+	const t = useTranslations("admin");
 	const qc = useQueryClient();
 	const [localPart, setLocalPart] = useState("");
 	const [domainId, setDomainId] = useState("");
@@ -81,26 +83,26 @@ export default function MailboxesPage() {
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between gap-4">
-				<h1 className="text-2xl font-semibold text-ink">Mailboxes</h1>
+				<h1 className="text-2xl font-semibold text-ink">{t("mailboxesTitle")}</h1>
 				<Dialog open={createOpen} onOpenChange={setCreateOpen}>
 					<DialogTrigger asChild>
 						<Button>
 							<Plus className="h-4 w-4" />
-							New mailbox
+							{t("newMailbox")}
 						</Button>
 					</DialogTrigger>
 					<DialogContent>
 						<DialogHeader>
-							<DialogTitle>Create mailbox</DialogTitle>
-							<DialogDescription>Add a mailbox and provision its routing rule automatically.</DialogDescription>
+							<DialogTitle>{t("createMailboxTitle")}</DialogTitle>
+							<DialogDescription>{t("createMailboxDesc")}</DialogDescription>
 						</DialogHeader>
 						<div className="space-y-4">
-							<FormField label="Domain">
+							<FormField label={t("domain")}>
 								<Select
 									value={domainId}
 									onChange={(event) => setDomainId(event.target.value)}
 								>
-									<option value="">Select domain</option>
+									<option value="">{t("selectDomain")}</option>
 									{(domains.data?.domains ?? []).map((domain) => (
 										<option key={domain.id} value={domain.id}>
 											{domain.hostname}
@@ -108,11 +110,11 @@ export default function MailboxesPage() {
 									))}
 								</Select>
 							</FormField>
-							<FormField label="Username" className="relative">
+							<FormField label={t("username")} className="relative">
 								<Input
 									value={localPart}
 									onChange={(event) => setLocalPart(event.target.value)}
-									placeholder="support"
+									placeholder={t("usernamePlaceholder")}
 								/>
 								{domainId && (
 									<span className="absolute bottom-2.5 right-4 text-sm text-ink-faint">
@@ -127,7 +129,7 @@ export default function MailboxesPage() {
 								onClick={() => create.mutate()}
 								disabled={!domainId || !localPart || create.isPending}
 							>
-								{create.isPending ? "Creating..." : "Create mailbox"}
+								{create.isPending ? t("creating") : t("createMailboxTitle")}
 							</Button>
 						</div>
 					</DialogContent>
@@ -136,9 +138,9 @@ export default function MailboxesPage() {
 			<section className="space-y-3">
 				<ListSection
 					loading={mailboxes.isLoading}
-					loadingLabel="Loading mailboxes..."
+					loadingLabel={t("loadingMailboxes")}
 					empty={(mailboxes.data?.mailboxes ?? []).length === 0}
-					emptyLabel="No mailboxes yet"
+					emptyLabel={t("noMailboxes")}
 					emptyIcon={Mail}
 				>
 				<div className="grid gap-3 md:grid-cols-2">
@@ -161,7 +163,7 @@ export default function MailboxesPage() {
 										{getMailboxAddress(mailboxWithHostname)}
 									</span>
 									<span className="block text-xs capitalize text-ink-faint">
-										{mailbox.role ?? "No content access"}
+										{mailbox.role ?? t("noContentAccess")}
 									</span>
 								</span>
 							</>
@@ -182,7 +184,7 @@ export default function MailboxesPage() {
 								{content}
 								{!mailbox.role && mailboxes.data?.canSelfAssign && (
 									<Button size="sm" variant="outline" onClick={() => claimAccess.mutate(mailbox.id)} disabled={claimAccess.isPending}>
-										Claim access
+										{t("claimAccess")}
 									</Button>
 								)}
 							</div>

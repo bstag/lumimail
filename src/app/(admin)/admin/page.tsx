@@ -20,8 +20,8 @@ export default function AdminSettingsPage() {
 		...(session?.user.role === "owner"
 			? [{
 				href: "/queue-health",
-				title: "Queue health",
-				description: "Monitor scheduled inbound and outbound delivery queues.",
+				title: t("queueHealthTitle"),
+				description: t("queueHealthCardDesc"),
 				icon: Activity,
 			}]
 			: []),

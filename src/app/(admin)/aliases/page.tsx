@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { Plus, Trash2, ArrowRight, Users, AtSign } from "lucide-react";
 import { apiJson } from "@/lib/api/client-response";
+import { domainKeys, mailboxKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FormField } from "@/components/ui/form-field";
@@ -39,12 +42,20 @@ type Mailbox = {
 
 type AliasKind = "mailbox" | "group";
 
+/** Alias queries are page-local; register in query-keys.ts if a second file needs them. */
+const aliasKeys = {
+	all: ["aliases"] as const,
+};
+
+function errorText(error: unknown, fallback: string): string | null {
+	if (!error) return null;
+	return error instanceof Error ? error.message : fallback;
+}
+
 export default function AliasesPage() {
-	const [aliases, setAliases] = useState<AliasRow[]>([]);
-	const [domains, setDomains] = useState<Domain[]>([]);
-	const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
+	const t = useTranslations("admin");
+	const tCommon = useTranslations("common");
+	const qc = useQueryClient();
 
 	const [domainId, setDomainId] = useState("");
 	const [localPart, setLocalPart] = useState("");
@@ -52,53 +63,78 @@ export default function AliasesPage() {
 	const [targetMailboxId, setTargetMailboxId] = useState("");
 	const [groupMailboxIds, setGroupMailboxIds] = useState<string[]>([]);
 	const [groupEdits, setGroupEdits] = useState<Record<string, string[]>>({});
-	const [creating, setCreating] = useState(false);
-	const [savingGroupId, setSavingGroupId] = useState<string | null>(null);
+	const [localError, setLocalError] = useState<string | null>(null);
 	const [removeTarget, setRemoveTarget] = useState<AliasRow | null>(null);
 
-	const load = useCallback(async () => {
-		try {
-			const [aliasData, domainData, mailboxData] = await Promise.all([
-				apiJson.get<{ aliases: AliasRow[] }>("/api/aliases"),
-				apiJson.get<{ domains: Domain[] }>("/api/domains"),
-				apiJson.get<{ mailboxes: Mailbox[] }>("/api/admin/mailboxes"),
-			]);
-			const nextAliases = aliasData.aliases ?? [];
-			setAliases(nextAliases);
-			setGroupEdits(Object.fromEntries(
-				nextAliases
-					.filter((alias) => alias.isGroup)
-					.map((alias) => [alias.id, alias.members.map((member) => member.mailboxId)]),
-			));
-			setDomains(domainData.domains ?? []);
-			setMailboxes(mailboxData.mailboxes ?? []);
-		} catch (requestError) {
-			setError(requestError instanceof Error ? requestError.message : "Failed to load aliases");
-		}
-		setLoading(false);
-	}, []);
+	const aliasesQuery = useQuery({
+		queryKey: aliasKeys.all,
+		queryFn: async () =>
+			(await apiJson.get<{ aliases: AliasRow[] }>("/api/aliases")).aliases ?? [],
+	});
 
-	useEffect(() => { void load(); }, [load]);
+	const domainsQuery = useQuery({
+		queryKey: domainKeys.list({ includeDns: false }),
+		queryFn: () => apiJson.get<{ domains: Domain[] }>("/api/domains"),
+	});
 
-	async function create() {
-		if (!domainId || !localPart) return;
-		if (kind === "mailbox" && !targetMailboxId) return;
-		if (kind === "group" && groupMailboxIds.length < 2) return;
-		setCreating(true);
-		setError(null);
-		const body = kind === "mailbox"
-			? { kind, domainId, localPart, targetMailboxId }
-			: { kind, domainId, localPart, mailboxIds: groupMailboxIds };
-		try {
+	const mailboxesQuery = useQuery({
+		queryKey: mailboxKeys.admin,
+		queryFn: () => apiJson.get<{ mailboxes: Mailbox[] }>("/api/admin/mailboxes"),
+	});
+
+	const aliases = aliasesQuery.data ?? [];
+	const domains = domainsQuery.data?.domains ?? [];
+	const mailboxes = mailboxesQuery.data?.mailboxes ?? [];
+
+	// Group membership edits start from the fetched state and stay local until saved.
+	useEffect(() => {
+		if (!aliasesQuery.data) return;
+		setGroupEdits(Object.fromEntries(
+			aliasesQuery.data
+				.filter((alias) => alias.isGroup)
+				.map((alias) => [alias.id, alias.members.map((member) => member.mailboxId)]),
+		));
+	}, [aliasesQuery.data]);
+
+	const create = useMutation({
+		mutationFn: async () => {
+			const body = kind === "mailbox"
+				? { kind, domainId, localPart, targetMailboxId }
+				: { kind, domainId, localPart, mailboxIds: groupMailboxIds };
 			await apiJson.post("/api/aliases", body);
+		},
+		meta: { suppressErrorToast: true },
+		onMutate: () => setLocalError(null),
+		onSuccess: () => {
 			setLocalPart("");
 			setTargetMailboxId("");
 			setGroupMailboxIds([]);
-			await load();
-		} catch (requestError) {
-			setError(requestError instanceof Error ? requestError.message : "Failed to create alias");
+			qc.invalidateQueries({ queryKey: aliasKeys.all });
+		},
+	});
+
+	const saveGroup = useMutation({
+		mutationFn: async (aliasId: string) => {
+			await apiJson.patch(`/api/aliases/${aliasId}`, { mailboxIds: groupEdits[aliasId] ?? [] });
+		},
+		meta: { suppressErrorToast: true },
+		onMutate: () => setLocalError(null),
+		onSuccess: () => qc.invalidateQueries({ queryKey: aliasKeys.all }),
+	});
+
+	const removeAlias = useMutation({
+		mutationFn: (id: string) => apiJson.delete(`/api/aliases/${id}`),
+		meta: { suppressErrorToast: true },
+		onMutate: () => setLocalError(null),
+		onSuccess: () => qc.invalidateQueries({ queryKey: aliasKeys.all }),
+	});
+
+	function requestGroupSave(aliasId: string) {
+		if ((groupEdits[aliasId] ?? []).length < 2) {
+			setLocalError(t("groupMinimum"));
+			return;
 		}
-		setCreating(false);
+		saveGroup.mutate(aliasId);
 	}
 
 	function toggleMailbox(
@@ -111,45 +147,29 @@ export default function AliasesPage() {
 			: current.filter((id) => id !== mailboxId);
 	}
 
-	async function saveGroup(aliasId: string) {
-		const mailboxIds = groupEdits[aliasId] ?? [];
-		if (mailboxIds.length < 2) {
-			setError("A group needs at least two mailboxes.");
-			return;
-		}
-		setSavingGroupId(aliasId);
-		setError(null);
-		try {
-			await apiJson.patch(`/api/aliases/${aliasId}`, { mailboxIds });
-			await load();
-		} catch (requestError) {
-			setError(requestError instanceof Error ? requestError.message : "Failed to update group");
-		}
-		setSavingGroupId(null);
-	}
-
-	async function remove(id: string) {
-		setError(null);
-		try {
-			await apiJson.delete(`/api/aliases/${id}`);
-			await load();
-		} catch (requestError) {
-			setError(requestError instanceof Error ? requestError.message : "Failed to delete alias");
-		}
-	}
-
 	const mailboxAddress = (id: string | null) => {
 		const mailbox = mailboxes.find((candidate) => candidate.id === id);
-		return mailbox ? `${mailbox.localPart}@${mailbox.hostname}` : "missing mailbox";
+		return mailbox ? `${mailbox.localPart}@${mailbox.hostname}` : t("missingMailbox");
 	};
 
-	if (loading) return <div className="text-sm text-ink-muted">Loading…</div>;
+	const error =
+		localError ??
+		errorText(aliasesQuery.error, t("loadAliasesFailed")) ??
+		errorText(domainsQuery.error, t("loadAliasesFailed")) ??
+		errorText(mailboxesQuery.error, t("loadAliasesFailed")) ??
+		errorText(create.error, t("createAliasFailed")) ??
+		errorText(saveGroup.error, t("updateGroupFailed")) ??
+		errorText(removeAlias.error, t("deleteAliasFailed"));
+
+	if (aliasesQuery.isLoading || domainsQuery.isLoading || mailboxesQuery.isLoading) {
+		return <div className="text-sm text-ink-muted">{t("loadingShort")}</div>;
+	}
 
 	return (
 		<div className="space-y-6">
 			<PageHeader
-				title="Aliases"
-				description="Create internal mailbox aliases and groups across your managed domains."
+				title={t("aliasesTitle")}
+				description={t("aliasesPageDesc")}
 			/>
 
 			{error && <p className="text-sm text-danger">{error}</p>}
@@ -159,51 +179,52 @@ export default function AliasesPage() {
 				onOpenChange={(open) => {
 					if (!open) setRemoveTarget(null);
 				}}
-				title="Delete alias?"
+				title={t("deleteAliasTitle")}
 				description={
 					removeTarget
-						? `${removeTarget.localPart}@${removeTarget.domainHostname} will stop receiving mail immediately.`
+						? t("deleteAliasDesc", { address: `${removeTarget.localPart}@${removeTarget.domainHostname}` })
 						: ""
 				}
-				confirmLabel="Delete alias"
+				confirmLabel={t("deleteAliasConfirm")}
+				cancelLabel={tCommon("cancel")}
 				danger
 				onConfirm={() => {
-					if (removeTarget) void remove(removeTarget.id);
+					if (removeTarget) removeAlias.mutate(removeTarget.id);
 					setRemoveTarget(null);
 				}}
 			/>
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Create alias</CardTitle>
+					<CardTitle>{t("createAliasTitle")}</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<FormField label="Alias type" htmlFor="alias-type">
+					<FormField label={t("aliasType")} htmlFor="alias-type">
 						<Select
 							id="alias-type"
 							value={kind}
 							onChange={(event) => setKind(event.target.value as AliasKind)}
 						>
-							<option value="mailbox">Mailbox alias</option>
-							<option value="group">Group alias</option>
+							<option value="mailbox">{t("aliasKindMailbox")}</option>
+							<option value="group">{t("aliasKindGroup")}</option>
 						</Select>
 					</FormField>
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-						<FormField label="Local part" htmlFor="alias-local-part">
+						<FormField label={t("localPart")} htmlFor="alias-local-part">
 							<Input
 								id="alias-local-part"
-								placeholder="support"
+								placeholder={t("usernamePlaceholder")}
 								value={localPart}
 								onChange={(e) => setLocalPart(e.target.value)}
 							/>
 						</FormField>
-						<FormField label="Domain" htmlFor="alias-domain">
+						<FormField label={t("domain")} htmlFor="alias-domain">
 							<Select
 								id="alias-domain"
 								value={domainId}
 								onChange={(e) => setDomainId(e.target.value)}
 							>
-								<option value="">Select domain</option>
+								<option value="">{t("selectDomain")}</option>
 								{domains.map((d) => (
 									<option key={d.id} value={d.id}>{d.hostname}</option>
 								))}
@@ -211,13 +232,13 @@ export default function AliasesPage() {
 						</FormField>
 					</div>
 					{kind === "mailbox" ? (
-						<FormField label="Deliver to mailbox" htmlFor="alias-target">
+						<FormField label={t("deliverToMailbox")} htmlFor="alias-target">
 							<Select
 								id="alias-target"
 								value={targetMailboxId}
 								onChange={(event) => setTargetMailboxId(event.target.value)}
 							>
-								<option value="">Select mailbox</option>
+								<option value="">{t("selectMailbox")}</option>
 								{mailboxes.map((mailbox) => (
 									<option key={mailbox.id} value={mailbox.id}>
 										{mailboxAddress(mailbox.id)}
@@ -236,33 +257,33 @@ export default function AliasesPage() {
 						/>
 					)}
 					<p className="text-xs text-ink-faint">
-						External forwarding is planned but is not enabled in this MVP.
+						{t("externalForwardingNote")}
 					</p>
 					<Button
-						onClick={create}
+						onClick={() => create.mutate()}
 						disabled={
-							creating ||
+							create.isPending ||
 							!domainId ||
 							!localPart ||
 							(kind === "mailbox" ? !targetMailboxId : groupMailboxIds.length < 2)
 						}
 					>
 						<Plus className="h-4 w-4 mr-2" />
-						{kind === "group" ? "Create group" : "Create alias"}
+						{kind === "group" ? t("createGroup") : t("createAliasTitle")}
 					</Button>
 				</CardContent>
 			</Card>
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Active aliases</CardTitle>
+					<CardTitle>{t("activeAliases")}</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<ListSection
 						loading={false}
-						loadingLabel="Loading aliases..."
+						loadingLabel={t("loadingAliases")}
 						empty={aliases.length === 0}
-						emptyLabel="No aliases yet."
+						emptyLabel={t("noAliases")}
 						emptyIcon={AtSign}
 					>
 						<ul className="divide-y divide-border">
@@ -276,9 +297,9 @@ export default function AliasesPage() {
 											<ArrowRight className="h-3 w-3 text-ink-faint" />
 											<span className="text-ink-muted">
 												{a.isGroup
-													? `${a.members.length} mailbox group`
+													? t("mailboxGroupCount", { count: a.members.length })
 													: a.forwardTo
-														? "legacy external forwarding is unavailable"
+														? t("legacyForwardingUnavailable")
 														: mailboxAddress(a.targetMailboxId)}
 											</span>
 										</div>
@@ -287,7 +308,7 @@ export default function AliasesPage() {
 											size="sm"
 											onClick={() => setRemoveTarget(a)}
 											className="text-danger hover:text-danger"
-											aria-label={`Delete ${a.localPart}@${a.domainHostname}`}
+											aria-label={t("deleteAliasAria", { address: `${a.localPart}@${a.domainHostname}` })}
 										>
 											<Trash2 className="h-4 w-4" />
 										</Button>
@@ -296,7 +317,7 @@ export default function AliasesPage() {
 										<div className="rounded-md border border-border p-3 space-y-3">
 											<div className="flex items-center gap-2 text-sm font-medium text-ink">
 												<Users className="h-4 w-4" />
-												Group members
+												{t("groupMembers")}
 											</div>
 											<MailboxChecklist
 												mailboxes={mailboxes}
@@ -307,17 +328,17 @@ export default function AliasesPage() {
 														[a.id]: toggleMailbox(current[a.id] ?? [], mailboxId, checked),
 													}));
 												}}
-												label={`Members for ${a.localPart}@${a.domainHostname}`}
+												label={t("groupMembersFor", { address: `${a.localPart}@${a.domainHostname}` })}
 											/>
 											<Button
 												size="sm"
-												onClick={() => saveGroup(a.id)}
+												onClick={() => requestGroupSave(a.id)}
 												disabled={
-													savingGroupId === a.id ||
+													(saveGroup.isPending && saveGroup.variables === a.id) ||
 													(groupEdits[a.id]?.length ?? 0) < 2
 												}
 											>
-												Save members
+												{t("saveMembers")}
 											</Button>
 										</div>
 									)}
@@ -335,18 +356,19 @@ function MailboxChecklist({
 	mailboxes,
 	selected,
 	onChange,
-	label = "Group mailboxes",
+	label,
 }: {
 	mailboxes: Mailbox[];
 	selected: string[];
 	onChange: (mailboxId: string, checked: boolean) => void;
 	label?: string;
 }) {
+	const t = useTranslations("admin");
 	return (
 		<fieldset className="space-y-2 rounded-md border border-border p-3">
-			<legend className="px-1 text-sm font-medium text-ink">{label}</legend>
+			<legend className="px-1 text-sm font-medium text-ink">{label ?? t("groupMailboxes")}</legend>
 			{mailboxes.length === 0 ? (
-				<p className="text-sm text-ink-faint">No organization mailboxes are available.</p>
+				<p className="text-sm text-ink-faint">{t("noOrgMailboxes")}</p>
 			) : (
 				<div className="grid gap-2 sm:grid-cols-2">
 					{mailboxes.map((mailbox) => {

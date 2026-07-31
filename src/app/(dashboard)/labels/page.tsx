@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Plus, Tag, X } from "lucide-react";
 import { apiJson } from "@/lib/api/client-response";
 import { labelKeys } from "@/lib/query-keys";
@@ -34,6 +35,8 @@ async function fetchLabels(): Promise<Label[]> {
 }
 
 export default function LabelsPage() {
+	const t = useTranslations("labels");
+	const tCommon = useTranslations("common");
 	const queryClient = useQueryClient();
 	const [name, setName] = useState("");
 	const [color, setColor] = useState(PRESET_COLORS[0]);
@@ -71,7 +74,7 @@ export default function LabelsPage() {
 	function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
 		if (!name.trim()) {
-			setFormError("Name is required");
+			setFormError(t("nameRequired"));
 			return;
 		}
 		createMutation.mutate();
@@ -80,12 +83,12 @@ export default function LabelsPage() {
 	return (
 		<div className="space-y-8 px-4 py-6 sm:px-12 sm:py-8">
 			<div>
-				<h2 className="text-xl font-semibold text-ink">Labels</h2>
-				<p className="text-sm text-ink-muted">Organise your messages with custom labels.</p>
+				<h2 className="text-xl font-semibold text-ink">{t("title")}</h2>
+				<p className="text-sm text-ink-muted">{t("desc")}</p>
 			</div>
 
 			<form onSubmit={handleSubmit} className="rounded-lg border border-border bg-surface-raised p-4 space-y-4">
-				<h3 className="text-sm font-medium text-ink-muted">New label</h3>
+				<h3 className="text-sm font-medium text-ink-muted">{t("newLabel")}</h3>
 
 				{formError && (
 					<p className="rounded-lg border border-danger/30 bg-danger-muted px-4 py-3 text-sm text-danger">{formError}</p>
@@ -96,17 +99,17 @@ export default function LabelsPage() {
 						type="text"
 						value={name}
 						onChange={(e) => setName(e.target.value)}
-						placeholder="Label name"
+						placeholder={t("namePlaceholder")}
 						className="h-9 flex-1 rounded-md border border-border bg-surface-subtle px-3 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-border-strong"
 					/>
 					<Button type="submit" disabled={createMutation.isPending} className="gap-2">
 						<Plus className="h-4 w-4" />
-						Create
+						{tCommon("create")}
 					</Button>
 				</div>
 
 				<div className="flex items-center gap-2">
-					<span className="text-xs text-ink-muted">Color:</span>
+					<span className="text-xs text-ink-muted">{t("colorLabel")}</span>
 					{PRESET_COLORS.map((c) => (
 						<button
 							key={c}
@@ -124,9 +127,9 @@ export default function LabelsPage() {
 
 			<ListSection
 				loading={isLoading}
-				loadingLabel="Loading..."
+				loadingLabel={tCommon("loading")}
 				empty={labels.length === 0}
-				emptyLabel="No labels yet. Create one above."
+				emptyLabel={t("empty")}
 				emptyIcon={Tag}
 			>
 				<div className="space-y-2">
@@ -147,7 +150,7 @@ export default function LabelsPage() {
 								onClick={() => deleteMutation.mutate(label.id)}
 								disabled={deleteMutation.isPending}
 								className="text-ink-faint hover:text-danger"
-								title="Delete label"
+								title={t("deleteLabel")}
 							>
 								<X className="h-4 w-4" />
 							</button>
