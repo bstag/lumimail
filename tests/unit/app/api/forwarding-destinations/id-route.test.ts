@@ -54,24 +54,16 @@ describe("DELETE /api/forwarding-destinations/[id]", () => {
 	it("refuses while a routing rule still forwards to it", async () => {
 		mock.queueSelect([destination]);
 		mock.queueSelect([{ id: "rule_1" }]);
-		mock.queueSelect([]);
 
 		expect((await DELETE(request(), { params: Promise.resolve({ id: "fwd_1" }) })).status).toBe(409);
 		expect(mock.deletes).toHaveLength(0);
 	});
 
-	it("refuses while an alias still forwards to it", async () => {
-		mock.queueSelect([destination]);
-		mock.queueSelect([]);
-		mock.queueSelect([{ id: "alias_1" }]);
-
-		expect((await DELETE(request(), { params: Promise.resolve({ id: "fwd_1" }) })).status).toBe(409);
-		expect(mock.deletes).toHaveLength(0);
-	});
+	// No alias-dependency check: the app never writes a non-null aliases.forwardTo,
+	// so routing rules are the only possible dependents.
 
 	it("removes ownership once nothing depends on it", async () => {
 		mock.queueSelect([destination]);
-		mock.queueSelect([]);
 		mock.queueSelect([]);
 
 		const res = await DELETE(request(), { params: Promise.resolve({ id: "fwd_1" }) });

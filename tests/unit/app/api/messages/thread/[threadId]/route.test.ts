@@ -37,7 +37,7 @@ describe("GET /api/messages/thread/[threadId]", () => {
 		]);
 		const res = await get();
 		expect(res.status).toBe(200);
-		const body = (await res.json()) as any;
+		const body = ((await res.json()) as any).data;
 		expect(body.messages).toHaveLength(2);
 		expect(body.messages[0].id).toBe("m1");
 	});
@@ -47,6 +47,6 @@ describe("GET /api/messages/thread/[threadId]", () => {
 		mock.queueSelect([]);
 		const res = await get("t-empty");
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ messages: [] });
+		expect((await res.json()) as any).toEqual({ success: true, data: { messages: [] } });
 	});
 });

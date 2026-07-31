@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useFormatter, useTranslations } from "next-intl";
 import { Mail, Clock, Plus, X } from "lucide-react";
-import { authFetch } from "@/lib/auth/client";
+import { apiJson } from "@/lib/api/client-response";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { InviteMemberDialog } from "@/components/admin/invite-member-dialog";
 import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/ui/page-header";
@@ -31,53 +34,56 @@ const ROLE_BADGES: Record<string, string> = {
   member: "bg-surface-subtle text-ink-muted",
 };
 
+/** Organization-member queries are page-local; register in query-keys.ts if shared. */
+const orgMemberKeys = {
+  all: ["org-members"] as const,
+};
+
+function errorText(error: unknown, fallback: string): string | null {
+  if (!error) return null;
+  return error instanceof Error ? error.message : fallback;
+}
+
 export default function MembersPage() {
-  const [members, setMembers] = useState<Member[]>([]);
-  const [invites, setInvites] = useState<Invite[]>([]);
-  const [loading, setLoading] = useState(true);
+  const t = useTranslations("admin");
+  const tCommon = useTranslations("common");
+  const tNav = useTranslations("nav");
+  const format = useFormatter();
+  const qc = useQueryClient();
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
 
-  const fetchMembers = useCallback(async () => {
-    const res = await authFetch("/api/org/members");
-    const json = (await res.json()) as {
-      success: boolean;
-      data?: { members?: Member[]; invites?: Invite[] };
-      error?: { message: string };
-    };
-    if (json.success) {
-      setMembers(json.data?.members ?? []);
-      setInvites(json.data?.invites ?? []);
-    } else {
-      setError(json.error?.message ?? "Failed to load members");
-    }
-    setLoading(false);
-  }, []);
+  const membersQuery = useQuery({
+    queryKey: orgMemberKeys.all,
+    queryFn: () =>
+      apiJson.get<{ members?: Member[]; invites?: Invite[] }>("/api/org/members"),
+  });
 
-  useEffect(() => {
-    void fetchMembers();
-  }, [fetchMembers]);
+  const changeRole = useMutation({
+    mutationFn: ({ memberId, role }: { memberId: string; role: string }) =>
+      apiJson.patch(`/api/org/members/${memberId}`, { role }),
+    meta: { suppressErrorToast: true },
+    onSuccess: () => qc.invalidateQueries({ queryKey: orgMemberKeys.all }),
+  });
 
-  async function changeRole(memberId: string, newRole: string) {
-    const res = await authFetch(`/api/org/members/${memberId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: newRole }),
-    });
-    if (res.ok) void fetchMembers();
-  }
+  const removeMember = useMutation({
+    mutationFn: (memberId: string) => apiJson.delete(`/api/org/members/${memberId}`),
+    meta: { suppressErrorToast: true },
+    onSuccess: () => qc.invalidateQueries({ queryKey: orgMemberKeys.all }),
+  });
 
-  async function removeMember(memberId: string) {
-    if (!confirm("Remove this member from the workspace?")) return;
-    const res = await authFetch(`/api/org/members/${memberId}`, { method: "DELETE" });
-    if (res.ok) void fetchMembers();
-  }
+  const members = membersQuery.data?.members ?? [];
+  const invites = membersQuery.data?.invites ?? [];
+  const error =
+    errorText(membersQuery.error, t("loadMembersFailed")) ??
+    errorText(changeRole.error, t("changeRoleFailed")) ??
+    errorText(removeMember.error, t("removeMemberFailed"));
 
-  if (loading) {
+  if (membersQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <h2 className="text-xl font-semibold text-ink">Members</h2>
-        <p className="text-sm text-ink-muted">Loading...</p>
+        <h2 className="text-xl font-semibold text-ink">{tNav("members")}</h2>
+        <p className="text-sm text-ink-muted">{tCommon("loading")}</p>
       </div>
     );
   }
@@ -85,12 +91,12 @@ export default function MembersPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Members"
-        description="Manage who has access to this workspace."
+        title={tNav("members")}
+        description={t("membersPageDesc")}
         action={
           <Button onClick={() => setInviteOpen(true)} className="gap-2">
             <Plus className="h-4 w-4" />
-            Invite member
+            {t("inviteMember")}
           </Button>
         }
       />
@@ -98,6 +104,26 @@ export default function MembersPage() {
       {error && (
         <p className="rounded-lg border border-danger/30 bg-danger-muted px-4 py-3 text-sm text-danger">{error}</p>
       )}
+
+      <ConfirmDialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRemoveTarget(null);
+        }}
+        title={t("removeMemberTitle")}
+        description={
+          removeTarget
+            ? t("removeMemberDesc", { email: removeTarget.email })
+            : ""
+        }
+        confirmLabel={t("removeMemberConfirm")}
+        cancelLabel={tCommon("cancel")}
+        danger
+        onConfirm={() => {
+          if (removeTarget) removeMember.mutate(removeTarget.id);
+          setRemoveTarget(null);
+        }}
+      />
 
       <div className="space-y-2">
         {members.map((member) => (
@@ -117,24 +143,26 @@ export default function MembersPage() {
             <div className="flex items-center gap-3">
               {member.role === "owner" ? (
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${ROLE_BADGES.owner}`}>
-                  Owner
+                  {t("roleOwner")}
                 </span>
               ) : (
                 <Select
                   value={member.role}
-                  onChange={(e) => changeRole(member.id, e.target.value)}
+                  onChange={(e) => {
+                    changeRole.mutate({ memberId: member.id, role: e.target.value });
+                  }}
                   size="sm" className="w-auto"
                 >
-                  <option value="admin">Admin</option>
-                  <option value="member">Member</option>
+                  <option value="admin">{t("roleAdmin")}</option>
+                  <option value="member">{t("roleMember")}</option>
                 </Select>
               )}
               {member.role !== "owner" && (
                 <button
                   type="button"
-                  onClick={() => removeMember(member.id)}
+                  onClick={() => setRemoveTarget(member)}
                   className="text-ink-faint hover:text-danger"
-                  title="Remove member"
+                  title={t("removeMemberConfirm")}
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -146,7 +174,7 @@ export default function MembersPage() {
 
       {invites.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-ink">Pending invites</h3>
+          <h3 className="text-sm font-semibold text-ink">{t("pendingInvites")}</h3>
           {invites.map((invite) => (
             <div
               key={invite.id}
@@ -158,7 +186,13 @@ export default function MembersPage() {
                   <p className="text-sm text-ink-muted">{invite.email}</p>
                   <p className="text-xs text-ink-faint">
                     <Clock className="mr-1 inline h-3 w-3" />
-                    Expires {new Date(invite.expiresAt).toLocaleDateString()}
+                    {t("expires", {
+                      date: format.dateTime(new Date(invite.expiresAt), {
+                        year: "numeric",
+                        month: "numeric",
+                        day: "numeric",
+                      }),
+                    })}
                   </p>
                 </div>
               </div>
@@ -176,7 +210,7 @@ export default function MembersPage() {
         open={inviteOpen}
         onOpenChange={setInviteOpen}
         onInviteCreated={() => {
-          void fetchMembers();
+          void qc.invalidateQueries({ queryKey: orgMemberKeys.all });
         }}
       />
     </div>

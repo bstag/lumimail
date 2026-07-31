@@ -1,21 +1,12 @@
-import { and, eq, inArray } from "drizzle-orm";
-import { getEnv } from "@/lib/cloudflare";
+import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { aliases, domains, groupMembers, mailboxes } from "@/db/schema";
-import { guardOrgAdmin } from "@/lib/auth/org-guard";
+import { withOrgAdmin } from "@/lib/api/handler";
 import { apiSuccess, apiError } from "@/lib/api/response";
-import { newId } from "@/lib/ids";
 import { createAliasSchema } from "@/lib/validators";
-import {
-	deleteEmailRoutingRule,
-	ensureOwnedEmailRoutingRuleToWorker,
-} from "@/lib/cloudflare-api";
+import { createAlias, type CreateAliasResult } from "@/lib/email/alias-service";
 
-export async function GET(request: Request) {
-	const env = getEnv();
-	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-	if (errorResponse) return errorResponse;
-
+export const GET = withOrgAdmin(async ({ env, user: orgUser }) => {
 	const db = getDb(env);
 	const rows = await db
 		.select({
@@ -30,7 +21,7 @@ export async function GET(request: Request) {
 		})
 		.from(aliases)
 		.innerJoin(domains, eq(aliases.domainId, domains.id))
-		.where(eq(aliases.organizationId, orgUser.organizationId as string));
+		.where(eq(aliases.organizationId, orgUser.organizationId));
 
 	const memberRows = rows.length
 		? await db
@@ -44,7 +35,7 @@ export async function GET(request: Request) {
 			.innerJoin(aliases, eq(groupMembers.aliasId, aliases.id))
 			.innerJoin(mailboxes, eq(groupMembers.mailboxId, mailboxes.id))
 			.innerJoin(domains, eq(mailboxes.domainId, domains.id))
-			.where(eq(aliases.organizationId, orgUser.organizationId as string))
+			.where(eq(aliases.organizationId, orgUser.organizationId))
 		: [];
 	const membersByAlias = Map.groupBy(memberRows, (member) => member.aliasId);
 
@@ -58,110 +49,28 @@ export async function GET(request: Request) {
 			})),
 		})),
 	});
-}
+});
 
-export async function POST(request: Request) {
-	const env = getEnv();
-	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-	if (errorResponse) return errorResponse;
+const createFailureResponses: Record<
+	Extract<CreateAliasResult, { ok: false }>["error"],
+	{ message: string; status: number }
+> = {
+	domain_not_found: { message: "Domain not found", status: 404 },
+	address_taken: { message: "Address already exists", status: 409 },
+	mailbox_not_found: { message: "Mailbox not found", status: 404 },
+	provision_failed: { message: "Failed to provision Cloudflare routing rule", status: 502 },
+	create_failed: { message: "Failed to create alias", status: 500 },
+};
 
+export const POST = withOrgAdmin(async ({ request, env, user: orgUser }) => {
 	const parsed = createAliasSchema.safeParse(await request.json().catch(() => null));
 	if (!parsed.success) return apiError("Validation failed", 400, parsed.error.flatten());
 
-	const db = getDb(env);
-	const [domain] = await db
-		.select()
-		.from(domains)
-		.where(and(
-			eq(domains.id, parsed.data.domainId),
-			eq(domains.organizationId, orgUser.organizationId as string),
-			eq(domains.status, "active"),
-		))
-		.limit(1);
-
-	if (!domain || domain.organizationId !== orgUser.organizationId) {
-		return apiError("Domain not found", 404);
+	const result = await createAlias(env, orgUser.organizationId, parsed.data);
+	if (!result.ok) {
+		const { message, status } = createFailureResponses[result.error];
+		return apiError(message, status);
 	}
 
-	const [mailboxConflict] = await db
-		.select({ id: mailboxes.id })
-		.from(mailboxes)
-		.where(and(
-			eq(mailboxes.domainId, domain.id),
-			eq(mailboxes.localPart, parsed.data.localPart),
-		))
-		.limit(1);
-	if (mailboxConflict) return apiError("Address already exists", 409);
-
-	const [aliasConflict] = await db
-		.select({ id: aliases.id })
-		.from(aliases)
-		.where(and(
-			eq(aliases.domainId, domain.id),
-			eq(aliases.localPart, parsed.data.localPart),
-		))
-		.limit(1);
-	if (aliasConflict) return apiError("Address already exists", 409);
-
-	const mailboxIds = parsed.data.kind === "group"
-		? parsed.data.mailboxIds
-		: [parsed.data.targetMailboxId];
-	const targetRows = await db
-		.select({ id: mailboxes.id })
-		.from(mailboxes)
-		.where(and(
-			eq(mailboxes.organizationId, orgUser.organizationId as string),
-			inArray(mailboxes.id, mailboxIds),
-		));
-	if (targetRows.length !== mailboxIds.length) {
-		return apiError("Mailbox not found", 404);
-	}
-
-	const address = `${parsed.data.localPart}@${domain.hostname}`;
-	let provisioned: Awaited<ReturnType<typeof ensureOwnedEmailRoutingRuleToWorker>>;
-	try {
-		provisioned = await ensureOwnedEmailRoutingRuleToWorker(env, domain.zoneId, address);
-	} catch {
-		return apiError("Failed to provision Cloudflare routing rule", 502);
-	}
-	if (provisioned.created && !provisioned.rule.id) {
-		console.error("Cloudflare created an alias routing rule without returning its ID");
-		return apiError("Failed to provision Cloudflare routing rule", 502);
-	}
-
-	const id = newId("alias");
-	const aliasInsert = db.insert(aliases).values({
-		id,
-		organizationId: orgUser.organizationId as string,
-		domainId: parsed.data.domainId,
-		localPart: parsed.data.localPart,
-		targetMailboxId: parsed.data.kind === "mailbox" ? parsed.data.targetMailboxId : null,
-		forwardTo: null,
-		isGroup: parsed.data.kind === "group",
-		cloudflareRuleId: provisioned.created ? provisioned.rule.id : null,
-	});
-	const memberInsert = parsed.data.kind === "group"
-		? db.insert(groupMembers).values(parsed.data.mailboxIds.map((mailboxId) => ({
-			id: newId("grp"),
-			aliasId: id,
-			mailboxId,
-			userId: null,
-			email: null,
-		})))
-		: null;
-
-	try {
-		await db.batch([aliasInsert, ...(memberInsert ? [memberInsert] : [])]);
-	} catch {
-		if (provisioned.created && provisioned.rule.id) {
-			try {
-				await deleteEmailRoutingRule(env, domain.zoneId, provisioned.rule.id);
-			} catch {
-				console.error("Failed to compensate Cloudflare alias routing rule");
-			}
-		}
-		return apiError("Failed to create alias", 500);
-	}
-
-	return apiSuccess({ id, address });
-}
+	return apiSuccess({ id: result.id, address: result.address });
+});

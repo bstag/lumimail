@@ -1,35 +1,20 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockShellNoise } from "./shell";
+import { flatCounts, mockAuthShell } from "./shell";
 
 async function mockAuthenticatedShell(page: Page) {
-	await page.addInitScript(() => {
-		localStorage.setItem("lumimail-session-token", "e2e-session");
-	});
-	await mockShellNoise(page);
-	await page.route("**/api/auth/me", (route) =>
-		route.fulfill({ json: { user: { id: "user_1", role: "owner" }, hasMailboxes: true } }),
-	);
-	await page.route("**/api/mailboxes", (route) =>
-		route.fulfill({
-			json: {
-				mailboxes: [
-					{
-						id: "mbx_1",
-						localPart: "owner",
-						hostname: "example.com",
-						displayName: "Owner",
-						isPrimary: true,
-						role: "manager",
-					},
-				],
+	await mockAuthShell(page, {
+		mailboxes: [
+			{
+				id: "mbx_1",
+				localPart: "owner",
+				hostname: "example.com",
+				displayName: "Owner",
+				isPrimary: true,
+				role: "manager",
 			},
-		}),
-	);
-	await page.route("**/api/messages/counts**", (route) =>
-		route.fulfill({
-			json: { inbox: 0, starred: 0, drafts: 0, sent: 0, spam: 0, trash: 0 },
-		}),
-	);
+		],
+		counts: flatCounts(),
+	});
 }
 
 test.describe("API key lifecycle", () => {
@@ -61,16 +46,19 @@ test.describe("API key lifecycle", () => {
 					revokedAt: null,
 				});
 				await route.fulfill({
-					json: { id: "key_2", name: "CLI", prefix: "lumi_testsec", key: secret },
+					json: {
+						success: true,
+						data: { id: "key_2", name: "CLI", prefix: "lumi_testsec", key: secret },
+					},
 				});
 				return;
 			}
-			await route.fulfill({ json: { apiKeys: keys } });
+			await route.fulfill({ json: { success: true, data: { apiKeys: keys } } });
 		});
 		await page.route("**/api/api-keys/key_1", async (route) => {
 			revokeCalls += 1;
 			keys[0].revokedAt = "2026-07-22T18:05:00.000Z";
-			await route.fulfill({ json: { ok: true } });
+			await route.fulfill({ json: { success: true, data: { ok: true } } });
 		});
 
 		await page.goto("/api-keys");
@@ -101,17 +89,20 @@ test.describe("API key lifecycle", () => {
 		await page.route("**/api/api-keys", (route) =>
 			route.fulfill({
 				json: {
-					apiKeys: [
-						{
-							id: "key_missing",
-							name: "Stale key",
-							prefix: "lumi_stale12",
-							scopes: '["read"]',
-							createdAt: "2026-07-20T12:00:00.000Z",
-							lastUsedAt: null,
-							revokedAt: null,
-						},
-					],
+					success: true,
+					data: {
+						apiKeys: [
+							{
+								id: "key_missing",
+								name: "Stale key",
+								prefix: "lumi_stale12",
+								scopes: '["read"]',
+								createdAt: "2026-07-20T12:00:00.000Z",
+								lastUsedAt: null,
+								revokedAt: null,
+							},
+						],
+					},
 				},
 			}),
 		);

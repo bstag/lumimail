@@ -132,8 +132,10 @@ Coverage target: 100% for touched source files.
   configured instance denies every ordinary registration with `403`, and the
   registration page presents an invitation-required explanation.
 - Login, registration, password recovery, and browser sending use SHA-256-keyed
-  D1 counters. Expired counters are cleaned before an atomic upsert; storage
-  failures return `503` rather than disabling protection.
+  D1 counters. The atomic upsert resets an expired counter in place, so checks
+  never depend on cleanup; expired rows are purged by the Worker's scheduled
+  cron rather than on every check. Storage failures return `503` rather than
+  disabling protection.
 - `getUserFromSession` filters role membership by both user ID and
   `users.organizationId`.
 
@@ -161,7 +163,8 @@ and sending. A D1 outage must not silently disable abuse protection.
 - Concurrent attempts for one actor use one atomic D1 upsert; the count cannot lose
   increments.
 - A request at the exact reset boundary starts a new window.
-- Expired unrelated counter rows are deleted before the current counter is consumed.
+- Expired unrelated counter rows are removed by the scheduled cron purge; an
+  expired row for the current actor is reset in place by the check's upsert.
 - Cloudflare's trusted `cf-connecting-ip` header is used for anonymous limits;
   caller-controlled `x-forwarded-for` is not trusted.
 - When no Cloudflare client IP is available (local/test traffic), all such traffic
@@ -251,6 +254,17 @@ Next.js, the inline theme bootstrap, fonts, and service-worker assets.
   change. Date: 2026-07-30.
 
 ## 15. Bug / Change Log
+
+### 2026-07-30 — Move expired-counter purge to the scheduled cron (T-17)
+
+Type: Refactor / Operational Change
+
+Summary:
+- `rateLimitCheck` no longer runs `DELETE FROM rate_limits` on every request;
+  `purgeExpiredRateLimits` runs from `worker.ts scheduled()` instead. The
+  check's upsert already resets an expired row in place, proven by a test that
+  executes the real SQL against SQLite with a pre-existing expired row.
+- `RateLimitUnavailableError` now carries the underlying failure as `cause`.
 
 ### 2026-07-30 — Harden browser sessions, registration, limits, and tenant roles
 

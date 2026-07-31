@@ -1,27 +1,21 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
 import { webhooks } from "@/db/schema";
-import { guardUser } from "@/lib/auth/cookies";
+import { withUser } from "@/lib/api/handler";
+import { apiSuccess } from "@/lib/api/response";
 import { newId } from "@/lib/ids";
 import { webhookSchema } from "@/lib/validators";
 
-export async function GET(request: Request) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
+export const GET = withUser(async ({ env, user }) => {
 	const db = getDb(env);
 	const rows = await db.select().from(webhooks).where(eq(webhooks.userId, user.id));
-	return NextResponse.json({
+	return apiSuccess({
 		webhooks: rows.map((w) => ({ id: w.id, url: w.url, events: w.events, enabled: w.enabled })),
 	});
-}
+});
 
-export async function POST(request: Request) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
+export const POST = withUser(async ({ request, env, user }) => {
 	const parsed = webhookSchema.safeParse(await request.json());
 	if (!parsed.success) {
 		return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
@@ -39,5 +33,5 @@ export async function POST(request: Request) {
 		enabled: true,
 	});
 
-	return NextResponse.json({ id, url: parsed.data.url, secret, events: parsed.data.events });
-}
+	return apiSuccess({ id, url: parsed.data.url, secret, events: parsed.data.events });
+});

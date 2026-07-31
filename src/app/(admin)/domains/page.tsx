@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -12,8 +13,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ListSection } from "@/components/ui/list-section";
 import { Badge } from "@/components/ui/badge";
 import {
   Check,
@@ -25,7 +27,8 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { authFetch } from "@/lib/auth/client";
+import { domainKeys } from "@/lib/query-keys";
+import { apiJson } from "@/lib/api/client-response";
 import type { DnsRecord, DnsStatusSummary, Domain } from "./types";
 import {
   createDomain as requestDomainCreation,
@@ -35,6 +38,7 @@ import {
 import { PageHeader } from "@/components/ui/page-header";
 
 export default function DomainsPage() {
+  const t = useTranslations("admin");
   const qc = useQueryClient();
   const [hostname, setHostname] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -45,33 +49,29 @@ export default function DomainsPage() {
   } | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["domains"],
-    queryFn: async () => {
-      const res = await authFetch("/api/domains?includeDns=true");
-      return (await res.json()) as {
+    queryKey: domainKeys.list({ includeDns: true }),
+    queryFn: () =>
+      apiJson.get<{
         domains: Domain[];
         dns: Record<string, DnsStatusSummary>;
-      };
-    },
+      }>("/api/domains?includeDns=true"),
   });
 
   const create = useMutation({
     mutationFn: async () => {
       return requestDomainCreation(hostname);
     },
+    meta: { suppressErrorToast: true },
     onSuccess: () => {
       setHostname("");
       setCreateOpen(false);
-      qc.invalidateQueries({ queryKey: ["domains"] });
+      qc.invalidateQueries({ queryKey: domainKeys.all });
     },
   });
 
   const remove = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await authFetch(`/api/domains/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to remove");
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["domains"] }),
+    mutationFn: (id: string) => apiJson.delete(`/api/domains/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: domainKeys.all }),
   });
 
   const sending = useMutation({
@@ -79,9 +79,10 @@ export default function DomainsPage() {
       setSendingTargetId(id);
       return reconcileDomainSending(id, action);
     },
+    meta: { suppressErrorToast: true },
     onSuccess: (result) => {
       setDnsView(result);
-      qc.invalidateQueries({ queryKey: ["domains"] });
+      qc.invalidateQueries({ queryKey: domainKeys.all });
     },
   });
 
@@ -94,35 +95,33 @@ export default function DomainsPage() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <PageHeader
-            title="Domains"
-            description="Domains must be on your Cloudflare account. Sending readiness is verified directly against Cloudflare Email Service."
+            title={t("domainsTitle")}
+            description={t("domainsPageDesc")}
           />
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4" />
-              New domain
+              {t("newDomain")}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add domain</DialogTitle>
+              <DialogTitle>{t("addDomainTitle")}</DialogTitle>
               <DialogDescription>
-                Provision Cloudflare routing and sending DNS for a zone in your
-                account.
+                {t("addDomainDesc")}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="hostname">Hostname</Label>
+              <FormField label={t("hostname")} htmlFor="hostname">
                 <Input
                   id="hostname"
                   value={hostname}
                   onChange={(e) => setHostname(e.target.value)}
-                  placeholder="example.com"
+                  placeholder={t("hostnamePlaceholder")}
                 />
-              </div>
+              </FormField>
               {create.isError && (
                 <p className="text-sm text-danger">
                   {(create.error as Error).message}
@@ -132,23 +131,20 @@ export default function DomainsPage() {
                 onClick={() => create.mutate()}
                 disabled={!hostname || create.isPending}
               >
-                {create.isPending ? "Adding..." : "Add domain"}
+                {create.isPending ? t("addingDomain") : t("addDomainTitle")}
               </Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
       <section className="space-y-3">
-        {isLoading && (
-          <p className="rounded-lg border border-border bg-surface-raised px-4 py-3 text-sm text-ink-muted">
-            Loading DNS status...
-          </p>
-        )}
-        {!isLoading && (data?.domains ?? []).length === 0 && (
-          <p className="rounded-lg border border-border bg-surface-raised px-4 py-3 text-sm text-ink-muted">
-            No domains yet
-          </p>
-        )}
+        <ListSection
+          loading={isLoading}
+          loadingLabel={t("loadingDns")}
+          empty={(data?.domains ?? []).length === 0}
+          emptyLabel={t("noDomains")}
+          emptyIcon={Globe2}
+        >
         <div className="grid gap-3 md:grid-cols-2">
           {(data?.domains ?? []).map((d) => {
             const dns = data?.dns?.[d.id];
@@ -174,10 +170,10 @@ export default function DomainsPage() {
                         {d.status}
                       </Badge>
                       {d.routingEnabled && (
-                        <Badge variant="outline">routing</Badge>
+                        <Badge variant="outline">{t("routingBadge")}</Badge>
                       )}
                       <Badge variant={d.sendingEnabled ? "outline" : "secondary"}>
-                        {d.sendingEnabled ? "sending ready" : "sending setup needed"}
+                        {d.sendingEnabled ? t("sendingReady") : t("sendingSetupNeeded")}
                       </Badge>
                     </div>
                   </div>
@@ -187,14 +183,14 @@ export default function DomainsPage() {
                       size="sm"
                       onClick={() => loadDns(d.id)}
                     >
-                      DNS
+                      {t("dns")}
                     </Button>
                     <Button
                       variant="destructive"
                       size="sm"
                       onClick={() => remove.mutate(d.id)}
                       disabled={remove.isPending}
-                      aria-label={`Remove ${d.hostname}`}
+                      aria-label={t("removeDomainAria", { hostname: d.hostname })}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -203,7 +199,7 @@ export default function DomainsPage() {
                 {dns && (
                   <div className="flex flex-wrap items-center gap-3 text-xs">
                     <span className="flex items-center gap-1 text-ink-muted">
-                      Routing{" "}
+                      {t("routing")}{" "}
                       {dns.routing.configured ? (
                         <Check className="h-3.5 w-3.5 text-success" />
                       ) : (
@@ -213,12 +209,12 @@ export default function DomainsPage() {
                     {dns.routing.missing.length > 0 && (
                       <span className="text-danger flex items-center gap-1">
                         <X className="h-3 w-3" />
-                        Missing: {dns.routing.missing.join(", ")}
+                        {t("missing")} {dns.routing.missing.join(", ")}
                       </span>
                     )}
                     <span className="text-ink-faint">|</span>
                     <span className="flex items-center gap-1 text-ink-muted">
-                      Sending{" "}
+                      {t("sending")}{" "}
                       {dns.sending.configured ? (
                         <Check className="h-3.5 w-3.5 text-success" />
                       ) : (
@@ -235,7 +231,7 @@ export default function DomainsPage() {
                       className="flex items-center gap-0.5 text-accent hover:text-accent"
                     >
                       <ArrowRight className="h-3 w-3" />
-                      details
+                      {t("details")}
                     </button>
                   </div>
                 )}
@@ -250,16 +246,16 @@ export default function DomainsPage() {
                       })
                     }
                     disabled={sending.isPending && sendingTargetId === d.id}
-                    aria-label={`${d.sendingEnabled ? "Verify" : "Enable"} sending for ${d.hostname}`}
+                    aria-label={t(d.sendingEnabled ? "verifySendingAria" : "enableSendingAria", { hostname: d.hostname })}
                   >
                     <RefreshCw className={`h-4 w-4 ${sending.isPending && sendingTargetId === d.id ? "animate-spin" : ""}`} />
                     {sending.isPending && sendingTargetId === d.id
                       ? d.sendingEnabled
-                        ? "Checking..."
-                        : "Enabling..."
+                        ? t("checkingSending")
+                        : t("enablingSending")
                       : d.sendingEnabled
-                        ? "Verify sending"
-                        : "Enable sending"}
+                        ? t("verifySending")
+                        : t("enableSending")}
                   </Button>
                   {sending.isError && sendingTargetId === d.id && (
                     <p className="mt-2 text-sm text-danger">{sending.error.message}</p>
@@ -269,16 +265,17 @@ export default function DomainsPage() {
             );
           })}
         </div>
+        </ListSection>
       </section>
       {dnsView && (
         <Card>
           <CardHeader>
-            <CardTitle>DNS — {dnsView.domain.hostname}</CardTitle>
+            <CardTitle>{t("dnsCardTitle", { hostname: dnsView.domain.hostname })}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-xs font-mono">
             <div>
               <p className="font-sans font-medium text-sm mb-2">
-                Email Routing
+                {t("emailRouting")}
               </p>
               <pre className="overflow-auto bg-surface-subtle p-3 rounded-md">
                 {JSON.stringify(
@@ -290,7 +287,7 @@ export default function DomainsPage() {
             </div>
             <div>
               <p className="font-sans font-medium text-sm mb-2">
-                Email Sending
+                {t("emailSending")}
               </p>
               <pre className="overflow-auto bg-surface-subtle p-3 rounded-md">
                 {JSON.stringify(

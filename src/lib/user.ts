@@ -27,6 +27,13 @@ export async function userHasMailboxes(env: CloudflareEnv, userId: string): Prom
 	return !!row;
 }
 
+/** True once any account exists — the platform is past first boot. */
+export async function hasAnyUser(env: CloudflareEnv): Promise<boolean> {
+	const db = getDb(env);
+	const [row] = await db.select({ id: users.id }).from(users).limit(1);
+	return !!row;
+}
+
 export function getPrimaryDomain(env: CloudflareEnv) {
 	const db = getDb(env);
 	return db.select().from(domains).limit(1).then(([row]) => row ?? null);

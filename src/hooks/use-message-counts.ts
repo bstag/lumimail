@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
 import type { MessageCounts } from "./types";
-import { clearMessageCountsCache, fetchMessageCounts } from "./utils";
+import { fetchMessageCounts } from "./utils";
+import { messageKeys } from "@/lib/query-keys";
 
 const emptyCounts: MessageCounts = {
 	folders: {
@@ -14,45 +17,25 @@ const emptyCounts: MessageCounts = {
 	mailboxes: [],
 };
 
+/**
+ * Folder/mailbox unread counts backed by TanStack Query (T-34). Lives under
+ * the shared `messageKeys` prefix, so every mutation that calls
+ * `invalidateMessageQueries` refreshes counts and lists together.
+ */
 export function useMessageCounts(mailboxId?: string | null, enabled = true) {
-	const [counts, setCounts] = useState<MessageCounts>(emptyCounts);
-	const [isLoading, setIsLoading] = useState(enabled);
+	const countsQuery = useQuery({
+		queryKey: messageKeys.counts(mailboxId ?? null),
+		enabled,
+		// TanStack treats `undefined` query data as an error; fall back to the
+		// zeroed shape the old hook rendered for an empty payload.
+		queryFn: async () => (await fetchMessageCounts(mailboxId)) ?? emptyCounts,
+		staleTime: 0,
+		refetchOnWindowFocus: true,
+		retry: false,
+	});
 
-	useEffect(() => {
-		if (!enabled) {
-			setIsLoading(false);
-			return;
-		}
-
-		let cancelled = false;
-
-		async function loadCounts(force = false) {
-			setIsLoading(true);
-			try {
-				const nextCounts = await fetchMessageCounts(mailboxId, force);
-				if (!cancelled) setCounts(nextCounts ?? emptyCounts);
-			} catch (err) {
-				if (!cancelled) setCounts(emptyCounts);
-				if (process.env.NODE_ENV !== "production") {
-					console.error("Failed to load message counts", err);
-				}
-			} finally {
-				if (!cancelled) setIsLoading(false);
-			}
-		}
-
-		void loadCounts();
-		function onMessagesChanged() {
-			clearMessageCountsCache();
-			void loadCounts(true);
-		}
-		window.addEventListener("lumimail:messages-changed", onMessagesChanged);
-
-		return () => {
-			cancelled = true;
-			window.removeEventListener("lumimail:messages-changed", onMessagesChanged);
-		};
-	}, [enabled, mailboxId]);
-
-	return { counts, isLoading };
+	return {
+		counts: countsQuery.data ?? emptyCounts,
+		isLoading: enabled && countsQuery.isPending,
+	};
 }

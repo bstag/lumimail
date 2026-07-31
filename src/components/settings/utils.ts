@@ -1,5 +1,6 @@
 import type { MailboxOption } from "@/components/mailbox-provider";
 import { authFetch } from "@/lib/auth/client";
+import { parseApiResponse } from "@/lib/api/client-response";
 import { getMailboxAddress } from "@/lib/email/address";
 import type { CurrentMailboxFormResponse } from "./types";
 
@@ -11,10 +12,10 @@ export async function updateCurrentMailboxName(id: string, displayName: string):
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({ displayName }),
 	});
-	const data = (await res.json()) as CurrentMailboxFormResponse;
+	const data = await parseApiResponse<CurrentMailboxFormResponse>(res);
 
-	if (!res.ok || !data.mailbox) {
-		throw new Error(typeof data.error === "string" ? data.error : "Failed to update mailbox");
+	if (!data.mailbox) {
+		throw new Error("Failed to update mailbox");
 	}
 
 	return {

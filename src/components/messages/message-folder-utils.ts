@@ -1,18 +1,25 @@
 import type { MessageFolder } from "@/hooks/types";
 
-export function shouldRefreshSharedDrafts(
-	folder: MessageFolder,
-	visibilityState: DocumentVisibilityState,
-): boolean {
-	return folder === "drafts" && visibilityState === "visible";
-}
+/** Drafts poll for shared-draft edits made by other mailbox members. */
+export const DRAFTS_REFRESH_INTERVAL_MS = 10_000;
+/** Sent polls faster, but only while a delivery is still in flight. */
+export const SENT_DELIVERY_REFRESH_INTERVAL_MS = 5_000;
 
-export function shouldRefreshDeliveryStatus(
+/**
+ * Polling cadence for a folder's message-list query, as a TanStack
+ * `refetchInterval`. Drafts always poll (a colleague may be editing a shared
+ * draft); Sent polls only while queued deliveries are present so a settled
+ * folder makes no background requests. Other folders do not poll. TanStack
+ * pauses interval refetches while the window is unfocused/hidden, which
+ * replaces the old document-visibility gate.
+ */
+export function getMessagesRefetchInterval(
 	folder: MessageFolder,
-	visibilityState: DocumentVisibilityState,
-	statuses: string[],
-): boolean {
-	return folder === "sent" && visibilityState === "visible" && statuses.includes("queued");
+	statuses: readonly string[],
+): number | false {
+	if (folder === "drafts") return DRAFTS_REFRESH_INTERVAL_MS;
+	if (folder === "sent" && statuses.includes("queued")) return SENT_DELIVERY_REFRESH_INTERVAL_MS;
+	return false;
 }
 
 /**

@@ -143,6 +143,25 @@ As implemented (see `src/app/api/auth/register/route.ts`,
 
 ## 13. Bug / Change Log
 
+### 2026-07-31 — Extract registration flows into a service (T-40)
+
+Type: Refactor (behavior-preserving)
+
+Summary:
+
+- The register route's two multi-step flows moved to
+  `src/lib/auth/registration.ts`: invite claim (atomic delete-returning claim
+  with insert-back compensation when the account batch fails) and first-run
+  provisioning (user insert, org bootstrap, domain/routing/mailbox setup with
+  user-delete rollback on failure). The route keeps request parsing, rate
+  limiting, and response shaping; all response bodies and statuses are
+  byte-identical (clients read the flat error strings).
+- `getUserFromSession` now resolves org role through the documented
+  `getActiveOrgMembership` accessor in `src/lib/auth/session.ts` (T-41); the
+  session read behavior is unchanged.
+- The pre-existing route tests pass unmodified; the compensation paths gained
+  isolated unit tests (`tests/unit/lib/auth/registration.test.ts`).
+
 ### 2026-07-30 — Apply F74 authentication and registration hardening
 
 Type: Security Fix / Behavior Change

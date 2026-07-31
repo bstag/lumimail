@@ -1,10 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { mailboxKeys } from "@/lib/query-keys";
 import { ArrowLeft, Mail, Save, Trash2, UserPlus, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,8 +16,9 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
 	addMailboxMember,
 	deleteMailbox,
@@ -26,10 +29,13 @@ import {
 	updateMailboxMemberRole,
 	updateMailboxName,
 } from "./utils";
-import type { MailboxRole } from "./types";
+import type { MailboxMember, MailboxRole } from "./types";
 import { Select } from "@/components/ui/select";
 
 export default function MailboxSettingsPage() {
+	const t = useTranslations("admin");
+	const tCommon = useTranslations("common");
+	const tNav = useTranslations("nav");
 	const params = useParams<{ id: string }>();
 	const mailboxId = params.id;
 	const router = useRouter();
@@ -38,6 +44,7 @@ export default function MailboxSettingsPage() {
 	const [deleteConfirmation, setDeleteConfirmation] = useState("");
 	const [newMemberId, setNewMemberId] = useState("");
 	const [newMemberRole, setNewMemberRole] = useState<MailboxRole>("responder");
+	const [removeMemberTarget, setRemoveMemberTarget] = useState<MailboxMember | null>(null);
 
 	const mailbox = useQuery({
 		queryKey: ["mailbox", mailboxId],
@@ -51,19 +58,21 @@ export default function MailboxSettingsPage() {
 
 	const updateName = useMutation({
 		mutationFn: () => updateMailboxName(mailboxId, displayName),
+		meta: { suppressErrorToast: true },
 		onSuccess: (updatedMailbox) => {
 			qc.setQueryData(["mailbox", mailboxId], updatedMailbox);
-			qc.invalidateQueries({ queryKey: ["mailboxes"] });
-			qc.invalidateQueries({ queryKey: ["admin", "mailboxes"] });
+			qc.invalidateQueries({ queryKey: mailboxKeys.user });
+			qc.invalidateQueries({ queryKey: mailboxKeys.admin });
 		},
 	});
 
 	const removeMailbox = useMutation({
 		mutationFn: () => deleteMailbox(mailboxId, deleteConfirmation),
+		meta: { suppressErrorToast: true },
 		onSuccess: () => {
 			qc.removeQueries({ queryKey: ["mailbox", mailboxId] });
-			qc.invalidateQueries({ queryKey: ["mailboxes"] });
-			qc.invalidateQueries({ queryKey: ["admin", "mailboxes"] });
+			qc.invalidateQueries({ queryKey: mailboxKeys.user });
+			qc.invalidateQueries({ queryKey: mailboxKeys.admin });
 			router.push("/mailboxes");
 		},
 	});
@@ -76,6 +85,7 @@ export default function MailboxSettingsPage() {
 
 	const addMember = useMutation({
 		mutationFn: () => addMailboxMember(mailboxId, newMemberId, newMemberRole),
+		meta: { suppressErrorToast: true },
 		onSuccess: () => {
 			setNewMemberId("");
 			qc.invalidateQueries({ queryKey: ["mailbox-members", mailboxId] });
@@ -85,15 +95,36 @@ export default function MailboxSettingsPage() {
 	const changeMemberRole = useMutation({
 		mutationFn: ({ membershipId, role }: { membershipId: string; role: MailboxRole }) =>
 			updateMailboxMemberRole(mailboxId, membershipId, role),
+		meta: { suppressErrorToast: true },
 		onSuccess: () => qc.invalidateQueries({ queryKey: ["mailbox-members", mailboxId] }),
 	});
 
 	const removeMember = useMutation({
 		mutationFn: (membershipId: string) => removeMailboxMember(mailboxId, membershipId),
+		meta: { suppressErrorToast: true },
 		onSuccess: () => qc.invalidateQueries({ queryKey: ["mailbox-members", mailboxId] }),
 	});
 
 	const address = mailbox.data ? getMailboxAddress(mailbox.data) : "";
+	const memberRemovalDialog = (
+		<ConfirmDialog
+			open={removeMemberTarget !== null}
+			onOpenChange={(open) => {
+				if (!open) setRemoveMemberTarget(null);
+			}}
+			title={t("removeAccessTitle")}
+			description={
+				removeMemberTarget ? t("removeAccessDesc", { email: removeMemberTarget.email }) : ""
+			}
+			confirmLabel={t("removeAccessConfirm")}
+			cancelLabel={tCommon("cancel")}
+			danger
+			onConfirm={() => {
+				if (removeMemberTarget) removeMember.mutate(removeMemberTarget.id);
+				setRemoveMemberTarget(null);
+			}}
+		/>
+	);
 	const assignedUserIds = new Set((members.data?.members ?? []).map((member) => member.userId));
 	const availableMembers = (members.data?.workspaceMembers ?? []).filter(
 		(member) => !assignedUserIds.has(member.userId),
@@ -101,11 +132,12 @@ export default function MailboxSettingsPage() {
 
 	return (
 		<div className="space-y-6">
+			{memberRemovalDialog}
 			<div className="flex items-center gap-3">
 				<Button asChild variant="ghost" size="sm">
 					<Link href="/mailboxes">
 						<ArrowLeft className="h-4 w-4" />
-						Mailboxes
+						{t("mailboxesTitle")}
 					</Link>
 				</Button>
 			</div>
@@ -113,55 +145,54 @@ export default function MailboxSettingsPage() {
 			<div className="flex items-start justify-between gap-4">
 				<div className="min-w-0">
 					<h1 className="truncate text-2xl font-semibold text-ink">
-						{mailbox.data?.displayName || mailbox.data?.localPart || "Mailbox"}
+						{mailbox.data?.displayName || mailbox.data?.localPart || t("mailbox")}
 					</h1>
 					<p className="mt-1 truncate font-mono text-sm text-ink-muted">
-						{address || "Loading mailbox..."}
+						{address || t("loadingMailbox")}
 					</p>
 				</div>
-				{mailbox.data?.isPrimary && <Badge variant="secondary">Primary</Badge>}
+				{mailbox.data?.isPrimary && <Badge variant="secondary">{tNav("primary")}</Badge>}
 			</div>
 
 			{mailbox.isError && (
 				<p className="rounded-lg border border-danger/30 bg-danger-muted px-4 py-3 text-sm text-danger">
-					{mailbox.error instanceof Error ? mailbox.error.message : "Failed to load mailbox"}
+					{mailbox.error instanceof Error ? mailbox.error.message : t("failedMailbox")}
 				</p>
 			)}
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Settings</CardTitle>
+					<CardTitle>{t("mailboxSettings")}</CardTitle>
 					<CardDescription>
-						Update the mailbox label shown in selectors and mailbox lists.
+						{t("mailboxSettingsDesc")}
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<div className="space-y-2">
-						<Label htmlFor="displayName">Name</Label>
+					<FormField label={t("mailboxName")} htmlFor="displayName">
 						<Input
 							id="displayName"
 							value={displayName}
 							onChange={(event) => setDisplayName(event.target.value)}
-							placeholder={mailbox.data?.localPart ?? "Mailbox name"}
+							placeholder={mailbox.data?.localPart ?? t("mailboxNamePlaceholder")}
 							disabled={mailbox.isLoading || updateName.isPending}
 						/>
-					</div>
+					</FormField>
 					{updateName.isError && (
 						<p className="text-sm text-danger">
 							{updateName.error instanceof Error
 								? updateName.error.message
-								: "Failed to update mailbox"}
+								: t("updateFailed")}
 						</p>
 					)}
 					{updateName.isSuccess && (
-						<p className="text-sm text-success">Mailbox settings saved</p>
+						<p className="text-sm text-success">{t("mailboxSaved")}</p>
 					)}
 					<Button
 						onClick={() => updateName.mutate()}
 						disabled={mailbox.isLoading || updateName.isPending}
 					>
 						<Save className="h-4 w-4" />
-						{updateName.isPending ? "Saving..." : "Save changes"}
+						{updateName.isPending ? tCommon("saving") : t("saveChanges")}
 					</Button>
 				</CardContent>
 			</Card>
@@ -169,9 +200,9 @@ export default function MailboxSettingsPage() {
 			{mailbox.data?.role === "manager" && (
 				<Card>
 					<CardHeader>
-						<CardTitle>Mailbox access</CardTitle>
+						<CardTitle>{t("mailboxAccessTitle")}</CardTitle>
 						<CardDescription>
-							Choose who can read, reply from, or manage this mailbox. Workspace roles do not grant email access automatically.
+							{t("mailboxAccessDesc")}
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-4">
@@ -181,7 +212,7 @@ export default function MailboxSettingsPage() {
 								onChange={(event) => setNewMemberId(event.target.value)}
 								className="w-auto"
 							>
-								<option value="">Select workspace member</option>
+								<option value="">{t("selectWorkspaceMember")}</option>
 								{availableMembers.map((member) => (
 									<option key={member.userId} value={member.userId}>{member.name} ({member.email})</option>
 								))}
@@ -191,16 +222,16 @@ export default function MailboxSettingsPage() {
 								onChange={(event) => setNewMemberRole(event.target.value as MailboxRole)}
 								className="w-auto"
 							>
-								<option value="viewer">Viewer</option>
-								<option value="responder">Responder</option>
-								<option value="manager">Manager</option>
+								<option value="viewer">{t("roleViewer")}</option>
+								<option value="responder">{t("roleResponder")}</option>
+								<option value="manager">{t("roleManager")}</option>
 							</Select>
 							<Button onClick={() => addMember.mutate()} disabled={!newMemberId || addMember.isPending}>
-								<UserPlus className="h-4 w-4" /> Add
+								<UserPlus className="h-4 w-4" /> {tCommon("add")}
 							</Button>
 						</div>
 
-						{members.isLoading && <p className="text-sm text-ink-muted">Loading mailbox access…</p>}
+						{members.isLoading && <p className="text-sm text-ink-muted">{t("loadingMailboxAccess")}</p>}
 						{(members.error || addMember.error || changeMemberRole.error || removeMember.error) && (
 							<p className="text-sm text-danger">
 								{(members.error ?? addMember.error ?? changeMemberRole.error ?? removeMember.error)?.message}
@@ -219,17 +250,15 @@ export default function MailboxSettingsPage() {
 											onChange={(event) => changeMemberRole.mutate({ membershipId: member.id, role: event.target.value as MailboxRole })}
 											size="sm" className="w-auto"
 										>
-											<option value="viewer">Viewer</option>
-											<option value="responder">Responder</option>
-											<option value="manager">Manager</option>
+											<option value="viewer">{t("roleViewer")}</option>
+											<option value="responder">{t("roleResponder")}</option>
+											<option value="manager">{t("roleManager")}</option>
 										</Select>
 										<Button
 											variant="ghost"
 											size="sm"
-											onClick={() => {
-												if (confirm(`Remove ${member.email} from this mailbox?`)) removeMember.mutate(member.id);
-											}}
-											aria-label={`Remove ${member.email}`}
+											onClick={() => setRemoveMemberTarget(member)}
+											aria-label={t("removeMemberAria", { email: member.email })}
 										>
 											<X className="h-4 w-4" />
 										</Button>
@@ -243,33 +272,33 @@ export default function MailboxSettingsPage() {
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Address</CardTitle>
+					<CardTitle>{t("mailboxAddress")}</CardTitle>
 					<CardDescription>
-						The email address, username, and domain are managed as routing resources.
+						{t("addressDesc")}
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="grid gap-4 sm:grid-cols-2">
 					<div className="space-y-1">
-						<p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Email</p>
-						<p className="truncate font-mono text-sm text-ink">{address || "-"}</p>
+						<p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{t("fieldEmail")}</p>
+						<p className="truncate font-mono text-sm text-ink">{address || t("emptyFallback")}</p>
 					</div>
 					<div className="space-y-1">
-						<p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Username</p>
+						<p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{t("fieldUsername")}</p>
 						<p className="truncate font-mono text-sm text-ink">
-							{mailbox.data?.localPart ?? "-"}
+							{mailbox.data?.localPart ?? t("emptyFallback")}
 						</p>
 					</div>
 					<div className="space-y-1">
-						<p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Domain</p>
+						<p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{t("fieldDomain")}</p>
 						<p className="truncate font-mono text-sm text-ink">
-							{mailbox.data?.hostname ?? "-"}
+							{mailbox.data?.hostname ?? t("emptyFallback")}
 						</p>
 					</div>
 					<div className="space-y-1">
-						<p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Routing</p>
+						<p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{t("fieldRouting")}</p>
 						<p className="flex items-center gap-2 text-sm text-ink">
 							<Mail className="h-4 w-4 text-ink-faint" />
-							Cloudflare Email Routing
+							{t("cloudflareRouting")}
 						</p>
 					</div>
 				</CardContent>
@@ -277,15 +306,13 @@ export default function MailboxSettingsPage() {
 
 			<Card className="border-danger/30">
 				<CardHeader>
-					<CardTitle className="text-danger">Delete mailbox</CardTitle>
+					<CardTitle className="text-danger">{t("deleteMailbox")}</CardTitle>
 					<CardDescription>
-						This permanently removes the mailbox and its stored data. Type the full
-						mailbox address to confirm.
+						{t("deleteMailboxDesc")}
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<div className="space-y-2">
-						<Label htmlFor="deleteConfirmation">Confirm mailbox address</Label>
+					<FormField label={t("confirmMailboxAddress")} htmlFor="deleteConfirmation">
 						<Input
 							id="deleteConfirmation"
 							value={deleteConfirmation}
@@ -293,12 +320,12 @@ export default function MailboxSettingsPage() {
 							placeholder={address}
 							autoComplete="off"
 						/>
-					</div>
+					</FormField>
 					{removeMailbox.isError && (
 						<p className="text-sm text-danger">
 							{removeMailbox.error instanceof Error
 								? removeMailbox.error.message
-								: "Failed to delete mailbox"}
+								: t("deleteMailboxFailed")}
 						</p>
 					)}
 					<Button
@@ -311,7 +338,7 @@ export default function MailboxSettingsPage() {
 						}
 					>
 						<Trash2 className="h-4 w-4" />
-						{removeMailbox.isPending ? "Deleting..." : "Delete mailbox"}
+						{removeMailbox.isPending ? t("deleting") : t("deleteMailbox")}
 					</Button>
 				</CardContent>
 			</Card>

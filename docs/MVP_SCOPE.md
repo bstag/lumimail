@@ -215,4 +215,8 @@ Additional registry hygiene required:
 - **Auth:** session cookie in `src/lib/auth/`; database access via `getDb(env)`.
 - **Validation:** request bodies use Zod schemas in `src/lib/validators.ts`.
 - **IDs:** `newId(prefix)` from `src/lib/ids.ts`.
+- **Migrations:** hand-written, append-only numbered SQL in `drizzle/migrations/`,
+  verified against the Drizzle schema by the F42 parity tests. The
+  `drizzle-kit generate` workflow was removed 2026-07-30 (its metadata had been
+  stale since migration `0006` and would have produced wrong output).
 - **Tenant isolation:** every organization- and mailbox-scoped operation must enforce authorization server-side and have negative tests.

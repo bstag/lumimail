@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Mail, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,70 +14,65 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { authFetch } from "@/lib/auth/client";
-import { parseApiResponse } from "@/lib/api/client-response";
+import { ListSection } from "@/components/ui/list-section";
+import { domainKeys, mailboxKeys } from "@/lib/query-keys";
+import { apiJson } from "@/lib/api/client-response";
 import type { Domain, Mailbox } from "./types";
 import { getMailboxAddress, getMailboxName } from "./utils";
 import { Select } from "@/components/ui/select";
 
 export default function MailboxesPage() {
+	const t = useTranslations("admin");
 	const qc = useQueryClient();
 	const [localPart, setLocalPart] = useState("");
 	const [domainId, setDomainId] = useState("");
 	const [createOpen, setCreateOpen] = useState(false);
 
 	const domains = useQuery({
-		queryKey: ["domains"],
-		queryFn: async () => {
-			const res = await authFetch("/api/domains");
-			return (await res.json()) as { domains: Domain[] };
-		},
+		queryKey: domainKeys.list({ includeDns: false }),
+		queryFn: () => apiJson.get<{ domains: Domain[] }>("/api/domains"),
 	});
 
 	const mailboxes = useQuery({
-		queryKey: ["admin", "mailboxes"],
-		queryFn: async () => {
-			const res = await authFetch("/api/admin/mailboxes");
-			return (await res.json()) as {
+		queryKey: mailboxKeys.admin,
+		queryFn: () =>
+			apiJson.get<{
 				mailboxes: Mailbox[];
 				canSelfAssign: boolean;
 				currentUserId: string;
-			};
-		},
+			}>("/api/admin/mailboxes"),
 	});
 
 	const claimAccess = useMutation({
 		mutationFn: async (mailboxId: string) => {
-			const res = await authFetch(`/api/mailboxes/${mailboxId}/members`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ userId: mailboxes.data?.currentUserId, role: "manager" }),
+			await apiJson.post<{ id: string }>(`/api/mailboxes/${mailboxId}/members`, {
+				userId: mailboxes.data?.currentUserId,
+				role: "manager",
 			});
-			await parseApiResponse<{ id: string }>(res);
 		},
 		onSuccess: () => {
-			qc.invalidateQueries({ queryKey: ["admin", "mailboxes"] });
-			qc.invalidateQueries({ queryKey: ["mailboxes"] });
+			qc.invalidateQueries({ queryKey: mailboxKeys.admin });
+			qc.invalidateQueries({ queryKey: mailboxKeys.user });
 		},
 	});
 
 	const create = useMutation({
 		mutationFn: async () => {
-			const res = await authFetch("/api/mailboxes", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ domainId, localPart, displayName: localPart }),
+			await apiJson.post<{ id: string; address: string }>("/api/mailboxes", {
+				domainId,
+				localPart,
+				displayName: localPart,
 			});
-			await parseApiResponse<{ id: string; address: string }>(res);
 			setLocalPart("");
 			setDomainId("");
 		},
+		meta: { suppressErrorToast: true },
 		onSuccess: () => {
 			setCreateOpen(false);
-			qc.invalidateQueries({ queryKey: ["admin", "mailboxes"] });
-			qc.invalidateQueries({ queryKey: ["mailboxes"] });
+			qc.invalidateQueries({ queryKey: mailboxKeys.admin });
+			qc.invalidateQueries({ queryKey: mailboxKeys.user });
 		},
 	});
 
@@ -87,47 +83,45 @@ export default function MailboxesPage() {
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between gap-4">
-				<h1 className="text-2xl font-semibold text-ink">Mailboxes</h1>
+				<h1 className="text-2xl font-semibold text-ink">{t("mailboxesTitle")}</h1>
 				<Dialog open={createOpen} onOpenChange={setCreateOpen}>
 					<DialogTrigger asChild>
 						<Button>
 							<Plus className="h-4 w-4" />
-							New mailbox
+							{t("newMailbox")}
 						</Button>
 					</DialogTrigger>
 					<DialogContent>
 						<DialogHeader>
-							<DialogTitle>Create mailbox</DialogTitle>
-							<DialogDescription>Add a mailbox and provision its routing rule automatically.</DialogDescription>
+							<DialogTitle>{t("createMailboxTitle")}</DialogTitle>
+							<DialogDescription>{t("createMailboxDesc")}</DialogDescription>
 						</DialogHeader>
 						<div className="space-y-4">
-							<div className="space-y-2">
-								<Label>Domain</Label>
+							<FormField label={t("domain")}>
 								<Select
 									value={domainId}
 									onChange={(event) => setDomainId(event.target.value)}
 								>
-									<option value="">Select domain</option>
+									<option value="">{t("selectDomain")}</option>
 									{(domains.data?.domains ?? []).map((domain) => (
 										<option key={domain.id} value={domain.id}>
 											{domain.hostname}
 										</option>
 									))}
 								</Select>
-							</div>
-							<div className="space-y-2 relative">
-								<Label>Username</Label>
+							</FormField>
+							<FormField label={t("username")} className="relative">
 								<Input
 									value={localPart}
 									onChange={(event) => setLocalPart(event.target.value)}
-									placeholder="support"
+									placeholder={t("usernamePlaceholder")}
 								/>
 								{domainId && (
 									<span className="absolute bottom-2.5 right-4 text-sm text-ink-faint">
 										@{domainMap.get(domainId)}
 									</span>
 								)}
-							</div>
+							</FormField>
 							{create.isError && (
 								<p className="text-sm text-danger">{(create.error as Error).message}</p>
 							)}
@@ -135,28 +129,20 @@ export default function MailboxesPage() {
 								onClick={() => create.mutate()}
 								disabled={!domainId || !localPart || create.isPending}
 							>
-								{create.isPending ? "Creating..." : "Create mailbox"}
+								{create.isPending ? t("creating") : t("createMailboxTitle")}
 							</Button>
 						</div>
 					</DialogContent>
 				</Dialog>
 			</div>
 			<section className="space-y-3">
-				{/* <div className="flex items-center justify-between">
-					<span className="text-sm text-ink-muted">
-						{(mailboxes.data?.mailboxes ?? []).length} total
-					</span>
-				</div> */}
-				{mailboxes.isLoading && (
-					<p className="rounded-lg border border-border bg-surface-raised px-4 py-3 text-sm text-ink-muted">
-						Loading mailboxes...
-					</p>
-				)}
-				{!mailboxes.isLoading && (mailboxes.data?.mailboxes ?? []).length === 0 && (
-					<p className="rounded-lg border border-border bg-surface-raised px-4 py-3 text-sm text-ink-muted">
-						No mailboxes yet
-					</p>
-				)}
+				<ListSection
+					loading={mailboxes.isLoading}
+					loadingLabel={t("loadingMailboxes")}
+					empty={(mailboxes.data?.mailboxes ?? []).length === 0}
+					emptyLabel={t("noMailboxes")}
+					emptyIcon={Mail}
+				>
 				<div className="grid gap-3 md:grid-cols-2">
 					{(mailboxes.data?.mailboxes ?? []).map((mailbox) => {
 						const mailboxWithHostname = {
@@ -177,7 +163,7 @@ export default function MailboxesPage() {
 										{getMailboxAddress(mailboxWithHostname)}
 									</span>
 									<span className="block text-xs capitalize text-ink-faint">
-										{mailbox.role ?? "No content access"}
+										{mailbox.role ?? t("noContentAccess")}
 									</span>
 								</span>
 							</>
@@ -198,13 +184,14 @@ export default function MailboxesPage() {
 								{content}
 								{!mailbox.role && mailboxes.data?.canSelfAssign && (
 									<Button size="sm" variant="outline" onClick={() => claimAccess.mutate(mailbox.id)} disabled={claimAccess.isPending}>
-										Claim access
+										{t("claimAccess")}
 									</Button>
 								)}
 							</div>
 						);
 					})}
 				</div>
+				</ListSection>
 			</section>
 		</div>
 	);

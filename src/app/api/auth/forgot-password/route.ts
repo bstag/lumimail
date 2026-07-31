@@ -10,7 +10,7 @@ import {
 import { newId } from "@/lib/ids";
 import { apiError, apiSuccess } from "@/lib/api/response";
 import { forgotPasswordSchema } from "@/lib/validators";
-import { rateLimitIp, RateLimitUnavailableError } from "@/lib/rate-limit";
+import { enforceRateLimit, rateLimitIp } from "@/lib/rate-limit";
 
 const genericResponse = {
 	message: "If the account exists, a reset link has been sent.",
@@ -18,16 +18,12 @@ const genericResponse = {
 
 export async function POST(request: Request) {
 	const env = getEnv();
-	try {
-		const rateLimit = await rateLimitIp(env, request, "forgot-password", 5, 60_000);
-		if (!rateLimit.allowed) return apiError("Too many attempts", 429);
-	} catch (error) {
-		if (error instanceof RateLimitUnavailableError) {
-			console.error("Password reset rate limit unavailable");
-			return apiError("Service temporarily unavailable", 503);
-		}
-		throw error;
-	}
+	const limited = await enforceRateLimit(rateLimitIp(env, request, "forgot-password", 5, 60_000), {
+		unavailableLog: "Password reset rate limit unavailable",
+		limitedMessage: "Too many attempts",
+		respond: apiError,
+	});
+	if (limited) return limited;
 	const parsed = forgotPasswordSchema.safeParse(await request.json().catch(() => null));
 	if (!parsed.success) return apiError("A valid email is required", 400);
 

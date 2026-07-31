@@ -1,18 +1,13 @@
 import { eq, and, gt } from "drizzle-orm";
-import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
 import { users, organizationMembers, orgInvites } from "@/db/schema";
-import { guardOrgAdmin } from "@/lib/auth/org-guard";
+import { withOrgAdmin } from "@/lib/api/handler";
 import { hashInvitationToken } from "@/lib/auth/invitation";
 import { newId } from "@/lib/ids";
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { organizationInviteSchema } from "@/lib/validators";
 
-export async function GET(request: Request) {
-  const env = getEnv();
-  const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-  if (errorResponse) return errorResponse;
-
+export const GET = withOrgAdmin(async ({ env, user }) => {
   const db = getDb(env);
   const members = await db
     .select({
@@ -25,7 +20,7 @@ export async function GET(request: Request) {
     })
     .from(organizationMembers)
     .innerJoin(users, eq(organizationMembers.userId, users.id))
-    .where(eq(organizationMembers.organizationId, orgUser.organizationId as string));
+    .where(eq(organizationMembers.organizationId, user.organizationId));
 
   const invites = await db
     .select({
@@ -38,19 +33,15 @@ export async function GET(request: Request) {
     .from(orgInvites)
     .where(
       and(
-        eq(orgInvites.organizationId, orgUser.organizationId as string),
+        eq(orgInvites.organizationId, user.organizationId),
         gt(orgInvites.expiresAt, new Date()),
       ),
     );
 
   return apiSuccess({ members, invites });
-}
+});
 
-export async function POST(request: Request) {
-  const env = getEnv();
-  const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-  if (errorResponse) return errorResponse;
-
+export const POST = withOrgAdmin(async ({ request, env, user }) => {
   const parsed = organizationInviteSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("Invalid invitation", 400);
   const { email: inviteEmail, role } = parsed.data;
@@ -63,7 +54,7 @@ export async function POST(request: Request) {
     .innerJoin(users, eq(organizationMembers.userId, users.id))
     .where(
       and(
-        eq(organizationMembers.organizationId, orgUser.organizationId as string),
+        eq(organizationMembers.organizationId, user.organizationId),
         eq(users.email, inviteEmail),
       ),
     )
@@ -83,7 +74,7 @@ export async function POST(request: Request) {
     .from(orgInvites)
     .where(
       and(
-        eq(orgInvites.organizationId, orgUser.organizationId as string),
+        eq(orgInvites.organizationId, user.organizationId),
         eq(orgInvites.email, inviteEmail),
         gt(orgInvites.expiresAt, new Date()),
       ),
@@ -107,7 +98,7 @@ export async function POST(request: Request) {
   const inviteId = newId("inv");
   await db.insert(orgInvites).values({
     id: inviteId,
-    organizationId: orgUser.organizationId as string,
+    organizationId: user.organizationId,
     email: inviteEmail,
     role,
     token: tokenHash,
@@ -115,4 +106,4 @@ export async function POST(request: Request) {
   });
 
   return apiSuccess({ invite: { id: inviteId, token } });
-}
+});

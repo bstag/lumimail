@@ -1,22 +1,18 @@
 import { NextResponse } from "next/server";
-import { getEnv } from "@/lib/cloudflare";
-import { getCurrentUser } from "@/lib/auth/cookies";
+import { z } from "zod";
+import { withUser } from "@/lib/api/handler";
+import { apiSuccess, parseJsonBody } from "@/lib/api/response";
 import { updateMessageStatus } from "@/lib/user";
-import type { MessageStatusPayload } from "./types";
 import { isAllowedMessageStatus } from "./utils";
 
-export async function POST(
-	request: Request,
-	{ params }: { params: Promise<{ messageId: string }> },
-) {
-	const { messageId } = await params;
-	const env = getEnv();
-	const user = await getCurrentUser(env, request);
-	if (!user) {
-		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-	}
+// `status` stays unknown so an unsupported value keeps answering the
+// historical bare `{ error: "Invalid message status" }` 400 below.
+const statusPayloadSchema = z.object({ status: z.unknown().optional() });
 
-	const payload = (await request.json()) as MessageStatusPayload;
+export const POST = withUser<{ messageId: string }>(async ({ request, env, user, params }) => {
+	const { messageId } = params;
+	const { data: payload, errorResponse } = await parseJsonBody(request, statusPayloadSchema);
+	if (errorResponse) return errorResponse;
 	if (!isAllowedMessageStatus(payload.status)) {
 		return NextResponse.json({ error: "Invalid message status" }, { status: 400 });
 	}
@@ -26,5 +22,5 @@ export async function POST(
 		return NextResponse.json({ error: "Message not found" }, { status: 404 });
 	}
 
-	return NextResponse.json({ success: true });
-}
+	return apiSuccess({ ok: true });
+});

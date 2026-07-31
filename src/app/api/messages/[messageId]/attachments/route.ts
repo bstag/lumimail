@@ -1,20 +1,12 @@
 import { eq, and } from "drizzle-orm";
-import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
 import { attachments, messages } from "@/db/schema";
-import { guardUser } from "@/lib/auth/cookies";
+import { withUser } from "@/lib/api/handler";
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
-export async function GET(
-	request: Request,
-	{ params }: { params: Promise<{ messageId: string }> },
-) {
-	const { messageId } = await params;
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
-
+export const GET = withUser<{ messageId: string }>(async ({ env, user, params }) => {
+	const { messageId } = params;
 	const db = getDb(env);
 	const [msg] = await db
 		.select({
@@ -45,4 +37,4 @@ export async function GET(
 		attachmentError: msg.attachmentError,
 		attachments: rows,
 	});
-}
+});

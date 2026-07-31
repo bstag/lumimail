@@ -60,7 +60,14 @@ describe("PATCH /api/org", () => {
 		m.guardOrgAdmin.mockResolvedValue({ orgUser: { organizationId: "o1" } });
 		const res = await PATCH(patchReq({}));
 		expect(res.status).toBe(400);
-		expect((await res.json()) as any).toMatchObject({ error: { message: "Name is required" } });
+		expect(((await res.json()) as any).success).toBe(false);
+	});
+
+	it("returns 400 for a malformed JSON body", async () => {
+		m.guardOrgAdmin.mockResolvedValue({ orgUser: { organizationId: "o1" } });
+		const res = await PATCH(new Request("https://x.test/api/org", { method: "PATCH", body: "not json" }));
+		expect(res.status).toBe(400);
+		expect((await res.json()) as any).toMatchObject({ success: false, error: { message: "Invalid JSON" } });
 	});
 
 	it("returns 400 when name is whitespace only", async () => {

@@ -4,27 +4,26 @@ import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
 import { verifyPassword } from "@/lib/auth/password";
-import { createSession, SESSION_COOKIE } from "@/lib/auth/session";
+import { createSession, setSessionCookie } from "@/lib/auth/session";
 import { loginSchema } from "@/lib/validators";
 import { userHasMailboxes } from "@/lib/user";
-import { rateLimitIp, RateLimitUnavailableError } from "@/lib/rate-limit";
+import { enforceRateLimit, rateLimitIp } from "@/lib/rate-limit";
 
+// F40 envelope exception (T-33): /api/auth/login deliberately keeps its flat
+// success body. The login/session bootstrap clients (`src/lib/auth/client.ts`
+// and the login page) parse it bespokely, before the enveloped API client is
+// available. Do not wrap in `apiSuccess`.
 export async function POST(request: Request) {
 	const env = getEnv();
 
-	let rl;
-	try {
-		rl = await rateLimitIp(env, request, "login", 5, 60_000);
-	} catch (error) {
-		if (error instanceof RateLimitUnavailableError) {
-			console.error("Login rate limit unavailable");
-			return NextResponse.json({ error: "Service temporarily unavailable" }, { status: 503 });
-		}
-		throw error;
-	}
-	if (!rl.allowed) {
-		return NextResponse.json({ error: "Too many attempts" }, { status: 429 });
-	}
+	const limited = await enforceRateLimit(rateLimitIp(env, request, "login", 5, 60_000), {
+		unavailableLog: "Login rate limit unavailable",
+		limitedMessage: "Too many attempts",
+		// This route predates the `{ success, error }` envelope; its clients read
+		// a bare `{ error }` string, so the historical shape is preserved.
+		respond: (message, status) => NextResponse.json({ error: message }, { status }),
+	});
+	if (limited) return limited;
 
 	const body = await request.json() as Record<string, unknown>;
 	const parsed = loginSchema.safeParse(body);
@@ -44,12 +43,6 @@ export async function POST(request: Request) {
 		ok: true,
 		redirect: hasMailboxes ? "/inbox" : "/onboarding",
 	});
-	response.cookies.set(SESSION_COOKIE, token, {
-		httpOnly: true,
-		secure: true,
-		sameSite: "lax",
-		path: "/",
-		maxAge: 60 * 60 * 24 * 30,
-	});
+	setSessionCookie(response, token);
 	return response;
 }

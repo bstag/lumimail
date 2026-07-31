@@ -40,30 +40,36 @@ test("clears account-scoped mailbox and message caches across logout and login",
 		const accountB = activeAccount === "b";
 		return route.fulfill({
 			json: {
-				mailboxes: [{
-					id: accountB ? "mbx_b" : "mbx_a",
-					localPart: accountB ? "bravo" : "alpha",
-					hostname: accountB ? "b.example" : "a.example",
-					displayName: accountB ? "Bravo Mailbox" : "Alpha Mailbox",
-					isPrimary: true,
-					role: "manager",
-				}],
+				success: true,
+				data: {
+					mailboxes: [{
+						id: accountB ? "mbx_b" : "mbx_a",
+						localPart: accountB ? "bravo" : "alpha",
+						hostname: accountB ? "b.example" : "a.example",
+						displayName: accountB ? "Bravo Mailbox" : "Alpha Mailbox",
+						isPrimary: true,
+						role: "manager",
+					}],
+				},
 			},
 		});
 	});
 	await page.route("**/api/messages/counts**", (route) =>
 		route.fulfill({
 			json: {
-				counts: {
-					folders: {
-						inbox: { total: 1, unread: 0 },
-						sent: { total: 0, unread: 0 },
-						drafts: { total: 0, unread: 0 },
-						trash: { total: 0, unread: 0 },
-						spam: { total: 0, unread: 0 },
-						starred: { total: 0, unread: 0 },
+				success: true,
+				data: {
+					counts: {
+						folders: {
+							inbox: { total: 1, unread: 0 },
+							sent: { total: 0, unread: 0 },
+							drafts: { total: 0, unread: 0 },
+							trash: { total: 0, unread: 0 },
+							spam: { total: 0, unread: 0 },
+							starred: { total: 0, unread: 0 },
+						},
+						mailboxes: [],
 					},
-					mailboxes: [],
 				},
 			},
 		}),
@@ -73,22 +79,25 @@ test("clears account-scoped mailbox and message caches across logout and login",
 		const name = accountB ? "Bravo sender" : "Alpha sender";
 		return route.fulfill({
 			json: {
-				messages: [{
-					id: accountB ? "msg_b" : "msg_a",
-					mailboxId: accountB ? "mbx_b" : "mbx_a",
-					direction: "inbound",
-					fromAddr: `${name} <sender@example.net>`,
-					toAddr: accountB ? "bravo@b.example" : "alpha@a.example",
-					subject: accountB ? "Bravo private subject" : "Alpha private subject",
-					snippet: "",
-					status: "received",
-					read: true,
-					starred: false,
-					createdAt: "2026-07-23T12:00:00.000Z",
-				}],
-				total: 1,
-				limit: 25,
-				offset: 0,
+				success: true,
+				data: {
+					messages: [{
+						id: accountB ? "msg_b" : "msg_a",
+						mailboxId: accountB ? "mbx_b" : "mbx_a",
+						direction: "inbound",
+						fromAddr: `${name} <sender@example.net>`,
+						toAddr: accountB ? "bravo@b.example" : "alpha@a.example",
+						subject: accountB ? "Bravo private subject" : "Alpha private subject",
+						snippet: "",
+						status: "received",
+						read: true,
+						starred: false,
+						createdAt: "2026-07-23T12:00:00.000Z",
+					}],
+					total: 1,
+					limit: 25,
+					offset: 0,
+				},
 			},
 		});
 	});

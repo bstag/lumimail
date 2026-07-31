@@ -1,38 +1,23 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockShellNoise } from "./shell";
+import { mockAuthShell } from "./shell";
 
 async function mockOwnerShell(page: Page) {
-	await page.addInitScript(() => {
-		localStorage.setItem("lumimail-session-token", "e2e-session");
+	await mockAuthShell(page, {
+		user: {
+			id: "owner_1",
+			email: "owner@example.com",
+			name: "Owner",
+			role: "owner",
+		},
+		mailboxes: [{
+			id: "mbx_1",
+			localPart: "support",
+			hostname: "example.com",
+			displayName: "Support",
+			isPrimary: true,
+			role: "manager",
+		}],
 	});
-	await mockShellNoise(page);
-	await page.route("**/api/auth/me", (route) =>
-		route.fulfill({
-			json: {
-				user: {
-					id: "owner_1",
-					email: "owner@example.com",
-					name: "Owner",
-					role: "owner",
-				},
-				hasMailboxes: true,
-			},
-		}),
-	);
-	await page.route("**/api/mailboxes", (route) =>
-		route.fulfill({
-			json: {
-				mailboxes: [{
-					id: "mbx_1",
-					localPart: "support",
-					hostname: "example.com",
-					displayName: "Support",
-					isPrimary: true,
-					role: "manager",
-				}],
-			},
-		}),
-	);
 }
 
 test("owner sees platform queue health and can run a fresh check", async ({ page }) => {
@@ -75,11 +60,11 @@ test("owner sees platform queue health and can run a fresh check", async ({ page
 			},
 		];
 		if (route.request().method() === "POST") checked = true;
-		await route.fulfill({ json: { queues: responseQueues.map((queue) => (
+		await route.fulfill({ json: { success: true, data: { queues: responseQueues.map((queue) => (
 			queue.queue === "inbound" && checked
 				? { ...queue, status: "healthy", backlogCount: 0, backlogBytes: 0, oldestMessageAt: null }
 				: queue
-		)) } });
+		)) } } });
 	});
 
 	await page.goto("/queue-health");

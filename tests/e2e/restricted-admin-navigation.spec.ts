@@ -1,60 +1,31 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockShellNoise } from "./shell";
+import { folderCounts, mockAuthShell } from "./shell";
 
 type OrganizationRole = "owner" | "admin" | "member";
 
 async function mockShell(page: Page, organizationRole: OrganizationRole) {
-	await page.addInitScript(() => {
-		localStorage.setItem("lumimail-session-token", "e2e-session");
+	await mockAuthShell(page, {
+		user: {
+			id: "user_role",
+			email: "support@example.com",
+			name: "Support",
+			resetEmail: null,
+			role: organizationRole,
+		},
+		mailboxes: [{
+			id: "mbx_support",
+			localPart: "support",
+			hostname: "example.com",
+			displayName: "Support",
+			isPrimary: true,
+			role: "responder",
+		}],
+		counts: folderCounts(),
 	});
-	await mockShellNoise(page);
-	await page.route("**/api/auth/me", (route) =>
-		route.fulfill({
-			json: {
-				user: {
-					id: "user_role",
-					email: "support@example.com",
-					name: "Support",
-					resetEmail: null,
-					role: organizationRole,
-				},
-				hasMailboxes: true,
-			},
-		}),
-	);
-	await page.route("**/api/mailboxes", (route) =>
-		route.fulfill({
-			json: {
-				mailboxes: [{
-					id: "mbx_support",
-					localPart: "support",
-					hostname: "example.com",
-					displayName: "Support",
-					isPrimary: true,
-					role: "responder",
-				}],
-			},
-		}),
-	);
-	await page.route("**/api/messages/counts**", (route) =>
-		route.fulfill({
-			json: {
-				counts: {
-					folders: {
-						inbox: { total: 0, unread: 0 },
-						sent: { total: 0, unread: 0 },
-						drafts: { total: 0, unread: 0 },
-						trash: { total: 0, unread: 0 },
-						spam: { total: 0, unread: 0 },
-						starred: { total: 0, unread: 0 },
-					},
-					mailboxes: [],
-				},
-			},
-		}),
-	);
 	await page.route("**/api/messages?*", (route) =>
-		route.fulfill({ json: { messages: [], total: 0, limit: 25, offset: 0 } }),
+		route.fulfill({
+			json: { success: true, data: { messages: [], total: 0, limit: 25, offset: 0 } },
+		}),
 	);
 }
 
@@ -95,14 +66,17 @@ test("keeps deployment queue health owner-only for an organization admin", async
 test("retains organization administration for an owner", async ({ page }) => {
 	await mockShell(page, "owner");
 	await page.route("**/api/domains", (route) =>
-		route.fulfill({ json: { domains: [] } }),
+		route.fulfill({ json: { success: true, data: { domains: [] } } }),
 	);
 	await page.route("**/api/admin/mailboxes", (route) =>
 		route.fulfill({
 			json: {
-				mailboxes: [],
-				canSelfAssign: true,
-				currentUserId: "user_role",
+				success: true,
+				data: {
+					mailboxes: [],
+					canSelfAssign: true,
+					currentUserId: "user_role",
+				},
 			},
 		}),
 	);

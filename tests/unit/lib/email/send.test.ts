@@ -6,7 +6,6 @@ vi.mock("@/db", () => ({ getDb: () => h.db }));
 
 vi.mock("@/lib/email/providers", () => ({ selectOutboundProvider: vi.fn() }));
 vi.mock("@/lib/email/webhooks", () => ({ dispatchWebhooks: vi.fn() }));
-vi.mock("@/lib/cloudflare-api", () => ({ ensureEmailRoutingRuleToWorker: vi.fn() }));
 vi.mock("@/lib/contacts/service", () => ({ upsertContactFromAddress: vi.fn() }));
 vi.mock("@/lib/email/parse", () => ({ buildSnippet: vi.fn(() => "snippet") }));
 vi.mock("@/lib/ids", () => ({ newId: vi.fn((p?: string) => (p ? `${p}_id` : "raw_id")) }));
@@ -14,18 +13,17 @@ vi.mock("@/lib/ids", () => ({ newId: vi.fn((p?: string) => (p ? `${p}_id` : "raw
 import {
 	processOutboundDeadLetter,
 	processOutboundQueue,
+	resolveSenderAuthorization,
 	sendEmail,
 	validateSenderDomain,
 } from "@/lib/email/send";
 import { selectOutboundProvider } from "@/lib/email/providers";
 import { OutboundProviderError } from "@/lib/email/providers/types";
 import { dispatchWebhooks } from "@/lib/email/webhooks";
-import { ensureEmailRoutingRuleToWorker } from "@/lib/cloudflare-api";
 import { upsertContactFromAddress } from "@/lib/contacts/service";
 
 const selectProvider = vi.mocked(selectOutboundProvider);
 const dispatch = vi.mocked(dispatchWebhooks);
-const ensureRule = vi.mocked(ensureEmailRoutingRuleToWorker);
 const upsertContact = vi.mocked(upsertContactFromAddress);
 const providerSend = vi.fn();
 const queueSend = vi.fn();
@@ -72,42 +70,71 @@ describe("validateSenderDomain", () => {
 			.queueSelect([{ organizationId: "org_1" }])
 			.queueSelect([]);
 		expect(await validateSenderDomain(env, "u1", "a@example.com")).toBe(false);
-		expect(ensureRule).not.toHaveBeenCalled();
 	});
 
-	it("ensures the routing rule and returns true for an org user with a mailbox", async () => {
+	it("returns true for an org user with a mailbox", async () => {
 		mock
 			.queueSelect([activeDomain])
 			.queueSelect([{ organizationId: "org_1" }])
-			.queueSelect([{ id: "mb_1" }]);
+			.queueSelect([{ id: "mb_1", localPart: "a", displayName: null }]);
 		expect(await validateSenderDomain(env, "u1", "a@example.com")).toBe(true);
-		expect(ensureRule).toHaveBeenCalledWith(env, "zone_1", "a@example.com");
 	});
 
 	it("uses the personal-user path when the user has no organization", async () => {
 		mock
 			.queueSelect([activeDomain])
 			.queueSelect([{ organizationId: null }])
-			.queueSelect([{ id: "mb_1" }]);
+			.queueSelect([{ id: "mb_1", localPart: "a", displayName: null }]);
 		expect(await validateSenderDomain(env, "u1", "a@example.com")).toBe(true);
-		expect(ensureRule).toHaveBeenCalledWith(env, "zone_1", "a@example.com");
 	});
 
 	it("treats a missing user row as a personal user", async () => {
 		mock
 			.queueSelect([activeDomain])
 			.queueSelect([])
-			.queueSelect([{ id: "mb_1" }]);
+			.queueSelect([{ id: "mb_1", localPart: "a", displayName: null }]);
 		expect(await validateSenderDomain(env, "u1", "a@example.com")).toBe(true);
 	});
 });
 
+describe("resolveSenderAuthorization", () => {
+	// The single authorization query returns the full mailbox identity row; the
+	// previous second sender-context query (and its silent `input.from` fallback
+	// for a mailbox that authorization had just proven) no longer exists (T-30).
+	it("returns the mailbox identity row used to derive the canonical sender", async () => {
+		mock
+			.queueSelect([activeDomain])
+			.queueSelect([{ organizationId: "org_1" }])
+			.queueSelect([{ id: "mb_1", localPart: "a", displayName: "Agent A" }]);
+		expect(await resolveSenderAuthorization(env, "u1", "a@example.com")).toEqual({
+			mailboxId: "mb_1",
+			organizationId: "org_1",
+			localPart: "a",
+			hostname: "example.com",
+			displayName: "Agent A",
+		});
+	});
+
+	it("performs no Cloudflare API work: authorization is pure DB (T-31)", async () => {
+		mock
+			.queueSelect([activeDomain])
+			.queueSelect([{ organizationId: null }])
+			.queueSelect([{ id: "mb_1", localPart: "a", displayName: null }]);
+		await resolveSenderAuthorization(env, "u1", "a@example.com");
+		// Three DB reads (domain, user org, mailbox) and nothing else.
+		expect(mock.db.select).toHaveBeenCalledTimes(3);
+	});
+});
+
 describe("sendEmail producer", () => {
-	function queueAuthorization(orgId: string | null = null) {
+	function queueAuthorization(
+		orgId: string | null = null,
+		mailbox: Record<string, unknown> = { id: "mb_1", localPart: "a", displayName: null },
+	) {
 		mock
 			.queueSelect([activeDomain])
 			.queueSelect([{ organizationId: orgId }])
-			.queueSelect([{ id: "mb_1" }]);
+			.queueSelect([mailbox]);
 	}
 
 	it("throws before persistence when the sender is not an allowed mailbox", async () => {
@@ -137,7 +164,7 @@ describe("sendEmail producer", () => {
 		expect(mock.inserts[0].values).toMatchObject({
 			id: "msg_id",
 			direction: "outbound",
-			fromAddr: "a@example.com",
+			fromAddr: '"a" <a@example.com>',
 			toAddr: "b@x.com",
 			status: "queued",
 			mailboxId: "mb_1",
@@ -151,7 +178,7 @@ describe("sendEmail producer", () => {
 			id: "job_id",
 			status: "queued",
 			payload: JSON.stringify({
-				from: "a@example.com",
+				from: '"a" <a@example.com>',
 				to: "b@x.com",
 				subject: "Hi",
 				html: "<p><strong>formatted body</strong></p>",
@@ -245,10 +272,7 @@ describe("sendEmail producer", () => {
 	});
 
 	it("stores the canonical formatted sender in the immutable job snapshot", async () => {
-		queueAuthorization();
-		mock
-			.queueSelect([{ organizationId: null }])
-			.queueSelect([{ localPart: "a", displayName: "Agent A", hostname: "example.com" }]);
+		queueAuthorization(null, { id: "mb_1", localPart: "a", displayName: "Agent A" });
 
 		await sendEmail(env, {
 			userId: "u1",
@@ -265,10 +289,7 @@ describe("sendEmail producer", () => {
 	});
 
 	it("uses the mailbox local part when the sender has no display name", async () => {
-		queueAuthorization();
-		mock
-			.queueSelect([{ organizationId: null }])
-			.queueSelect([{ localPart: "a", displayName: null, hostname: "example.com" }]);
+		queueAuthorization(null, { id: "mb_1", localPart: "a", displayName: null });
 
 		await sendEmail(env, {
 			userId: "u1",
@@ -281,21 +302,21 @@ describe("sendEmail producer", () => {
 		expect(mock.inserts[0].values).toMatchObject({ fromAddr: '"a" <a@example.com>' });
 	});
 
-	it("keeps the requested sender when the resolved mailbox address differs", async () => {
+	it("keeps the requested sender when it does not reduce to the mailbox address", async () => {
+		// A bare `<a@example.com>` authorizes (the address parser unwraps the
+		// angle brackets) but the display-name parser leaves it intact, so it does
+		// not compare equal to `a@example.com` and is stored verbatim.
 		queueAuthorization("org_1");
-		mock
-			.queueSelect([{ organizationId: "org_1" }])
-			.queueSelect([{ localPart: "other", displayName: null, hostname: "example.com" }]);
 
 		await sendEmail(env, {
 			userId: "u1",
-			from: "a@example.com",
+			from: "<a@example.com>",
 			to: "b@x.com",
 			subject: "Hi",
 			mailboxId: "mb_1",
 		});
 
-		expect(mock.inserts[0].values).toMatchObject({ fromAddr: "a@example.com" });
+		expect(mock.inserts[0].values).toMatchObject({ fromAddr: "<a@example.com>" });
 	});
 
 	it("marks the persisted rows failed when enqueueing fails", async () => {
@@ -424,7 +445,12 @@ describe("sendEmail producer", () => {
 			],
 		})).rejects.toThrow("R2 unavailable");
 
-		expect(bucketDelete).toHaveBeenCalledTimes(2);
+		// One bulk delete covers every attempted key (both share the mocked id).
+		expect(bucketDelete).toHaveBeenCalledTimes(1);
+		expect(bucketDelete).toHaveBeenCalledWith([
+			"attachments/u1/msg_id/att_id",
+			"attachments/u1/msg_id/att_id",
+		]);
 		expect(queueSend).not.toHaveBeenCalled();
 	});
 
@@ -445,7 +471,7 @@ describe("sendEmail producer", () => {
 				content: new ArrayBuffer(1),
 			}],
 		})).rejects.toThrow("D1 unavailable");
-		expect(consoleError).toHaveBeenCalledWith("Failed to clean up an outbound attachment object");
+		expect(consoleError).toHaveBeenCalledWith("Failed to clean up attachment objects");
 		consoleError.mockRestore();
 	});
 });
@@ -470,7 +496,7 @@ describe("automatic reply marking", () => {
 		mock
 			.queueSelect([activeDomain])
 			.queueSelect([{ organizationId: orgId }])
-			.queueSelect([{ id: "mb_1" }]);
+			.queueSelect([{ id: "mb_1", localPart: "a", displayName: "Agent A" }]);
 	}
 
 	it("applies the fixed auto-reply headers when the snapshot is flagged", async () => {
@@ -546,9 +572,6 @@ describe("automatic reply marking", () => {
 
 	it("records the flag on the snapshot when sending an automatic reply", async () => {
 		queueAuthorization();
-		mock
-			.queueSelect([{ organizationId: null }])
-			.queueSelect([{ localPart: "a", displayName: "Agent A", hostname: "example.com" }]);
 
 		await sendEmail(env, {
 			userId: "u1",
@@ -567,9 +590,6 @@ describe("automatic reply marking", () => {
 
 	it("omits the flag for an ordinary message", async () => {
 		queueAuthorization();
-		mock
-			.queueSelect([{ organizationId: null }])
-			.queueSelect([{ localPart: "a", displayName: "Agent A", hostname: "example.com" }]);
 
 		await sendEmail(env, {
 			userId: "u1",
@@ -991,6 +1011,19 @@ describe("processOutboundQueue consumer", () => {
 			messageId: "msg_1",
 			error: "Permanent provider failure",
 		});
+	});
+
+	it("truncates stored provider diagnostics at 500 characters", async () => {
+		mock
+			.queueSelect([storedJob])
+			.queueSelect([{ id: "job_1", userId: "u1", messageId: "msg_1" }]);
+		providerSend.mockRejectedValue(
+			new OutboundProviderError("x".repeat(600), { retryable: false }),
+		);
+
+		await processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1");
+		const stored = (mock.updates[1].set as { error: string }).error;
+		expect(stored).toBe("x".repeat(500));
 	});
 
 	it("fails closed with a generic diagnostic for an unclassified provider error", async () => {

@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { authFetch } from "@/lib/auth/client";
+import { apiJson, ApiResponseError } from "@/lib/api/client-response";
 import type { ProfileFormProps, ProfileFormResponse } from "./types";
 
 export function ProfileForm({ initialName, initialResetEmail, email }: ProfileFormProps) {
@@ -23,18 +23,15 @@ export function ProfileForm({ initialName, initialResetEmail, email }: ProfileFo
 		setLoading(true);
 		setStatus(null);
 
-		const res = await authFetch("/api/settings/profile", {
-			method: "PATCH",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ name, resetEmail }),
-		});
-		const data = (await res.json()) as ProfileFormResponse;
-		setLoading(false);
-
-		if (!res.ok) {
-			setStatus(typeof data.error === "string" ? data.error : t("accountFailed"));
+		let data: ProfileFormResponse;
+		try {
+			data = await apiJson.patch<ProfileFormResponse>("/api/settings/profile", { name, resetEmail });
+		} catch (error) {
+			setLoading(false);
+			setStatus(error instanceof ApiResponseError ? error.message : t("accountFailed"));
 			return;
 		}
+		setLoading(false);
 
 		const nextName = data.user?.name ?? name.trim();
 		const nextResetEmail = data.user?.resetEmail ?? "";

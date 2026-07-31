@@ -3,13 +3,13 @@ import { createDbMock, type DbMock } from "../../../helpers/db";
 
 const m = vi.hoisted(() => ({
 	db: null as unknown,
-	guardUser: vi.fn(),
+	getCurrentUser: vi.fn(),
 	recoverOutboundJob: vi.fn(),
 	messageAccessCondition: vi.fn(() => "access-condition"),
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
-vi.mock("@/lib/auth/cookies", () => ({ guardUser: m.guardUser }));
+vi.mock("@/lib/auth/cookies", () => ({ getCurrentUser: m.getCurrentUser }));
 vi.mock("@/lib/email/send", () => ({ recoverOutboundJob: m.recoverOutboundJob }));
 vi.mock("@/lib/auth/mailbox-access", () => ({
 	messageAccessCondition: m.messageAccessCondition,
@@ -22,10 +22,10 @@ let mock: DbMock;
 beforeEach(() => {
 	mock = createDbMock();
 	m.db = mock.db;
-	m.guardUser.mockReset();
+	m.getCurrentUser.mockReset();
 	m.recoverOutboundJob.mockReset();
 	m.messageAccessCondition.mockClear();
-	m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "org_1" } });
+	m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: "org_1" });
 	m.recoverOutboundJob.mockResolvedValue({ status: "queued" });
 });
 
@@ -36,10 +36,8 @@ function retry(messageId = "msg_1") {
 }
 
 describe("POST /api/messages/[messageId]/retry", () => {
-	it("returns the guard response when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({
-			errorResponse: new Response(null, { status: 401 }),
-		});
+	it("returns an enveloped 401 when unauthenticated", async () => {
+		m.getCurrentUser.mockResolvedValue(null);
 
 		expect((await retry()).status).toBe(401);
 		expect(m.recoverOutboundJob).not.toHaveBeenCalled();

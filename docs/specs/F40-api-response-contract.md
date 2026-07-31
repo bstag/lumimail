@@ -52,13 +52,12 @@ Canonical error:
 
 The client parser returns `data` for a successful 2xx response. It throws `ApiResponseError` for a structurally valid error envelope. Invalid JSON, invalid envelopes, or non-2xx success envelopes throw an invalid-response `ApiResponseError` without exposing arbitrary response content.
 
-Current route-group inventory as of 2026-07-25:
+Current route-group inventory as of 2026-07-31 (T-33 complete):
 
 | Contract | Route groups |
 |---|---|
-| Canonical envelope | `admin/r2-retention`, `aliases`, `attachments`, `auth/forgot-password`, `auth/reset-password`, `contacts`, `domains` create/detail/DNS, `filters`, `forwarding-destinations`, `labels`, `mailboxes` create, `messages/*/attachments`, `messages/*/labels`, `messages/*/retry`, `org`, `routing-rules`, `send`, `setup/domain`, `v1/send`, `vacation`, `webhooks/[id]` |
-| Mixed canonical and legacy/raw | `auth/register` (canonical for selected errors; raw for success and other errors), `domains` (raw list; canonical mutations/details), `mailboxes` (raw list/detail; canonical create), `webhooks` (raw list/create; canonical item mutations) |
-| Legacy/raw | `api-keys`, `auth/change-password`, `auth/login`, `auth/logout`, `auth/me`, `drafts`, message list/detail/search/count/status/bulk routes, `seed`, `settings/profile`, `setup/status`, `v1/messages` |
+| Canonical envelope | Every `/api/**` route group, including all `admin/*`, `api-keys`, `auth/change-password`, `auth/forgot-password`, `auth/reset-password`, `drafts`, `domains`, `mailboxes`, `messages/*` (list/detail/counts/status/bulk/read/starred/thread/labels/attachments/retry), `seed`, `settings/profile`, `webhooks`, and `v1/*` — except the exception set below |
+| Deliberately flat (exception set) | `auth/login`, `auth/register`, `auth/me`, `auth/logout`, `setup/status` — the session bootstrap surface. Their clients (`src/lib/auth/client.ts`, the auth guard, and the login/register/first-run pages) parse these flat bodies bespokely, before the enveloped API client is in play. Each route carries an inline comment marking the exception. |
 
 `guardUser` and `guardOrgAdmin` still return a bare `{ error: string }` for 401/403,
 so an otherwise-canonical route can produce that shape at its authentication
@@ -178,3 +177,33 @@ Notes:
 
 - Verified in production before the change that `/api/routing-rules` returned `{"error":"..."}` while `/api/forwarding-destinations` returned the envelope.
 - Production verification 2026-07-25: version `a8aab29f-051b-4351-be20-09bb2882a36f` returns `{"success":true,"data":{"rules":[...]}}` for the list, `{"success":false,"error":{"message":"Register this forwarding destination before using it"}}` for a refused forward rule, and `{"success":false,"error":{"message":"priority: Invalid input: expected number, received string"}}` for a Zod failure. Adding a managed-domain destination through the `/routing` UI now displays "Cannot forward to an address on a domain Lumimail manages" instead of the previous generic "Routing request failed", confirming the defect this migration existed to fix.
+
+### 2026-07-31 — T-33: complete the envelope migration with a documented exception set
+
+Type: Refactor
+
+Summary:
+
+- Wrap every remaining bare 2xx success body in the canonical `{ success: true, data }` envelope via `apiSuccess`: `messages` (list, detail, counts, bulk, thread, read, starred, status), `drafts` (+`[id]`), `mailboxes` (list, `[id]`), `api-keys` (+`[id]`), `webhooks` (list/create), `domains` (list), `admin/mailboxes`, `admin/queue-health`, `auth/change-password`, `settings/profile`, and `seed`.
+- Replace the hand-rolled 201 envelope in `messages/[messageId]/labels` POST with `apiSuccess(data, 201)`.
+- Normalize the two `{ success: true }`-only acks (`messages/[messageId]/read`, `messages/[messageId]/status`) to the codebase's standard `{ ok: true }` ack inside the envelope.
+- Declare the exception set that deliberately stays flat: `auth/login`, `auth/register`, `auth/me`, `auth/logout`, and `setup/status` (session bootstrap surface with bespoke client parsing). Each carries an inline comment; `parseApiResponse`'s `allowBareBody` doc now names exactly this set.
+- Switch the non-`apiJson` browser consumers of migrated routes to `parseApiResponse`/`apiJson`: message list/counts fetchers, mailbox options, compose draft load/autosave/forward-prefill, message detail and thread queries, admin api-keys/mailbox-detail/queue-health fetchers, settings mailbox/profile forms, and onboarding domain list.
+
+Reason:
+
+- T-33 closes the envelope debt: one response contract for every JSON API surface, with the bootstrap exception documented instead of implicit.
+
+Impact:
+
+- Response shapes change for the migrated routes: payload fields move under `data` with identical inner fields and statuses. `apiJson` consumers were already envelope-transparent; external consumers reading top-level fields must unwrap `data`.
+- Error bodies are unchanged.
+
+Tests:
+
+- Unit route mirrors updated 1:1 to assert the envelope; consumer fetcher tests updated to enveloped fixtures.
+- E2E route mocks (`tests/e2e/shell.ts` and spec-local fulfills) updated to serve the envelope for migrated routes; `/api/auth/me` mocks stay flat per the exception set.
+
+Notes:
+
+- The imap-bridge consumes only `/api/v1/*`, which already used the envelope; v1 routes and the bridge are untouched.

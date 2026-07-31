@@ -4,7 +4,7 @@ import type { DomainCreateResult, DomainListResult, MailboxCreateResult } from "
 
 export async function getDomains(): Promise<DomainListResult> {
 	const res = await authFetch("/api/domains");
-	return (await res.json()) as DomainListResult;
+	return parseApiResponse<DomainListResult>(res);
 }
 
 export async function createDomain(hostname: string): Promise<{ ok: boolean; data: DomainCreateResult }> {

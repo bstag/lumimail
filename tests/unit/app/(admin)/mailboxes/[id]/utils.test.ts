@@ -35,7 +35,7 @@ describe("getMailboxAddress", () => {
 describe("fetchMailbox", () => {
 	it("returns the mailbox on success", async () => {
 		const mailbox = { id: "mb_1" };
-		authFetch.mockResolvedValue(jsonResponse(true, { mailbox }));
+		authFetch.mockResolvedValue(jsonResponse(true, { success: true, data: { mailbox } }));
 		await expect(fetchMailbox("mb_1")).resolves.toBe(mailbox);
 		expect(authFetch).toHaveBeenCalledWith("/api/mailboxes/mb_1");
 	});
@@ -46,20 +46,20 @@ describe("fetchMailbox", () => {
 	});
 
 	it("throws when the mailbox is missing", async () => {
-		authFetch.mockResolvedValue(jsonResponse(true, {}));
+		authFetch.mockResolvedValue(jsonResponse(true, { success: true, data: {} }));
 		await expect(fetchMailbox("mb_1")).rejects.toThrow("Failed to load mailbox");
 	});
 
 	it("falls back to the default message when no error is provided", async () => {
 		authFetch.mockResolvedValue(jsonResponse(false, {}));
-		await expect(fetchMailbox("mb_1")).rejects.toThrow("Failed to load mailbox");
+		await expect(fetchMailbox("mb_1")).rejects.toThrow("Invalid API response");
 	});
 });
 
 describe("updateMailboxName", () => {
 	it("returns the updated mailbox on success", async () => {
 		const mailbox = { id: "mb_2" };
-		authFetch.mockResolvedValue(jsonResponse(true, { mailbox }));
+		authFetch.mockResolvedValue(jsonResponse(true, { success: true, data: { mailbox } }));
 		await expect(updateMailboxName("mb_2", "New Name")).resolves.toBe(mailbox);
 		expect(authFetch).toHaveBeenCalledWith("/api/mailboxes/mb_2", {
 			method: "PATCH",
@@ -74,20 +74,20 @@ describe("updateMailboxName", () => {
 	});
 
 	it("throws when the mailbox is missing", async () => {
-		authFetch.mockResolvedValue(jsonResponse(true, {}));
+		authFetch.mockResolvedValue(jsonResponse(true, { success: true, data: {} }));
 		await expect(updateMailboxName("mb_2", "x")).rejects.toThrow("Failed to update mailbox");
 	});
 
 	it("falls back to the default message when no error is provided", async () => {
 		authFetch.mockResolvedValue(jsonResponse(false, {}));
-		await expect(updateMailboxName("mb_2", "x")).rejects.toThrow("Failed to update mailbox");
+		await expect(updateMailboxName("mb_2", "x")).rejects.toThrow("Invalid API response");
 	});
 });
 
 describe("deleteMailbox", () => {
 	it("sends the exact address confirmation", async () => {
 		authFetch.mockResolvedValue(
-			new Response(JSON.stringify({ ok: true }), { status: 200 }),
+			new Response(JSON.stringify({ success: true, data: { ok: true } }), { status: 200 }),
 		);
 
 		await expect(deleteMailbox("mbx_1", "support@example.com")).resolves.toEqual({
@@ -118,7 +118,7 @@ describe("deleteMailbox", () => {
 		);
 
 		await expect(deleteMailbox("mbx_1", "support@example.com")).rejects.toThrow(
-			"Failed to delete mailbox",
+			"Invalid API response",
 		);
 	});
 });

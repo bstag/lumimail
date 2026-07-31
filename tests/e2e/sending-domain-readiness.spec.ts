@@ -1,15 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockShellNoise } from "./shell";
+import { mockAuthShell } from "./shell";
 
 async function mockAuthenticatedShell(page: Page) {
-	await page.addInitScript(() => {
-		localStorage.setItem("lumimail-session-token", "e2e-session");
-	});
-	await mockShellNoise(page);
-	await page.route("**/api/auth/me", (route) =>
-		route.fulfill({ json: { user: { id: "user_1", role: "owner" }, hasMailboxes: true } }),
-	);
-	await page.route("**/api/mailboxes", (route) => route.fulfill({ json: { mailboxes: [] } }));
+	await mockAuthShell(page);
 }
 
 test.describe("sending-domain readiness", () => {
@@ -38,15 +31,18 @@ test.describe("sending-domain readiness", () => {
 		await page.route("**/api/domains?includeDns=true", (route) =>
 			route.fulfill({
 				json: {
-					domains,
-					dns: {
-						dom_stale: {
-							routing: { configured: true, missing: [] },
-							sending: { configured: false, records: [] },
-						},
-						dom_ready: {
-							routing: { configured: true, missing: [] },
-							sending: { configured: true, records: ["MX", "TXT"] },
+					success: true,
+					data: {
+						domains,
+						dns: {
+							dom_stale: {
+								routing: { configured: true, missing: [] },
+								sending: { configured: false, records: [] },
+							},
+							dom_ready: {
+								routing: { configured: true, missing: [] },
+								sending: { configured: true, records: ["MX", "TXT"] },
+							},
 						},
 					},
 				},
@@ -102,17 +98,20 @@ test.describe("sending-domain readiness", () => {
 		await page.route("**/api/domains?includeDns=true", (route) =>
 			route.fulfill({
 				json: {
-					domains: [
-						{
-							id: "dom_failed",
-							hostname: "example.com",
-							status: "active",
-							routingEnabled: true,
-							sendingEnabled: false,
-							zoneId: "zone_1",
-						},
-					],
-					dns: {},
+					success: true,
+					data: {
+						domains: [
+							{
+								id: "dom_failed",
+								hostname: "example.com",
+								status: "active",
+								routingEnabled: true,
+								sendingEnabled: false,
+								zoneId: "zone_1",
+							},
+						],
+						dns: {},
+					},
 				},
 			}),
 		);

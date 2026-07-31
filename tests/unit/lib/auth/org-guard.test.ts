@@ -10,7 +10,7 @@ vi.mock("next/server", () => ({
 	},
 }));
 
-import { guardOrgAdmin, guardOrgOwner, guardOrgUser } from "@/lib/auth/org-guard";
+import { guardOrgAdmin, guardOrgOwner } from "@/lib/auth/org-guard";
 
 const env = {} as CloudflareEnv;
 
@@ -84,32 +84,5 @@ describe("guardOrgOwner", () => {
 		const r = await guardOrgOwner(env);
 		expect(r.errorResponse).toBeNull();
 		expect(r.orgUser).toMatchObject({ role: "owner" });
-	});
-});
-
-describe("guardOrgUser", () => {
-	it("401 when there is no user", async () => {
-		h.getCurrentUser.mockResolvedValue(null);
-		const r = await guardOrgUser(env);
-		expect(r.errorResponse).toEqual({ body: { error: "Unauthorized" }, status: 401 });
-	});
-
-	it("401 when the user has no organization", async () => {
-		h.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: null, role: "member" });
-		const r = await guardOrgUser(env);
-		expect(r.errorResponse).toEqual({ body: { error: "Unauthorized" }, status: 401 });
-	});
-
-	it("403 when the user has no role", async () => {
-		h.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: "org_1", role: null });
-		const r = await guardOrgUser(env);
-		expect(r.errorResponse).toEqual({ body: { error: "Forbidden" }, status: 403 });
-	});
-
-	it("allows any role member", async () => {
-		h.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: "org_1", role: "member" });
-		const r = await guardOrgUser(env);
-		expect(r.errorResponse).toBeNull();
-		expect(r.orgUser).toMatchObject({ role: "member" });
 	});
 });

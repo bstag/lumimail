@@ -2,22 +2,24 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ArrowLeft, ChevronDown } from "lucide-react";
 import dayjs from "dayjs";
 import { useTranslations } from "next-intl";
+import { useQuery } from "@tanstack/react-query";
 import { MarkAsRead } from "@/components/mark-read";
 import { MessageActions } from "@/components/message-actions/message-actions";
 import { AttachmentList } from "@/components/messages/attachment-list";
-import { SafeMessageHtml } from "@/components/messages/safe-message-html";
+import { MessageBody } from "@/components/messages/message-body";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { canMailboxSend } from "@/components/mailbox-provider-utils";
 import { getMessageBackHref } from "@/components/message-actions/utils";
 import { authFetch } from "@/lib/auth/client";
+import { parseApiResponse } from "@/lib/api/client-response";
 import { getDisplayNameForAddress } from "@/lib/contacts/utils";
 import { getEmailAddress } from "@/lib/email/address";
+import { messageKeys } from "@/lib/query-keys";
 import type { Message } from "@/hooks/types";
-import type { MessageDetailResponse } from "./types";
 import { fetchMessageDetail, getMessageBodyDisplay, getMessageHeaderParties } from "./utils";
 
 type ThreadMessage = Message & {
@@ -84,24 +86,7 @@ function ThreadItem({
 			>
 				<div className="px-4 pb-4 pt-0 border-t border-border">
 					<div className="email-body max-w-none text-ink mt-3">
-						{bodyDisplay.htmlBody ? (
-							<SafeMessageHtml messageId={msg.id} html={bodyDisplay.htmlBody} />
-						) : (
-							<pre className="whitespace-pre-wrap text-sm">{bodyDisplay.latestContent}</pre>
-						)}
-						{bodyDisplay.quotedContent.map((quotedContent) => (
-							<blockquote
-								key={`${quotedContent.dateLine}-${quotedContent.content.slice(0, 24)}`}
-								className="mt-4 border-l-2 border-border-strong pl-4 text-ink-muted"
-							>
-								<p className="mb-2 text-xs font-medium text-ink-faint">
-									{quotedContent.dateLine}
-								</p>
-								<pre className="whitespace-pre-wrap text-sm font-sans">
-									{quotedContent.content}
-								</pre>
-							</blockquote>
-						))}
+						<MessageBody messageId={msg.id} body={bodyDisplay} variant="thread" />
 					</div>
 				</div>
 			</div>
@@ -113,69 +98,76 @@ export default function MessageDetailPage() {
 	const t = useTranslations("messages");
 	const params = useParams<{ messageId: string }>();
 	const messageId = params.messageId;
-	const [data, setData] = useState<MessageDetailResponse | null>(null);
-	const [loading, setLoading] = useState(true);
-	const [threadMessages, setThreadMessages] = useState<ThreadMessage[]>([]);
-	const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-	const [autoMarkRead, setAutoMarkRead] = useState(false);
+	// User toggles on thread items, overlaying the default of "only the current
+	// message starts expanded".
+	const [expandedOverrides, setExpandedOverrides] = useState<ReadonlyMap<string, boolean>>(
+		new Map(),
+	);
+	// Read state changes made on this page (auto mark-read, manual toggles)
+	// overlay the fetched value until a fresh payload arrives, matching the old
+	// local-state behavior.
+	const [readOverride, setReadOverride] = useState<boolean | null>(null);
+	const [markedRead, setMarkedRead] = useState(false);
 	const { mailboxes } = useSelectedMailbox();
-	const setCurrentReadState = useCallback((read: boolean) => {
-		setData((current) => current?.message
-			? { ...current, message: { ...current.message, read } }
-			: current);
-		setThreadMessages((current) =>
-			current.map((message) => message.id === messageId ? { ...message, read } : message),
-		);
-	}, [messageId]);
 
-	useEffect(() => {
-		let cancelled = false;
+	// Reset the per-message overlays when navigating to another message
+	// (render-time state adjustment, per the React docs pattern).
+	const [prevMessageId, setPrevMessageId] = useState(messageId);
+	if (prevMessageId !== messageId) {
+		setPrevMessageId(messageId);
+		setExpandedOverrides(new Map());
+		setReadOverride(null);
+		setMarkedRead(false);
+	}
 
-		async function loadMessage() {
-			setLoading(true);
-			const nextData = await fetchMessageDetail(messageId);
-			if (!cancelled) {
-				setData(nextData);
-				setAutoMarkRead(
-					nextData.message?.direction === "inbound" && nextData.message.read === false,
-				);
-				setLoading(false);
+	const detailQuery = useQuery({
+		queryKey: messageKeys.detail(messageId),
+		queryFn: () => fetchMessageDetail(messageId),
+		retry: false,
+	});
+	const data = detailQuery.data;
+	const threadId = data?.message?.threadId ?? null;
 
-				if (nextData.message?.threadId) {
-					const threadRes = await authFetch(
-						`/api/messages/thread/${encodeURIComponent(nextData.message.threadId)}`,
-					);
-					if (!cancelled && threadRes.ok) {
-						const threadData = (await threadRes.json()) as ThreadResponse;
-						if (threadData.messages && threadData.messages.length > 1) {
-							setThreadMessages(threadData.messages);
-							// Expand the current message by default
-							setExpandedIds(new Set([messageId]));
-						}
-					}
-				}
-			}
-		}
+	// The thread request depends on the detail payload: it only runs once a
+	// threadId is known (the TanStack dependent-query replacement for the old
+	// chained fetch).
+	const threadQuery = useQuery({
+		queryKey: messageKeys.thread(threadId ?? ""),
+		enabled: threadId !== null,
+		retry: false,
+		queryFn: async () => {
+			const threadRes = await authFetch(
+				`/api/messages/thread/${encodeURIComponent(threadId as string)}`,
+			);
+			if (!threadRes.ok) return { messages: [] } satisfies ThreadResponse;
+			return parseApiResponse<ThreadResponse>(threadRes);
+		},
+	});
+	const threadMessages = useMemo(() => {
+		const messages = threadQuery.data?.messages ?? [];
+		return messages.length > 1 ? messages : [];
+	}, [threadQuery.data]);
+	const showThread = threadMessages.length > 1;
 
-		void loadMessage();
-		return () => {
-			cancelled = true;
-		};
-	}, [messageId]);
+	const handleMarkedRead = useCallback(() => {
+		setMarkedRead(true);
+		setReadOverride(true);
+	}, []);
+
+	// The current message starts expanded; everything else starts collapsed.
+	function isExpanded(id: string) {
+		return expandedOverrides.get(id) ?? id === messageId;
+	}
 
 	function toggleExpanded(id: string) {
-		setExpandedIds((prev) => {
-			const next = new Set(prev);
-			if (next.has(id)) {
-				next.delete(id);
-			} else {
-				next.add(id);
-			}
+		setExpandedOverrides((prev) => {
+			const next = new Map(prev);
+			next.set(id, !(prev.get(id) ?? id === messageId));
 			return next;
 		});
 	}
 
-	if (loading) {
+	if (detailQuery.isPending) {
 		return <p className="px-6 py-4 text-sm text-ink-muted">{t("loading")}</p>;
 	}
 
@@ -184,10 +176,14 @@ export default function MessageDetailPage() {
 	}
 
 	const { message, body } = data;
+	const read = readOverride ?? message.read;
+	// Auto-mark only the freshly opened unread message — never re-mark after a
+	// manual "mark unread" (readOverride) or after this visit already marked it.
+	const autoMarkRead =
+		!markedRead && readOverride === null && message.direction === "inbound" && message.read === false;
 	const { fromName, fromAddress, toName } = getMessageHeaderParties(message);
 	const bodyDisplay = getMessageBodyDisplay(body?.textBody, body?.htmlBody, message.snippet);
 
-	const showThread = threadMessages.length > 1;
 	const canSend = canMailboxSend(
 		mailboxes.find((mailbox) => mailbox.id === message.mailboxId),
 	);
@@ -195,13 +191,7 @@ export default function MessageDetailPage() {
 	return (
 		<div className="h-full overflow-y-auto overflow-x-hidden">
 			{autoMarkRead && (
-				<MarkAsRead
-					messageId={message.id}
-					onMarkedRead={() => {
-						setAutoMarkRead(false);
-						setCurrentReadState(true);
-					}}
-				/>
+				<MarkAsRead messageId={message.id} onMarkedRead={handleMarkedRead} />
 			)}
 			<div className="flex py-2 items-center justify-between gap-2 px-2 overflow-x-auto">
 				<div className="flex items-center flex-row gap-6">
@@ -216,14 +206,14 @@ export default function MessageDetailPage() {
 					messageId={message.id}
 					direction={message.direction}
 					status={message.status}
-					read={message.read}
+					read={read}
 					fromAddr={message.fromAddr}
 					toAddr={message.toAddr}
 					subject={message.subject}
 					canSend={canSend}
 					onActionSuccess={(action) => {
-						if (action === "read") setCurrentReadState(true);
-						if (action === "unread") setCurrentReadState(false);
+						if (action === "read") setReadOverride(true);
+						if (action === "unread") setReadOverride(false);
 					}}
 				/>
 			</div>
@@ -241,7 +231,7 @@ export default function MessageDetailPage() {
 							<ThreadItem
 								key={msg.id}
 								msg={msg}
-								isExpanded={expandedIds.has(msg.id)}
+								isExpanded={isExpanded(msg.id)}
 								isCurrent={msg.id === messageId}
 								onToggle={() => toggleExpanded(msg.id)}
 							/>
@@ -263,26 +253,7 @@ export default function MessageDetailPage() {
 							</p>
 						</div>
 						<div className="email-body max-w-none text-ink">
-							{bodyDisplay.htmlBody ? (
-								<SafeMessageHtml messageId={message.id} html={bodyDisplay.htmlBody} />
-							) : (
-								<pre className="whitespace-pre-wrap text-sm">
-									{bodyDisplay.latestContent}
-								</pre>
-							)}
-							{bodyDisplay.quotedContent.map((quotedContent) => (
-								<blockquote
-									key={`${quotedContent.dateLine}-${quotedContent.content.slice(0, 24)}`}
-									className="mt-6 border-l-2 border-border-strong pl-4 text-ink-muted"
-								>
-									<p className="mb-3 text-xs font-medium text-ink-faint">
-										{quotedContent.dateLine}
-									</p>
-									<pre className="whitespace-pre-wrap text-sm font-sans">
-										{quotedContent.content}
-									</pre>
-								</blockquote>
-							))}
+							<MessageBody messageId={message.id} body={bodyDisplay} variant="single" />
 						</div>
 					</>
 				)}

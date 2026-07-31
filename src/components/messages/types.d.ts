@@ -4,11 +4,9 @@ import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
 
 export type MessageFolderConfig = {
 	folder: MessageFolder;
-	title: string;
 	emptyText: string;
 	hrefPrefix: string;
 	icon: LucideIcon;
-	headerIcons?: LucideIcon[];
 	badgeVariant?: "default" | "secondary" | "outline";
 	showRowBadge?: boolean;
 };

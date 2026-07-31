@@ -1,23 +1,14 @@
 import { NextResponse } from "next/server";
-import { getEnv } from "@/lib/cloudflare";
-import { getCurrentUser } from "@/lib/auth/cookies";
+import { withUser } from "@/lib/api/handler";
+import { apiSuccess } from "@/lib/api/response";
 import { markMessageAsRead } from "@/lib/user";
 
-export async function POST(
-	request: Request,
-	{ params }: { params: Promise<{ messageId: string }> },
-) {
-	const { messageId } = await params;
-	const env = getEnv();
-	const user = await getCurrentUser(env, request);
-	if (!user) {
-		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-	}
-
+export const POST = withUser<{ messageId: string }>(async ({ env, user, params }) => {
+	const { messageId } = params;
 	const success = await markMessageAsRead(env, user.id, user.organizationId, messageId);
 	if (!success) {
 		return NextResponse.json({ error: "Message not found" }, { status: 404 });
 	}
 
-	return NextResponse.json({ success: true });
-}
+	return apiSuccess({ ok: true });
+});

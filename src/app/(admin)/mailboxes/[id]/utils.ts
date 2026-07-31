@@ -7,10 +7,10 @@ export { getMailboxAddress };
 
 export async function fetchMailbox(id: string): Promise<MailboxDetail> {
 	const res = await authFetch(`/api/mailboxes/${id}`);
-	const json = (await res.json()) as MailboxDetailResponse;
+	const json = await parseApiResponse<MailboxDetailResponse>(res);
 
-	if (!res.ok || !json.mailbox) {
-		throw new Error(json.error ?? "Failed to load mailbox");
+	if (!json.mailbox) {
+		throw new Error("Failed to load mailbox");
 	}
 
 	return json.mailbox;
@@ -22,10 +22,10 @@ export async function updateMailboxName(id: string, displayName: string): Promis
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({ displayName }),
 	});
-	const json = (await res.json()) as MailboxDetailResponse;
+	const json = await parseApiResponse<MailboxDetailResponse>(res);
 
-	if (!res.ok || !json.mailbox) {
-		throw new Error(json.error ?? "Failed to update mailbox");
+	if (!json.mailbox) {
+		throw new Error("Failed to update mailbox");
 	}
 
 	return json.mailbox;
@@ -37,10 +37,7 @@ export async function deleteMailbox(id: string, confirmAddress: string) {
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({ confirmAddress }),
 	});
-	const json = (await response.json()) as { ok?: true; error?: string };
-	if (!response.ok || !json.ok) {
-		throw new Error(json.error ?? "Failed to delete mailbox");
-	}
+	await parseApiResponse<{ ok: true }>(response);
 	return { ok: true as const };
 }
 

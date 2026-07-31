@@ -31,8 +31,19 @@ describe("createResendProvider", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("throws when RESEND_API_KEY is missing", () => {
-		expect(() => createResendProvider({} as CloudflareEnv)).toThrow(/RESEND_API_KEY is required/);
+	it("throws a retryable provider error when RESEND_API_KEY is missing", () => {
+		let thrown: unknown;
+		try {
+			createResendProvider({} as CloudflareEnv);
+		} catch (error) {
+			thrown = error;
+		}
+		// A missing key mid-deploy is a config error, not a permanent send
+		// failure — queued jobs must retry rather than finalize as failed.
+		expect(thrown).toBeInstanceOf(OutboundProviderError);
+		expect((thrown as OutboundProviderError).retryable).toBe(true);
+		expect((thrown as OutboundProviderError).code).toBe("PROVIDER_CONFIG");
+		expect((thrown as Error).message).toMatch(/RESEND_API_KEY is required/);
 	});
 
 	it("exposes the resend id", () => {

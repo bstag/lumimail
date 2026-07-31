@@ -3,86 +3,62 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const authFetch = vi.fn();
 vi.mock("@/lib/auth/client", () => ({ authFetch: (...args: unknown[]) => authFetch(...args) }));
 
-import {
-	fetchMessageCounts,
-	fetchMessageList,
-	notifyMessagesChanged,
-} from "@/hooks/utils";
-import { resetAccountScopedClientState } from "@/lib/auth/account-state";
+import { fetchMessageCounts, fetchMessageList } from "@/hooks/utils";
 
 function jsonResponse(body: unknown) {
-	return { json: async () => body } as unknown as Response;
+	return { ok: true, status: 200, json: async () => body } as unknown as Response;
+}
+
+function envelope(data: unknown) {
+	return jsonResponse({ success: true, data });
 }
 
 beforeEach(() => {
 	authFetch.mockReset();
-	resetAccountScopedClientState();
 });
 
-describe("account-scoped message caches", () => {
-	it("invalidates list and count caches before announcing a message change", async () => {
-		const messages = { messages: [{ id: "before" }], total: 1 };
+// These are plain fetchers now: caching, dedupe, and account-switch isolation
+// belong to TanStack Query (T-34/F50). Each call must hit the network.
+describe("fetchMessageList", () => {
+	it("requests the list with the given params and returns the payload", async () => {
+		const payload = { messages: [{ id: "msg_1" }], total: 1, limit: 25, offset: 0 };
+		authFetch.mockResolvedValue(envelope(payload));
+
+		const params = new URLSearchParams("status=received");
+		await expect(fetchMessageList(params)).resolves.toEqual(payload);
+		expect(authFetch).toHaveBeenCalledWith("/api/messages?status=received", { method: "GET" });
+	});
+
+	it("fetches fresh on every call", async () => {
+		authFetch.mockResolvedValue(envelope({ messages: [] }));
+
+		const params = new URLSearchParams("status=received");
+		await fetchMessageList(params);
+		await fetchMessageList(params);
+
+		expect(authFetch).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("fetchMessageCounts", () => {
+	it("scopes the request to a mailbox when one is given", async () => {
 		const counts = { folders: { inbox: { total: 1, unread: 1 } }, mailboxes: [] };
-		authFetch
-			.mockResolvedValueOnce(jsonResponse(messages))
-			.mockResolvedValueOnce(jsonResponse({ counts }))
-			.mockResolvedValueOnce(jsonResponse(messages))
-			.mockResolvedValueOnce(jsonResponse({ counts }));
-		const params = new URLSearchParams("status=received");
-		await fetchMessageList(params);
-		await fetchMessageCounts();
-		const dispatchEvent = vi.fn();
-		vi.stubGlobal("window", { dispatchEvent });
+		authFetch.mockResolvedValue(envelope({ counts }));
 
-		notifyMessagesChanged();
-		await fetchMessageList(params);
-		await fetchMessageCounts();
-
-		expect(authFetch).toHaveBeenCalledTimes(4);
-		expect(dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "lumimail:messages-changed" }));
-		vi.unstubAllGlobals();
+		await expect(fetchMessageCounts("mb_1")).resolves.toEqual(counts);
+		expect(authFetch).toHaveBeenCalledWith("/api/messages/counts?mailboxId=mb_1", { method: "GET" });
 	});
 
-	it("does not let an old message-list request replace or delete the new account request", async () => {
-		let resolveOld!: (value: Response) => void;
-		const oldMessages = { messages: [{ id: "old" }], total: 1 };
-		const newMessages = { messages: [{ id: "new" }], total: 1 };
-		authFetch
-			.mockReturnValueOnce(new Promise<Response>((resolve) => {
-				resolveOld = resolve;
-			}))
-			.mockResolvedValueOnce(jsonResponse(newMessages));
-		const params = new URLSearchParams("status=received");
+	it("requests the unscoped counts without a query string", async () => {
+		const counts = { folders: { inbox: { total: 0, unread: 0 } }, mailboxes: [] };
+		authFetch.mockResolvedValue(envelope({ counts }));
 
-		const oldRequest = fetchMessageList(params);
-		resetAccountScopedClientState();
-		const currentRequest = fetchMessageList(params);
-
-		await expect(currentRequest).resolves.toEqual(newMessages);
-		resolveOld(jsonResponse(oldMessages));
-		await expect(oldRequest).resolves.toEqual(oldMessages);
-		await expect(fetchMessageList(params)).resolves.toEqual(newMessages);
-		expect(authFetch).toHaveBeenCalledTimes(2);
+		await expect(fetchMessageCounts()).resolves.toEqual(counts);
+		expect(authFetch).toHaveBeenCalledWith("/api/messages/counts", { method: "GET" });
 	});
 
-	it("does not let an old count request replace or delete the new account request", async () => {
-		let resolveOld!: (value: Response) => void;
-		const oldCounts = { folders: { inbox: { total: 9, unread: 9 } }, mailboxes: [] };
-		const newCounts = { folders: { inbox: { total: 1, unread: 0 } }, mailboxes: [] };
-		authFetch
-			.mockReturnValueOnce(new Promise<Response>((resolve) => {
-				resolveOld = resolve;
-			}))
-			.mockResolvedValueOnce(jsonResponse({ counts: newCounts }));
-
-		const oldRequest = fetchMessageCounts();
-		resetAccountScopedClientState();
-		const currentRequest = fetchMessageCounts();
-
-		await expect(currentRequest).resolves.toEqual(newCounts);
-		resolveOld(jsonResponse({ counts: oldCounts }));
-		await expect(oldRequest).resolves.toEqual(oldCounts);
-		await expect(fetchMessageCounts()).resolves.toEqual(newCounts);
-		expect(authFetch).toHaveBeenCalledTimes(2);
+	it("returns undefined when the payload has no counts", async () => {
+		authFetch.mockResolvedValue(envelope({}));
+		await expect(fetchMessageCounts(null)).resolves.toBeUndefined();
 	});
 });

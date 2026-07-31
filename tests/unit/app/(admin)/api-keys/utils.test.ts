@@ -40,14 +40,17 @@ describe("parseApiKeyScopes", () => {
 describe("API key lifecycle clients", () => {
 	it("lists lifecycle metadata without expecting a secret", async () => {
 		const apiKeys = [{ id: "key_1", name: "CI", prefix: "ep_123", scopes: "[]", revokedAt: null }];
-		authFetch.mockResolvedValue(Response.json({ apiKeys }));
+		authFetch.mockResolvedValue(Response.json({ success: true, data: { apiKeys } }));
 		await expect(listApiKeys()).resolves.toEqual(apiKeys);
-		expect(authFetch).toHaveBeenCalledWith("/api/api-keys");
+		expect(authFetch).toHaveBeenCalledWith("/api/api-keys", { method: "GET" });
 	});
 
 	it("creates a key and returns its one-time secret", async () => {
 		authFetch.mockResolvedValue(
-			Response.json({ id: "key_1", name: "CI", prefix: "ep_123", key: "ep_secret" }),
+			Response.json({
+				success: true,
+				data: { id: "key_1", name: "CI", prefix: "ep_123", key: "ep_secret" },
+			}),
 		);
 		await expect(createApiKey("CI")).resolves.toEqual({
 			id: "key_1",
@@ -63,7 +66,7 @@ describe("API key lifecycle clients", () => {
 	});
 
 	it("revokes a key with DELETE", async () => {
-		authFetch.mockResolvedValue(Response.json({ ok: true }));
+		authFetch.mockResolvedValue(Response.json({ success: true, data: { ok: true } }));
 		await expect(revokeApiKey("key_1")).resolves.toBeUndefined();
 		expect(authFetch).toHaveBeenCalledWith("/api/api-keys/key_1", { method: "DELETE" });
 	});
@@ -81,7 +84,7 @@ describe("API key lifecycle clients", () => {
 
 	it("uses a safe fallback when an error response has no message", async () => {
 		authFetch.mockResolvedValue(Response.json({}, { status: 500 }));
-		await expect(listApiKeys()).rejects.toThrow("API key request failed");
+		await expect(listApiKeys()).rejects.toThrow("Invalid API response");
 	});
 });
 

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockShellNoise } from "./shell";
+import { flatCounts, mockAuthShell } from "./shell";
 
 const sendCapableMailbox = {
 	id: "mbx_1",
@@ -27,20 +27,15 @@ const failedMessage = {
 };
 
 async function mockSentFolder(page: Page, mailbox: Record<string, unknown>) {
-	await page.addInitScript(() => {
-		localStorage.setItem("lumimail-session-token", "e2e-session");
+	await mockAuthShell(page, {
+		mailboxes: [mailbox],
+		counts: flatCounts({ sent: 1 }),
 	});
-	await mockShellNoise(page);
-	await page.route("**/api/auth/me", (route) =>
-		route.fulfill({ json: { user: { id: "user_1", role: "owner" }, hasMailboxes: true } }),
-	);
-	await page.route("**/api/mailboxes", (route) => route.fulfill({ json: { mailboxes: [mailbox] } }));
-	await page.route("**/api/messages/counts**", (route) =>
-		route.fulfill({ json: { inbox: 0, starred: 0, drafts: 0, sent: 1, spam: 0, trash: 0 } }),
-	);
 	await page.route("**/api/labels", (route) => route.fulfill({ json: { success: true, data: [] } }));
 	await page.route("**/api/messages?**", (route) =>
-		route.fulfill({ json: { messages: [failedMessage], total: 1, limit: 25, offset: 0 } }),
+		route.fulfill({
+			json: { success: true, data: { messages: [failedMessage], total: 1, limit: 25, offset: 0 } },
+		}),
 	);
 }
 
@@ -60,21 +55,20 @@ test.describe("operator-confirmed outbound recovery", () => {
 		const retry = page.getByRole("button", { name: "Retry delivery" });
 		await expect(retry).toBeVisible();
 
-		// Dismissing the confirmation must not send the request.
-		page.once("dialog", (dialog) => dialog.dismiss());
+		// Dismissing the confirmation must not send the request. The disclosure
+		// names the recipient and the duplicate-delivery risk.
+		const dialog = page.getByRole("dialog");
 		await retry.click();
+		await expect(dialog.getByText(/recipient@example\.net/)).toBeVisible();
+		await expect(dialog.getByText(/twice/)).toBeVisible();
+		await dialog.getByRole("button", { name: "Cancel" }).click();
+		await expect(dialog).toBeHidden();
 		await expect.poll(() => retryRequests).toBe(0);
 
-		// Accepting it does, and the disclosure names the recipient.
-		let dialogMessage = "";
-		page.once("dialog", (dialog) => {
-			dialogMessage = dialog.message();
-			return dialog.accept();
-		});
+		// Accepting it sends exactly one request.
 		await retry.click();
+		await dialog.getByRole("button", { name: "Retry delivery" }).click();
 		await expect.poll(() => retryRequests).toBe(1);
-		expect(dialogMessage).toContain("recipient@example.net");
-		expect(dialogMessage).toContain("twice");
 	});
 
 	test("hides recovery from a viewer-capability user", async ({ page }) => {

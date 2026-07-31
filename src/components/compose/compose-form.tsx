@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Editor } from "@tiptap/react";
 import { Minimize2, Paperclip, Send, X } from "lucide-react";
@@ -13,53 +13,26 @@ import {
 	canMailboxSend,
 	findSendCapableMailbox,
 } from "@/components/mailbox-provider-utils";
+import { useQueryClient } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth/client";
-import { notifyMessagesChanged } from "@/hooks/utils";
+import { parseApiResponse } from "@/lib/api/client-response";
+import { invalidateMessageQueries } from "@/lib/query-keys";
 import { formatEmailAddress } from "@/lib/email/address";
 import { cn } from "@/lib/utils";
-import { fetchDraft, submitMessage } from "./utils";
+import { submitMessage } from "./utils";
+import { buildForwardQuote, plainTextToHtml } from "./compose-form-utils";
+import { useComposeAttachments } from "./use-compose-attachments";
+import { useComposeDraft } from "./use-compose-draft";
+import { AttachmentChips } from "./attachment-chips";
 import { ComposeEditor } from "./compose-editor";
 import { ComposeEditorToolbar } from "./compose-editor-toolbar";
 
 type Toast = { type: "success" | "error"; message: string } | null;
 
-type AttachedFile = {
-	file: File;
-	id: string;
-	disposition: "attachment" | "inline";
-	contentId?: string;
-};
-
 type MessageWithBodyResponse = {
 	message?: { fromAddr?: string; toAddr?: string; subject?: string | null };
 	body?: { textBody?: string | null; htmlBody?: string | null };
 };
-
-function formatFileSize(bytes: number): string {
-	if (bytes < 1024) return `${bytes} B`;
-	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function escapeHtml(value: string): string {
-	return value
-		.replaceAll("&", "&amp;")
-		.replaceAll("<", "&lt;")
-		.replaceAll(">", "&gt;");
-}
-
-function plainTextToHtml(value: string): string {
-	const normalized = value.replace(/\r\n?/g, "\n");
-	if (!normalized) return "";
-	return normalized
-		.split(/\n{2,}/)
-		.map((paragraph) => `<p>${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`)
-		.join("");
-}
-
-function withoutInlineImages(value: string): string {
-	return value.replace(/<img\b[^>]*\bsrc=["']cid:[^"']+["'][^>]*>/gi, "");
-}
 
 export function ComposeForm({
 	mode = "page",
@@ -71,9 +44,9 @@ export function ComposeForm({
 	onClose?: () => void;
 }) {
 	const t = useTranslations("compose");
+	const queryClient = useQueryClient();
 	const searchParams = useSearchParams();
 	const { selectedMailbox, setSelectedMailbox, mailboxes } = useSelectedMailbox();
-	const [draftId, setDraftId] = useState<string | null>(null);
 	const [to, setTo] = useState("");
 	const [subject, setSubject] = useState("");
 	const [text, setText] = useState("");
@@ -82,12 +55,6 @@ export function ComposeForm({
 	const [replyToMessageId, setReplyToMessageId] = useState<string | null>(null);
 	const [toast, setToast] = useState<Toast>(null);
 	const [loading, setLoading] = useState(false);
-	const [loadingDraft, setLoadingDraft] = useState(false);
-	const [loadedDraftMailboxId, setLoadedDraftMailboxId] = useState<string | null>(null);
-	const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
-	const fileInputRef = useRef<HTMLInputElement>(null);
-	const imageInputRef = useRef<HTMLInputElement>(null);
-	const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const fromAddr = useMemo(
 		() =>
@@ -100,6 +67,34 @@ export function ComposeForm({
 		[selectedMailbox],
 	);
 
+	const {
+		attachedFiles,
+		fileInputRef,
+		imageInputRef,
+		handleFileInputChange,
+		handleInlineImageChange,
+		removeAttachment,
+		removeByContentId,
+		clearAttachments,
+	} = useComposeAttachments(editor, (message) => setToast({ type: "error", message }));
+
+	const draft = useComposeDraft({
+		draftIdToLoad,
+		fromAddr,
+		mailboxId: selectedMailbox?.id,
+		fields: { to, subject, text, html, replyToMessageId },
+		onDraftLoaded: (loaded) => {
+			setTo(loaded.toAddr);
+			setSubject(loaded.subject ?? "");
+			setText(loaded.textBody ?? "");
+			setHtml(loaded.htmlBody ?? plainTextToHtml(loaded.textBody ?? ""));
+			setReplyToMessageId(loaded.replySourceMessageId);
+		},
+		onLoadError: (message) =>
+			setToast({ type: "error", message: message || t("draftLoadFailed") }),
+	});
+	const { loadingDraft } = draft;
+
 	useEffect(() => {
 		if (canMailboxSend(selectedMailbox)) return;
 		const sendMailbox = findSendCapableMailbox(mailboxes);
@@ -111,37 +106,6 @@ export function ComposeForm({
 		const timer = setTimeout(() => setToast(null), 3200);
 		return () => clearTimeout(timer);
 	}, [toast]);
-
-	useEffect(() => {
-		if (!draftIdToLoad) return;
-
-		let cancelled = false;
-		setLoadingDraft(true);
-		fetchDraft(draftIdToLoad)
-			.then((draft) => {
-				if (cancelled) return;
-
-				setDraftId(draft.id);
-				setTo(draft.toAddr);
-				setSubject(draft.subject ?? "");
-				setText(draft.textBody ?? "");
-				setHtml(draft.htmlBody ?? plainTextToHtml(draft.textBody ?? ""));
-				setReplyToMessageId(draft.replySourceMessageId);
-				setLoadedDraftMailboxId(draft.mailboxId);
-			})
-			.catch((err) => {
-				if (cancelled) return;
-				const message = err instanceof Error ? err.message : t("draftLoadFailed");
-				setToast({ type: "error", message });
-			})
-			.finally(() => {
-				if (!cancelled) setLoadingDraft(false);
-			});
-
-		return () => {
-			cancelled = true;
-		};
-	}, [draftIdToLoad, t]);
 
 	useEffect(() => {
 		if (draftIdToLoad) return;
@@ -160,12 +124,10 @@ export function ComposeForm({
 
 		let cancelled = false;
 		authFetch(`/api/messages/${forwardOf}`)
-			.then((res) => (res.ok ? (res.json() as Promise<MessageWithBodyResponse>) : null))
+			.then((res) => (res.ok ? parseApiResponse<MessageWithBodyResponse>(res) : null))
 			.then((payload) => {
 				if (cancelled || !payload?.body) return;
-				const original = payload.body.textBody ?? "";
-				const meta = payload.message;
-				const quoted = `\n\n---------- Forwarded message ----------\nFrom: ${meta?.fromAddr ?? ""}\nSubject: ${meta?.subject ?? ""}\n\n${original}`;
+				const quoted = buildForwardQuote(payload.message, payload.body.textBody ?? "");
 				setText((current) => {
 					const next = current + quoted;
 					setHtml(plainTextToHtml(next));
@@ -179,117 +141,15 @@ export function ComposeForm({
 		return () => {
 			cancelled = true;
 		};
-		 
 	}, [searchParams, draftIdToLoad]);
 
 	useEffect(() => {
-		if (!loadedDraftMailboxId) return;
-		if (selectedMailbox?.id === loadedDraftMailboxId) return;
+		if (!draft.loadedDraftMailboxId) return;
+		if (selectedMailbox?.id === draft.loadedDraftMailboxId) return;
 
-		const draftMailbox = mailboxes.find((mailbox) => mailbox.id === loadedDraftMailboxId);
+		const draftMailbox = mailboxes.find((mailbox) => mailbox.id === draft.loadedDraftMailboxId);
 		if (draftMailbox) setSelectedMailbox(draftMailbox);
-	}, [loadedDraftMailboxId, mailboxes, selectedMailbox?.id, setSelectedMailbox]);
-
-	useEffect(() => {
-		const hasContent = to.trim() || subject.trim() || text.trim();
-		if (!fromAddr || !hasContent || loadingDraft) return;
-		if (saveTimer.current) clearTimeout(saveTimer.current);
-
-		saveTimer.current = setTimeout(async () => {
-			const payload = {
-				mailboxId: selectedMailbox?.id,
-				from: fromAddr,
-				to,
-				subject,
-				text,
-				html: withoutInlineImages(html),
-				...(replyToMessageId ? { replyToMessageId } : {}),
-			};
-			const res = await authFetch(draftId ? `/api/drafts/${draftId}` : "/api/drafts", {
-				method: draftId ? "PATCH" : "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(payload),
-			});
-			const data = (await res.json()) as { draft?: { id: string } };
-			if (res.ok && data.draft?.id) {
-				setDraftId(data.draft.id);
-				notifyMessagesChanged();
-			}
-		}, 900);
-
-		return () => {
-			if (saveTimer.current) clearTimeout(saveTimer.current);
-		};
-	}, [draftId, fromAddr, html, loadingDraft, replyToMessageId, selectedMailbox?.id, subject, text, to]);
-
-	function handleFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
-		const files = Array.from(event.target.files ?? []);
-		const MAX_SIZE = 3 * 1024 * 1024;
-		const MAX_COUNT = 10;
-		const oversized = files.filter((f) => f.size > MAX_SIZE);
-
-		if (oversized.length > 0) {
-			setToast({
-				type: "error",
-				message: `File(s) exceed 3 MiB: ${oversized.map((f) => f.name).join(", ")}`,
-			});
-		}
-
-		const valid = files.filter((f) => f.size <= MAX_SIZE);
-		setAttachedFiles((prev) => {
-			const available = Math.max(0, MAX_COUNT - prev.length);
-			if (valid.length > available) {
-				setToast({ type: "error", message: `You can attach up to ${MAX_COUNT} files.` });
-			}
-			return [
-				...prev,
-				...valid.slice(0, available).map((file) => ({
-					file,
-					id: `${file.name}-${file.size}-${Date.now()}-${crypto.randomUUID()}`,
-					disposition: "attachment" as const,
-				})),
-			];
-		});
-
-		// Reset input so the same file can be re-added if removed
-		if (fileInputRef.current) fileInputRef.current.value = "";
-	}
-
-	function handleInlineImageChange(event: React.ChangeEvent<HTMLInputElement>) {
-		const file = event.target.files?.[0];
-		if (imageInputRef.current) imageInputRef.current.value = "";
-		if (!file || !editor) return;
-		if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(file.type)) {
-			setToast({ type: "error", message: "Inline images must be JPEG, PNG, GIF, or WebP." });
-			return;
-		}
-		if (file.size > 3 * 1024 * 1024 || attachedFiles.length >= 10) {
-			setToast({ type: "error", message: "Inline image exceeds the attachment limits." });
-			return;
-		}
-		const contentId = `img_${crypto.randomUUID().replaceAll("-", "")}`;
-		setAttachedFiles((current) => [
-			...current,
-			{ file, id: contentId, disposition: "inline", contentId },
-		]);
-		editor.chain().focus().setImage({ src: `cid:${contentId}`, alt: file.name }).run();
-	}
-
-	function removeAttachment(id: string) {
-		setAttachedFiles((prev) => {
-			const removed = prev.find((attachment) => attachment.id === id);
-			if (removed?.contentId && editor) {
-				const escaped = removed.contentId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-				editor.commands.setContent(
-					editor.getHTML().replace(
-						new RegExp(`<img\\b[^>]*\\bsrc=["']cid:${escaped}["'][^>]*>`, "gi"),
-						"",
-					),
-				);
-			}
-			return prev.filter((attachment) => attachment.id !== id);
-		});
-	}
+	}, [draft.loadedDraftMailboxId, mailboxes, selectedMailbox?.id, setSelectedMailbox]);
 
 	async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
@@ -325,20 +185,15 @@ export function ComposeForm({
 			return;
 		}
 
-		if (draftId) {
-			void authFetch(`/api/drafts/${draftId}`, { method: "DELETE" }).then((response) => {
-				if (response.ok) notifyMessagesChanged();
-			});
-		}
-		setDraftId(null);
+		draft.discardAfterSend();
 		setTo("");
 		setSubject("");
 		setText("");
 		setHtml("");
 		setReplyToMessageId(null);
-		setAttachedFiles([]);
+		clearAttachments();
 		setToast({ type: "success", message: t("sendSuccess") });
-		notifyMessagesChanged();
+		void invalidateMessageQueries(queryClient);
 	}
 
 	const frameClass =
@@ -362,7 +217,7 @@ export function ComposeForm({
 			)}
 			<form onSubmit={onSubmit} className={frameClass}>
 				<div className="flex h-9 items-center justify-between border-b border-border bg-surface-subtle px-4 text-sm font-medium text-ink">
-					<span>{loadingDraft ? t("loadingDraft") : draftId ? t("draftSaved") : t("newMessage")}</span>
+					<span>{loadingDraft ? t("loadingDraft") : draft.draftId ? t("draftSaved") : t("newMessage")}</span>
 					{mode === "popup" && (
 						<div className="flex items-center gap-3 text-ink-muted">
 							<Minimize2 className="h-4 w-4" />
@@ -413,11 +268,7 @@ export function ComposeForm({
 					<ComposeEditorToolbar
 						editor={editor}
 						onInsertImage={() => imageInputRef.current?.click()}
-						onRemoveInlineImage={(contentId) => {
-							setAttachedFiles((current) =>
-								current.filter((attachment) => attachment.contentId !== contentId),
-							);
-						}}
+						onRemoveInlineImage={removeByContentId}
 					/>
 					<div className="min-h-0 flex-1 overflow-y-auto">
 						<ComposeEditor
@@ -432,28 +283,10 @@ export function ComposeForm({
 						/>
 					</div>
 				</div>
-				{attachedFiles.length > 0 && (
-					<div className="border-t border-border px-4 py-2 flex flex-wrap gap-2">
-						{attachedFiles.map((attached) => (
-							<div
-								key={attached.id}
-								className="flex items-center gap-1.5 rounded-md border border-border bg-surface-subtle px-2 py-1 text-xs text-ink-muted"
-							>
-								<Paperclip className="h-3 w-3 text-ink-faint flex-shrink-0" />
-								<span className="max-w-[160px] truncate">{attached.file.name}</span>
-								<span className="text-ink-faint">{formatFileSize(attached.file.size)}</span>
-								<button
-									type="button"
-									onClick={() => removeAttachment(attached.id)}
-									className="ml-0.5 rounded-full p-0.5 text-ink-faint hover:bg-surface-subtle hover:text-ink-muted"
-									aria-label={`Remove ${attached.file.name}`}
-								>
-									<X className="h-3 w-3" />
-								</button>
-							</div>
-						))}
-					</div>
-				)}
+				<AttachmentChips
+					attachments={attachedFiles}
+					onRemove={removeAttachment}
+				/>
 				<div className="flex items-center gap-3 border-t border-border px-4 py-3">
 					<input
 						ref={fileInputRef}
@@ -482,7 +315,7 @@ export function ComposeForm({
 					</button>
 					<span className="flex-1" />
 					<p className="text-xs text-ink-muted">
-						{draftId
+						{draft.draftId
 								? t("savedToDrafts")
 								: t("autosaveDraft")}
 					</p>

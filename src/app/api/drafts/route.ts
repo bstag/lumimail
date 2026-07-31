@@ -1,33 +1,28 @@
-import { NextResponse } from "next/server";
 import { and, desc, eq } from "drizzle-orm";
-import { getEnv } from "@/lib/cloudflare";
+import { z } from "zod";
 import { getDb } from "@/db";
 import { messageBodies, messages } from "@/db/schema";
-import { guardUser } from "@/lib/auth/cookies";
+import { withUser } from "@/lib/api/handler";
+import { apiSuccess, parseJsonBody } from "@/lib/api/response";
 import { newId } from "@/lib/ids";
 import { buildSnippet } from "@/lib/email/parse";
-import {
-	getMailboxAccess,
-	hasMailboxCapability,
-	messageAccessCondition,
-} from "@/lib/auth/mailbox-access";
-import { selectAccessibleReplySource } from "@/lib/email/reply-source";
+import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 import { normalizeAuthoredContent } from "@/lib/email/authored-content";
+import { validateDraftInput, normalizedReplySourceId } from "@/lib/drafts/validate";
 
-type DraftPayload = {
-	mailboxId?: string | null;
-	from?: string;
-	to?: string;
-	subject?: string;
-	text?: string;
-	html?: string;
-	replyToMessageId?: string;
-};
+// `replyToMessageId` stays unknown so validateDraftInput can answer the
+// historical bare `{ error: "Invalid reply source" }` 400 for bad shapes.
+const draftPayloadSchema = z.object({
+	mailboxId: z.string().nullish(),
+	from: z.string().optional(),
+	to: z.string().optional(),
+	subject: z.string().optional(),
+	text: z.string().optional(),
+	html: z.string().optional(),
+	replyToMessageId: z.unknown().optional(),
+});
 
-export async function GET(request: Request) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
+export const GET = withUser(async ({ request, env, user }) => {
 	const url = new URL(request.url);
 	const mailboxId = url.searchParams.get("mailboxId");
 	const db = getDb(env);
@@ -45,47 +40,16 @@ export async function GET(request: Request) {
 		.orderBy(desc(messages.createdAt))
 		.limit(100);
 
-	return NextResponse.json({ drafts: rows });
-}
+	return apiSuccess({ drafts: rows });
+});
 
-export async function POST(request: Request) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
+export const POST = withUser(async ({ request, env, user }) => {
+	const { data: input, errorResponse } = await parseJsonBody(request, draftPayloadSchema);
 	if (errorResponse) return errorResponse;
-	const input = (await request.json()) as DraftPayload;
 	const db = getDb(env);
-	if (
-		input.replyToMessageId !== undefined
-		&& (
-			typeof input.replyToMessageId !== "string"
-			|| input.replyToMessageId.trim().length === 0
-			|| input.replyToMessageId.length > 100
-		)
-	) {
-		return NextResponse.json({ error: "Invalid reply source" }, { status: 400 });
-	}
-	if (input.mailboxId) {
-		const access = user.organizationId
-			? await getMailboxAccess(db, user.id, user.organizationId, input.mailboxId)
-			: null;
-		if (!access || !hasMailboxCapability(access.role, "send")) {
-			return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
-		}
-	}
-	if (input.replyToMessageId) {
-		if (
-			!input.mailboxId
-			|| !await selectAccessibleReplySource(
-				db,
-				user.id,
-				user.organizationId,
-				input.mailboxId,
-				input.replyToMessageId.trim(),
-			)
-		) {
-			return NextResponse.json({ error: "Reply source not found" }, { status: 404 });
-		}
-	}
+	const invalid = await validateDraftInput(db, user, input);
+	if (invalid) return invalid;
+
 	const draftId = newId("msg");
 	const content = normalizeAuthoredContent(input);
 
@@ -101,7 +65,7 @@ export async function POST(request: Request) {
 		snippet: buildSnippet(content.text, content.html),
 		status: "draft",
 		read: true,
-		replySourceMessageId: input.replyToMessageId?.trim() ?? null,
+		replySourceMessageId: normalizedReplySourceId(input),
 	});
 
 	await db.insert(messageBodies).values({
@@ -111,5 +75,5 @@ export async function POST(request: Request) {
 		htmlBody: content.html,
 	});
 
-	return NextResponse.json({ draft: { id: draftId } });
-}
+	return apiSuccess({ draft: { id: draftId } });
+});

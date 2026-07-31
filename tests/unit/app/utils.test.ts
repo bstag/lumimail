@@ -4,7 +4,7 @@ import { getHomeActions, heroMessages, sidebarItems } from "@/app/utils";
 describe("getHomeActions", () => {
 	it("returns a single dashboard action when logged in", () => {
 		const actions = getHomeActions(true);
-		expect(actions).toEqual([{ href: "/inbox", label: "Dashboard", variant: "default" }]);
+		expect(actions).toEqual([{ href: "/inbox", labelKey: "dashboard", variant: "default" }]);
 	});
 
 	it("returns login and register actions when logged out", () => {

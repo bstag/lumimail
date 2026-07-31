@@ -6,7 +6,7 @@ const m = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/lib/auth/cookies", () => ({ getCurrentUser: m.getCurrentUser }));
-vi.mock("@/lib/email/inbound", () => ({ getMessageWithBody: m.getMessageWithBody }));
+vi.mock("@/lib/messages/queries", () => ({ getMessageWithBody: m.getMessageWithBody }));
 
 import { GET } from "@/app/api/messages/[messageId]/route";
 
@@ -41,6 +41,9 @@ describe("GET /api/messages/[messageId]", () => {
 		m.getMessageWithBody.mockResolvedValue({ id: "m1", textBody: "hi" });
 		const res = await get();
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ id: "m1", textBody: "hi" });
+		expect((await res.json()) as any).toEqual({
+			success: true,
+			data: { id: "m1", textBody: "hi" },
+		});
 	});
 });

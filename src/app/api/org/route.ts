@@ -1,34 +1,29 @@
 import { eq } from "drizzle-orm";
-import { getEnv } from "@/lib/cloudflare";
+import { z } from "zod";
 import { getDb } from "@/db";
 import { organizations } from "@/db/schema";
-import { guardOrgAdmin } from "@/lib/auth/org-guard";
-import { apiSuccess, apiError } from "@/lib/api/response";
+import { withOrgAdmin } from "@/lib/api/handler";
+import { apiSuccess, apiError, parseJsonBody } from "@/lib/api/response";
 
-export async function GET(request: Request) {
-  const env = getEnv();
-  const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-  if (errorResponse) return errorResponse;
+const updateOrganizationSchema = z.object({
+	name: z.string().trim().min(1, "Name is required"),
+});
 
-  const db = getDb(env);
-  const [org] = await db.select().from(organizations).where(eq(organizations.id, orgUser.organizationId as string)).limit(1);
-  if (!org) return apiError("Organization not found", 404);
+export const GET = withOrgAdmin(async ({ env, user }) => {
+	const db = getDb(env);
+	const [org] = await db.select().from(organizations).where(eq(organizations.id, user.organizationId)).limit(1);
+	if (!org) return apiError("Organization not found", 404);
 
-  return apiSuccess({ organization: org });
-}
+	return apiSuccess({ organization: org });
+});
 
-export async function PATCH(request: Request) {
-  const env = getEnv();
-  const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-  if (errorResponse) return errorResponse;
+export const PATCH = withOrgAdmin(async ({ request, env, user }) => {
+	const { data, errorResponse } = await parseJsonBody(request, updateOrganizationSchema);
+	if (errorResponse) return errorResponse;
 
-  const body = await request.json() as Record<string, unknown>;
-  const name = typeof body.name === "string" ? body.name.trim() : null;
-  if (!name) return apiError("Name is required", 400);
+	const db = getDb(env);
+	await db.update(organizations).set({ name: data.name, updatedAt: new Date() }).where(eq(organizations.id, user.organizationId));
+	const [org] = await db.select().from(organizations).where(eq(organizations.id, user.organizationId)).limit(1);
 
-  const db = getDb(env);
-  await db.update(organizations).set({ name, updatedAt: new Date() }).where(eq(organizations.id, orgUser.organizationId as string));
-  const [org] = await db.select().from(organizations).where(eq(organizations.id, orgUser.organizationId as string)).limit(1);
-
-  return apiSuccess({ organization: org });
-}
+	return apiSuccess({ organization: org });
+});

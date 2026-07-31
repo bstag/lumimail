@@ -203,6 +203,23 @@ When `inviteToken` is provided and valid:
 
 ## 13. Bug / Change Log
 
+### 2026-07-31 — Document the org-membership dual read behind an accessor (T-41)
+
+Type: Refactor / Documentation (behavior-preserving)
+
+Summary:
+
+- Organization membership is stored twice today: `users.organizationId` is the
+  active-org pointer, while `organizationMembers` is the role truth. The dual
+  read is now encapsulated in the documented `getActiveOrgMembership` accessor
+  in `src/lib/auth/session.ts`, which `getUserFromSession` uses; new code must
+  go through the accessor instead of reading the column directly.
+- A consistency test asserts (and deliberately preserves) current behavior
+  when the two disagree: a pointer at an org with no membership row keeps the
+  user scoped to that org with `role: null`, so role-gated guards deny.
+- Full column retirement (migration + backfill removal) is explicitly
+  out of the tech-debt batch; scheduled after the batch ships.
+
 ### 2026-06-10 — Initial multi-user workspace implementation
 
 Type: Feature

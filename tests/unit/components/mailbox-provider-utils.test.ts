@@ -5,13 +5,16 @@ vi.mock("@/lib/auth/client", () => ({ authFetch: (...a: unknown[]) => authFetch(
 
 import {
 	canMailboxSend,
-	clearMailboxesCache,
 	fetchMailboxOptions,
 	findSendCapableMailbox,
 } from "@/components/mailbox-provider-utils";
 
 function jsonResponse(body: unknown) {
-	return { json: async () => body } as unknown as Response;
+	return { ok: true, status: 200, json: async () => body } as unknown as Response;
+}
+
+function envelope(data: unknown) {
+	return jsonResponse({ success: true, data });
 }
 
 const rawMailbox = {
@@ -33,118 +36,39 @@ const mappedMailbox = {
 	isPrimary: true,
 };
 
-const secondRawMailbox = {
-	...rawMailbox,
-	id: "mb_2",
-	localPart: "bob",
-	displayName: "Bob",
-};
-
-const secondMappedMailbox = {
-	...mappedMailbox,
-	id: "mb_2",
-	localPart: "bob",
-	displayName: "Bob",
-};
-
 beforeEach(() => {
 	authFetch.mockReset();
-	clearMailboxesCache();
 });
 
 afterEach(() => {
 	vi.restoreAllMocks();
 });
 
+// Caching, request dedupe, and account-switch isolation moved to TanStack
+// Query (T-34/F50): the provider runs this fetcher under `mailboxKeys.user`
+// and the root QueryClient clears on account reset. The fetcher itself is a
+// plain fetch-and-map.
 describe("fetchMailboxOptions", () => {
-	it("fetches, maps, and caches the mailbox options", async () => {
-		authFetch.mockResolvedValue(jsonResponse({ mailboxes: [rawMailbox] }));
+	it("fetches and maps the mailbox options", async () => {
+		authFetch.mockResolvedValue(envelope({ mailboxes: [rawMailbox] }));
 
 		const result = await fetchMailboxOptions();
 
 		expect(result).toEqual([mappedMailbox]);
-		expect(authFetch).toHaveBeenCalledWith("/api/mailboxes");
+		expect(authFetch).toHaveBeenCalledWith("/api/mailboxes", { method: "GET" });
 	});
 
 	it("defaults to an empty list when the response has no mailboxes", async () => {
-		authFetch.mockResolvedValue(jsonResponse({}));
+		authFetch.mockResolvedValue(envelope({}));
 		await expect(fetchMailboxOptions()).resolves.toEqual([]);
 	});
 
-	it("returns the cached value on subsequent calls without fetching again", async () => {
-		authFetch.mockResolvedValue(jsonResponse({ mailboxes: [rawMailbox] }));
+	it("fetches fresh on every call — TanStack owns caching now", async () => {
+		authFetch.mockResolvedValue(envelope({ mailboxes: [rawMailbox] }));
 
 		await fetchMailboxOptions();
-		const second = await fetchMailboxOptions();
-
-		expect(second).toEqual([mappedMailbox]);
-		expect(authFetch).toHaveBeenCalledTimes(1);
-	});
-
-	it("reuses the in-flight request when called again before it resolves", async () => {
-		let resolveFetch!: (value: Response) => void;
-		authFetch.mockReturnValue(
-			new Promise<Response>((resolve) => {
-				resolveFetch = resolve;
-			}),
-		);
-
-		const first = fetchMailboxOptions();
-		const second = fetchMailboxOptions();
-
-		resolveFetch(jsonResponse({ mailboxes: [rawMailbox] }));
-
-		const [a, b] = await Promise.all([first, second]);
-		expect(a).toEqual([mappedMailbox]);
-		expect(b).toEqual([mappedMailbox]);
-		expect(authFetch).toHaveBeenCalledTimes(1);
-	});
-
-	it("bypasses the cache when force is true", async () => {
-		authFetch.mockResolvedValue(jsonResponse({ mailboxes: [rawMailbox] }));
-
-		await fetchMailboxOptions();
-		await fetchMailboxOptions(true);
-
-		expect(authFetch).toHaveBeenCalledTimes(2);
-	});
-
-	it("clears the in-flight request after completion so later calls refetch", async () => {
-		authFetch.mockResolvedValue(jsonResponse({ mailboxes: [rawMailbox] }));
 		await fetchMailboxOptions();
 
-		clearMailboxesCache();
-		await fetchMailboxOptions();
-
-		expect(authFetch).toHaveBeenCalledTimes(2);
-	});
-
-	it("does not let a request from before reset repopulate or clear the current cache", async () => {
-		let resolveOld!: (value: Response) => void;
-		authFetch
-			.mockReturnValueOnce(new Promise<Response>((resolve) => {
-				resolveOld = resolve;
-			}))
-			.mockResolvedValueOnce(jsonResponse({ mailboxes: [secondRawMailbox] }));
-
-		const oldRequest = fetchMailboxOptions();
-		clearMailboxesCache();
-		const currentRequest = fetchMailboxOptions();
-
-		await expect(currentRequest).resolves.toEqual([secondMappedMailbox]);
-		resolveOld(jsonResponse({ mailboxes: [rawMailbox] }));
-		await expect(oldRequest).resolves.toEqual([mappedMailbox]);
-		await expect(fetchMailboxOptions()).resolves.toEqual([secondMappedMailbox]);
-		expect(authFetch).toHaveBeenCalledTimes(2);
-	});
-});
-
-describe("clearMailboxesCache", () => {
-	it("forces a refetch after clearing", async () => {
-		authFetch.mockResolvedValue(jsonResponse({ mailboxes: [rawMailbox] }));
-		await fetchMailboxOptions();
-		clearMailboxesCache();
-		await fetchMailboxOptions();
 		expect(authFetch).toHaveBeenCalledTimes(2);
 	});
 });

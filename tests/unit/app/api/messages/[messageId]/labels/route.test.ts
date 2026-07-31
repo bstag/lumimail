@@ -1,24 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextResponse } from "next/server";
 import { createDbMock, type DbMock } from "../../../../../helpers/db";
 
-const m = vi.hoisted(() => ({ db: null as unknown, guardUser: vi.fn() }));
+const m = vi.hoisted(() => ({ db: null as unknown, getCurrentUser: vi.fn() }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
-vi.mock("@/lib/auth/cookies", () => ({ guardUser: m.guardUser }));
+vi.mock("@/lib/auth/cookies", () => ({ getCurrentUser: m.getCurrentUser }));
 
 import { GET, POST, DELETE } from "@/app/api/messages/[messageId]/labels/route";
 
 let mock: DbMock;
-const unauth = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
 beforeEach(() => {
 	mock = createDbMock();
 	m.db = mock.db;
-	m.guardUser.mockReset();
+	m.getCurrentUser.mockReset();
 });
 
-const auth = () => m.guardUser.mockResolvedValue({ user: { id: "u1" }, errorResponse: null });
+const auth = () => m.getCurrentUser.mockResolvedValue({ id: "u1" });
 
 function makeReq(method: string, body?: unknown, raw?: string) {
 	return new Request("https://x.test/api/messages/m1/labels", {
@@ -29,8 +27,8 @@ function makeReq(method: string, body?: unknown, raw?: string) {
 const params = (messageId = "m1") => ({ params: Promise.resolve({ messageId }) });
 
 describe("GET /api/messages/[messageId]/labels", () => {
-	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ user: null, errorResponse: unauth });
+	it("returns 401 in the envelope when unauthenticated", async () => {
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await GET(makeReq("GET"), params());
 		expect(res.status).toBe(401);
 	});
@@ -60,8 +58,8 @@ describe("GET /api/messages/[messageId]/labels", () => {
 });
 
 describe("POST /api/messages/[messageId]/labels", () => {
-	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ user: null, errorResponse: unauth });
+	it("returns 401 in the envelope when unauthenticated", async () => {
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await POST(makeReq("POST", { labelId: "lbl1" }), params());
 		expect(res.status).toBe(401);
 	});
@@ -118,8 +116,8 @@ describe("POST /api/messages/[messageId]/labels", () => {
 });
 
 describe("DELETE /api/messages/[messageId]/labels", () => {
-	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ user: null, errorResponse: unauth });
+	it("returns 401 in the envelope when unauthenticated", async () => {
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await DELETE(makeReq("DELETE", { labelId: "lbl1" }), params());
 		expect(res.status).toBe(401);
 	});

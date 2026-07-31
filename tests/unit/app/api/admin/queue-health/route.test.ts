@@ -50,7 +50,7 @@ describe("/api/admin/queue-health", () => {
 		h.read.mockResolvedValue(queues);
 		const response = await GET(new Request("https://x.test/api/admin/queue-health"));
 		expect(response.status).toBe(200);
-		expect(await response.json()).toEqual({ queues });
+		expect(await response.json()).toEqual({ success: true, data: { queues } });
 		expect(h.run).not.toHaveBeenCalled();
 	});
 
@@ -58,7 +58,7 @@ describe("/api/admin/queue-health", () => {
 		h.run.mockResolvedValue(queues);
 		const response = await POST(new Request("https://x.test/api/admin/queue-health", { method: "POST" }));
 		expect(response.status).toBe(200);
-		expect(await response.json()).toEqual({ queues });
+		expect(await response.json()).toEqual({ success: true, data: { queues } });
 		expect(h.run).toHaveBeenCalledWith(h.env);
 	});
 });

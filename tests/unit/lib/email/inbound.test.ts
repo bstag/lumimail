@@ -9,19 +9,20 @@ vi.mock("@/lib/email/routing", () => ({ resolveInboundTargets: vi.fn() }));
 vi.mock("@/lib/email/parse", () => ({ parseRawMime: vi.fn(), buildSnippet: vi.fn(() => "snippet") }));
 vi.mock("@/lib/email/webhooks", () => ({ dispatchWebhooks: vi.fn() }));
 vi.mock("@/lib/contacts/service", () => ({ upsertContactFromAddress: vi.fn(), getMessageContactNames: vi.fn() }));
-vi.mock("@/lib/email/send", () => ({ sendEmail: vi.fn() }));
+// The vacation responder imports the producer statically from the split
+// outbound module (T-32); mocking the submit module intercepts that import.
+vi.mock("@/lib/email/outbound/submit", () => ({ sendEmail: vi.fn() }));
 vi.mock("@/lib/ids", () => ({ newId: vi.fn((p?: string) => (p ? `${p}_id` : "raw_id")) }));
 
 import {
-	getMessageWithBody,
 	processInboundMessage,
 	storeRawToR2,
 } from "@/lib/email/inbound";
 import { resolveInboundTargets as resolveInboundTargetsImport } from "@/lib/email/routing";
 import { parseRawMime as parseRawMimeImport } from "@/lib/email/parse";
 import { dispatchWebhooks as dispatchWebhooksImport } from "@/lib/email/webhooks";
-import { upsertContactFromAddress as upsertImport, getMessageContactNames as contactNamesImport } from "@/lib/contacts/service";
-import { sendEmail as sendEmailImport } from "@/lib/email/send";
+import { upsertContactFromAddress as upsertImport } from "@/lib/contacts/service";
+import { sendEmail as sendEmailImport } from "@/lib/email/outbound/submit";
 import { newId as newIdImport } from "@/lib/ids";
 import type { RoutingDecision, ResolvedMailbox } from "@/lib/email/routing";
 import type { ParsedEmail } from "@/lib/email/parse";
@@ -31,7 +32,6 @@ const resolveInboundTargets = vi.mocked(resolveInboundTargetsImport);
 const parseRawMime = vi.mocked(parseRawMimeImport);
 const dispatchWebhooks = vi.mocked(dispatchWebhooksImport);
 const upsertContactFromAddress = vi.mocked(upsertImport);
-const getMessageContactNames = vi.mocked(contactNamesImport);
 const sendEmail = vi.mocked(sendEmailImport);
 const newId = vi.mocked(newIdImport);
 
@@ -418,7 +418,7 @@ describe("processInboundMessage", () => {
 
 		await expect(processInboundMessage(env, payload)).rejects.toThrow("d1 unavailable");
 		expect(errorSpy).toHaveBeenCalledWith(
-			"Failed to clean up inbound attachment objects",
+			"Failed to clean up attachment objects",
 		);
 	});
 
@@ -907,41 +907,3 @@ describe("storeRawToR2", () => {
 	});
 });
 
-describe("getMessageWithBody", () => {
-	const env = {} as CloudflareEnv;
-
-	it("returns null when the message is missing", async () => {
-		mock.queueSelect([]);
-		expect(await getMessageWithBody(env, "u1", null, "msg_1")).toBeNull();
-	});
-
-	it("returns null when the message belongs to another user", async () => {
-		mock.queueSelect([]);
-		expect(await getMessageWithBody(env, "u1", "org_1", "msg_1")).toBeNull();
-	});
-
-	it("returns the message merged with contact names plus the body", async () => {
-		mock
-			.queueSelect([{ id: "msg_1", userId: "u1", fromAddr: "f@x.com", toAddr: "t@y.com" }])
-			.queueSelect([{ id: "body_1", messageId: "msg_1", textBody: "t" }]);
-		getMessageContactNames.mockResolvedValue({ fromContactName: "F", toContactName: "T" });
-
-		const result = await getMessageWithBody(env, "u1", "org_1", "msg_1");
-		expect(getMessageContactNames).toHaveBeenCalledWith(env, "u1", "f@x.com", "t@y.com");
-		expect(result).toEqual({
-			message: { id: "msg_1", userId: "u1", fromAddr: "f@x.com", toAddr: "t@y.com", fromContactName: "F", toContactName: "T" },
-			body: { id: "body_1", messageId: "msg_1", textBody: "t" },
-		});
-	});
-
-	it("supports an explicit mailbox constraint for bridge reads", async () => {
-		mock
-			.queueSelect([{ id: "msg_1", mailboxId: "mb1", fromAddr: "f@x.com", toAddr: "t@y.com" }])
-			.queueSelect([]);
-		getMessageContactNames.mockResolvedValue({ fromContactName: null, toContactName: null });
-
-		const result = await getMessageWithBody(env, "u1", "org_1", "msg_1", "mb1");
-
-		expect(result?.message).toMatchObject({ id: "msg_1", mailboxId: "mb1" });
-	});
-});

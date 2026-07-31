@@ -4,12 +4,12 @@ import { createDbMock, type DbMock } from "../../../helpers/db";
 
 const m = vi.hoisted(() => ({
 	db: null as unknown,
-	guardUser: vi.fn(),
+	getCurrentUser: vi.fn(),
 	ensureCatchAll: vi.fn(),
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
-vi.mock("@/lib/auth/cookies", () => ({ guardUser: m.guardUser }));
+vi.mock("@/lib/auth/cookies", () => ({ getCurrentUser: m.getCurrentUser }));
 vi.mock("@/lib/ids", () => ({ newId: () => "rule_1" }));
 vi.mock("@/lib/cloudflare-api", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@/lib/cloudflare-api")>()),
@@ -20,7 +20,7 @@ import { GET, POST } from "@/app/api/routing-rules/route";
 
 let mock: DbMock;
 const unauth = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-const authed = { user: { id: "u1", organizationId: "org1" } };
+const authed = { id: "u1", organizationId: "org1" };
 const domain = { id: "dom_1", organizationId: "org1", hostname: "x.test", zoneId: "zone_1" };
 const valid = {
 	domainId: "dom_1",
@@ -40,37 +40,37 @@ function post(body: unknown) {
 beforeEach(() => {
 	mock = createDbMock();
 	m.db = mock.db;
-	m.guardUser.mockReset();
+	m.getCurrentUser.mockReset();
 	m.ensureCatchAll.mockReset().mockResolvedValue({ enabled: true });
 });
 
 describe("POST /api/routing-rules", () => {
 	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: unauth });
+		m.getCurrentUser.mockResolvedValue(null);
 		expect((await POST(post(valid))).status).toBe(401);
 	});
 
 	it("returns 400 when the user has no organization", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: null } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: null });
 		expect((await POST(post(valid))).status).toBe(400);
 	});
 
 	it("returns 400 for an invalid action target", async () => {
-		m.guardUser.mockResolvedValue(authed);
+		m.getCurrentUser.mockResolvedValue(authed);
 		const res = await POST(post({ ...valid, mailboxId: undefined }));
 		expect(res.status).toBe(400);
 		expect(m.ensureCatchAll).not.toHaveBeenCalled();
 	});
 
 	it("returns 404 when the domain is missing or cross-tenant", async () => {
-		m.guardUser.mockResolvedValue(authed);
+		m.getCurrentUser.mockResolvedValue(authed);
 		mock.queueSelect([]);
 		const res = await POST(post(valid));
 		expect(res.status).toBe(404);
 	});
 
 	it("rejects a wildcard or exact address for another domain", async () => {
-		m.guardUser.mockResolvedValue(authed);
+		m.getCurrentUser.mockResolvedValue(authed);
 		mock.queueSelect([domain]);
 		let res = await POST(post({ ...valid, pattern: "*@other.test" }));
 		expect(res.status).toBe(400);
@@ -82,7 +82,7 @@ describe("POST /api/routing-rules", () => {
 	});
 
 	it("rejects a missing, cross-tenant, or cross-domain mailbox target", async () => {
-		m.guardUser.mockResolvedValue(authed);
+		m.getCurrentUser.mockResolvedValue(authed);
 		mock.queueSelect([domain]).queueSelect([]);
 		const res = await POST(post(valid));
 		expect(res.status).toBe(400);
@@ -90,7 +90,7 @@ describe("POST /api/routing-rules", () => {
 	});
 
 	it("returns 409 when the domain already has an internal catch-all", async () => {
-		m.guardUser.mockResolvedValue(authed);
+		m.getCurrentUser.mockResolvedValue(authed);
 		mock
 			.queueSelect([domain])
 			.queueSelect([{ id: "mb_1", domainId: "dom_1", organizationId: "org1" }])
@@ -101,7 +101,7 @@ describe("POST /api/routing-rules", () => {
 	});
 
 	it("normalizes catch-all, provisions Cloudflare, and creates the rule", async () => {
-		m.guardUser.mockResolvedValue(authed);
+		m.getCurrentUser.mockResolvedValue(authed);
 		mock
 			.queueSelect([domain])
 			.queueSelect([{ id: "mb_1", domainId: "dom_1", organizationId: "org1" }])
@@ -114,7 +114,7 @@ describe("POST /api/routing-rules", () => {
 	});
 
 	it("maps an active provider catch-all conflict to 409", async () => {
-		m.guardUser.mockResolvedValue(authed);
+		m.getCurrentUser.mockResolvedValue(authed);
 		mock
 			.queueSelect([domain])
 			.queueSelect([{ id: "mb_1", domainId: "dom_1", organizationId: "org1" }])
@@ -126,7 +126,7 @@ describe("POST /api/routing-rules", () => {
 	});
 
 	it("maps other provider failures to 502 without inserting", async () => {
-		m.guardUser.mockResolvedValue(authed);
+		m.getCurrentUser.mockResolvedValue(authed);
 		mock
 			.queueSelect([domain])
 			.queueSelect([{ id: "mb_1", domainId: "dom_1", organizationId: "org1" }])
@@ -139,7 +139,7 @@ describe("POST /api/routing-rules", () => {
 	});
 
 	it("creates a normalized named forward rule without touching provider catch-all", async () => {
-		m.guardUser.mockResolvedValue(authed);
+		m.getCurrentUser.mockResolvedValue(authed);
 		mock.queueSelect([domain]);
 		// authorizeForwardDestination: destination is outside every managed domain
 		// and this organization owns a verified registration for it.
@@ -162,7 +162,7 @@ describe("POST /api/routing-rules", () => {
 	});
 
 	it("refuses a forward rule whose destination is not registered", async () => {
-		m.guardUser.mockResolvedValue(authed);
+		m.getCurrentUser.mockResolvedValue(authed);
 		mock.queueSelect([domain]);
 		mock.queueSelect([]);
 		mock.queueSelect([]); // no ownership row
@@ -179,7 +179,7 @@ describe("POST /api/routing-rules", () => {
 	});
 
 	it("refuses a forward rule whose destination is registered but unverified", async () => {
-		m.guardUser.mockResolvedValue(authed);
+		m.getCurrentUser.mockResolvedValue(authed);
 		mock.queueSelect([domain]);
 		mock.queueSelect([]);
 		mock.queueSelect([{ id: "fwd_1", address: "outside@example.net", verifiedAt: null }]);
@@ -199,7 +199,7 @@ describe("POST /api/routing-rules", () => {
 	});
 
 	it("refuses a forward rule pointing back into a managed domain", async () => {
-		m.guardUser.mockResolvedValue(authed);
+		m.getCurrentUser.mockResolvedValue(authed);
 		mock.queueSelect([domain]);
 		mock.queueSelect([{ id: "dom_1" }]); // destination hostname is managed
 		const res = await POST(post({
@@ -216,17 +216,17 @@ describe("POST /api/routing-rules", () => {
 
 describe("GET /api/routing-rules", () => {
 	it("returns the auth response when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: unauth });
+		m.getCurrentUser.mockResolvedValue(null);
 		expect((await GET(new Request("https://x.test/api/routing-rules"))).status).toBe(401);
 	});
 
 	it("requires an organization", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: null } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: null });
 		expect((await GET(new Request("https://x.test/api/routing-rules"))).status).toBe(400);
 	});
 
 	it("lists only the authenticated organization rows", async () => {
-		m.guardUser.mockResolvedValue(authed);
+		m.getCurrentUser.mockResolvedValue(authed);
 		mock.queueSelect([{ id: "r1", organizationId: "org1" }]);
 		const res = await GET(new Request("https://x.test/api/routing-rules"));
 		expect(res.status).toBe(200);

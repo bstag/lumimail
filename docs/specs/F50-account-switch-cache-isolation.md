@@ -148,3 +148,24 @@ Impact:
 - The administrator's mailbox selector immediately showed both `admin@lucidkith.com` and `admin@henriksen.dev`; no stale restricted-account selector remained.
 
 F50 is production-validated and complete.
+
+### 2026-07-30 — T-34: module caches retired in favor of TanStack Query
+
+The hand-rolled mailbox, message-list, and message-count module caches (and
+their generation counters and in-flight request maps) were removed when the
+mail UI migrated to TanStack Query (docs/TECH_DEBT_PLAN.md T-34). The
+isolation contract is unchanged and now has a single enforcement point:
+
+- all account-scoped requests run as TanStack queries on the root Query
+  Client, which registers `queryClient.clear()` with the account-state reset
+  coordinator (unchanged from the original implementation);
+- clearing the QueryCache detaches any in-flight account-A query instance, so
+  a late response resolves onto an orphaned query and can never populate the
+  cache a new account reads — the property the per-module generation counters
+  previously provided;
+- mounted mailbox providers still register a reset callback that immediately
+  drops the visible mailbox selection, and the selected-mailbox storage key is
+  still removed by the coordinator.
+
+The browser contract test (`tests/e2e/account-switch-isolation.spec.ts`)
+remains the acceptance gate and passes unchanged.

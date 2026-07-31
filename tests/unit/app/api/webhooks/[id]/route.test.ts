@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 import { createDbMock, type DbMock } from "../../../../helpers/db";
 
-const m = vi.hoisted(() => ({ db: null as unknown, guardUser: vi.fn() }));
+const m = vi.hoisted(() => ({ db: null as unknown, getCurrentUser: vi.fn() }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
-vi.mock("@/lib/auth/cookies", () => ({ guardUser: m.guardUser }));
+vi.mock("@/lib/auth/cookies", () => ({ getCurrentUser: m.getCurrentUser }));
 
 import { PATCH, DELETE } from "@/app/api/webhooks/[id]/route";
 
@@ -16,7 +16,7 @@ const params = (id = "wh_1") => ({ params: Promise.resolve({ id }) });
 beforeEach(() => {
 	mock = createDbMock();
 	m.db = mock.db;
-	m.guardUser.mockReset();
+	m.getCurrentUser.mockReset();
 });
 
 function req(body?: unknown) {
@@ -28,13 +28,13 @@ function req(body?: unknown) {
 
 describe("DELETE /api/webhooks/[id]", () => {
 	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: unauth });
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await DELETE(req(), params());
 		expect(res.status).toBe(401);
 	});
 
 	it("returns 404 when webhook not found / cross-tenant", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		mock.queueSelect([]);
 		const res = await DELETE(req(), params());
 		expect(res.status).toBe(404);
@@ -42,7 +42,7 @@ describe("DELETE /api/webhooks/[id]", () => {
 	});
 
 	it("deletes an existing webhook", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		mock.queueSelect([{ id: "wh_1", userId: "u1" }]);
 		const res = await DELETE(req(), params());
 		expect(res.status).toBe(200);
@@ -53,20 +53,20 @@ describe("DELETE /api/webhooks/[id]", () => {
 
 describe("PATCH /api/webhooks/[id]", () => {
 	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: unauth });
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await PATCH(req({ enabled: true }), params());
 		expect(res.status).toBe(401);
 	});
 
 	it("returns 404 when webhook not found / cross-tenant", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		mock.queueSelect([]);
 		const res = await PATCH(req({ enabled: true }), params());
 		expect(res.status).toBe(404);
 	});
 
 	it("updates the enabled flag when boolean", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		mock.queueSelect([{ id: "wh_1", userId: "u1" }]);
 		const res = await PATCH(req({ enabled: false }), params());
 		expect(res.status).toBe(200);
@@ -75,10 +75,18 @@ describe("PATCH /api/webhooks/[id]", () => {
 	});
 
 	it("does not update when enabled is not a boolean", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		mock.queueSelect([{ id: "wh_1", userId: "u1" }]);
 		const res = await PATCH(req({}), params());
 		expect(res.status).toBe(200);
+		expect(mock.updates.length).toBe(0);
+	});
+
+	it("returns 400 for an invalid body", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		mock.queueSelect([{ id: "wh_1", userId: "u1" }]);
+		const res = await PATCH(req({ enabled: "yes" }), params());
+		expect(res.status).toBe(400);
 		expect(mock.updates.length).toBe(0);
 	});
 });

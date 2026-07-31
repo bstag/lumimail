@@ -5,7 +5,6 @@ import {
 	firstRunRegisterSchema,
 	loginSchema,
 	mailboxSchema,
-	registerSchema,
 	routingRuleSchema,
 	routingRuleUpdateSchema,
 	sendEmailSchema,
@@ -58,23 +57,6 @@ describe("createAliasSchema", () => {
 		expect(updateAliasGroupSchema.safeParse({
 			mailboxIds: ["mbx_1", "mbx_2"],
 		}).success).toBe(true);
-	});
-});
-
-describe("registerSchema", () => {
-	it("accepts a valid registration", () => {
-		const result = registerSchema.safeParse({
-			email: "user@example.com",
-			password: "supersecret",
-			name: "Ada",
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it("rejects an invalid email and short password", () => {
-		expect(registerSchema.safeParse({ email: "nope", password: "x", name: "Ada" }).success).toBe(
-			false,
-		);
 	});
 });
 

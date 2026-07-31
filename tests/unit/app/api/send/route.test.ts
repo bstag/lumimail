@@ -1,27 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextResponse } from "next/server";
 
 const m = vi.hoisted(() => ({
-	guardUser: vi.fn(),
+	getCurrentUser: vi.fn(),
 	sendEmail: vi.fn(),
 	rateLimitUser: vi.fn(),
-	RateLimitUnavailableError: class RateLimitUnavailableError extends Error {},
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
-vi.mock("@/lib/auth/cookies", () => ({ guardUser: m.guardUser }));
+vi.mock("@/lib/auth/cookies", () => ({ getCurrentUser: m.getCurrentUser }));
 vi.mock("@/lib/email/send", () => ({ sendEmail: m.sendEmail }));
-vi.mock("@/lib/rate-limit", () => ({
+// Partial mock: enforceRateLimit stays real so the route's 429/503 handling
+// (and the RateLimitUnavailableError instanceof check) run genuine code.
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/lib/rate-limit")>()),
 	rateLimitUser: m.rateLimitUser,
-	RateLimitUnavailableError: m.RateLimitUnavailableError,
 }));
 
 import { POST } from "@/app/api/send/route";
+import { RateLimitUnavailableError } from "@/lib/rate-limit";
 
-const unauth = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 const validBody = { from: "a@x.test", to: "b@x.test", subject: "Hi", text: "Body" };
 
 beforeEach(() => {
-	m.guardUser.mockReset();
+	m.getCurrentUser.mockReset().mockResolvedValue({ id: "u1" });
 	m.sendEmail.mockReset();
 	m.rateLimitUser.mockReset();
 	m.rateLimitUser.mockResolvedValue({ allowed: true });
@@ -43,14 +43,17 @@ function multipartReq(body: unknown, files: File[]) {
 }
 
 describe("POST /api/send", () => {
-	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: unauth });
+	it("returns 401 in the envelope when unauthenticated", async () => {
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await POST(req(validBody));
 		expect(res.status).toBe(401);
+		expect((await res.json()) as any).toEqual({
+			success: false,
+			error: { message: "Unauthorized" },
+		});
 	});
 
 	it("returns 429 when the rate limit is exceeded", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
 		m.rateLimitUser.mockResolvedValue({ allowed: false });
 		const res = await POST(req(validBody));
 		expect(res.status).toBe(429);
@@ -58,14 +61,12 @@ describe("POST /api/send", () => {
 	});
 
 	it("returns 400 for an invalid body", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
 		const res = await POST(req({ from: "a@x.test" }));
 		expect(res.status).toBe(400);
 		expect((await res.json()) as any).toMatchObject({ error: { message: "Validation failed" } });
 	});
 
 	it("sends the email on success", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
 		m.sendEmail.mockResolvedValue({ messageId: "msg1", status: "queued" });
 		const res = await POST(req(validBody));
 		expect(res.status).toBe(202);
@@ -77,21 +78,18 @@ describe("POST /api/send", () => {
 	});
 
 	it("fails closed when shared rate-limit storage is unavailable", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
-		m.rateLimitUser.mockRejectedValue(new m.RateLimitUnavailableError());
+		m.rateLimitUser.mockRejectedValue(new RateLimitUnavailableError());
 		const res = await POST(req(validBody));
 		expect(res.status).toBe(503);
 		expect(m.sendEmail).not.toHaveBeenCalled();
 	});
 
 	it("rethrows unexpected limiter errors", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
 		m.rateLimitUser.mockRejectedValue(new Error("unexpected"));
 		await expect(POST(req(validBody))).rejects.toThrow("unexpected");
 	});
 
 	it("accepts multipart attachments in the same send request", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
 		m.sendEmail.mockResolvedValue({ messageId: "msg1", status: "queued" });
 		const file = new File(["hello"], "hello.txt", { type: "text/plain" });
 
@@ -110,7 +108,6 @@ describe("POST /api/send", () => {
 	});
 
 	it("accepts matched CID inline images in the multipart send", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
 		m.sendEmail.mockResolvedValue({ messageId: "msg1", status: "queued" });
 		const form = new FormData();
 		form.set("payload", JSON.stringify({
@@ -136,7 +133,6 @@ describe("POST /api/send", () => {
 	});
 
 	it("rejects incomplete inline-image multipart metadata", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
 		const form = new FormData();
 		form.set("payload", JSON.stringify(validBody));
 		form.append("inlineImage", new File(["png"], "chart.png", { type: "image/png" }));
@@ -148,7 +144,6 @@ describe("POST /api/send", () => {
 	});
 
 	it("returns 415 for an unsupported request content type", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
 		const res = await POST(new Request("https://x.test/api/send", {
 			method: "POST",
 			headers: { "content-type": "text/plain" },
@@ -160,7 +155,6 @@ describe("POST /api/send", () => {
 	});
 
 	it("rejects multipart without a payload", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
 		const form = new FormData();
 		form.set("attachment", "not a file");
 		const missing = await POST(new Request("https://x.test/api/send", { method: "POST", body: form }));
@@ -168,7 +162,6 @@ describe("POST /api/send", () => {
 	});
 
 	it("rejects malformed or invalid multipart payloads", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
 		const malformed = new FormData();
 		malformed.set("payload", "{");
 		const malformedRes = await POST(new Request("https://x.test/api/send", { method: "POST", body: malformed }));
@@ -181,7 +174,6 @@ describe("POST /api/send", () => {
 	});
 
 	it("rejects non-file attachment parts and unsafe files", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
 		const nonFile = new FormData();
 		nonFile.set("payload", JSON.stringify(validBody));
 		nonFile.set("attachment", "text");
@@ -195,7 +187,6 @@ describe("POST /api/send", () => {
 	});
 
 	it("rejects excessive attachment count and size before send", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
 		const tooMany = Array.from(
 			{ length: 11 },
 			(_, index) => new File(["x"], `${index}.txt`, { type: "text/plain" }),
@@ -208,7 +199,6 @@ describe("POST /api/send", () => {
 	});
 
 	it("returns validation failure when JSON parsing throws", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
 		const badRequest = {
 			headers: new Headers({ "content-type": "application/json" }),
 			json: async () => { throw new TypeError("bad stream"); },
@@ -218,7 +208,6 @@ describe("POST /api/send", () => {
 	});
 
 	it("returns 500 when sendEmail throws", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
 		m.sendEmail.mockRejectedValue(new Error("smtp down"));
 		const res = await POST(req(validBody));
 		expect(res.status).toBe(500);
@@ -226,7 +215,6 @@ describe("POST /api/send", () => {
 	});
 
 	it("returns 404 for an unassigned sender mailbox", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
 		const error = new Error("denied");
 		error.name = "SenderNotAllowedError";
 		m.sendEmail.mockRejectedValue(error);
@@ -235,7 +223,6 @@ describe("POST /api/send", () => {
 	});
 
 	it("returns 404 for an inaccessible reply source", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1" } });
 		const error = new Error("denied");
 		error.name = "ReplySourceNotAllowedError";
 		m.sendEmail.mockRejectedValue(error);

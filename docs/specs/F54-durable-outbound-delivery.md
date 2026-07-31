@@ -115,6 +115,10 @@ existing mailbox-scoped message APIs.
 
 - Retryable: provider rate limiting, provider/server 5xx responses, and network
   transport failures known not to contain a successful provider response.
+- Retryable: platform provider-selection configuration errors (unknown
+  `MAIL_PROVIDER`, missing `RESEND_API_KEY`). These are operator/deploy states,
+  not message defects; jobs re-queue and are bounded by the queue retry/DLQ
+  policy rather than finalizing as failed (code `PROVIDER_CONFIG`).
 - Permanent: validation, sender/domain configuration, recipient suppression,
   malformed content, and other provider 4xx responses.
 - Unknown or ambiguous errors fail closed unless explicitly classified retryable.
@@ -190,6 +194,18 @@ None blocking implementation. A future operator-facing retry button requires a n
 explicit send attempt and is outside this feature.
 
 ## 12. Bug / change log
+
+### 2026-07-30 — Provider misconfiguration classified retryable (T-04)
+
+Type: `Correctness / reliability`
+
+Summary:
+- `selectOutboundProvider` and the Resend factory previously threw plain
+  `Error`s from inside the consumer's send path, which the classifier treated
+  as permanent — a transient deploy misconfiguration finalized queued jobs as
+  `failed`. Both now throw `OutboundProviderError` with `retryable: true` and
+  code `PROVIDER_CONFIG`, so affected jobs re-queue under the standard
+  retry/DLQ bounds.
 
 ### 2026-07-24 — Durable queue producer and consumer
 

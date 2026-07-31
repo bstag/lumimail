@@ -1,18 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 
-const m = vi.hoisted(() => ({
-	guardOrgAdmin: vi.fn(),
-	listUserDomains: vi.fn(),
-	getDomainDns: vi.fn(),
-	addDomainForUser: vi.fn(),
-}));
+const m = vi.hoisted(() => {
+	class DomainAlreadyRegisteredError extends Error {
+		constructor() {
+			super("Domain is already registered");
+			this.name = "DomainAlreadyRegisteredError";
+		}
+	}
+	return {
+		guardOrgAdmin: vi.fn(),
+		listUserDomains: vi.fn(),
+		getDomainDns: vi.fn(),
+		addDomainForUser: vi.fn(),
+		DomainAlreadyRegisteredError,
+	};
+});
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/lib/auth/org-guard", () => ({ guardOrgAdmin: m.guardOrgAdmin }));
 vi.mock("@/lib/domains/service", () => ({
 	listUserDomains: m.listUserDomains,
 	getDomainDns: m.getDomainDns,
 	addDomainForUser: m.addDomainForUser,
+	DomainAlreadyRegisteredError: m.DomainAlreadyRegisteredError,
 }));
 
 import { GET, POST } from "@/app/api/domains/route";
@@ -28,9 +38,7 @@ beforeEach(() => {
 });
 
 function getReq(url = "https://x.test/api/domains") {
-	// minimal NextRequest-like: only nextUrl.searchParams is used
-	const u = new URL(url);
-	return { nextUrl: { searchParams: u.searchParams } } as unknown as Parameters<typeof GET>[0];
+	return new Request(url);
 }
 
 function postReq(body?: unknown) {
@@ -59,7 +67,10 @@ describe("GET /api/domains", () => {
 		m.listUserDomains.mockResolvedValue([{ id: "d1" }]);
 		const res = await GET(getReq());
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ domains: [{ id: "d1" }] });
+		expect((await res.json()) as any).toEqual({
+			success: true,
+			data: { domains: [{ id: "d1" }] },
+		});
 		expect(m.getDomainDns).not.toHaveBeenCalled();
 	});
 
@@ -72,7 +83,7 @@ describe("GET /api/domains", () => {
 		});
 		const res = await GET(getReq("https://x.test/api/domains?includeDns=true"));
 		expect(res.status).toBe(200);
-		const body = (await res.json()) as any;
+		const body = ((await res.json()) as any).data;
 		expect(body.dns.d1).toBeDefined();
 		expect(body.dns.d2).toBeUndefined();
 	});
@@ -104,9 +115,19 @@ describe("POST /api/domains", () => {
 		});
 	});
 
-	it("returns 400 when the service throws", async () => {
+	it("returns 409 when the hostname is already registered to another organization", async () => {
 		m.guardOrgAdmin.mockResolvedValue({ orgUser: { id: "u1", organizationId: "o1" } });
-		m.addDomainForUser.mockRejectedValue(new Error("dup"));
+		m.addDomainForUser.mockRejectedValue(new m.DomainAlreadyRegisteredError());
+		const res = await POST(postReq({ hostname: "example.com" }));
+		expect(res.status).toBe(409);
+		expect((await res.json()) as any).toMatchObject({
+			error: { message: "Domain is already registered" },
+		});
+	});
+
+	it("returns 400 when Cloudflare provisioning fails", async () => {
+		m.guardOrgAdmin.mockResolvedValue({ orgUser: { id: "u1", organizationId: "o1" } });
+		m.addDomainForUser.mockRejectedValue(new Error("zone lookup failed"));
 		const res = await POST(postReq({ hostname: "example.com" }));
 		expect(res.status).toBe(400);
 		expect((await res.json()) as any).toMatchObject({ error: { message: "Failed to add domain" } });

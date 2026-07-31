@@ -28,4 +28,10 @@ interface CloudflareEnv {
 	 * reviewed the report from `/api/admin/r2-retention` (F63).
 	 */
 	R2_SWEEP_ENABLED?: string;
+	/**
+	 * Set to "true" to enable the dev-only `/api/seed` demo-data route (T-43).
+	 * Fails closed when unset; production builds additionally refuse via the
+	 * NODE_ENV check regardless of this binding.
+	 */
+	SEED_ENABLED?: string;
 }

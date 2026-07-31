@@ -1,8 +1,6 @@
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
-import { NextResponse } from "next/server";
-import { getEnv } from "@/lib/cloudflare";
-import { guardUser } from "@/lib/auth/cookies";
+import { withUser } from "@/lib/api/handler";
 import { getDb } from "@/db";
 import { messages, labels, messageLabels } from "@/db/schema";
 import { apiSuccess, apiError } from "@/lib/api/response";
@@ -10,12 +8,8 @@ import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
 const labelIdSchema = z.object({ labelId: z.string().min(1) });
 
-export async function GET(request: Request, { params }: { params: Promise<{ messageId: string }> }) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
-
-	const { messageId } = await params;
+export const GET = withUser<{ messageId: string }>(async ({ env, user, params }) => {
+	const { messageId } = params;
 
 	const db = getDb(env);
 	const msg = await db
@@ -33,14 +27,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ mess
 		.where(eq(messageLabels.messageId, messageId));
 
 	return apiSuccess(rows.map((r) => r.label));
-}
+});
 
-export async function POST(request: Request, { params }: { params: Promise<{ messageId: string }> }) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
-
-	const { messageId } = await params;
+export const POST = withUser<{ messageId: string }>(async ({ request, env, user, params }) => {
+	const { messageId } = params;
 
 	let body: unknown;
 	try {
@@ -77,15 +67,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ mes
 		.values({ messageId, labelId })
 		.onConflictDoNothing();
 
-	return NextResponse.json({ success: true, data: { messageId, labelId } }, { status: 201 });
-}
+	return apiSuccess({ messageId, labelId }, 201);
+});
 
-export async function DELETE(request: Request, { params }: { params: Promise<{ messageId: string }> }) {
-	const env = getEnv();
-	const { user, errorResponse } = await guardUser(env, request);
-	if (errorResponse) return errorResponse;
-
-	const { messageId } = await params;
+export const DELETE = withUser<{ messageId: string }>(async ({ request, env, user, params }) => {
+	const { messageId } = params;
 
 	let body: unknown;
 	try {
@@ -114,4 +100,4 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ m
 		.where(and(eq(messageLabels.messageId, messageId), eq(messageLabels.labelId, labelId)));
 
 	return apiSuccess({ messageId, labelId });
-}
+});

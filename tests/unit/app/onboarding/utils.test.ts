@@ -18,9 +18,9 @@ afterEach(() => {
 });
 
 describe("getDomains", () => {
-	it("fetches and returns the parsed domain list", async () => {
+	it("fetches and unwraps the enveloped domain list", async () => {
 		const body = { domains: [] };
-		authFetch.mockResolvedValue(jsonResponse(true, body));
+		authFetch.mockResolvedValue(jsonResponse(true, { success: true, data: body }));
 		await expect(getDomains()).resolves.toEqual(body);
 		expect(authFetch).toHaveBeenCalledWith("/api/domains");
 	});

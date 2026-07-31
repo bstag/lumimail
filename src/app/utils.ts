@@ -2,13 +2,15 @@ import { FileText, Inbox, MailCheck, Send, ShieldAlert, Trash2 } from "lucide-re
 import type { HomeAction, MailPreview, SidebarItem } from "./types";
 
 export const sidebarItems: SidebarItem[] = [
-	{ label: "Inbox", icon: Inbox, active: true, count: "18" },
-	{ label: "Sent", icon: Send },
-	{ label: "Drafts", icon: FileText, count: "4" },
-	{ label: "Spam", icon: ShieldAlert },
-	{ label: "Trash", icon: Trash2 },
+	{ labelKey: "inbox", icon: Inbox, active: true, count: "18" },
+	{ labelKey: "sent", icon: Send },
+	{ labelKey: "drafts", icon: FileText, count: "4" },
+	{ labelKey: "spam", icon: ShieldAlert },
+	{ labelKey: "trash", icon: Trash2 },
 ];
 
+// Illustrative product-screenshot content, deliberately untranslated: it plays
+// the role of real mail (senders, subjects) rather than UI chrome.
 export const heroMessages: MailPreview[] = [
 	{
 		icon: MailCheck,
@@ -42,11 +44,11 @@ export const heroMessages: MailPreview[] = [
 
 export function getHomeActions(isLoggedIn: boolean): HomeAction[] {
 	if (isLoggedIn) {
-		return [{ href: "/inbox", label: "Dashboard", variant: "default" }];
+		return [{ href: "/inbox", labelKey: "dashboard", variant: "default" }];
 	}
 
 	return [
-		{ href: "/login", label: "Log in", variant: "outline" },
-		{ href: "/register", label: "Create account", variant: "default" },
+		{ href: "/login", labelKey: "logIn", variant: "outline" },
+		{ href: "/register", labelKey: "createAccount", variant: "default" },
 	];
 }

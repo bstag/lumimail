@@ -157,6 +157,25 @@ Action invariants:
 
 ## 13. Bug / Change Log
 
+### 2026-07-31 — Extract the catch-all dance into a routing-rules service (T-40)
+
+Type: Refactor (behavior-preserving)
+
+Summary:
+
+- The catch-all detection/provisioning logic duplicated across
+  `POST /api/routing-rules` and `PATCH /api/routing-rules/[id]` — duplicate
+  catch-all detection, zone-level enable/disable, Cloudflare error mapping,
+  plus the shared domain/mailbox ownership checks and the forward-destination
+  refusal messages — now lives in `src/lib/email/routing-rules-service.ts`
+  (modeled on `src/lib/domains/service.ts`). The routes are thin delegates
+  mapping typed results onto their previous, unchanged response bodies and
+  statuses. `forwardRefusalMessage` moved there from the deleted
+  `src/app/api/routing-rules/utils.ts`.
+- No behavior change: the pre-existing route tests pass unmodified; the
+  service gained isolated unit tests
+  (`tests/unit/lib/email/routing-rules-service.test.ts`).
+
 ### 2026-07-22 — Define and provision per-domain catch-all routing
 
 Type: Behavior Change / Correctness Fix

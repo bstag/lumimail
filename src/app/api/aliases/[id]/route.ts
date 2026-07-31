@@ -1,58 +1,24 @@
 import { eq, and, inArray } from "drizzle-orm";
-import { getEnv } from "@/lib/cloudflare";
 import { getDb } from "@/db";
-import { aliases, domains, groupMembers, mailboxes } from "@/db/schema";
-import { guardOrgAdmin } from "@/lib/auth/org-guard";
+import { aliases, groupMembers, mailboxes } from "@/db/schema";
+import { withOrgAdmin } from "@/lib/api/handler";
 import { apiSuccess, apiError } from "@/lib/api/response";
-import { deleteEmailRoutingRule } from "@/lib/cloudflare-api";
+import { deleteAlias } from "@/lib/email/alias-service";
 import { updateAliasGroupSchema } from "@/lib/validators";
 import { newId } from "@/lib/ids";
 
-export async function DELETE(
-	request: Request,
-	{ params }: { params: Promise<{ id: string }> },
-) {
-	const { id } = await params;
-	const env = getEnv();
-	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-	if (errorResponse) return errorResponse;
-
-	const db = getDb(env);
-	const [alias] = await db
-		.select({
-			id: aliases.id,
-			organizationId: aliases.organizationId,
-			zoneId: domains.zoneId,
-			cloudflareRuleId: aliases.cloudflareRuleId,
-		})
-		.from(aliases)
-		.innerJoin(domains, eq(aliases.domainId, domains.id))
-		.where(and(eq(aliases.id, id), eq(aliases.organizationId, orgUser.organizationId as string)))
-		.limit(1);
-
-	if (!alias) return apiError("Alias not found", 404);
-
-	if (alias.cloudflareRuleId) {
-		try {
-			await deleteEmailRoutingRule(env, alias.zoneId, alias.cloudflareRuleId);
-		} catch {
-			return apiError("Failed to remove Cloudflare routing rule", 502);
-		}
+export const DELETE = withOrgAdmin<{ id: string }>(async ({ env, user: orgUser, params }) => {
+	const result = await deleteAlias(env, orgUser.organizationId, params.id);
+	if (!result.ok) {
+		return result.error === "not_found"
+			? apiError("Alias not found", 404)
+			: apiError("Failed to remove Cloudflare routing rule", 502);
 	}
-
-	await db.delete(aliases).where(eq(aliases.id, id));
 	return apiSuccess({ ok: true });
-}
+});
 
-export async function PATCH(
-	request: Request,
-	{ params }: { params: Promise<{ id: string }> },
-) {
-	const { id } = await params;
-	const env = getEnv();
-	const { orgUser, errorResponse } = await guardOrgAdmin(env, request);
-	if (errorResponse) return errorResponse;
-
+export const PATCH = withOrgAdmin<{ id: string }>(async ({ request, env, user: orgUser, params }) => {
+	const { id } = params;
 	const parsed = updateAliasGroupSchema.safeParse(await request.json().catch(() => null));
 	if (!parsed.success) return apiError("Validation failed", 400, parsed.error.flatten());
 
@@ -66,7 +32,7 @@ export async function PATCH(
 		.from(aliases)
 		.where(and(
 			eq(aliases.id, id),
-			eq(aliases.organizationId, orgUser.organizationId as string),
+			eq(aliases.organizationId, orgUser.organizationId),
 		))
 		.limit(1);
 	if (!alias) return apiError("Alias not found", 404);
@@ -76,7 +42,7 @@ export async function PATCH(
 		.select({ id: mailboxes.id })
 		.from(mailboxes)
 		.where(and(
-			eq(mailboxes.organizationId, orgUser.organizationId as string),
+			eq(mailboxes.organizationId, orgUser.organizationId),
 			inArray(mailboxes.id, parsed.data.mailboxIds),
 		));
 	if (targets.length !== parsed.data.mailboxIds.length) {
@@ -95,4 +61,4 @@ export async function PATCH(
 	]);
 
 	return apiSuccess({ mailboxIds: parsed.data.mailboxIds });
-}
+});

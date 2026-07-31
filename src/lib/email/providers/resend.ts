@@ -25,7 +25,12 @@ type ResendSuccess = { id?: string };
 export function createResendProvider(env: CloudflareEnv): OutboundProvider {
 	const apiKey = env.RESEND_API_KEY;
 	if (!apiKey) {
-		throw new Error("RESEND_API_KEY is required when MAIL_PROVIDER=resend");
+		// Retryable: a key missing mid-deploy is a config error; queued jobs
+		// must re-queue (bounded by queue retry/DLQ) instead of failing.
+		throw new OutboundProviderError("RESEND_API_KEY is required when MAIL_PROVIDER=resend", {
+			retryable: true,
+			code: "PROVIDER_CONFIG",
+		});
 	}
 	const baseUrl = (env.RESEND_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
 

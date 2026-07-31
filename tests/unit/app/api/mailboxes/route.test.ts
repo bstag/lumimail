@@ -4,13 +4,13 @@ import { createDbMock, type DbMock } from "../../../helpers/db";
 
 const m = vi.hoisted(() => ({
 	db: null as unknown,
-	guardUser: vi.fn(),
+	getCurrentUser: vi.fn(),
 	guardOrgAdmin: vi.fn(),
 	ensureRule: vi.fn(),
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
-vi.mock("@/lib/auth/cookies", () => ({ guardUser: m.guardUser }));
+vi.mock("@/lib/auth/cookies", () => ({ getCurrentUser: m.getCurrentUser }));
 vi.mock("@/lib/auth/org-guard", () => ({ guardOrgAdmin: m.guardOrgAdmin }));
 vi.mock("@/lib/cloudflare-api", () => ({ ensureEmailRoutingRuleToWorker: m.ensureRule }));
 vi.mock("@/lib/ids", () => ({ newId: () => "mbx_1" }));
@@ -23,7 +23,7 @@ const unauth = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 beforeEach(() => {
 	mock = createDbMock();
 	m.db = mock.db;
-	m.guardUser.mockReset();
+	m.getCurrentUser.mockReset();
 	m.guardOrgAdmin.mockReset();
 	m.ensureRule.mockReset();
 });
@@ -38,26 +38,26 @@ function postReq(body?: unknown) {
 
 describe("GET /api/mailboxes", () => {
 	it("returns 401 when unauthenticated", async () => {
-		m.guardUser.mockResolvedValue({ errorResponse: unauth });
+		m.getCurrentUser.mockResolvedValue(null);
 		const res = await GET(getReq());
 		expect(res.status).toBe(401);
 	});
 
 	it("returns 400 with no organization", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: null } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: null });
 		const res = await GET(getReq());
 		expect(res.status).toBe(400);
 	});
 
 	it("lists mailboxes and flags the primary one", async () => {
-		m.guardUser.mockResolvedValue({ user: { id: "u1", organizationId: "o1", email: "me@ex.com" } });
+		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: "o1", email: "me@ex.com" });
 		mock.queueSelect([
 			{ id: "mb1", localPart: "me", hostname: "ex.com", role: "manager" },
 			{ id: "mb2", localPart: "other", hostname: "ex.com", role: "viewer" },
 		]);
 		const res = await GET(getReq());
 		expect(res.status).toBe(200);
-		const body = (await res.json()) as any;
+		const body = ((await res.json()) as any).data;
 		expect(body.mailboxes[0].isPrimary).toBe(true);
 		expect(body.mailboxes[1].isPrimary).toBe(false);
 		expect(body.mailboxes.map((mailbox: { role: string }) => mailbox.role)).toEqual(["manager", "viewer"]);

@@ -51,18 +51,19 @@ describe("ensureDemoDomain", () => {
 	it("returns the existing domain without inserting", async () => {
 		const existing = { id: "dom_1", hostname: "example.com" };
 		mock.queueSelect([existing]);
-		expect(await ensureDemoDomain(env, "usr_1")).toEqual(existing);
+		expect(await ensureDemoDomain(env, "usr_1", "org_1")).toEqual(existing);
 		expect(mock.inserts).toHaveLength(0);
 	});
 
-	it("creates a new domain when none exists", async () => {
+	it("creates a new domain scoped to the org when none exists", async () => {
 		const created = { id: "dom_new", hostname: "example.com" };
 		mock.queueSelect([]).queueSelect([created]);
-		expect(await ensureDemoDomain(env, "usr_1")).toEqual(created);
+		expect(await ensureDemoDomain(env, "usr_1", "org_1")).toEqual(created);
 		expect(mock.inserts).toHaveLength(1);
 		const values = mock.inserts[0].values as Record<string, unknown>;
 		expect(values.hostname).toBe("example.com");
 		expect(values.userId).toBe("usr_1");
+		expect(values.organizationId).toBe("org_1");
 		expect(values.id).toMatch(/^dom_/);
 	});
 });
@@ -75,7 +76,7 @@ describe("ensureDemoMailboxes", () => {
 		const b = { id: "mbx_b", localPart: "y" };
 		mock.queueSelect([a]).queueSelect([b]);
 
-		const result = await ensureDemoMailboxes(env, "usr_1", "dom_1");
+		const result = await ensureDemoMailboxes(env, "usr_1", "org_1", "dom_1");
 
 		expect(Object.keys(result).sort()).toEqual(["billing", "support"]);
 		// Mapping of key->row depends on scheduling, so assert membership only.
@@ -95,7 +96,7 @@ describe("ensureDemoMailboxes", () => {
 			.queueSelect([created1])
 			.queueSelect([created2]);
 
-		const result = await ensureDemoMailboxes(env, "usr_1", "dom_1");
+		const result = await ensureDemoMailboxes(env, "usr_1", "org_1", "dom_1");
 
 		expect(Object.keys(result).sort()).toEqual(["billing", "support"]);
 		expect([result.support, result.billing]).toEqual(
@@ -107,6 +108,7 @@ describe("ensureDemoMailboxes", () => {
 			expect(values.id).toMatch(/^mbx_/);
 			expect(values.domainId).toBe("dom_1");
 			expect(values.userId).toBe("usr_1");
+			expect(values.organizationId).toBe("org_1");
 		}
 	});
 });
@@ -118,7 +120,7 @@ describe("insertDemoMessages", () => {
 	} as unknown as SeedMailboxMap;
 
 	it("inserts every seed message with its body, queued/failed jobs, and contacts", async () => {
-		const count = await insertDemoMessages(env, "usr_1", mailboxMap);
+		const count = await insertDemoMessages(env, "usr_1", "org_1", mailboxMap);
 
 		// 15 seed messages.
 		expect(count).toBe(15);
@@ -138,6 +140,11 @@ describe("insertDemoMessages", () => {
 		expect(messageInserts).toHaveLength(15);
 		expect(bodyInserts).toHaveLength(15);
 
+		// Every message and job row is org-scoped directly (T-43), not via backfill.
+		for (const insert of messageInserts) {
+			expect((insert.values as Record<string, unknown>).organizationId).toBe("org_1");
+		}
+
 		// Seed list has 2 queued + 2 failed messages → 4 outbound jobs.
 		expect(jobInserts).toHaveLength(4);
 		const failedJobs = jobInserts.filter(
@@ -148,6 +155,9 @@ describe("insertDemoMessages", () => {
 		);
 		expect(failedJobs).toHaveLength(2);
 		expect(queuedJobs).toHaveLength(2);
+		for (const job of jobInserts) {
+			expect((job.values as Record<string, unknown>).organizationId).toBe("org_1");
+		}
 		// Error is set on failed jobs, null on queued.
 		for (const job of failedJobs) {
 			expect((job.values as Record<string, unknown>).error).toBe(

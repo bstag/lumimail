@@ -32,6 +32,20 @@ describe("POST /api/messages/[messageId]/status", () => {
 		expect(res.status).toBe(401);
 	});
 
+	it("returns an enveloped 400 for malformed JSON", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		const res = await POST(
+			new Request("https://x.test/api/messages/m1/status", { method: "POST", body: "{" }),
+			{ params: Promise.resolve({ messageId: "m1" }) },
+		);
+		expect(res.status).toBe(400);
+		expect((await res.json()) as any).toEqual({
+			success: false,
+			error: { message: "Invalid JSON" },
+		});
+		expect(m.updateMessageStatus).not.toHaveBeenCalled();
+	});
+
 	it("returns 400 for a disallowed status", async () => {
 		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		const res = await post({ status: "bogus" });
@@ -52,6 +66,6 @@ describe("POST /api/messages/[messageId]/status", () => {
 		m.updateMessageStatus.mockResolvedValue(true);
 		const res = await post({ status: "spam" });
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ success: true });
+		expect((await res.json()) as any).toEqual({ success: true, data: { ok: true } });
 	});
 });

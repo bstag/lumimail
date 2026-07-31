@@ -32,6 +32,18 @@ describe("POST /api/messages/bulk", () => {
 		expect(res.status).toBe(401);
 	});
 
+	it("returns an enveloped 400 for malformed JSON", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		const res = await POST(
+			new Request("https://x.test/api/messages/bulk", { method: "POST", body: "{" }),
+		);
+		expect(res.status).toBe(400);
+		expect((await res.json()) as any).toEqual({
+			success: false,
+			error: { message: "Invalid JSON" },
+		});
+	});
+
 	it("returns 400 when messageIds is empty (after filtering falsy)", async () => {
 		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		const res = await post({ messageIds: ["", null], action: "trash" });
@@ -55,7 +67,7 @@ describe("POST /api/messages/bulk", () => {
 		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		const res = await post({ messageIds: ["m1", "m2"], action: "trash" });
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ ok: true });
+		expect((await res.json()) as any).toEqual({ success: true, data: { ok: true } });
 		expect(mock.updates[0].set).toEqual({ status: "trash" });
 	});
 

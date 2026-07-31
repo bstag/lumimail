@@ -4,10 +4,10 @@ import type { ComposeDraft, DraftResponse } from "./types";
 
 export async function fetchDraft(draftId: string): Promise<ComposeDraft> {
 	const res = await authFetch(`/api/drafts/${draftId}`);
-	const json = (await res.json()) as DraftResponse;
+	const json = await parseApiResponse<DraftResponse>(res);
 
-	if (!res.ok || !json.draft) {
-		throw new Error(json.error ?? "Failed to load draft");
+	if (!json.draft) {
+		throw new Error("Failed to load draft");
 	}
 
 	return json.draft;
