@@ -26,6 +26,7 @@ import {
 	createSession,
 	deleteSession,
 	generateSessionToken,
+	getActiveOrgMembership,
 	getUserFromSession,
 	hashSessionToken,
 	setSessionCookie,
@@ -191,6 +192,35 @@ describe("getUserFromSession", () => {
 		// Authentication still depends on bcrypt, so the digest alone never admits.
 		expect(await getUserFromSession(env, "tok")).toBeNull();
 		expect(vi.mocked(bcrypt.compareSync)).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("getActiveOrgMembership", () => {
+	it("returns null for a user with no active-org pointer", async () => {
+		expect(await getActiveOrgMembership(env, { id: "u1", organizationId: null })).toBeNull();
+		expect(mock.db.select).not.toHaveBeenCalled();
+	});
+
+	it("pairs the active-org pointer with the membership row's role", async () => {
+		mock.queueSelect([{ role: "owner" }]);
+		expect(await getActiveOrgMembership(env, { id: "u1", organizationId: "org_1" })).toEqual({
+			organizationId: "org_1",
+			role: "owner",
+		});
+	});
+
+	it("keeps an inconsistent pointer org-scoped but role-less (T-41 consistency)", async () => {
+		// Consistency case: users.organizationId points at an org that has NO
+		// matching organizationMembers row. CURRENT behavior — deliberately
+		// preserved, not fixed, in this batch: the user remains scoped to the
+		// pointed-at org (organizationId is still returned) but with role: null,
+		// so every role-gated guard (org admin/owner) denies. Column retirement
+		// will make the join table the single source of truth post-batch.
+		mock.queueSelect([]);
+		expect(await getActiveOrgMembership(env, { id: "u1", organizationId: "org_orphan" })).toEqual({
+			organizationId: "org_orphan",
+			role: null,
+		});
 	});
 });
 
