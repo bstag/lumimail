@@ -176,7 +176,7 @@ Deletions (safe, verified unreferenced):
   route-by-route, tests updated 1:1. Riskiest consumer is the client parsing —
   T-22's `apiJson` adoption should precede or accompany each route's migration.
   Effort M.
-- [ ] **T-34 Migrate the mail UI to TanStack Query.** Replace the hand-rolled
+- [x] **T-34 Migrate the mail UI to TanStack Query.** Replace the hand-rolled
   cache/event-bus in `src/hooks/utils.ts:72-152`, `use-messages.ts`,
   `use-message-counts.ts` with `useQuery` (per-folder `refetchInterval`,
   `refetchOnWindowFocus`) and `invalidateQueries`; delete `notifyMessagesChanged`.
