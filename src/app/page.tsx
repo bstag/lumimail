@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -10,6 +11,8 @@ import { getHomeActions, heroMessages, sidebarItems } from "./utils";
 import { ArrowRight, Inbox, Mail, Search, ShieldCheck } from "lucide-react";
 
 export default function HomePage() {
+  const t = useTranslations("landing");
+  const tNav = useTranslations("nav");
   const [hasUser, setHasUser] = useState(false);
 
   useEffect(() => {
@@ -37,7 +40,7 @@ export default function HomePage() {
         <Link
           href="/"
           className="flex items-center gap-3"
-          aria-label="Email Platform home"
+          aria-label={t("homeAria")}
         >
           <img src="/icon-96.png" height={28} width={28} alt="" className="shrink-0" />
           <span className="hidden text-base font-semibold tracking-tight min-[360px]:inline">
@@ -54,7 +57,7 @@ export default function HomePage() {
           <div className="hidden items-center gap-2 sm:flex">
             {actions.map((action) => (
               <Button key={action.href} variant={action.variant} asChild className="px-4 sm:px-6">
-                <Link href={action.href}>{action.label}</Link>
+                <Link href={action.href}>{t(action.labelKey)}</Link>
               </Button>
             ))}
           </div>
@@ -66,20 +69,18 @@ export default function HomePage() {
           <div className="flex max-w-2xl flex-col justify-center">
             <div className="mb-6 flex w-fit items-center gap-2 text-sm font-medium text-accent">
               <ShieldCheck className="h-4 w-4" />
-              Cloudflare-native email operations
+              {t("badge")}
             </div>
             <h1 className="max-w-[12ch] text-5xl font-semibold leading-[0.96] tracking-tight text-ink sm:text-6xl lg:text-7xl">
-              Mailboxes that feel like your inbox.
+              {t("heading")}
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-ink-muted">
-              Add domains, route and forward inbound mail, manage capability-scoped
-              team mailboxes, and send with durable queued delivery from one quiet
-              workspace built around the message list.
+              {t("description")}
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Button size="lg" asChild className="rounded-full px-6">
                 <Link href={actions.at(-1)?.href ?? "/register"}>
-                  {hasUser ? "Open dashboard" : "Create account"}
+                  {hasUser ? t("openDashboard") : t("createAccount")}
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
@@ -90,7 +91,7 @@ export default function HomePage() {
                 className="rounded-full border-border bg-surface-raised px-6"
               >
                 <Link href={hasUser ? "/inbox" : "/login"}>
-                  {hasUser ? "View inbox" : "Log in"}
+                  {hasUser ? t("viewInbox") : t("logIn")}
                 </Link>
               </Button>
             </div>
@@ -101,17 +102,17 @@ export default function HomePage() {
               <aside className="hidden flex-col gap-2 bg-surface px-3 py-5 sm:flex">
                 <div className="mb-4 flex items-center gap-3 px-3 text-ink-muted">
                   <Inbox className="h-5 w-5" />
-                  <span className="font-semibold">Mail</span>
+                  <span className="font-semibold">{t("mail")}</span>
                 </div>
                 <div className="mb-3 flex h-12 w-fit items-center gap-2 rounded-2xl bg-accent-muted px-5 text-sm font-semibold text-accent shadow-sm">
                   <Mail className="h-4 w-4" />
-                  Compose
+                  {t("compose")}
                 </div>
                 {sidebarItems.map((item) => {
                   const Icon = item.icon;
                   return (
                     <div
-                      key={item.label}
+                      key={item.labelKey}
                       className={`flex h-9 items-center justify-between rounded-r-full px-3 text-sm font-medium ${
                         item.active
                           ? "bg-accent-muted text-accent"
@@ -120,7 +121,7 @@ export default function HomePage() {
                     >
                       <span className="flex items-center gap-3">
                         <Icon className="h-4 w-4" />
-                        {item.label}
+                        {tNav(item.labelKey)}
                       </span>
                       {item.count && (
                         <span className="text-xs text-accent">
@@ -136,7 +137,7 @@ export default function HomePage() {
                 <div className="flex h-16 items-center gap-3 bg-surface px-4">
                   <div className="flex h-12 flex-1 items-center gap-3 rounded-full bg-surface-subtle px-4 text-ink-muted">
                     <Search className="h-5 w-5" />
-                    <span className="text-[15px]">Search mail</span>
+                    <span className="text-[15px]">{t("searchPlaceholder")}</span>
                   </div>
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-white">
                     <Mail className="h-4 w-4" />
@@ -147,14 +148,14 @@ export default function HomePage() {
                   <div className="flex h-14 items-center justify-between border-b border-border px-6">
                     <div className="flex items-center gap-3">
                       <h2 className="text-xl font-medium text-ink">
-                        Priority inbox
+                        {t("priorityInbox")}
                       </h2>
                       <span className="rounded-full bg-surface-subtle px-2.5 py-1 text-xs font-medium text-ink-muted">
                         18
                       </span>
                     </div>
                     <span className="hidden text-sm font-medium text-ink-muted md:inline">
-                      Updated 2 min ago
+                      {t("updatedAgo")}
                     </span>
                   </div>
                   <div className="divide-y divide-border">
@@ -189,15 +190,10 @@ export default function HomePage() {
         </section>
 
         <section className="mx-auto grid max-w-7xl gap-4 px-4 pb-16 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">
-          {[
-            ["Reliable delivery", "Queued sending, visible delivery state, classified retries, and operator-confirmed recovery."],
-            ["Safe collaboration", "Mailbox-scoped read and send capabilities, identity-bound invites, and immediate revocation."],
-            ["Complete mail flow", "Attachments, aliases, groups, catch-all routing, verified forwarding, and safe vacation replies."],
-            ["Bring your clients", "Use the separate IMAP/SMTP bridge when you need a desktop or mobile mail client."],
-          ].map(([title, description]) => (
-            <article key={title} className="rounded-2xl border border-border bg-surface-raised p-5">
-              <h2 className="font-semibold text-ink">{title}</h2>
-              <p className="mt-2 text-sm leading-6 text-ink-muted">{description}</p>
+          {(["Delivery", "Collab", "Flow", "Clients"] as const).map((feature) => (
+            <article key={feature} className="rounded-2xl border border-border bg-surface-raised p-5">
+              <h2 className="font-semibold text-ink">{t(`feature${feature}Title`)}</h2>
+              <p className="mt-2 text-sm leading-6 text-ink-muted">{t(`feature${feature}Desc`)}</p>
             </article>
           ))}
         </section>
