@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { domains, mailboxMemberships, mailboxes } from "@/db/schema";
 import { withOrgAdmin } from "@/lib/api/handler";
+import { apiSuccess } from "@/lib/api/response";
 
 export const GET = withOrgAdmin(async ({ env, user: orgUser }) => {
 	const db = getDb(env);
@@ -28,7 +29,7 @@ export const GET = withOrgAdmin(async ({ env, user: orgUser }) => {
 		)
 		.where(eq(mailboxes.organizationId, organizationId));
 
-	return Response.json({
+	return apiSuccess({
 		mailboxes: rows.map((row) => ({
 			...row,
 			isPrimary: `${row.localPart}@${row.hostname}` === orgUser.email,

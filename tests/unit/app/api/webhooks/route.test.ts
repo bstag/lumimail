@@ -41,7 +41,8 @@ describe("GET /api/webhooks", () => {
 		const res = await GET(new Request("https://x.test/api/webhooks"));
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({
-			webhooks: [{ id: "wh_1", url: "https://h.test", events: "[]", enabled: true }],
+			success: true,
+			data: { webhooks: [{ id: "wh_1", url: "https://h.test", events: "[]", enabled: true }] },
 		});
 	});
 });
@@ -65,10 +66,13 @@ describe("POST /api/webhooks", () => {
 		const res = await POST(post({ url: "https://h.test", events: ["delivered"] }));
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({
-			id: "wh_1",
-			url: "https://h.test",
-			secret: "whsec_1",
-			events: ["delivered"],
+			success: true,
+			data: {
+				id: "wh_1",
+				url: "https://h.test",
+				secret: "whsec_1",
+				events: ["delivered"],
+			},
 		});
 		expect(mock.inserts[0].values).toMatchObject({
 			id: "wh_1",

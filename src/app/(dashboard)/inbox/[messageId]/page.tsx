@@ -15,6 +15,7 @@ import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { canMailboxSend } from "@/components/mailbox-provider-utils";
 import { getMessageBackHref } from "@/components/message-actions/utils";
 import { authFetch } from "@/lib/auth/client";
+import { parseApiResponse } from "@/lib/api/client-response";
 import { getDisplayNameForAddress } from "@/lib/contacts/utils";
 import { getEmailAddress } from "@/lib/email/address";
 import { messageKeys } from "@/lib/query-keys";
@@ -139,7 +140,7 @@ export default function MessageDetailPage() {
 				`/api/messages/thread/${encodeURIComponent(threadId as string)}`,
 			);
 			if (!threadRes.ok) return { messages: [] } satisfies ThreadResponse;
-			return (await threadRes.json()) as ThreadResponse;
+			return parseApiResponse<ThreadResponse>(threadRes);
 		},
 	});
 	const threadMessages = useMemo(() => {

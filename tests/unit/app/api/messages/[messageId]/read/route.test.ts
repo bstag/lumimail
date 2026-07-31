@@ -41,6 +41,6 @@ describe("POST /api/messages/[messageId]/read", () => {
 		m.markMessageAsRead.mockResolvedValue(true);
 		const res = await post();
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ success: true });
+		expect((await res.json()) as any).toEqual({ success: true, data: { ok: true } });
 	});
 });

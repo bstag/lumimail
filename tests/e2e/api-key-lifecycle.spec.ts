@@ -46,16 +46,19 @@ test.describe("API key lifecycle", () => {
 					revokedAt: null,
 				});
 				await route.fulfill({
-					json: { id: "key_2", name: "CLI", prefix: "lumi_testsec", key: secret },
+					json: {
+						success: true,
+						data: { id: "key_2", name: "CLI", prefix: "lumi_testsec", key: secret },
+					},
 				});
 				return;
 			}
-			await route.fulfill({ json: { apiKeys: keys } });
+			await route.fulfill({ json: { success: true, data: { apiKeys: keys } } });
 		});
 		await page.route("**/api/api-keys/key_1", async (route) => {
 			revokeCalls += 1;
 			keys[0].revokedAt = "2026-07-22T18:05:00.000Z";
-			await route.fulfill({ json: { ok: true } });
+			await route.fulfill({ json: { success: true, data: { ok: true } } });
 		});
 
 		await page.goto("/api-keys");
@@ -86,17 +89,20 @@ test.describe("API key lifecycle", () => {
 		await page.route("**/api/api-keys", (route) =>
 			route.fulfill({
 				json: {
-					apiKeys: [
-						{
-							id: "key_missing",
-							name: "Stale key",
-							prefix: "lumi_stale12",
-							scopes: '["read"]',
-							createdAt: "2026-07-20T12:00:00.000Z",
-							lastUsedAt: null,
-							revokedAt: null,
-						},
-					],
+					success: true,
+					data: {
+						apiKeys: [
+							{
+								id: "key_missing",
+								name: "Stale key",
+								prefix: "lumi_stale12",
+								scopes: '["read"]',
+								createdAt: "2026-07-20T12:00:00.000Z",
+								lastUsedAt: null,
+								revokedAt: null,
+							},
+						],
+					},
 				},
 			}),
 		);

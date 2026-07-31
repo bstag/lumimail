@@ -19,6 +19,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { authFetch } from "@/lib/auth/client";
+import { parseApiResponse } from "@/lib/api/client-response";
 import { cn } from "@/lib/utils";
 import type { QueueHealthSnapshot, QueueHealthStatus } from "@/lib/queue-health";
 import type { QueueHealthResponse } from "./types";
@@ -152,7 +153,7 @@ function QueueCard({ queue }: { queue: QueueHealthSnapshot }) {
 async function fetchQueueHealth(method: "GET" | "POST"): Promise<QueueHealthResponse> {
 	const response = await authFetch("/api/admin/queue-health", { method });
 	if (!response.ok) throw new Error("Queue health could not be loaded");
-	return response.json() as Promise<QueueHealthResponse>;
+	return parseApiResponse<QueueHealthResponse>(response);
 }
 
 function QueueHealthContent() {

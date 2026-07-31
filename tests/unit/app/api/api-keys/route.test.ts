@@ -42,7 +42,10 @@ describe("GET /api/api-keys", () => {
 		mock.queueSelect([{ id: "k1", name: "CI", prefix: "pre_1" }]);
 		const res = await GET(new Request("https://x.test/api/api-keys"));
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ apiKeys: [{ id: "k1", name: "CI", prefix: "pre_1" }] });
+		expect((await res.json()) as any).toEqual({
+			success: true,
+			data: { apiKeys: [{ id: "k1", name: "CI", prefix: "pre_1" }] },
+		});
 	});
 });
 
@@ -63,7 +66,10 @@ describe("POST /api/api-keys", () => {
 		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		const res = await POST(req({ name: "CI", scopes: ["send"] }));
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ id: "key_1", name: "CI", prefix: "pre_123", key: "full-key" });
+		expect((await res.json()) as any).toEqual({
+			success: true,
+			data: { id: "key_1", name: "CI", prefix: "pre_123", key: "full-key" },
+		});
 		expect(mock.inserts[0].values).toMatchObject({ id: "key_1", userId: "u1", name: "CI", prefix: "pre_123" });
 	});
 });

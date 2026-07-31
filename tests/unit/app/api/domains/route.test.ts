@@ -67,7 +67,10 @@ describe("GET /api/domains", () => {
 		m.listUserDomains.mockResolvedValue([{ id: "d1" }]);
 		const res = await GET(getReq());
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ domains: [{ id: "d1" }] });
+		expect((await res.json()) as any).toEqual({
+			success: true,
+			data: { domains: [{ id: "d1" }] },
+		});
 		expect(m.getDomainDns).not.toHaveBeenCalled();
 	});
 
@@ -80,7 +83,7 @@ describe("GET /api/domains", () => {
 		});
 		const res = await GET(getReq("https://x.test/api/domains?includeDns=true"));
 		expect(res.status).toBe(200);
-		const body = (await res.json()) as any;
+		const body = ((await res.json()) as any).data;
 		expect(body.dns.d1).toBeDefined();
 		expect(body.dns.d2).toBeUndefined();
 	});

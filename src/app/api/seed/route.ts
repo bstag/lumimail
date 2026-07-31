@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apiSuccess } from "@/lib/api/response";
 import { getEnv } from "@/lib/cloudflare";
 import { seedDemoData } from "@/lib/seed";
 import { demoCredentials } from "@/lib/seed-fixtures";
@@ -19,7 +20,7 @@ export async function POST() {
 		);
 	}
 	const result = await seedDemoData(env);
-	return NextResponse.json({
+	return apiSuccess({
 		ok: true,
 		credentials: demoCredentials,
 		seeded: result,

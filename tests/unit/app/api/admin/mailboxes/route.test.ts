@@ -35,12 +35,15 @@ describe("GET /api/admin/mailboxes", () => {
 		const response = await GET(new Request("https://x.test/api/admin/mailboxes"));
 		expect(response.status).toBe(200);
 		expect((await response.json()) as unknown).toEqual({
-			mailboxes: [
-				{ id: "mbx_1", localPart: "support", hostname: "example.com", role: "manager", isPrimary: false },
-				{ id: "mbx_2", localPart: "private", hostname: "example.com", role: null, isPrimary: false },
-			],
-			canSelfAssign: true,
-			currentUserId: "owner_1",
+			success: true,
+			data: {
+				mailboxes: [
+					{ id: "mbx_1", localPart: "support", hostname: "example.com", role: "manager", isPrimary: false },
+					{ id: "mbx_2", localPart: "private", hostname: "example.com", role: null, isPrimary: false },
+				],
+				canSelfAssign: true,
+				currentUserId: "owner_1",
+			},
 		});
 	});
 
@@ -50,6 +53,8 @@ describe("GET /api/admin/mailboxes", () => {
 		});
 		mock.queueSelect([]);
 		const response = await GET(new Request("https://x.test/api/admin/mailboxes"));
-		expect((await response.json()) as unknown).toMatchObject({ canSelfAssign: false, currentUserId: "admin_1" });
+		expect((await response.json()) as unknown).toMatchObject({
+			data: { canSelfAssign: false, currentUserId: "admin_1" },
+		});
 	});
 });

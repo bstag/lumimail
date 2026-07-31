@@ -1,8 +1,8 @@
 import { and, eq } from "drizzle-orm";
-import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { messages } from "@/db/schema";
 import { withUser } from "@/lib/api/handler";
+import { apiSuccess } from "@/lib/api/response";
 import { buildMessageCounts } from "./utils";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 
@@ -26,5 +26,5 @@ export const GET = withUser(async ({ request, env, user }) => {
 		.from(messages)
 		.where(and(...conditions));
 
-	return NextResponse.json({ counts: buildMessageCounts(rows) });
+	return apiSuccess({ counts: buildMessageCounts(rows) });
 });

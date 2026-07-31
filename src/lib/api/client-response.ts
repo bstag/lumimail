@@ -54,10 +54,13 @@ function readErrorMessage(body: unknown): string | null {
 
 export type ParseApiResponseOptions = {
 	/**
-	 * Accept a non-enveloped 2xx JSON body and return it as-is. Several routes
-	 * predate the F40 envelope (`{ domains }`, `{ mailboxes }`, `{ apiKeys }`,
-	 * ...); `apiJson` callers need those until T-33 migrates every route to the
-	 * envelope. Strict callers (the default) reject bare bodies.
+	 * Accept a non-enveloped 2xx JSON body and return it as-is. T-33 migrated
+	 * every route to the F40 envelope except the documented session-bootstrap
+	 * exception set, which deliberately stays flat: `/api/auth/login`,
+	 * `/api/auth/register`, `/api/auth/me`, `/api/auth/logout`, and
+	 * `/api/setup/status`. `apiJson` keeps this enabled so those routes (and
+	 * any e2e mock that still fulfills a bare body) pass through unchanged.
+	 * Strict callers (the default) reject bare bodies.
 	 */
 	allowBareBody?: boolean;
 };

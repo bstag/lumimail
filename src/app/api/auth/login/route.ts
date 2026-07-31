@@ -9,6 +9,10 @@ import { loginSchema } from "@/lib/validators";
 import { userHasMailboxes } from "@/lib/user";
 import { enforceRateLimit, rateLimitIp } from "@/lib/rate-limit";
 
+// F40 envelope exception (T-33): /api/auth/login deliberately keeps its flat
+// success body. The login/session bootstrap clients (`src/lib/auth/client.ts`
+// and the login page) parse it bespokely, before the enveloped API client is
+// available. Do not wrap in `apiSuccess`.
 export async function POST(request: Request) {
 	const env = getEnv();
 

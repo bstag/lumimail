@@ -67,7 +67,7 @@ describe("POST /api/messages/bulk", () => {
 		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		const res = await post({ messageIds: ["m1", "m2"], action: "trash" });
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ ok: true });
+		expect((await res.json()) as any).toEqual({ success: true, data: { ok: true } });
 		expect(mock.updates[0].set).toEqual({ status: "trash" });
 	});
 

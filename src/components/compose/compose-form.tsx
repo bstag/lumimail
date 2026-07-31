@@ -15,6 +15,7 @@ import {
 } from "@/components/mailbox-provider-utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth/client";
+import { parseApiResponse } from "@/lib/api/client-response";
 import { invalidateMessageQueries } from "@/lib/query-keys";
 import { formatEmailAddress } from "@/lib/email/address";
 import { cn } from "@/lib/utils";
@@ -123,7 +124,7 @@ export function ComposeForm({
 
 		let cancelled = false;
 		authFetch(`/api/messages/${forwardOf}`)
-			.then((res) => (res.ok ? (res.json() as Promise<MessageWithBodyResponse>) : null))
+			.then((res) => (res.ok ? parseApiResponse<MessageWithBodyResponse>(res) : null))
 			.then((payload) => {
 				if (cancelled || !payload?.body) return;
 				const quoted = buildForwardQuote(payload.message, payload.body.textBody ?? "");

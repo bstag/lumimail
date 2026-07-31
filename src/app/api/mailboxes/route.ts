@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { domains, mailboxMemberships, mailboxes } from "@/db/schema";
@@ -31,7 +30,7 @@ export const GET = withUser(async ({ env, user }) => {
 				eq(mailboxMemberships.userId, user.id),
 			),
 		);
-	return NextResponse.json({
+	return apiSuccess({
 		mailboxes: rows.map((row) => ({
 			...row,
 			isPrimary: `${row.localPart}@${row.hostname}` === user.email,

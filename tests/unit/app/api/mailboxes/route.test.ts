@@ -57,7 +57,7 @@ describe("GET /api/mailboxes", () => {
 		]);
 		const res = await GET(getReq());
 		expect(res.status).toBe(200);
-		const body = (await res.json()) as any;
+		const body = ((await res.json()) as any).data;
 		expect(body.mailboxes[0].isPrimary).toBe(true);
 		expect(body.mailboxes[1].isPrimary).toBe(false);
 		expect(body.mailboxes.map((mailbox: { role: string }) => mailbox.role)).toEqual(["manager", "viewer"]);

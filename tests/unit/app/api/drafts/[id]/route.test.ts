@@ -61,7 +61,10 @@ describe("GET /api/drafts/[id]", () => {
 		m.selectDraftWithBody.mockResolvedValue({ id: "msg_1", status: "draft" });
 		const res = await GET(req(), params());
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ draft: { id: "msg_1", status: "draft" } });
+		expect((await res.json()) as any).toEqual({
+			success: true,
+			data: { draft: { id: "msg_1", status: "draft" } },
+		});
 		expect(m.selectDraftWithBody).toHaveBeenCalledWith(mock.db, "u1", "o1", "msg_1");
 	});
 });
@@ -113,7 +116,10 @@ describe("PATCH /api/drafts/[id]", () => {
 		mock.queueSelect([{ id: "msg_1", userId: "u1", status: "draft" }]);
 		const res = await PATCH(req({}), params());
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ draft: { id: "msg_1" } });
+		expect((await res.json()) as any).toEqual({
+			success: true,
+			data: { draft: { id: "msg_1" } },
+		});
 		expect(mock.updates[0].set).toMatchObject({
 			mailboxId: null,
 			fromAddr: "",
@@ -243,7 +249,7 @@ describe("DELETE /api/drafts/[id]", () => {
 		mock.queueSelect([{ id: "msg_1", userId: "u1", status: "draft" }]);
 		const res = await DELETE(req(), params());
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ ok: true });
+		expect((await res.json()) as any).toEqual({ success: true, data: { ok: true } });
 		expect(mock.deletes.length).toBe(1);
 	});
 });

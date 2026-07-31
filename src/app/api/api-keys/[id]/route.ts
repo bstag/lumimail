@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { apiKeys } from "@/db/schema";
 import { withUser } from "@/lib/api/handler";
+import { apiSuccess } from "@/lib/api/response";
 
 export const DELETE = withUser<{ id: string }>(async ({ env, user, params }) => {
 	const { id } = params;
@@ -18,5 +19,5 @@ export const DELETE = withUser<{ id: string }>(async ({ env, user, params }) => 
 	if (!revoked) {
 		return NextResponse.json({ error: "API key not found" }, { status: 404 });
 	}
-	return NextResponse.json({ ok: true });
+	return apiSuccess({ ok: true });
 });

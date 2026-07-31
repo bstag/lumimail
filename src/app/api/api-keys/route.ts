@@ -1,10 +1,9 @@
-import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { apiKeys } from "@/db/schema";
 import { withUser } from "@/lib/api/handler";
-import { parseJsonBody } from "@/lib/api/response";
+import { apiSuccess, parseJsonBody } from "@/lib/api/response";
 import { generateApiKey, scopesToJson } from "@/lib/api-keys";
 import { newId } from "@/lib/ids";
 
@@ -27,7 +26,7 @@ export const GET = withUser(async ({ env, user }) => {
 		})
 		.from(apiKeys)
 		.where(eq(apiKeys.userId, user.id));
-	return NextResponse.json({ apiKeys: rows });
+	return apiSuccess({ apiKeys: rows });
 });
 
 export const POST = withUser(async ({ request, env, user }) => {
@@ -46,5 +45,5 @@ export const POST = withUser(async ({ request, env, user }) => {
 		scopes: scopesToJson(data.scopes),
 	});
 
-	return NextResponse.json({ id, name: data.name, prefix, key: fullKey });
+	return apiSuccess({ id, name: data.name, prefix, key: fullKey });
 });

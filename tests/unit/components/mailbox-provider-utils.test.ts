@@ -10,7 +10,11 @@ import {
 } from "@/components/mailbox-provider-utils";
 
 function jsonResponse(body: unknown) {
-	return { json: async () => body } as unknown as Response;
+	return { ok: true, status: 200, json: async () => body } as unknown as Response;
+}
+
+function envelope(data: unknown) {
+	return jsonResponse({ success: true, data });
 }
 
 const rawMailbox = {
@@ -46,21 +50,21 @@ afterEach(() => {
 // plain fetch-and-map.
 describe("fetchMailboxOptions", () => {
 	it("fetches and maps the mailbox options", async () => {
-		authFetch.mockResolvedValue(jsonResponse({ mailboxes: [rawMailbox] }));
+		authFetch.mockResolvedValue(envelope({ mailboxes: [rawMailbox] }));
 
 		const result = await fetchMailboxOptions();
 
 		expect(result).toEqual([mappedMailbox]);
-		expect(authFetch).toHaveBeenCalledWith("/api/mailboxes");
+		expect(authFetch).toHaveBeenCalledWith("/api/mailboxes", { method: "GET" });
 	});
 
 	it("defaults to an empty list when the response has no mailboxes", async () => {
-		authFetch.mockResolvedValue(jsonResponse({}));
+		authFetch.mockResolvedValue(envelope({}));
 		await expect(fetchMailboxOptions()).resolves.toEqual([]);
 	});
 
 	it("fetches fresh on every call — TanStack owns caching now", async () => {
-		authFetch.mockResolvedValue(jsonResponse({ mailboxes: [rawMailbox] }));
+		authFetch.mockResolvedValue(envelope({ mailboxes: [rawMailbox] }));
 
 		await fetchMailboxOptions();
 		await fetchMailboxOptions();

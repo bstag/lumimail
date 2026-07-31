@@ -70,7 +70,7 @@ describe("POST /api/auth/change-password", () => {
 		m.hashPassword.mockReturnValue("new-hash");
 		const res = await POST(req({ currentPassword: "old", newPassword: "newpassword" }));
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ ok: true });
+		expect((await res.json()) as any).toEqual({ success: true, data: { ok: true } });
 		expect(mock.updates[0].set).toMatchObject({ passwordHash: "new-hash" });
 	});
 });

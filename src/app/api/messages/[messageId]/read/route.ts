@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { withUser } from "@/lib/api/handler";
+import { apiSuccess } from "@/lib/api/response";
 import { markMessageAsRead } from "@/lib/user";
 
 export const POST = withUser<{ messageId: string }>(async ({ env, user, params }) => {
@@ -9,5 +10,5 @@ export const POST = withUser<{ messageId: string }>(async ({ env, user, params }
 		return NextResponse.json({ error: "Message not found" }, { status: 404 });
 	}
 
-	return NextResponse.json({ success: true });
+	return apiSuccess({ ok: true });
 });

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { messages } from "@/db/schema";
 import { withUser } from "@/lib/api/handler";
-import { parseJsonBody } from "@/lib/api/response";
+import { apiSuccess, parseJsonBody } from "@/lib/api/response";
 import {
 	getReadValueForBulkAction,
 	getStatusForBulkAction,
@@ -49,5 +49,5 @@ export const POST = withUser(async ({ request, env, user }) => {
 			inArray(messages.id, messageIds),
 		));
 
-	return NextResponse.json({ ok: true });
+	return apiSuccess({ ok: true });
 });

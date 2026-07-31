@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { withOrgAdmin } from "@/lib/api/handler";
 import { addDomainSchema } from "@/lib/validators";
 import {
@@ -33,7 +32,7 @@ export const GET = withOrgAdmin(async ({ request, env, user }) => {
 		}
 	}
 
-	return NextResponse.json({ domains, dns: includeDns ? dns : undefined });
+	return apiSuccess({ domains, dns: includeDns ? dns : undefined });
 });
 
 export const POST = withOrgAdmin(async ({ request, env, user }) => {

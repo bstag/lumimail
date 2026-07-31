@@ -53,9 +53,12 @@ describe("POST /api/seed", () => {
 		const res = await POST();
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({
-			ok: true,
-			credentials: { email: "demo@x.test", password: "pw" },
-			seeded: { users: 1 },
+			success: true,
+			data: {
+				ok: true,
+				credentials: { email: "demo@x.test", password: "pw" },
+				seeded: { users: 1 },
+			},
 		});
 	});
 });

@@ -1,10 +1,9 @@
-import { NextResponse } from "next/server";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { messageBodies, messages } from "@/db/schema";
 import { withUser } from "@/lib/api/handler";
-import { parseJsonBody } from "@/lib/api/response";
+import { apiSuccess, parseJsonBody } from "@/lib/api/response";
 import { newId } from "@/lib/ids";
 import { buildSnippet } from "@/lib/email/parse";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
@@ -41,7 +40,7 @@ export const GET = withUser(async ({ request, env, user }) => {
 		.orderBy(desc(messages.createdAt))
 		.limit(100);
 
-	return NextResponse.json({ drafts: rows });
+	return apiSuccess({ drafts: rows });
 });
 
 export const POST = withUser(async ({ request, env, user }) => {
@@ -76,5 +75,5 @@ export const POST = withUser(async ({ request, env, user }) => {
 		htmlBody: content.html,
 	});
 
-	return NextResponse.json({ draft: { id: draftId } });
+	return apiSuccess({ draft: { id: draftId } });
 });

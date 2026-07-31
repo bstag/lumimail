@@ -19,15 +19,18 @@ async function mockAuthenticatedShell(page: Page) {
 	await page.route("**/api/domains", (route) =>
 		route.fulfill({
 			json: {
-				domains: [
-					{
-						id: "dom_1",
-						hostname: "example.com",
-						status: "active",
-						routingEnabled: true,
-						sendingEnabled: true,
-					},
-				],
+				success: true,
+				data: {
+					domains: [
+						{
+							id: "dom_1",
+							hostname: "example.com",
+							status: "active",
+							routingEnabled: true,
+							sendingEnabled: true,
+						},
+					],
+				},
 			},
 		}),
 	);
@@ -57,22 +60,25 @@ async function mockMessageDetail(page: Page) {
 	await page.route("**/api/messages/msg_role", (route) =>
 		route.fulfill({
 			json: {
-				message: {
-					id: "msg_role",
-					userId: "user_role",
-					mailboxId: "mbx_role",
-					direction: "inbound",
-					fromAddr: "sender@example.net",
-					toAddr: "support@example.com",
-					subject: "Role check",
-					snippet: "Role body",
-					status: "received",
-					read: true,
-					starred: false,
-					threadId: null,
-					createdAt: "2026-07-23T12:00:00.000Z",
+				success: true,
+				data: {
+					message: {
+						id: "msg_role",
+						userId: "user_role",
+						mailboxId: "mbx_role",
+						direction: "inbound",
+						fromAddr: "sender@example.net",
+						toAddr: "support@example.com",
+						subject: "Role check",
+						snippet: "Role body",
+						status: "received",
+						read: true,
+						starred: false,
+						threadId: null,
+						createdAt: "2026-07-23T12:00:00.000Z",
+					},
+					body: { textBody: "Role body", htmlBody: null },
 				},
-				body: { textBody: "Role body", htmlBody: null },
 			},
 		}),
 	);
@@ -92,28 +98,31 @@ test.describe("mailbox access administration", () => {
 		await page.route("**/api/admin/mailboxes", (route) =>
 			route.fulfill({
 				json: {
-					mailboxes: [
-						{
-							id: "mbx_support",
-							domainId: "dom_1",
-							localPart: "support",
-							hostname: "example.com",
-							displayName: "Support",
-							isPrimary: true,
-							role: "manager",
-						},
-						{
-							id: "mbx_private",
-							domainId: "dom_1",
-							localPart: "private",
-							hostname: "example.com",
-							displayName: "Private",
-							isPrimary: false,
-							role: claimed ? "manager" : null,
-						},
-					],
-					canSelfAssign: true,
-					currentUserId: "user_owner",
+					success: true,
+					data: {
+						mailboxes: [
+							{
+								id: "mbx_support",
+								domainId: "dom_1",
+								localPart: "support",
+								hostname: "example.com",
+								displayName: "Support",
+								isPrimary: true,
+								role: "manager",
+							},
+							{
+								id: "mbx_private",
+								domainId: "dom_1",
+								localPart: "private",
+								hostname: "example.com",
+								displayName: "Private",
+								isPrimary: false,
+								role: claimed ? "manager" : null,
+							},
+						],
+						canSelfAssign: true,
+						currentUserId: "user_owner",
+					},
 				},
 			}),
 		);
@@ -152,30 +161,36 @@ test.describe("mailbox access administration", () => {
 		await page.route("**/api/admin/mailboxes", (route) =>
 			route.fulfill({
 				json: {
-					mailboxes: [],
-					canSelfAssign: true,
-					currentUserId: "user_owner",
+					success: true,
+					data: {
+						mailboxes: [],
+						canSelfAssign: true,
+						currentUserId: "user_owner",
+					},
 				},
 			}),
 		);
 		await page.route("**/api/mailboxes/mbx_support", async (route) => {
 			if (route.request().method() === "DELETE") {
 				deleteBody = route.request().postDataJSON();
-				await route.fulfill({ json: { ok: true } });
+				await route.fulfill({ json: { success: true, data: { ok: true } } });
 				return;
 			}
 			await route.fulfill({
 				json: {
-					mailbox: {
-						id: "mbx_support",
-						userId: "user_owner",
-						domainId: "dom_1",
-						localPart: "support",
-						hostname: "example.com",
-						displayName: "Support",
-						createdAt: "2026-07-23T12:00:00.000Z",
-						isPrimary: true,
-						role: "manager",
+					success: true,
+					data: {
+						mailbox: {
+							id: "mbx_support",
+							userId: "user_owner",
+							domainId: "dom_1",
+							localPart: "support",
+							hostname: "example.com",
+							displayName: "Support",
+							createdAt: "2026-07-23T12:00:00.000Z",
+							isPrimary: true,
+							role: "manager",
+						},
 					},
 				},
 			});
@@ -211,7 +226,9 @@ test.describe("role-aware mail actions", () => {
 	test("keeps a viewer-only user out of compose and drafts", async ({ page }) => {
 		await mockRoleShell(page, "viewer");
 		await page.route("**/api/messages?*", (route) =>
-			route.fulfill({ json: { messages: [], total: 0, limit: 25, offset: 0 } }),
+			route.fulfill({
+				json: { success: true, data: { messages: [], total: 0, limit: 25, offset: 0 } },
+			}),
 		);
 
 		await page.goto("/inbox");
@@ -253,7 +270,7 @@ test.describe("role-aware mail actions", () => {
 		await page.route("**/api/messages?*", (route) => {
 			draftRequests += 1;
 			return route.fulfill({
-				json: { messages: [], total: 0, limit: 25, offset: 0 },
+				json: { success: true, data: { messages: [], total: 0, limit: 25, offset: 0 } },
 			});
 		});
 

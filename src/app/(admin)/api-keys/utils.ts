@@ -1,4 +1,4 @@
-import { authFetch } from "@/lib/auth/client";
+import { apiJson } from "@/lib/api/client-response";
 import { parseScopes } from "@/lib/api-keys";
 import type { ApiKey } from "./types";
 
@@ -11,29 +11,16 @@ export interface CreatedApiKey {
 	key: string;
 }
 
-async function readApiKeyResponse<T>(response: Response): Promise<T> {
-	const body = (await response.json()) as T & { error?: string };
-	if (!response.ok) throw new Error(body.error ?? "API key request failed");
-	return body;
-}
-
 export async function listApiKeys(): Promise<ApiKey[]> {
-	const response = await authFetch("/api/api-keys");
-	return (await readApiKeyResponse<{ apiKeys: ApiKey[] }>(response)).apiKeys;
+	return (await apiJson.get<{ apiKeys: ApiKey[] }>("/api/api-keys")).apiKeys;
 }
 
 export async function createApiKey(name: string): Promise<CreatedApiKey> {
-	const response = await authFetch("/api/api-keys", {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ name, scopes: ["send", "read"] }),
-	});
-	return readApiKeyResponse<CreatedApiKey>(response);
+	return apiJson.post<CreatedApiKey>("/api/api-keys", { name, scopes: ["send", "read"] });
 }
 
 export async function revokeApiKey(id: string): Promise<void> {
-	const response = await authFetch(`/api/api-keys/${id}`, { method: "DELETE" });
-	await readApiKeyResponse<{ ok: true }>(response);
+	await apiJson.delete<{ ok: true }>(`/api/api-keys/${id}`);
 }
 
 export type ApiKeyTimestampLabels = {

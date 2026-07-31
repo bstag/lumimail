@@ -13,6 +13,9 @@ import { getPrimaryDomain } from "@/lib/user";
 import { apiError } from "@/lib/api/response";
 import { enforceRateLimit, rateLimitIp } from "@/lib/rate-limit";
 
+// F40 envelope exception (T-33): /api/auth/register deliberately keeps its
+// flat success body (`{ redirect }`). The registration client parses it
+// bespokely as part of the session bootstrap flow. Do not wrap in `apiSuccess`.
 async function authenticatedResponse(env: CloudflareEnv, userId: string) {
 	const token = await createSession(env, userId);
 	const response = NextResponse.json({ redirect: "/inbox" });

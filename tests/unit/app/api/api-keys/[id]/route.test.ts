@@ -42,7 +42,7 @@ describe("DELETE /api/api-keys/[id]", () => {
 		const response = await DELETE(new Request("https://x.test/api/api-keys/key_1"), context());
 		const body = await response.json();
 		expect(response.status).toBe(200);
-		expect(body).toEqual({ ok: true });
+		expect(body).toEqual({ success: true, data: { ok: true } });
 		expect(JSON.stringify(body)).not.toContain("keyHash");
 		expect(JSON.stringify(body)).not.toContain("fullKey");
 		expect(mock.updates[0].set).toEqual({ revokedAt: expect.any(Date) });

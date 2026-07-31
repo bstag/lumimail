@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { withUser } from "@/lib/api/handler";
-import { parseJsonBody } from "@/lib/api/response";
+import { apiSuccess, parseJsonBody } from "@/lib/api/response";
 import { getDb } from "@/db";
 import { messages } from "@/db/schema";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
@@ -26,5 +26,5 @@ export const PATCH = withUser<{ messageId: string }>(async ({ request, env, user
 		return NextResponse.json({ error: "Not found" }, { status: 404 });
 	}
 
-	return NextResponse.json({ starred: updated.starred });
+	return apiSuccess({ starred: updated.starred });
 });

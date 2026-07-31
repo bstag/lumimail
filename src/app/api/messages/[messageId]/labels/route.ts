@@ -1,6 +1,5 @@
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
-import { NextResponse } from "next/server";
 import { withUser } from "@/lib/api/handler";
 import { getDb } from "@/db";
 import { messages, labels, messageLabels } from "@/db/schema";
@@ -68,7 +67,7 @@ export const POST = withUser<{ messageId: string }>(async ({ request, env, user,
 		.values({ messageId, labelId })
 		.onConflictDoNothing();
 
-	return NextResponse.json({ success: true, data: { messageId, labelId } }, { status: 201 });
+	return apiSuccess({ messageId, labelId }, 201);
 });
 
 export const DELETE = withUser<{ messageId: string }>(async ({ request, env, user, params }) => {

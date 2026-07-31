@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth/client";
+import { parseApiResponse } from "@/lib/api/client-response";
 import { invalidateMessageQueries } from "@/lib/query-keys";
 import { fetchDraft } from "./utils";
 import type { ComposeDraft } from "./types";
@@ -90,8 +91,9 @@ export function useComposeDraft({
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(payload),
 			});
-			const data = (await res.json()) as { draft?: { id: string } };
-			if (res.ok && data.draft?.id) {
+			const data = await parseApiResponse<{ draft?: { id: string } }>(res)
+				.catch(() => null);
+			if (data?.draft?.id) {
 				setDraftId(data.draft.id);
 				void invalidateMessageQueries(queryClient);
 			}

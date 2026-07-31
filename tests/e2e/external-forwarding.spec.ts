@@ -6,7 +6,9 @@ type Destination = { id: string; address: string; verified: boolean };
 async function mockRoutingPage(page: Page, destinations: Destination[]) {
 	await mockAuthShell(page, { counts: flatCounts() });
 	await page.route("**/api/domains", (route) =>
-		route.fulfill({ json: { domains: [{ id: "dom_1", hostname: "example.com" }] } }),
+		route.fulfill({
+			json: { success: true, data: { domains: [{ id: "dom_1", hostname: "example.com" }] } },
+		}),
 	);
 	await page.route("**/api/routing-rules", (route) => {
 		if (route.request().method() === "GET") {

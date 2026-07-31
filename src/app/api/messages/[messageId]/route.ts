@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { withUser } from "@/lib/api/handler";
+import { apiSuccess } from "@/lib/api/response";
 import { getMessageWithBody } from "@/lib/messages/queries";
 
 export const GET = withUser<{ messageId: string }>(async ({ env, user, params }) => {
@@ -9,5 +10,5 @@ export const GET = withUser<{ messageId: string }>(async ({ env, user, params })
 		return NextResponse.json({ error: "Not found" }, { status: 404 });
 	}
 
-	return NextResponse.json(data);
+	return apiSuccess(data);
 });

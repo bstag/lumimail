@@ -1,4 +1,4 @@
-import { authFetch } from "@/lib/auth/client";
+import { apiJson } from "@/lib/api/client-response";
 import type { MailboxOption } from "./mailbox-provider";
 
 export function canMailboxSend(
@@ -21,8 +21,7 @@ export function findSendCapableMailbox(
  * generation counter remains here.
  */
 export async function fetchMailboxOptions(): Promise<MailboxOption[]> {
-	const res = await authFetch("/api/mailboxes");
-	const data = (await res.json()) as { mailboxes?: MailboxOption[] };
+	const data = await apiJson.get<{ mailboxes?: MailboxOption[] }>("/api/mailboxes");
 	return (data.mailboxes ?? []).map((m) => ({
 		id: m.id,
 		localPart: m.localPart,

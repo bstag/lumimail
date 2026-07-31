@@ -32,15 +32,18 @@ test("restricted member can manage personal keys without organization administra
 		if (route.request().method() === "POST") {
 			await route.fulfill({
 				json: {
-					id: "key_member",
-					name: "Thunderbird",
-					prefix: "lumi_member1",
-					key: "one_time_member_key",
+					success: true,
+					data: {
+						id: "key_member",
+						name: "Thunderbird",
+						prefix: "lumi_member1",
+						key: "one_time_member_key",
+					},
 				},
 			});
 			return;
 		}
-		await route.fulfill({ json: { apiKeys: [] } });
+		await route.fulfill({ json: { success: true, data: { apiKeys: [] } } });
 	});
 
 	await page.goto("/settings");

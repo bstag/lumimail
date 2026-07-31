@@ -12,14 +12,14 @@ test.describe("domain catch-all routing", () => {
 		await mockAuthenticatedShell(page);
 		const rules: Array<Record<string, unknown>> = [];
 		let posted: Record<string, unknown> | null = null;
-		await page.route("**/api/domains", (route) => route.fulfill({ json: { domains: [
+		await page.route("**/api/domains", (route) => route.fulfill({ json: { success: true, data: { domains: [
 			{ id: "d1", hostname: "lucidkith.com" },
 			{ id: "d2", hostname: "henriksen.dev" },
-		] } }));
-		await page.route("**/api/mailboxes", (route) => route.fulfill({ json: { mailboxes: [
+		] } } }));
+		await page.route("**/api/mailboxes", (route) => route.fulfill({ json: { success: true, data: { mailboxes: [
 			{ id: "m1", localPart: "admin", domainId: "d1", displayName: null },
 			{ id: "m2", localPart: "owner", domainId: "d2", displayName: null },
-		] } }));
+		] } } }));
 		// `/routing` always loads its forwarding destinations. Left unmocked, that
 		// request reaches the real server, and `authFetch` treats the 401 as a lost
 		// session — so the page navigates to /login before the conflict can render.
@@ -52,8 +52,8 @@ test.describe("domain catch-all routing", () => {
 		await mockAuthenticatedShell(page);
 		let deleteCount = 0;
 		let listCount = 0;
-		await page.route("**/api/domains", (route) => route.fulfill({ json: { domains: [{ id: "d1", hostname: "lucidkith.com" }] } }));
-		await page.route("**/api/mailboxes", (route) => route.fulfill({ json: { mailboxes: [{ id: "m1", localPart: "admin", domainId: "d1", displayName: null }] } }));
+		await page.route("**/api/domains", (route) => route.fulfill({ json: { success: true, data: { domains: [{ id: "d1", hostname: "lucidkith.com" }] } } }));
+		await page.route("**/api/mailboxes", (route) => route.fulfill({ json: { success: true, data: { mailboxes: [{ id: "m1", localPart: "admin", domainId: "d1", displayName: null }] } } }));
 		await page.route("**/api/forwarding-destinations", (route) =>
 			route.fulfill({ json: { success: true, data: [] } }),
 		);
@@ -87,8 +87,8 @@ test.describe("domain catch-all routing", () => {
 	test("accepting the catch-all removal confirmation deletes the rule", async ({ page }) => {
 		await mockAuthenticatedShell(page);
 		let deleted = false;
-		await page.route("**/api/domains", (route) => route.fulfill({ json: { domains: [{ id: "d1", hostname: "lucidkith.com" }] } }));
-		await page.route("**/api/mailboxes", (route) => route.fulfill({ json: { mailboxes: [{ id: "m1", localPart: "admin", domainId: "d1", displayName: null }] } }));
+		await page.route("**/api/domains", (route) => route.fulfill({ json: { success: true, data: { domains: [{ id: "d1", hostname: "lucidkith.com" }] } } }));
+		await page.route("**/api/mailboxes", (route) => route.fulfill({ json: { success: true, data: { mailboxes: [{ id: "m1", localPart: "admin", domainId: "d1", displayName: null }] } } }));
 		await page.route("**/api/forwarding-destinations", (route) =>
 			route.fulfill({ json: { success: true, data: [] } }),
 		);
@@ -113,8 +113,8 @@ test.describe("domain catch-all routing", () => {
 
 	test("shows a provider conflict without adding a catch-all", async ({ page }) => {
 		await mockAuthenticatedShell(page);
-		await page.route("**/api/domains", (route) => route.fulfill({ json: { domains: [{ id: "d1", hostname: "lucidkith.com" }] } }));
-		await page.route("**/api/mailboxes", (route) => route.fulfill({ json: { mailboxes: [{ id: "m1", localPart: "admin", domainId: "d1", displayName: null }] } }));
+		await page.route("**/api/domains", (route) => route.fulfill({ json: { success: true, data: { domains: [{ id: "d1", hostname: "lucidkith.com" }] } } }));
+		await page.route("**/api/mailboxes", (route) => route.fulfill({ json: { success: true, data: { mailboxes: [{ id: "m1", localPart: "admin", domainId: "d1", displayName: null }] } } }));
 		// `/routing` always loads its forwarding destinations. Left unmocked, that
 		// request reaches the real server, and `authFetch` treats the 401 as a lost
 		// session — so the page navigates to /login before the conflict can render.

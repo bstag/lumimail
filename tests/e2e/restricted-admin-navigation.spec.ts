@@ -23,7 +23,9 @@ async function mockShell(page: Page, organizationRole: OrganizationRole) {
 		counts: folderCounts(),
 	});
 	await page.route("**/api/messages?*", (route) =>
-		route.fulfill({ json: { messages: [], total: 0, limit: 25, offset: 0 } }),
+		route.fulfill({
+			json: { success: true, data: { messages: [], total: 0, limit: 25, offset: 0 } },
+		}),
 	);
 }
 
@@ -64,14 +66,17 @@ test("keeps deployment queue health owner-only for an organization admin", async
 test("retains organization administration for an owner", async ({ page }) => {
 	await mockShell(page, "owner");
 	await page.route("**/api/domains", (route) =>
-		route.fulfill({ json: { domains: [] } }),
+		route.fulfill({ json: { success: true, data: { domains: [] } } }),
 	);
 	await page.route("**/api/admin/mailboxes", (route) =>
 		route.fulfill({
 			json: {
-				mailboxes: [],
-				canSelfAssign: true,
-				currentUserId: "user_role",
+				success: true,
+				data: {
+					mailboxes: [],
+					canSelfAssign: true,
+					currentUserId: "user_role",
+				},
 			},
 		}),
 	);

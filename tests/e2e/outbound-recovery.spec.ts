@@ -33,7 +33,9 @@ async function mockSentFolder(page: Page, mailbox: Record<string, unknown>) {
 	});
 	await page.route("**/api/labels", (route) => route.fulfill({ json: { success: true, data: [] } }));
 	await page.route("**/api/messages?**", (route) =>
-		route.fulfill({ json: { messages: [failedMessage], total: 1, limit: 25, offset: 0 } }),
+		route.fulfill({
+			json: { success: true, data: { messages: [failedMessage], total: 1, limit: 25, offset: 0 } },
+		}),
 	);
 }
 

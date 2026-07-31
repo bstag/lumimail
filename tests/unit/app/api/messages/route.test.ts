@@ -65,7 +65,7 @@ describe("GET /api/messages", () => {
 		]); // rows
 		const res = await get();
 		expect(res.status).toBe(200);
-		const body = (await res.json()) as any;
+		const body = ((await res.json()) as any).data;
 		expect(body.total).toBe(1);
 		expect(body.limit).toBe(50);
 		expect(body.offset).toBe(0);
@@ -82,7 +82,7 @@ describe("GET /api/messages", () => {
 		mock.queueSelect([]); // count -> undefined totalRow
 		mock.queueSelect([{ id: "m1", snippet: "s", fromAddr: "a@x", toAddr: "b@x" }]);
 		const res = await get();
-		const body = (await res.json()) as any;
+		const body = ((await res.json()) as any).data;
 		expect(body.total).toBe(0);
 		expect(body.messages[0].fromContactName).toBeNull();
 		expect(body.messages[0].toContactName).toBeNull();
@@ -95,7 +95,7 @@ describe("GET /api/messages", () => {
 		const res = await get(
 			"?direction=inbound&mailboxId=mb1&status=received&read=read&starred=true&title=Hello&limit=200&offset=-5",
 		);
-		const body = (await res.json()) as any;
+		const body = ((await res.json()) as any).data;
 		// limit capped at 100, offset clamped to >= 0
 		expect(body.limit).toBe(100);
 		expect(body.offset).toBe(0);
@@ -146,7 +146,7 @@ describe("GET /api/messages", () => {
 		mock.queueSelect([{ total: 1 }]); // count
 		mock.queueSelect([{ id: "m1", snippet: "s", fromAddr: "a@x", toAddr: "b@x" }]); // rows
 		const res = await get("?labelId=lbl1");
-		const body = (await res.json()) as any;
+		const body = ((await res.json()) as any).data;
 		expect(body.messages).toHaveLength(1);
 	});
 
@@ -155,6 +155,9 @@ describe("GET /api/messages", () => {
 		mock.queueSelect([]); // label lookup -> no ids
 		const res = await get("?labelId=lbl1&limit=10&offset=2");
 		const body = (await res.json()) as any;
-		expect(body).toEqual({ messages: [], total: 0, limit: 10, offset: 2 });
+		expect(body).toEqual({
+			success: true,
+			data: { messages: [], total: 0, limit: 10, offset: 2 },
+		});
 	});
 });

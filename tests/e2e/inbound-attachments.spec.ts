@@ -16,20 +16,23 @@ async function mockAuthenticatedShell(page: Page) {
 	await page.route("**/api/messages/msg_attachment", (route) =>
 		route.fulfill({
 			json: {
-				message: {
-					id: "msg_attachment",
-					direction: "inbound",
-					fromAddr: "sender@example.net",
-					toAddr: "support@example.com",
-					subject: "Received files",
-					snippet: "Please review.",
-					status: "received",
-					read: true,
-					starred: false,
-					threadId: null,
-					createdAt: "2026-07-24T12:00:00.000Z",
+				success: true,
+				data: {
+					message: {
+						id: "msg_attachment",
+						direction: "inbound",
+						fromAddr: "sender@example.net",
+						toAddr: "support@example.com",
+						subject: "Received files",
+						snippet: "Please review.",
+						status: "received",
+						read: true,
+						starred: false,
+						threadId: null,
+						createdAt: "2026-07-24T12:00:00.000Z",
+					},
+					body: { textBody: "Please review.", htmlBody: null },
 				},
-				body: { textBody: "Please review.", htmlBody: null },
 			},
 		}),
 	);

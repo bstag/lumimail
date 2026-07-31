@@ -46,7 +46,10 @@ describe("GET /api/drafts", () => {
 		mock.queueSelect([{ id: "msg_1" }]);
 		const res = await GET(new Request("https://x.test/api/drafts"));
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ drafts: [{ id: "msg_1" }] });
+		expect((await res.json()) as any).toEqual({
+			success: true,
+			data: { drafts: [{ id: "msg_1" }] },
+		});
 	});
 
 	it("lists drafts with a mailbox filter", async () => {
@@ -54,7 +57,10 @@ describe("GET /api/drafts", () => {
 		mock.queueSelect([{ id: "msg_1", mailboxId: "mb_1" }]);
 		const res = await GET(new Request("https://x.test/api/drafts?mailboxId=mb_1"));
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ drafts: [{ id: "msg_1", mailboxId: "mb_1" }] });
+		expect((await res.json()) as any).toEqual({
+			success: true,
+			data: { drafts: [{ id: "msg_1", mailboxId: "mb_1" }] },
+		});
 	});
 });
 
@@ -90,7 +96,10 @@ describe("POST /api/drafts", () => {
 			}),
 		);
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ draft: { id: "msg_1" } });
+		expect((await res.json()) as any).toEqual({
+			success: true,
+			data: { draft: { id: "msg_1" } },
+		});
 			expect(mock.inserts[0].values).toMatchObject({
 			id: "msg_1",
 			userId: "u1",

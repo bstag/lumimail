@@ -1,4 +1,4 @@
-import { authFetch } from "@/lib/auth/client";
+import { apiJson } from "@/lib/api/client-response";
 import type { MessageFilterOptions, MessageFolder } from "./types";
 import type { MessageCounts, MessageListResponse } from "./types";
 
@@ -79,12 +79,12 @@ export async function fetchMessageCounts(mailboxId?: string | null): Promise<Mes
 	const params = new URLSearchParams();
 	if (mailboxId) params.set("mailboxId", mailboxId);
 	const query = params.toString();
-	const res = await authFetch(`/api/messages/counts${query ? `?${query}` : ""}`);
-	const data = (await res.json()) as { counts?: MessageCounts };
+	const data = await apiJson.get<{ counts?: MessageCounts }>(
+		`/api/messages/counts${query ? `?${query}` : ""}`,
+	);
 	return data.counts;
 }
 
 export async function fetchMessageList(params: URLSearchParams): Promise<MessageListResponse> {
-	const res = await authFetch(`/api/messages?${params.toString()}`);
-	return (await res.json()) as MessageListResponse;
+	return apiJson.get<MessageListResponse>(`/api/messages?${params.toString()}`);
 }

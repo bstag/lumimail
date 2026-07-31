@@ -75,6 +75,10 @@ export type MockAuthShellOptions = {
  * calling this — Playwright matches the most recently registered handler
  * first, so later registrations override these defaults (e.g. a custom
  * `/api/labels` payload on top of `mockShellNoise`'s empty list).
+ *
+ * `/api/mailboxes` and `/api/messages/counts` are fulfilled with the F40
+ * `{ success: true, data }` envelope (T-33). `/api/auth/me` stays flat — it
+ * is part of the documented envelope exception set.
  */
 export async function mockAuthShell(
 	page: Page,
@@ -99,12 +103,12 @@ export async function mockAuthShell(
 	);
 	if (mailboxes !== null) {
 		await page.route("**/api/mailboxes", (route) =>
-			route.fulfill({ json: { mailboxes } }),
+			route.fulfill({ json: { success: true, data: { mailboxes } } }),
 		);
 	}
 	if (counts !== undefined) {
 		await page.route("**/api/messages/counts**", (route) =>
-			route.fulfill({ json: counts }),
+			route.fulfill({ json: { success: true, data: counts } }),
 		);
 	}
 }

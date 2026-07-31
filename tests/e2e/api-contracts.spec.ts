@@ -20,23 +20,26 @@ test.describe("canonical API client contracts", () => {
 		await page.route("**/api/messages/msg_hostile", (route) =>
 			route.fulfill({
 				json: {
-					message: {
-						id: "msg_hostile",
-						direction: "inbound",
-						fromAddr: "sender@example.net",
-						toAddr: "owner@example.com",
-						subject: "Sanitizer check",
-						snippet: "Safe body",
-						status: "received",
-						read: true,
-						starred: false,
-						threadId: null,
-						createdAt: "2026-07-22T12:00:00.000Z",
-					},
-					body: {
-						textBody: null,
-						htmlBody:
-							'<p style="color:red" onclick="window.__mailXss=true">Safe body<script>window.__mailXss=true</script><img src="https://track.example/pixel"><a href="javascript:window.__mailXss=true">unsafe</a><a href="https://example.com">safe link</a></p>',
+					success: true,
+					data: {
+						message: {
+							id: "msg_hostile",
+							direction: "inbound",
+							fromAddr: "sender@example.net",
+							toAddr: "owner@example.com",
+							subject: "Sanitizer check",
+							snippet: "Safe body",
+							status: "received",
+							read: true,
+							starred: false,
+							threadId: null,
+							createdAt: "2026-07-22T12:00:00.000Z",
+						},
+						body: {
+							textBody: null,
+							htmlBody:
+								'<p style="color:red" onclick="window.__mailXss=true">Safe body<script>window.__mailXss=true</script><img src="https://track.example/pixel"><a href="javascript:window.__mailXss=true">unsafe</a><a href="https://example.com">safe link</a></p>',
+						},
 					},
 				},
 			}),
@@ -88,7 +91,7 @@ test.describe("canonical API client contracts", () => {
 			zoneId: "zone_1",
 		};
 		await page.route("**/api/domains?includeDns=true", (route) =>
-			route.fulfill({ json: { domains: [domain], dns: {} } }),
+			route.fulfill({ json: { success: true, data: { domains: [domain], dns: {} } } }),
 		);
 		await page.route("**/api/domains/dom_1/dns", (route) =>
 			route.fulfill({
@@ -112,15 +115,20 @@ test.describe("canonical API client contracts", () => {
 	test("creates a provisioned internal group without claiming external forwarding", async ({ page }) => {
 		await mockAuthenticatedShell(page);
 		await page.route("**/api/domains", (route) =>
-			route.fulfill({ json: { domains: [{ id: "dom_1", hostname: "example.com" }] } }),
+			route.fulfill({
+				json: { success: true, data: { domains: [{ id: "dom_1", hostname: "example.com" }] } },
+			}),
 		);
 		await page.route("**/api/admin/mailboxes", (route) =>
 			route.fulfill({
 				json: {
-					mailboxes: [
-						{ id: "mbx_1", localPart: "owner", hostname: "example.com", domainId: "dom_1" },
-						{ id: "mbx_2", localPart: "support", hostname: "other.test", domainId: "dom_2" },
-					],
+					success: true,
+					data: {
+						mailboxes: [
+							{ id: "mbx_1", localPart: "owner", hostname: "example.com", domainId: "dom_1" },
+							{ id: "mbx_2", localPart: "support", hostname: "other.test", domainId: "dom_2" },
+						],
+					},
 				},
 			}),
 		);
@@ -159,7 +167,7 @@ test.describe("canonical API client contracts", () => {
 		let sendIncludedInlineImage = false;
 		let legacyAttachmentRequests = 0;
 		await page.route("**/api/drafts", (route) =>
-			route.fulfill({ json: { draft: { id: "draft_1" } } }),
+			route.fulfill({ json: { success: true, data: { draft: { id: "draft_1" } } } }),
 		);
 		await page.route("**/api/send", async (route) => {
 			const body = await route.request().postDataBuffer();
@@ -227,8 +235,11 @@ test.describe("canonical API client contracts", () => {
 		await page.route("**/api/messages/msg_parent", (route) =>
 			route.fulfill({
 				json: {
-					message: parent,
-					body: { textBody: "Parent body", htmlBody: null },
+					success: true,
+					data: {
+						message: parent,
+						body: { textBody: "Parent body", htmlBody: null },
+					},
 				},
 			}),
 		);
@@ -241,10 +252,10 @@ test.describe("canonical API client contracts", () => {
 		// test failed wherever the redirect happened to land. It looked intermittent
 		// only because the redirect raced the assertion.
 		await page.route("**/api/messages/thread/thr_parent", (route) =>
-			route.fulfill({ json: { messages: [parent], total: 1 } }),
+			route.fulfill({ json: { success: true, data: { messages: [parent], total: 1 } } }),
 		);
 		await page.route("**/api/drafts", (route) =>
-			route.fulfill({ json: { draft: { id: "draft_reply" } } }),
+			route.fulfill({ json: { success: true, data: { draft: { id: "draft_reply" } } } }),
 		);
 		let sentPayload: Record<string, unknown> | null = null;
 		await page.route("**/api/send", async (route) => {
@@ -279,7 +290,7 @@ test.describe("canonical API client contracts", () => {
 	test("serializes expanded semantic and presentation formatting", async ({ page }) => {
 		await mockAuthenticatedShell(page);
 		await page.route("**/api/drafts", (route) =>
-			route.fulfill({ json: { draft: { id: "draft_advanced" } } }),
+			route.fulfill({ json: { success: true, data: { draft: { id: "draft_advanced" } } } }),
 		);
 		let sentPayload: Record<string, unknown> | null = null;
 		await page.route("**/api/send", async (route) => {
@@ -326,19 +337,22 @@ test.describe("canonical API client contracts", () => {
 		await page.route("**/api/drafts/draft_rich", async (route) => {
 			if (route.request().method() === "PATCH") {
 				savedPayload = route.request().postDataJSON() as Record<string, unknown>;
-				return route.fulfill({ json: { draft: { id: "draft_rich" } } });
+				return route.fulfill({ json: { success: true, data: { draft: { id: "draft_rich" } } } });
 			}
 			return route.fulfill({
 				json: {
-					draft: {
-						id: "draft_rich",
-						mailboxId: "mbx_1",
-						fromAddr: "owner@example.com",
-						toAddr: "recipient@example.net",
-						subject: "Formatted draft",
-						textBody: "Saved body",
-						htmlBody: "<p><strong>Saved body</strong></p>",
-						replySourceMessageId: null,
+					success: true,
+					data: {
+						draft: {
+							id: "draft_rich",
+							mailboxId: "mbx_1",
+							fromAddr: "owner@example.com",
+							toAddr: "recipient@example.net",
+							subject: "Formatted draft",
+							textBody: "Saved body",
+							htmlBody: "<p><strong>Saved body</strong></p>",
+							replySourceMessageId: null,
+						},
 					},
 				},
 			});
@@ -349,24 +363,27 @@ test.describe("canonical API client contracts", () => {
 		await page.route("**/api/messages?**", (route) =>
 			route.fulfill({
 				json: {
-					messages: [{
-						id: "draft_rich",
-						userId: "user_1",
-						mailboxId: "mbx_1",
-						direction: "outbound",
-						fromAddr: "owner@example.com",
-						toAddr: "recipient@example.net",
-						subject: "Formatted draft",
-						snippet: "Saved body",
-						status: "draft",
-						read: true,
-						starred: false,
-						threadId: null,
-						createdAt: "2026-07-28T12:00:00.000Z",
-					}],
-					total: 1,
-					limit: 25,
-					offset: 0,
+					success: true,
+					data: {
+						messages: [{
+							id: "draft_rich",
+							userId: "user_1",
+							mailboxId: "mbx_1",
+							direction: "outbound",
+							fromAddr: "owner@example.com",
+							toAddr: "recipient@example.net",
+							subject: "Formatted draft",
+							snippet: "Saved body",
+							status: "draft",
+							read: true,
+							starred: false,
+							threadId: null,
+							createdAt: "2026-07-28T12:00:00.000Z",
+						}],
+						total: 1,
+						limit: 25,
+						offset: 0,
+					},
 				},
 			}),
 		);
@@ -390,10 +407,12 @@ test.describe("canonical API client contracts", () => {
 			route.fulfill({ json: { success: true, data: [] } }),
 		);
 		await page.route("**/api/messages?**", (route) =>
-			route.fulfill({ json: { messages: [], total: 0, limit: 25, offset: 0 } }),
+			route.fulfill({
+				json: { success: true, data: { messages: [], total: 0, limit: 25, offset: 0 } },
+			}),
 		);
 		await page.route("**/api/drafts", (route) =>
-			route.fulfill({ json: { draft: { id: "draft_popup" } } }),
+			route.fulfill({ json: { success: true, data: { draft: { id: "draft_popup" } } } }),
 		);
 		let sendRequests = 0;
 		await page.route("**/api/send", (route) => {
@@ -428,43 +447,46 @@ test.describe("canonical API client contracts", () => {
 			const deliveryStatus = messageRequestCount === 1 ? "queued" : "sent";
 			return route.fulfill({
 				json: {
-					messages: [
-						{
-							id: "msg_delivery",
-							userId: "user_1",
-							mailboxId: "mbx_1",
-							direction: "outbound",
-							providerMessageId: deliveryStatus === "sent" ? "provider_1" : null,
-							fromAddr: "owner@example.com",
-							toAddr: "recipient@example.net",
-							subject: "Delivery state",
-							snippet: "Queued body",
-							status: deliveryStatus,
-							read: true,
-							starred: false,
-							threadId: null,
-							createdAt: "2026-07-24T12:00:00.000Z",
-						},
-						{
-							id: "msg_failed",
-							userId: "user_1",
-							mailboxId: "mbx_1",
-							direction: "outbound",
-							providerMessageId: null,
-							fromAddr: "owner@example.com",
-							toAddr: "bad@example.net",
-							subject: "Failed state",
-							snippet: "Failed body",
-							status: "failed",
-							read: true,
-							starred: false,
-							threadId: null,
-							createdAt: "2026-07-24T11:00:00.000Z",
-						},
-					],
-					total: 2,
-					limit: 25,
-					offset: 0,
+					success: true,
+					data: {
+						messages: [
+							{
+								id: "msg_delivery",
+								userId: "user_1",
+								mailboxId: "mbx_1",
+								direction: "outbound",
+								providerMessageId: deliveryStatus === "sent" ? "provider_1" : null,
+								fromAddr: "owner@example.com",
+								toAddr: "recipient@example.net",
+								subject: "Delivery state",
+								snippet: "Queued body",
+								status: deliveryStatus,
+								read: true,
+								starred: false,
+								threadId: null,
+								createdAt: "2026-07-24T12:00:00.000Z",
+							},
+							{
+								id: "msg_failed",
+								userId: "user_1",
+								mailboxId: "mbx_1",
+								direction: "outbound",
+								providerMessageId: null,
+								fromAddr: "owner@example.com",
+								toAddr: "bad@example.net",
+								subject: "Failed state",
+								snippet: "Failed body",
+								status: "failed",
+								read: true,
+								starred: false,
+								threadId: null,
+								createdAt: "2026-07-24T11:00:00.000Z",
+							},
+						],
+						total: 2,
+						limit: 25,
+						offset: 0,
+					},
 				},
 			});
 		});

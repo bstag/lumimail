@@ -60,11 +60,11 @@ test("owner sees platform queue health and can run a fresh check", async ({ page
 			},
 		];
 		if (route.request().method() === "POST") checked = true;
-		await route.fulfill({ json: { queues: responseQueues.map((queue) => (
+		await route.fulfill({ json: { success: true, data: { queues: responseQueues.map((queue) => (
 			queue.queue === "inbound" && checked
 				? { ...queue, status: "healthy", backlogCount: 0, backlogBytes: 0, oldestMessageAt: null }
 				: queue
-		)) } });
+		)) } } });
 	});
 
 	await page.goto("/queue-health");

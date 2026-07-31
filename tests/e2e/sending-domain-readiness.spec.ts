@@ -31,15 +31,18 @@ test.describe("sending-domain readiness", () => {
 		await page.route("**/api/domains?includeDns=true", (route) =>
 			route.fulfill({
 				json: {
-					domains,
-					dns: {
-						dom_stale: {
-							routing: { configured: true, missing: [] },
-							sending: { configured: false, records: [] },
-						},
-						dom_ready: {
-							routing: { configured: true, missing: [] },
-							sending: { configured: true, records: ["MX", "TXT"] },
+					success: true,
+					data: {
+						domains,
+						dns: {
+							dom_stale: {
+								routing: { configured: true, missing: [] },
+								sending: { configured: false, records: [] },
+							},
+							dom_ready: {
+								routing: { configured: true, missing: [] },
+								sending: { configured: true, records: ["MX", "TXT"] },
+							},
 						},
 					},
 				},
@@ -95,17 +98,20 @@ test.describe("sending-domain readiness", () => {
 		await page.route("**/api/domains?includeDns=true", (route) =>
 			route.fulfill({
 				json: {
-					domains: [
-						{
-							id: "dom_failed",
-							hostname: "example.com",
-							status: "active",
-							routingEnabled: true,
-							sendingEnabled: false,
-							zoneId: "zone_1",
-						},
-					],
-					dns: {},
+					success: true,
+					data: {
+						domains: [
+							{
+								id: "dom_failed",
+								hostname: "example.com",
+								status: "active",
+								routingEnabled: true,
+								sendingEnabled: false,
+								zoneId: "zone_1",
+							},
+						],
+						dns: {},
+					},
 				},
 			}),
 		);

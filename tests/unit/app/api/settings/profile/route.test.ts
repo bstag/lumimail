@@ -55,7 +55,8 @@ describe("PATCH /api/settings/profile", () => {
 		const res = await PATCH(req({ name: " Jane ", resetEmail: " r@x.test " }));
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({
-			user: { id: "u1", email: "u@x.test", name: "Jane", resetEmail: "r@x.test" },
+			success: true,
+			data: { user: { id: "u1", email: "u@x.test", name: "Jane", resetEmail: "r@x.test" } },
 		});
 		expect(mock.updates[0].set).toMatchObject({ name: "Jane", resetEmail: "r@x.test" });
 	});
@@ -65,7 +66,8 @@ describe("PATCH /api/settings/profile", () => {
 		const res = await PATCH(req({ name: "Jane", resetEmail: "" }));
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({
-			user: { id: "u1", email: "u@x.test", name: "Jane", resetEmail: null },
+			success: true,
+			data: { user: { id: "u1", email: "u@x.test", name: "Jane", resetEmail: null } },
 		});
 		expect(mock.updates[0].set).toMatchObject({ name: "Jane", resetEmail: null });
 	});

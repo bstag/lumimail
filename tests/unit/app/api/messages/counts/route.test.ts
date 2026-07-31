@@ -47,7 +47,7 @@ describe("GET /api/messages/counts", () => {
 		]);
 		const res = await get();
 		expect(res.status).toBe(200);
-		const body = (await res.json()) as any;
+		const body = ((await res.json()) as any).data;
 		expect(body.counts.folders.inbox).toEqual({ total: 2, unread: 1 });
 		expect(body.counts.folders.sent.total).toBe(1);
 		expect(body.counts.folders.drafts.total).toBe(1);
@@ -64,7 +64,8 @@ describe("GET /api/messages/counts", () => {
 		const res = await get("?mailboxId=mb1");
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({
-			counts: { folders: expect.any(Object), mailboxes: [] },
+			success: true,
+			data: { counts: { folders: expect.any(Object), mailboxes: [] } },
 		});
 	});
 });

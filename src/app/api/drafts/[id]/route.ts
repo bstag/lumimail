@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { messageBodies, messages } from "@/db/schema";
 import { withUser } from "@/lib/api/handler";
-import { parseJsonBody } from "@/lib/api/response";
+import { apiSuccess, parseJsonBody } from "@/lib/api/response";
 import { buildSnippet } from "@/lib/email/parse";
 import { selectDraftWithBody } from "./utils";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
@@ -35,7 +35,7 @@ export const GET = withUser<{ id: string }>(async ({ env, user, params }) => {
 		return NextResponse.json({ error: "Draft not found" }, { status: 404 });
 	}
 
-	return NextResponse.json({ draft });
+	return apiSuccess({ draft });
 });
 
 export const PATCH = withUser<{ id: string }>(async ({ request, env, user, params }) => {
@@ -79,7 +79,7 @@ export const PATCH = withUser<{ id: string }>(async ({ request, env, user, param
 		})
 		.where(eq(messageBodies.messageId, id));
 
-	return NextResponse.json({ draft: { id } });
+	return apiSuccess({ draft: { id } });
 });
 
 export const DELETE = withUser<{ id: string }>(async ({ env, user, params }) => {
@@ -96,5 +96,5 @@ export const DELETE = withUser<{ id: string }>(async ({ env, user, params }) => 
 	}
 
 	await db.delete(messages).where(eq(messages.id, id));
-	return NextResponse.json({ ok: true });
+	return apiSuccess({ ok: true });
 });

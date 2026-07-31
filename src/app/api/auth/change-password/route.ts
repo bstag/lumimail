@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { users } from "@/db/schema";
 import { verifyPassword, hashPassword } from "@/lib/auth/password";
 import { withUser } from "@/lib/api/handler";
+import { apiSuccess } from "@/lib/api/response";
 import { z } from "zod";
 
 const changePasswordSchema = z.object({
@@ -27,5 +28,5 @@ export const POST = withUser(async ({ request, env, user }) => {
 	const newHash = hashPassword(parsed.data.newPassword);
 	await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, user.id));
 
-	return NextResponse.json({ ok: true });
+	return apiSuccess({ ok: true });
 });

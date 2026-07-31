@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { mailboxes } from "@/db/schema";
 import { withOrgAdmin, withUser } from "@/lib/api/handler";
-import { parseJsonBody } from "@/lib/api/response";
+import { apiSuccess, parseJsonBody } from "@/lib/api/response";
 import { updateMailboxSchema } from "@/lib/validators";
 import { getMailboxUpdateValues, selectMailboxForOrganization, selectMailboxForUser } from "./utils";
 
@@ -22,7 +22,7 @@ export const GET = withUser<{ id: string }>(async ({ env, user, params }) => {
 		return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
 	}
 
-	return NextResponse.json({
+	return apiSuccess({
 		mailbox: {
 			...mailbox,
 			isPrimary: `${mailbox.localPart}@${mailbox.hostname}` === user.email,
@@ -53,7 +53,7 @@ export const PATCH = withUser<{ id: string }>(async ({ request, env, user, param
 
 	const [mailbox] = await selectMailboxForUser(db, user.organizationId, user.id, id, ["manager"]);
 
-	return NextResponse.json({
+	return apiSuccess({
 		mailbox: {
 			...mailbox,
 			isPrimary: `${mailbox!.localPart}@${mailbox!.hostname}` === user.email,
@@ -80,5 +80,5 @@ export const DELETE = withOrgAdmin<{ id: string }>(async ({ request, env, user, 
 	}
 
 	await db.delete(mailboxes).where(eq(mailboxes.id, id));
-	return NextResponse.json({ ok: true });
+	return apiSuccess({ ok: true });
 });

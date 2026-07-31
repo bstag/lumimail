@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withUser } from "@/lib/api/handler";
-import { parseJsonBody } from "@/lib/api/response";
+import { apiSuccess, parseJsonBody } from "@/lib/api/response";
 import { updateMessageStatus } from "@/lib/user";
 import { isAllowedMessageStatus } from "./utils";
 
@@ -22,5 +22,5 @@ export const POST = withUser<{ messageId: string }>(async ({ request, env, user,
 		return NextResponse.json({ error: "Message not found" }, { status: 404 });
 	}
 
-	return NextResponse.json({ success: true });
+	return apiSuccess({ ok: true });
 });

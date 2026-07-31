@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
 import { withUser } from "@/lib/api/handler";
-import { parseJsonBody } from "@/lib/api/response";
+import { apiSuccess, parseJsonBody } from "@/lib/api/response";
 import { updateProfileSchema } from "@/lib/validators";
 
 export const PATCH = withUser(async ({ request, env, user }) => {
@@ -19,7 +18,7 @@ export const PATCH = withUser(async ({ request, env, user }) => {
 		})
 		.where(eq(users.id, user.id));
 
-	return NextResponse.json({
+	return apiSuccess({
 		user: {
 			id: user.id,
 			email: user.email,

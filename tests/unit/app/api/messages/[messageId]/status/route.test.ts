@@ -66,6 +66,6 @@ describe("POST /api/messages/[messageId]/status", () => {
 		m.updateMessageStatus.mockResolvedValue(true);
 		const res = await post({ status: "spam" });
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ success: true });
+		expect((await res.json()) as any).toEqual({ success: true, data: { ok: true } });
 	});
 });

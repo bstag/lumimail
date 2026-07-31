@@ -53,7 +53,7 @@ describe("GET /api/mailboxes/[id]", () => {
 		mock.queueSelect([{ id: "mb1", localPart: "me", hostname: "ex.com" }]);
 		const res = await GET(req(), params());
 		expect(res.status).toBe(200);
-		expect(((await res.json()) as any).mailbox.isPrimary).toBe(true);
+		expect(((await res.json()) as any).data.mailbox.isPrimary).toBe(true);
 	});
 });
 
@@ -90,7 +90,7 @@ describe("PATCH /api/mailboxes/[id]", () => {
 		const res = await PATCH(req({ displayName: "New" }), params());
 		expect(res.status).toBe(200);
 		expect(mock.updates[0].set).toEqual({ displayName: "New" });
-		expect(((await res.json()) as any).mailbox.isPrimary).toBe(false);
+		expect(((await res.json()) as any).data.mailbox.isPrimary).toBe(false);
 	});
 
 	it("skips the update when no fields change", async () => {
@@ -144,7 +144,7 @@ describe("DELETE /api/mailboxes/[id]", () => {
 		mock.queueSelect([{ id: "mb1", localPart: "x", hostname: "ex.com" }]);
 		const res = await DELETE(req({ confirmAddress: "X@EX.COM" }), params());
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ ok: true });
+		expect((await res.json()) as any).toEqual({ success: true, data: { ok: true } });
 		expect(mock.deletes).toHaveLength(1);
 	});
 });

@@ -61,7 +61,7 @@ describe("PATCH /api/messages/[messageId]/starred", () => {
 		mock.queueSelect([{ starred: true }]); // update().returning() -> [updated]
 		const res = await patch({ starred: true });
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ starred: true });
+		expect((await res.json()) as any).toEqual({ success: true, data: { starred: true } });
 		expect(mock.updates[0].set).toEqual({ starred: true });
 	});
 
@@ -69,7 +69,7 @@ describe("PATCH /api/messages/[messageId]/starred", () => {
 		mock.queueSelect([{ starred: false }]); // update().returning() -> [updated]
 		const res = await patch({ starred: false });
 		expect(res.status).toBe(200);
-		expect((await res.json()) as any).toEqual({ starred: false });
+		expect((await res.json()) as any).toEqual({ success: true, data: { starred: false } });
 		expect(mock.updates[0].set).toEqual({ starred: false });
 	});
 

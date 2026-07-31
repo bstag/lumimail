@@ -1,6 +1,6 @@
 import { eq, and, asc } from "drizzle-orm";
-import { NextResponse } from "next/server";
 import { withUser } from "@/lib/api/handler";
+import { apiSuccess } from "@/lib/api/response";
 import { getDb } from "@/db";
 import { messages, messageBodies } from "@/db/schema";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
@@ -33,5 +33,5 @@ export const GET = withUser<{ threadId: string }>(async ({ env, user, params }) 
 		.where(and(eq(messages.threadId, threadId), messageAccessCondition(db, user.id, user.organizationId, "read")))
 		.orderBy(asc(messages.createdAt));
 
-	return NextResponse.json({ messages: rows });
+	return apiSuccess({ messages: rows });
 });
