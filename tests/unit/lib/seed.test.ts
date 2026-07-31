@@ -28,12 +28,12 @@ beforeEach(() => {
 });
 
 describe("seedDemoData", () => {
-	it("orchestrates seeding and returns the message count", async () => {
+	it("orchestrates seeding, threading the org id into every insert layer", async () => {
 		const result = await seedDemoData(env);
 		expect(result).toEqual({ messageCount: 5 });
 		expect(ensureUserOrg).toHaveBeenCalledWith(env, "u1");
-		expect(ensureDemoDomain).toHaveBeenCalledWith(env, "u1");
-		expect(ensureDemoMailboxes).toHaveBeenCalledWith(env, "u1", "d1");
-		expect(insertDemoMessages).toHaveBeenCalledWith(env, "u1", {});
+		expect(ensureDemoDomain).toHaveBeenCalledWith(env, "u1", "org_1");
+		expect(ensureDemoMailboxes).toHaveBeenCalledWith(env, "u1", "org_1", "d1");
+		expect(insertDemoMessages).toHaveBeenCalledWith(env, "u1", "org_1", {});
 	});
 });

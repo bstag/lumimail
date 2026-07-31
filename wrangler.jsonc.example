@@ -42,6 +42,12 @@
 		// on a new deployment until `GET /api/admin/r2-retention` has been read,
 		// so an existing backlog is never removed before anyone has seen it.
 		// "R2_SWEEP_ENABLED": "true",
+		// Set to "true" to enable the dev-only /api/seed demo-data route (used by
+		// `npm run db:seed` against `next dev`). The route fails closed when this
+		// is unset, and deployed production builds refuse seeding via NODE_ENV
+		// regardless. Enable it only for local development (here or in .dev.vars);
+		// leave it unset for any deployed environment.
+		// "SEED_ENABLED": "true",
 	},
 	"observability": {
 		"enabled": true,
