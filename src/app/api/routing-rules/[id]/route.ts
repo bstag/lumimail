@@ -1,37 +1,17 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { domains, mailboxes, routingRules } from "@/db/schema";
+import { routingRules } from "@/db/schema";
 import { withUser } from "@/lib/api/handler";
 import { routingRuleSchema, routingRuleUpdateSchema } from "@/lib/validators";
 import { normalizeRoutingPattern } from "@/lib/email/routing-pattern";
-import {
-  disableEmailRoutingCatchAllToWorker,
-  ensureEmailRoutingCatchAllToWorker,
-} from "@/lib/cloudflare-api";
-import { authorizeForwardDestination } from "@/lib/email/forwarding";
 import { apiError, apiSuccess, firstZodMessage, parseJsonBody } from "@/lib/api/response";
-import { forwardRefusalMessage } from "../utils";
-
-async function hasOtherCatchAllInZone(
-  db: ReturnType<typeof getDb>,
-  organizationId: string,
-  zoneId: string,
-  excludedRuleId: string,
-): Promise<boolean> {
-  const rows = await db
-    .select({ pattern: routingRules.pattern, hostname: domains.hostname })
-    .from(routingRules)
-    .innerJoin(domains, eq(domains.id, routingRules.domainId))
-    .where(and(
-      eq(domains.organizationId, organizationId),
-      eq(domains.zoneId, zoneId),
-      ne(routingRules.id, excludedRuleId),
-    ));
-  return rows.some((row) => {
-    const normalized = normalizeRoutingPattern(row.pattern, row.hostname);
-    return normalized.ok && normalized.pattern === "*";
-  });
-}
+import {
+  authorizeForwardTarget,
+  domainHasCatchAllRule,
+  getOrgDomain,
+  storeTargetMailboxExists,
+  syncCatchAllTransition,
+} from "@/lib/email/routing-rules-service";
 
 export const GET = withUser<{ id: string }>(async ({ env, user, params }) => {
   const { id } = params;
@@ -67,11 +47,7 @@ export const PATCH = withUser<{ id: string }>(async ({ request, env, user, param
     return apiError("No valid fields to update", 400);
   }
 
-  const [domain] = await db
-    .select()
-    .from(domains)
-    .where(and(eq(domains.id, rule.domainId), eq(domains.organizationId, user.organizationId)))
-    .limit(1);
+  const domain = await getOrgDomain(db, user.organizationId, rule.domainId);
   if (!domain) return apiError("Domain not found", 404);
 
   const merged = routingRuleSchema.safeParse({
@@ -88,16 +64,13 @@ export const PATCH = withUser<{ id: string }>(async ({ request, env, user, param
   if (!normalized.ok) return apiError(normalized.error, 400);
 
   if (merged.data.action === "store") {
-    const [mailbox] = await db
-      .select({ id: mailboxes.id })
-      .from(mailboxes)
-      .where(and(
-        eq(mailboxes.id, merged.data.mailboxId!),
-        eq(mailboxes.domainId, domain.id),
-        eq(mailboxes.organizationId, user.organizationId),
-      ))
-      .limit(1);
-    if (!mailbox) {
+    const targetOk = await storeTargetMailboxExists(
+      db,
+      user.organizationId,
+      domain.id,
+      merged.data.mailboxId!,
+    );
+    if (!targetOk) {
       return apiError("Target mailbox must belong to the selected domain", 400);
     }
   }
@@ -106,33 +79,21 @@ export const PATCH = withUser<{ id: string }>(async ({ request, env, user, param
   const wasCatchAll = oldPattern.ok && oldPattern.pattern === "*";
   const isCatchAll = normalized.pattern === "*";
 
-  if (isCatchAll) {
-    const candidates = await db
-		.select({ id: routingRules.id, pattern: routingRules.pattern })
-		.from(routingRules)
-		.where(and(
-			eq(routingRules.domainId, domain.id),
-			ne(routingRules.id, rule.id),
-		));
-	const hasDuplicate = candidates.some((candidate) => {
-		const candidatePattern = normalizeRoutingPattern(candidate.pattern, domain.hostname);
-		return candidatePattern.ok && candidatePattern.pattern === "*";
-	});
-    if (hasDuplicate) {
-		return apiError("This domain already has a catch-all rule", 409);
-	}
+  if (isCatchAll && await domainHasCatchAllRule(db, domain, rule.id)) {
+    return apiError("This domain already has a catch-all rule", 409);
   }
 
-  try {
-    if (isCatchAll) await ensureEmailRoutingCatchAllToWorker(env, domain.zoneId);
-    else if (wasCatchAll && !await hasOtherCatchAllInZone(db, user.organizationId, domain.zoneId, rule.id)) {
-      await disableEmailRoutingCatchAllToWorker(env, domain.zoneId);
-    }
-  } catch (error) {
-    if (error instanceof Error && error.name === "CloudflareCatchAllConflictError") {
-      return apiError("Cloudflare catch-all is already used by another destination", 409);
-    }
-    return apiError("Unable to update Cloudflare catch-all", 502);
+  const sync = await syncCatchAllTransition(env, db, {
+    organizationId: user.organizationId,
+    domain,
+    ruleId: rule.id,
+    wasCatchAll,
+    isCatchAll,
+  });
+  if (!sync.ok) {
+    return sync.error === "conflict"
+      ? apiError("Cloudflare catch-all is already used by another destination", 409)
+      : apiError("Unable to update Cloudflare catch-all", 502);
   }
 
   const values = {
@@ -146,9 +107,9 @@ export const PATCH = withUser<{ id: string }>(async ({ request, env, user, param
   // Same fail-closed rule as creation: an edit must not be able to point a rule at
   // an unowned or unverified destination.
   if (values.forwardTo) {
-    const authorization = await authorizeForwardDestination(db, user.organizationId, values.forwardTo);
+    const authorization = await authorizeForwardTarget(db, user.organizationId, values.forwardTo);
     if (!authorization.allowed) {
-      return apiError(forwardRefusalMessage(authorization.reason), 422);
+      return apiError(authorization.message, 422);
     }
   }
 
@@ -171,20 +132,19 @@ export const DELETE = withUser<{ id: string }>(async ({ env, user, params }) => 
 
   if (!rule) return apiError("Not found", 404);
 
-  const [domain] = await db
-    .select()
-    .from(domains)
-    .where(and(eq(domains.id, rule.domainId), eq(domains.organizationId, user.organizationId)))
-    .limit(1);
+  const domain = await getOrgDomain(db, user.organizationId, rule.domainId);
   if (!domain) return apiError("Domain not found", 404);
 
   const normalized = normalizeRoutingPattern(rule.pattern, domain.hostname);
   if (normalized.ok && normalized.pattern === "*") {
-    try {
-	  if (!await hasOtherCatchAllInZone(db, user.organizationId, domain.zoneId, rule.id)) {
-		await disableEmailRoutingCatchAllToWorker(env, domain.zoneId);
-	  }
-    } catch {
+    const sync = await syncCatchAllTransition(env, db, {
+      organizationId: user.organizationId,
+      domain,
+      ruleId: rule.id,
+      wasCatchAll: true,
+      isCatchAll: false,
+    });
+    if (!sync.ok) {
       return apiError("Unable to disable Cloudflare catch-all", 502);
     }
   }

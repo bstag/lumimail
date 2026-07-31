@@ -1,38 +1,19 @@
 import { eq, and, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
-import { aliases, domains, groupMembers, mailboxes } from "@/db/schema";
+import { aliases, groupMembers, mailboxes } from "@/db/schema";
 import { withOrgAdmin } from "@/lib/api/handler";
 import { apiSuccess, apiError } from "@/lib/api/response";
-import { deleteEmailRoutingRule } from "@/lib/cloudflare-api";
+import { deleteAlias } from "@/lib/email/alias-service";
 import { updateAliasGroupSchema } from "@/lib/validators";
 import { newId } from "@/lib/ids";
 
 export const DELETE = withOrgAdmin<{ id: string }>(async ({ env, user: orgUser, params }) => {
-	const { id } = params;
-	const db = getDb(env);
-	const [alias] = await db
-		.select({
-			id: aliases.id,
-			organizationId: aliases.organizationId,
-			zoneId: domains.zoneId,
-			cloudflareRuleId: aliases.cloudflareRuleId,
-		})
-		.from(aliases)
-		.innerJoin(domains, eq(aliases.domainId, domains.id))
-		.where(and(eq(aliases.id, id), eq(aliases.organizationId, orgUser.organizationId)))
-		.limit(1);
-
-	if (!alias) return apiError("Alias not found", 404);
-
-	if (alias.cloudflareRuleId) {
-		try {
-			await deleteEmailRoutingRule(env, alias.zoneId, alias.cloudflareRuleId);
-		} catch {
-			return apiError("Failed to remove Cloudflare routing rule", 502);
-		}
+	const result = await deleteAlias(env, orgUser.organizationId, params.id);
+	if (!result.ok) {
+		return result.error === "not_found"
+			? apiError("Alias not found", 404)
+			: apiError("Failed to remove Cloudflare routing rule", 502);
 	}
-
-	await db.delete(aliases).where(eq(aliases.id, id));
 	return apiSuccess({ ok: true });
 });
 

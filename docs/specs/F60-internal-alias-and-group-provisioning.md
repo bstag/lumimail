@@ -202,6 +202,28 @@ parity, and Wrangler dry run before deployment.
 
 ## 14. Bug / Change Log
 
+### 2026-07-31 — Alias service extraction and inbound routing split (T-40/T-42)
+
+Type: Refactor (behavior-preserving)
+
+Summary:
+
+- Alias creation's saga (conflict checks, owned Cloudflare rule provisioning,
+  D1 batch write, and the compensating Cloudflare delete when the batch fails)
+  plus alias deletion's cleanup moved from the `/api/aliases` routes into
+  `src/lib/email/alias-service.ts`; routes map typed results onto their
+  previous, unchanged responses. The compensation logic gained isolated unit
+  tests (`tests/unit/lib/email/alias-service.test.ts`).
+- `resolveInboundTargets` in `src/lib/email/routing.ts` was split into
+  `resolveAliasDecisions`/`resolveGroupMembers` helpers, and the routing-rule
+  fallback now reuses the domain row already loaded instead of re-querying it.
+- The legacy group-member recovery arm
+  (`?? (!memberMailboxId ? row.userId : null)`) was removed as unreachable:
+  the mailboxes left join is keyed on `groupMembers.mailboxId`, so a row can
+  never carry `mailboxes.userId` without `mailboxes.id`. A documenting test
+  asserts that such a (mock-only) row shape is treated as an external member.
+  Genuine legacy rows (`groupMembers.userId`) keep resolving unchanged.
+
 ### 2026-07-24 — Specify truthful internal alias and group provisioning
 
 Type: `Feature | Correctness | Security | Behavior Change`
