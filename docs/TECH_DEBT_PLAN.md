@@ -1,5 +1,12 @@
 # Tech Debt Remediation Plan — 2026-07-30 batch
 
+> **Status 2026-07-31: complete.** Every T-item is closed (T-01 resolved as
+> working-as-specified; all others implemented). Final gates on the branch:
+> `npm run verify` green (1,709 tests, 100% configured coverage), 52/52 mocked
+> Playwright scenarios, 0 lint errors. Deferred follow-ups are listed in
+> "Explicitly deferred" below; the `users.organizationId` retirement recon
+> list lives in the T-41 commit message.
+
 One large maintainability batch executed on a single branch (`chore/tech-debt-batch`)
 as a sequence of independently verifiable waves. Each wave ends with a green
 `npm run verify`; waves that touch user-visible behavior also run `npm run e2e`.
