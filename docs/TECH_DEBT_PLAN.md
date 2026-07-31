@@ -93,25 +93,25 @@ API layer:
 
 Constants and schema hygiene:
 
-- [ ] **T-14 Single source for shared enums/constants.** Export
+- [x] **T-14 Single source for shared enums/constants.** Export
   `MAILBOX_ROLES`, `ORG_ROLES`, `ROUTING_ACTIONS`, `DEFAULT_LABEL_COLOR`,
   hostname regex, `SENDER_ROLES`, `RETRY_DELAY_SECONDS`, error-truncation length,
   and reuse `MAX_ATTACHMENT_COUNT` in `isAttachmentSnapshotArray`. Consume from
   both `src/db/schema/index.ts` and `src/lib/validators.ts`. Document or unify
   the diverging localPart regexes (`%` allowed in registration, forbidden in
   aliases). Effort S.
-- [ ] **T-15 Schema consistency pass:** one formatting pass (tabs), array-form
+- [x] **T-15 Schema consistency pass:** one formatting pass (tabs), array-form
   index callbacks for `rateLimits`, enum-type `messages.status` and
   `webhookDeliveries.status`, comment on `rateLimits.resetAt` integer mode.
   No migration required (types only). Effort S.
-- [ ] **T-16 Utility dedup:** one email normalizer (keep vacation's null-safe
+- [x] **T-16 Utility dedup:** one email normalizer (keep vacation's null-safe
   variant with its comment), one `sanitizeFilename`, one SHA-256-hex helper
   (`src/lib/crypto-utils.ts`), one `attachmentKey()` + rollback helper
   (`src/lib/email/attachment-storage.ts` — the key scheme is a security
   invariant currently encoded in three literals), `src/lib/format.ts` for bytes
   and locale-aware dates (next-intl `useFormatter`), move
   `escapeHtml`/`plainTextToHtml` out of `compose-form.tsx`. Effort S.
-- [ ] **T-17 Rate-limit purge off the hot path:** move the full-table
+- [x] **T-17 Rate-limit purge off the hot path:** move the full-table
   `DELETE FROM rate_limits` from every check into the existing cron in
   `worker.ts scheduled()`; attach `cause` to `RateLimitUnavailableError`. Effort S.
 
