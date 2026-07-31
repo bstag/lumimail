@@ -28,8 +28,7 @@ describe("resolveInboundTargets", () => {
 		mock
 			.queueSelect([activeDomain]) // domain (targets)
 			.queueSelect([]) // alias lookup -> none
-			// resolveInboundAddress re-runs its own lookups:
-			.queueSelect([activeDomain]) // domain
+			// fallback reuses the already-loaded domain (T-42):
 			.queueSelect([]) // routing rules
 			.queueSelect([{ id: "mb_1", userId: "u1", localPart: "a", displayName: "A" }]); // direct mailbox
 
@@ -121,8 +120,7 @@ describe("resolveInboundTargets", () => {
 			.queueSelect([activeDomain]) // domain
 			.queueSelect([{ id: "al_1", domainId: "dom_1", localPart: "x", isGroup: false, targetMailboxId: "mb_gone", forwardTo: null }]) // alias
 			.queueSelect([]) // loadMailboxDecision -> missing
-			// decisions empty -> fallback to resolveInboundAddress
-			.queueSelect([activeDomain]) // domain
+			// decisions empty -> fallback (domain already loaded, T-42)
 			.queueSelect([]) // rules
 			.queueSelect([]); // direct mailbox -> none
 
@@ -135,8 +133,8 @@ describe("resolveInboundTargets", () => {
 			.queueSelect([activeDomain]) // domain
 			.queueSelect([{ id: "al_g", domainId: "dom_1", localPart: "team", isGroup: true, targetMailboxId: null, forwardTo: null }]) // alias
 			.queueSelect([
-				{ aliasId: "al_g", userId: "u1", email: null }, // internal -> mailbox lookup
-				{ aliasId: "al_g", userId: null, email: "ext@other.com" }, // external
+				{ aliasId: "al_g", legacyUserId: "u1", email: null }, // legacy internal -> mailbox lookup
+				{ aliasId: "al_g", legacyUserId: null, email: "ext@other.com" }, // external
 			]) // group members
 			.queueSelect([{ id: "mb_1" }]) // mailbox lookup for u1
 			// expandAliasTargets yields [mailbox mb_1, forward ext@other.com]
@@ -234,7 +232,7 @@ describe("resolveInboundTargets", () => {
 				forwardTo: null,
 			}])
 			.queueSelect([{ memberMailboxId: "mb_deleted", mailboxId: null }])
-			.queueSelect([{ ...activeDomain, organizationId: "org_1" }])
+			// fallback reuses the already-loaded domain (T-42):
 			.queueSelect([])
 			.queueSelect([]);
 
@@ -270,11 +268,28 @@ describe("resolveInboundTargets", () => {
 		expect(result[0].mailbox?.mailboxId).toBe("mb_1");
 	});
 
+	it("treats a row that carries a joined userId without a member mailbox id as external", async () => {
+		// Documents the T-42 deletion of the legacy recovery arm
+		// (`?? (!memberMailboxId ? row.userId : null)`): the mailboxes left join is
+		// keyed on `groupMembers.mailboxId`, so when `memberMailboxId` is null the
+		// join cannot have matched and `mailboxes.userId` is necessarily null too.
+		// This row shape is therefore impossible for D1 to produce; if a mock ever
+		// fabricates it, the member is treated as an external address rather than
+		// resurrected as a legacy user-backed member.
+		mock
+			.queueSelect([activeDomain]) // domain
+			.queueSelect([{ id: "al_g", domainId: "dom_1", localPart: "team", isGroup: true, targetMailboxId: null, forwardTo: null }]) // alias
+			.queueSelect([{ memberMailboxId: null, legacyUserId: null, userId: "u_ghost", email: "ghost@other.com" }]); // impossible join output
+
+		const result = await resolveInboundTargets(db, "team@example.com");
+		expect(result).toEqual([{ action: "forward", forwardTo: "ghost@other.com" }]);
+	});
+
 	it("treats an internal group member with no mailbox as external email", async () => {
 		mock
 			.queueSelect([activeDomain]) // domain
 			.queueSelect([{ id: "al_g", domainId: "dom_1", localPart: "team", isGroup: true, targetMailboxId: null, forwardTo: null }]) // alias
-			.queueSelect([{ aliasId: "al_g", userId: "u1", email: "fallback@other.com" }]) // member with userId
+			.queueSelect([{ aliasId: "al_g", legacyUserId: "u1", email: "fallback@other.com" }]) // legacy member
 			.queueSelect([]); // mailbox lookup for u1 -> none, so falls back to row.email
 
 		const result = await resolveInboundTargets(db, "team@example.com");
@@ -286,8 +301,7 @@ describe("resolveInboundTargets", () => {
 			.queueSelect([activeDomain]) // domain
 			.queueSelect([{ id: "al_g", domainId: "dom_1", localPart: "team", isGroup: true, targetMailboxId: null, forwardTo: null }]) // empty group alias
 			.queueSelect([]) // group members -> none, expandAliasTargets -> []
-			// fallback resolveInboundAddress:
-			.queueSelect([activeDomain]) // domain
+			// fallback reuses the already-loaded domain (T-42):
 			.queueSelect([]) // rules
 			.queueSelect([{ id: "mb_d", userId: "ud", localPart: "team", displayName: null }]); // direct mailbox
 
