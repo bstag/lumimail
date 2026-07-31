@@ -28,7 +28,9 @@ describe("documentation status contracts", () => {
 
   it("keeps public feature claims bounded by the current contracts", () => {
     const readme = read("README.md");
-    const landing = read("src/app/page.tsx");
+    // Landing copy lives in the i18n messages since T-35; en.json is the
+    // English source of truth the page renders.
+    const landing = read("src/i18n/messages/en.json");
     const composeSpec = read("docs/specs/F05-compose-send.md");
     const registry = read("docs/MVP_SCOPE.md");
 
