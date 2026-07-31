@@ -163,7 +163,7 @@ Deletions (safe, verified unreferenced):
   static `sendEmail` import; extract `applyMessageFilters` (merge per-filter
   updates into one write, drop the `as string` cast); move `getMessageWithBody`
   to `src/lib/messages/queries.ts`; export a named `ParsedEmail` type. Effort M.
-- [ ] **T-33 Unify the response envelope.** Adopt `apiSuccess`/`apiError` in the
+- [x] **T-33 Unify the response envelope.** Adopt `apiSuccess`/`apiError` in the
   30 raw-`Response.json` files (including all 12 `/api/messages/*` routes), fix
   the hand-rolled 201s, standardize the guard 401 shape. Mechanical,
   route-by-route, tests updated 1:1. Riskiest consumer is the client parsing —
