@@ -176,7 +176,7 @@ Deletions (safe, verified unreferenced):
   Convert the stragglers (aliases, members, message detail, vacation form,
   mailbox-provider, landing page). Folder-by-folder behind the e2e suite;
   messages last. Effort L.
-- [ ] **T-35 Wire the existing i18n keys.** Decision: **wire, don't delete** —
+- [x] **T-35 Wire the existing i18n keys.** Decision: **wire, don't delete** —
   11 locales and RTL support are a deliberate product feature; the `admin` (75)
   and `landing` (12) namespaces already match the hardcoded strings, so this is
   mechanical. Include toasts, `aria-label`s, and confirmation prompts; add
