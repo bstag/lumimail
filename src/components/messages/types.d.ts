@@ -1,4 +1,3 @@
-import type { LucideIcon } from "lucide-react";
 import type { Message, MessageFolder } from "@/hooks/types";
 import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
 
@@ -6,7 +5,6 @@ export type MessageFolderConfig = {
 	folder: MessageFolder;
 	emptyText: string;
 	hrefPrefix: string;
-	icon: LucideIcon;
 	badgeVariant?: "default" | "secondary" | "outline";
 	showRowBadge?: boolean;
 };

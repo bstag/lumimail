@@ -49,7 +49,6 @@ function MessageListRow({
 	canSend = false,
 }: MessageListRowProps) {
 	const t = useTranslations("messages");
-	const Icon = config.icon;
 	const { openDraftComposer } = useCompose();
 	const queryClient = useQueryClient();
 	const [retrying, setRetrying] = useState(false);
@@ -121,7 +120,6 @@ function MessageListRow({
 
 	const content = (
 		<>
-			<Icon className="h-4 w-4 text-ink-faint" />
 			<span className={getMessagePartyClassName(message, config.folder)}>
 				{getMessageParty(message, config.folder)}
 			</span>
@@ -149,10 +147,10 @@ function MessageListRow({
 					className="h-4 w-4 rounded border-border-strong"
 					aria-label={t("selectMessage")}
 				/>
+				{starButton}
 				<button type="button" className="contents text-left" onClick={() => openDraftComposer(message.id)}>
 					{content}
 				</button>
-				{starButton}
 			</div>
 		);
 	}
@@ -166,11 +164,11 @@ function MessageListRow({
 				className="h-4 w-4 rounded border-border-strong"
 				aria-label={t("selectMessage")}
 			/>
+			{starButton}
 			<Link href={`${config.hrefPrefix}/${message.id}`} className="contents">
 				{content}
 			</Link>
 			{retryButton}
-			{starButton}
 		</div>
 	);
 }

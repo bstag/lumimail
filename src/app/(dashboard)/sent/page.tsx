@@ -1,6 +1,5 @@
 "use client";
 
-import { Send } from "lucide-react";
 import { MessageFolderPage } from "@/components/messages/message-folder-page";
 
 export default function SentPage() {
@@ -10,7 +9,6 @@ export default function SentPage() {
 				folder: "sent",
 				emptyText: "No emails",
 				hrefPrefix: "/sent",
-				icon: Send,
 				badgeVariant: "outline",
 			}}
 		/>

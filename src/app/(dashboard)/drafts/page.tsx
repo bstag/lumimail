@@ -1,6 +1,5 @@
 "use client";
 
-import { FileText } from "lucide-react";
 import { MessageFolderPage } from "@/components/messages/message-folder-page";
 
 export default function DraftsPage() {
@@ -10,7 +9,6 @@ export default function DraftsPage() {
 				folder: "drafts",
 				emptyText: "No drafts",
 				hrefPrefix: "/drafts",
-				icon: FileText,
 				badgeVariant: "outline",
 			}}
 		/>
