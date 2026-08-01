@@ -1,6 +1,6 @@
 # F69 — Navigation Ergonomics
 
-> Status: `Shipped (local)`
+> Status: `Shipped`
 > Owner area: `src/app/(dashboard)/layout.tsx`, `src/app/(admin)/layout.tsx`, `src/components/*nav*`
 
 ## 1. Problem & User Job
@@ -121,3 +121,8 @@ Both sections captured expanded, railed, and at a 390px viewport in light and da
 **Not done:** the admin section has no bottom bar, by the decision in §3. Drag-to-resize
 was declined rather than deferred — the nav content is fixed-width, so additional width
 only adds empty space.
+
+### 2026-08-01 — Deployed
+
+Deployed to production. This entry records the deployment only; the rail, tab bar, and
+persistence contracts remain local gates, and no separate production audit was performed.

@@ -1,6 +1,6 @@
 # F71 — Preference Controls in the Header
 
-> Status: `Shipped (local)`
+> Status: `Shipped`
 > Owner area: `src/components/language-switcher.tsx`, `src/components/theme-toggle.tsx`, all four shells
 
 ## 1. Problem & User Job
@@ -75,3 +75,9 @@ landing header overflowing at 390px with "Create account" clipped.
 **Verification:** `npm run verify` — 167 files, 1,488 tests, 100% configured coverage,
 lint clean. Mocked E2E 46 passed, including the two locale-switching tests unchanged;
 local E2E 47 passed. All four surfaces captured at 1280px and 390px in light and dark.
+
+### 2026-08-01 — Deployed
+
+Deployed to production. This entry records the deployment only; the locale-switching and
+non-fixed-position contracts remain local gates, and no separate production audit was
+performed.

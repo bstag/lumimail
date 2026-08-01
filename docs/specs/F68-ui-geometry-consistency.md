@@ -1,6 +1,6 @@
 # F68 — UI Geometry Consistency
 
-> Status: `Shipped (local)`
+> Status: `Shipped`
 > Owner area: `src/components/ui/*`, `src/app/globals.css`, `src/app/(admin)/**`, `src/app/(dashboard)/**`
 
 ## 1. Problem & User Job
@@ -145,3 +145,8 @@ inline menu affordance rather than a form field, and giving it a field's box wou
 make it look like an input in a toolbar. Four admin pages still inline their own
 `<h1>` rather than using `PageHeader` — they already use the canonical style, and
 converting them means restructuring header rows that host dialog triggers.
+
+### 2026-08-01 — Deployed
+
+Deployed to production. This entry records the deployment only; the nine computed-style
+contracts remain a local gate, and no separate production styling audit was performed.

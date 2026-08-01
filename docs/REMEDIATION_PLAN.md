@@ -324,6 +324,7 @@ Add one entry per completed item. Do not record secrets, email contents, reset t
 | 2026-07-24 | R-34 | 1,300-test verification at 100% configured coverage, 2 Chromium recovery scenarios, migration `0017` applied remotely with none pending, version `b16e64d4-31a6-4850-8b55-400a3ff54a30`, HTTP 200/401 smoke checks | Local + production | Deployed; controlled production recovery pending |
 | 2026-07-25 | R-09 | Destination verified via Cloudflare link and reconciled through **Check again**, `bob` forward rule created against it, operator-confirmed external receipt, configuration re-read from production | Production | Passed |
 | 2026-07-25 | R-26 | Cross-domain group `domainadmin@lucidkith.com` created through Lumimail with `admin@lucidkith.com` and `admin@henriksen.dev` members, no hand-created Cloudflare rule, operator-confirmed delivery | Production | Passed |
+| 2026-08-01 | F68, F69, F71 | Operator-reported deployment of the interface batch; local gates as recorded in each spec's verification log | Production | Deployed; no separate production audit performed |
 
 ## Newly discovered work
 
