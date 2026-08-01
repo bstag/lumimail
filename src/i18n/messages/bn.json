@@ -128,6 +128,7 @@
     "logOut": "লগ আউট",
     "signOutSession": "এই সেশন থেকে সাইন আউট",
     "allMailboxes": "সব মেইলবক্স",
+    "allMailboxesDesc": "একটি স্ট্রিমে {count}টি মেইলবক্স",
     "allDomains": "সব ডোমেইন",
     "chooseMailbox": "সক্রিয় প্রেরণ এবং ইনবক্স অ্যাকাউন্ট চয়ন করুন।",
     "primary": "প্রাথমিক",
@@ -135,6 +136,7 @@
     "adminSettingsDesc": "ডোমেইন, মেইলবক্স, API কী",
     "countOverflow": "৯৯+",
     "starred": "Starred",
+    "archive": "আর্কাইভ",
     "contacts": "Contacts",
     "members": "সদস্যরা",
     "more": "আরও"
@@ -244,6 +246,7 @@
     "moveTo": "স্থানান্তর করুন...",
     "moveToSpam": "স্প্যামে স্থানান্তর",
     "moveToTrash": "ট্র্যাশে স্থানান্তর",
+    "moveToInbox": "ইনবক্সে স্থানান্তর",
     "markRead": "পঠিত চিহ্নিত",
     "markUnread": "অপঠিত চিহ্নিত",
     "clearSelection": "নির্বাচন পরিষ্কার",

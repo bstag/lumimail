@@ -26,6 +26,21 @@ export function parseMessageSearchQuery(query: string): MessageFilterOptions {
 	return filters;
 }
 
+/**
+ * Statuses a label view lists: everything the messages API accepts except
+ * `trash` and `spam`. Written as an allowlist rather than an exclusion so a
+ * future status has to be considered deliberately instead of appearing in
+ * label views by default.
+ */
+export const LABEL_VISIBLE_STATUSES = [
+	"received",
+	"sent",
+	"draft",
+	"queued",
+	"failed",
+	"archived",
+] as const;
+
 export function getMessageQueryParams(
 	folder: MessageFolder,
 	mailboxId?: string | null,
@@ -50,6 +65,20 @@ export function getMessageQueryParams(
 
 	if (folder === "trash" || folder === "spam") {
 		params.set("status", folder);
+	}
+
+	// Archive holds mail in both directions, so unlike Inbox and Sent it
+	// constrains status alone.
+	if (folder === "archived") {
+		params.set("status", "archived");
+	}
+
+	// A label spans folders, so it constrains `labelId` (set from `filters`
+	// below) rather than status — except that trashed and spam mail stays out.
+	// A label is a filing destination; deleted mail that happens to still carry
+	// the label is not something the user filed there.
+	if (folder === "label") {
+		params.set("status", LABEL_VISIBLE_STATUSES.join(","));
 	}
 
 	if (folder === "starred") {

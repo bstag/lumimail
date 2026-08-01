@@ -13,9 +13,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchMailboxOptions } from "./mailbox-provider-utils";
 import { mailboxKeys } from "@/lib/query-keys";
 import {
+	ALL_MAILBOXES_SCOPE_STORAGE_KEY,
 	registerAccountStateReset,
 	SELECTED_MAILBOX_STORAGE_KEY,
 } from "@/lib/auth/account-state";
+import {
+	ALL_SCOPE_STORED_VALUE,
+	readStoredAllScope,
+	resolveScopedMailboxId,
+} from "./mailbox-scope-utils";
 
 export type MailboxOption = {
 	id: string;
@@ -31,6 +37,14 @@ type MailboxContextValue = {
 	setSelectedMailbox: (mb: MailboxOption | null) => void;
 	mailboxes: MailboxOption[];
 	isLoading: boolean;
+	/**
+	 * All-mailboxes scope (F76). Independent of `selectedMailbox`, which keeps
+	 * meaning "the identity I send as" — see `mailbox-scope-utils.ts`.
+	 */
+	allMailboxes: boolean;
+	setAllMailboxes: (on: boolean) => void;
+	/** The mailbox id message lists should filter by, or null for no filter. */
+	scopedMailboxId: string | null;
 };
 
 const MailboxContext = createContext<MailboxContextValue | null>(null);
@@ -57,6 +71,7 @@ export function MailboxProvider({ children }: { children: ReactNode }) {
 	const queryClient = useQueryClient();
 	const [selectedMailbox, setSelectedMailboxState] = useState<MailboxOption | null>(null);
 	const [selectionReady, setSelectionReady] = useState(false);
+	const [allMailboxes, setAllMailboxesState] = useState(false);
 
 	// The mailbox list is a TanStack query (T-34). The F50 account-switch
 	// contract holds because the root QueryClient clears itself on the same
@@ -80,6 +95,8 @@ export function MailboxProvider({ children }: { children: ReactNode }) {
 	useEffect(() => registerAccountStateReset(() => {
 		setSelectedMailboxState(null);
 		setSelectionReady(false);
+		// Without this the next account inherits the previous one's scope.
+		setAllMailboxesState(false);
 	}), []);
 
 	useEffect(() => {
@@ -99,6 +116,11 @@ export function MailboxProvider({ children }: { children: ReactNode }) {
 			if (primary) safeStorageSet(SELECTED_MAILBOX_STORAGE_KEY, primary.id);
 			return primary;
 		});
+		// Re-read on every list change, not just the first: losing access down to
+		// one mailbox must drop a stored all-scope the selector no longer offers.
+		setAllMailboxesState(
+			readStoredAllScope(safeStorageGet(ALL_MAILBOXES_SCOPE_STORAGE_KEY), items.length),
+		);
 		setSelectionReady(true);
 	}, [mailboxQuery.data]);
 
@@ -114,9 +136,24 @@ export function MailboxProvider({ children }: { children: ReactNode }) {
 		}
 	}, [queryClient]);
 
-	return (
-		<MailboxContext.Provider value={{ selectedMailbox, setSelectedMailbox, mailboxes, isLoading }}>
-			{children}
-		</MailboxContext.Provider>
+	const setAllMailboxes = useCallback((on: boolean) => {
+		setAllMailboxesState(on);
+		if (on) safeStorageSet(ALL_MAILBOXES_SCOPE_STORAGE_KEY, ALL_SCOPE_STORED_VALUE);
+		else safeStorageRemove(ALL_MAILBOXES_SCOPE_STORAGE_KEY);
+	}, []);
+
+	const value = useMemo(
+		() => ({
+			selectedMailbox,
+			setSelectedMailbox,
+			mailboxes,
+			isLoading,
+			allMailboxes,
+			setAllMailboxes,
+			scopedMailboxId: resolveScopedMailboxId(allMailboxes, selectedMailbox?.id),
+		}),
+		[allMailboxes, isLoading, mailboxes, selectedMailbox, setAllMailboxes, setSelectedMailbox],
 	);
+
+	return <MailboxContext.Provider value={value}>{children}</MailboxContext.Provider>;
 }

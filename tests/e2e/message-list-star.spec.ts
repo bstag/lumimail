@@ -41,14 +41,34 @@ const messages = [
 	},
 ];
 
+/**
+ * Starred state has to live in the mock, not in a fixed payload: a successful
+ * toggle invalidates the list query, and the refetch would otherwise serve the
+ * pre-toggle rows and revert the optimistic update.
+ */
+let starredById: Record<string, boolean>;
+
 test.beforeEach(async ({ page }) => {
+	starredById = Object.fromEntries(messages.map((message) => [message.id, message.starred]));
+
 	await mockAuthShell(page, {
 		mailboxes: [{ id: "mbx_1", address: "team@example.com", capability: "send_receive" }],
 		counts: flatCounts({ inbox: 2 }),
 	});
 	await page.route("**/api/messages?*", (route) =>
 		route.fulfill({
-			json: { success: true, data: { messages, total: messages.length, limit: 25, offset: 0 } },
+			json: {
+				success: true,
+				data: {
+					messages: messages.map((message) => ({
+						...message,
+						starred: starredById[message.id],
+					})),
+					total: messages.length,
+					limit: 25,
+					offset: 0,
+				},
+			},
 		}),
 	);
 });
@@ -73,8 +93,10 @@ test("toggles the star from the leading slot without opening the message", async
 	let patched: { id: string; body: unknown } | null = null;
 	await page.route("**/api/messages/*/starred", async (route) => {
 		const id = new URL(route.request().url()).pathname.split("/").at(-2) ?? "";
-		patched = { id, body: route.request().postDataJSON() as unknown };
-		return route.fulfill({ json: { success: true, data: { starred: true } } });
+		const body = route.request().postDataJSON() as { starred: boolean };
+		patched = { id, body };
+		starredById[id] = body.starred;
+		return route.fulfill({ json: { success: true, data: { starred: body.starred } } });
 	});
 
 	await page.goto("/inbox");
@@ -82,6 +104,7 @@ test("toggles the star from the leading slot without opening the message", async
 
 	await expect.poll(() => patched).toEqual({ id: "msg_unstarred", body: { starred: true } });
 	await expect(page).toHaveURL(/\/inbox$/);
-	// Optimistic update flips the label in place.
+	// The label flips in place and survives the post-mutation refetch.
 	await expect(page.getByRole("button", { name: "Unstar", exact: true })).toHaveCount(2);
+	await expect(page.getByRole("button", { name: "Star", exact: true })).toHaveCount(0);
 });

@@ -87,6 +87,40 @@ describe("POST /api/labels", () => {
 		expect(res.status).toBe(400);
 	});
 
+	it("creates a nested label under a top-level parent (F75)", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		m.dbMock.queueSelect([{ id: "lbl_parent", parentId: null }]); // parent lookup
+		m.dbMock.queueSelect([{ id: "lbl_1", name: "Acme", parentId: "lbl_parent" }]);
+		const res = await POST(post({ name: "Acme", parentId: "lbl_parent" }));
+		expect(res.status).toBe(201);
+		expect(m.dbMock.inserts[0].values).toMatchObject({ parentId: "lbl_parent" });
+	});
+
+	it("returns 404 for a parent that does not exist or is not the caller's", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		m.dbMock.queueSelect([]); // parent lookup finds nothing
+		const res = await POST(post({ name: "Acme", parentId: "lbl_someone_else" }));
+		expect(res.status).toBe(404);
+		expect(m.dbMock.inserts).toHaveLength(0);
+	});
+
+	it("returns 400 when the requested parent is itself nested", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		m.dbMock.queueSelect([{ id: "lbl_mid", parentId: "lbl_top" }]);
+		const res = await POST(post({ name: "Acme", parentId: "lbl_mid" }));
+		expect(res.status).toBe(400);
+		expect(((await res.json()) as any).error.message).toBe("Labels nest one level deep");
+		expect(m.dbMock.inserts).toHaveLength(0);
+	});
+
+	it("stores a null parent when none is given", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		m.dbMock.queueSelect([{ id: "lbl_1" }]);
+		const res = await POST(post({ name: "Work" }));
+		expect(res.status).toBe(201);
+		expect(m.dbMock.inserts[0].values).toMatchObject({ parentId: null });
+	});
+
 	it("defaults color and null organizationId when omitted", async () => {
 		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		m.dbMock.queueSelect([{ id: "lbl_1" }]);

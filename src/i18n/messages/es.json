@@ -128,6 +128,7 @@
     "logOut": "Cerrar sesión",
     "signOutSession": "Cerrar esta sesión",
     "allMailboxes": "Todos los buzones",
+    "allMailboxesDesc": "{count} buzones en un solo flujo",
     "allDomains": "Todos los dominios",
     "chooseMailbox": "Elige la cuenta activa de envío y bandeja.",
     "primary": "Principal",
@@ -135,6 +136,7 @@
     "adminSettingsDesc": "Dominios, buzones, claves API",
     "countOverflow": "99+",
     "starred": "Starred",
+    "archive": "Archivo",
     "contacts": "Contacts",
     "members": "Miembros",
     "more": "Más"
@@ -244,6 +246,7 @@
     "moveTo": "Mover a...",
     "moveToSpam": "Mover a Spam",
     "moveToTrash": "Mover a Papelera",
+    "moveToInbox": "Mover a Bandeja",
     "markRead": "Marcar como leído",
     "markUnread": "Marcar como no leído",
     "clearSelection": "Limpiar selección",

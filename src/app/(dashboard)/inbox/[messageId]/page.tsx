@@ -210,6 +210,7 @@ export default function MessageDetailPage() {
 					fromAddr={message.fromAddr}
 					toAddr={message.toAddr}
 					subject={message.subject}
+					mailboxId={message.mailboxId}
 					canSend={canSend}
 					onActionSuccess={(action) => {
 						if (action === "read") setReadOverride(true);

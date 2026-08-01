@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Check, LogOut, Mail, Settings } from "lucide-react";
+import { Check, Layers, LogOut, Mail, Settings } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuthSession } from "@/components/auth/auth-session-context";
@@ -10,19 +10,21 @@ import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { useMessageCounts } from "@/hooks/use-message-counts";
 import { authFetch, clearClientSessionToken } from "@/lib/auth/client";
 import { isOrganizationAdminRole } from "@/lib/auth/roles";
+import { isAllScopeAvailable } from "@/components/mailbox-scope-utils";
 import { cn } from "@/lib/utils";
 
 export function MailboxSelector() {
 	const t = useTranslations("nav");
 	const session = useAuthSession();
 	const canAdministerOrganization = isOrganizationAdminRole(session?.user?.role);
-	const { selectedMailbox, setSelectedMailbox, mailboxes, isLoading } =
+	const { selectedMailbox, setSelectedMailbox, mailboxes, isLoading, allMailboxes, setAllMailboxes } =
 		useSelectedMailbox();
 	const pathname = usePathname();
 	const router = useRouter();
 	const [open, setOpen] = useState(false);
 	const ref = useRef<HTMLDivElement>(null);
 	const { counts } = useMessageCounts(null, open);
+	const allUnread = counts.mailboxes.reduce((sum, mailbox) => sum + mailbox.unread, 0);
 
 	useEffect(() => {
 		function onPointerDown(event: PointerEvent) {
@@ -35,10 +37,12 @@ export function MailboxSelector() {
 
 	if (isLoading) return null;
 
-	const selectedName = selectedMailbox?.displayName ?? selectedMailbox?.localPart ?? t("allMailboxes");
-	const selectedEmail = selectedMailbox
-		? `${selectedMailbox.localPart}@${selectedMailbox.hostname}`
-		: t("allDomains");
+	const selectedName = allMailboxes
+		? t("allMailboxes")
+		: (selectedMailbox?.displayName ?? selectedMailbox?.localPart ?? t("allMailboxes"));
+	const selectedEmail = allMailboxes || !selectedMailbox
+		? t("allDomains")
+		: `${selectedMailbox.localPart}@${selectedMailbox.hostname}`;
 	const adminActive =
 		pathname === "/admin" ||
 		pathname.startsWith("/mailboxes") ||
@@ -77,10 +81,40 @@ export function MailboxSelector() {
 						<p className="text-sm font-medium text-ink">{t("mailboxes")}</p>
 						<p className="text-xs text-ink-muted">{t("chooseMailbox")}</p>
 					</div>
+					{isAllScopeAvailable(mailboxes.length) && (
+						<button
+							type="button"
+							onClick={() => {
+								setAllMailboxes(true);
+								setOpen(false);
+								router.push("/inbox");
+							}}
+							className={cn(
+								"flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-subtle",
+								!adminActive && allMailboxes && "bg-accent-muted",
+							)}
+						>
+							<div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-muted text-accent">
+								<Layers className="h-4 w-4" />
+							</div>
+							<div className="min-w-0 flex-1">
+								<p className="truncate text-sm font-medium text-ink">{t("allMailboxes")}</p>
+								<p className="truncate text-xs text-ink-muted">
+									{t("allMailboxesDesc", { count: mailboxes.length })}
+								</p>
+							</div>
+							{allUnread > 0 && (
+								<span className="rounded-full bg-accent-muted px-2 py-0.5 text-[11px] font-semibold text-accent">
+									{allUnread > 99 ? t("countOverflow") : allUnread}
+								</span>
+							)}
+							{!adminActive && allMailboxes && <Check className="h-4 w-4 text-accent" />}
+						</button>
+					)}
 					{mailboxes.map((mb) => {
 						const email = `${mb.localPart}@${mb.hostname}`;
 						const name = mb.displayName ?? mb.localPart;
-						const active = !adminActive && selectedMailbox?.id === mb.id;
+						const active = !adminActive && !allMailboxes && selectedMailbox?.id === mb.id;
 						const mailboxCount = counts.mailboxes.find((count) => count.mailboxId === mb.id);
 						const unread = mailboxCount?.unread ?? 0;
 						const inbox = mailboxCount?.inbox ?? 0;
@@ -90,6 +124,7 @@ export function MailboxSelector() {
 								key={mb.id}
 								type="button"
 								onClick={() => {
+									setAllMailboxes(false);
 									setSelectedMailbox(mb);
 									setOpen(false);
 									router.push("/inbox");

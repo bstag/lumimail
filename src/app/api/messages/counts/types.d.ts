@@ -1,4 +1,4 @@
-import type { MessageCounts, MessageFolder } from "@/hooks/types";
+import type { CountedFolder, MessageCounts } from "@/hooks/types";
 import type { messages } from "@/db/schema";
 
 export type MessageCountRow = Pick<
@@ -8,4 +8,4 @@ export type MessageCountRow = Pick<
 
 export type FolderAccumulator = MessageCounts["folders"];
 
-export type CountableFolder = MessageFolder | null;
+export type CountableFolder = CountedFolder | null;

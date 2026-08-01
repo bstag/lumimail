@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { MessageCounts, MessageFolder } from "@/hooks/types";
+import type { CountedFolder, MessageCounts } from "@/hooks/types";
 import { getFolderNavCount } from "@/components/dashboard-nav-utils";
 
 function counts(unread: number): MessageCounts["folders"] {
@@ -8,10 +8,11 @@ function counts(unread: number): MessageCounts["folders"] {
 		inbox: folder,
 		sent: folder,
 		drafts: folder,
+		archived: folder,
 		trash: folder,
 		spam: folder,
 		starred: folder,
-	} satisfies Record<MessageFolder, { total: number; unread: number }>;
+	} satisfies Record<CountedFolder, { total: number; unread: number }>;
 }
 
 describe("getFolderNavCount", () => {
@@ -28,5 +29,6 @@ describe("getFolderNavCount", () => {
 		expect(getFolderNavCount("drafts", counts(2))).toBeUndefined();
 		expect(getFolderNavCount("trash", counts(2))).toBeUndefined();
 		expect(getFolderNavCount("starred", counts(2))).toBeUndefined();
+		expect(getFolderNavCount("archived", counts(2))).toBeUndefined();
 	});
 });

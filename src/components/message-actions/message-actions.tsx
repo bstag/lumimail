@@ -11,6 +11,8 @@ import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
 import type { MessageActionsProps } from "./types";
 import { getMessageActionRedirect, runSingleMessageAction } from "./utils";
 import { Select } from "@/components/ui/select";
+import { useSelectedMailbox } from "@/components/mailbox-provider";
+import { resolveReplyMailboxId } from "@/components/mailbox-scope-utils";
 
 export function MessageActions({
 	messageId,
@@ -20,12 +22,24 @@ export function MessageActions({
 	fromAddr,
 	toAddr,
 	subject,
+	mailboxId,
 	canSend = false,
 	onActionSuccess,
 }: MessageActionsProps) {
 	const t = useTranslations("actions");
 	const router = useRouter();
 	const queryClient = useQueryClient();
+	const { mailboxes } = useSelectedMailbox();
+
+	/**
+	 * Seeds the composer with the mailbox this message belongs to. Null when the
+	 * message has none, or names one the caller can no longer read — the composer
+	 * then keeps the active mailbox.
+	 */
+	function sendingMailboxParam(params: URLSearchParams) {
+		const replyMailboxId = resolveReplyMailboxId({ mailboxId: mailboxId ?? null }, mailboxes);
+		if (replyMailboxId) params.set("fromMailboxId", replyMailboxId);
+	}
 
 	function replyTo() {
 		const replyAddr = direction === "inbound" ? fromAddr : toAddr;
@@ -33,6 +47,7 @@ export function MessageActions({
 		if (replyAddr) params.set("to", replyAddr);
 		if (subject) params.set("subject", subject.startsWith("Re:") ? subject : `Re: ${subject}`);
 		params.set("inReplyTo", messageId);
+		sendingMailboxParam(params);
 		router.push(`/compose?${params.toString()}`);
 	}
 
@@ -40,6 +55,7 @@ export function MessageActions({
 		const params = new URLSearchParams();
 		if (subject) params.set("subject", subject.startsWith("Fwd:") ? subject : `Fwd: ${subject}`);
 		params.set("forwardOf", messageId);
+		sendingMailboxParam(params);
 		router.push(`/compose?${params.toString()}`);
 	}
 	const [pendingAction, setPendingAction] = useState<BulkMessageAction | null>(null);
@@ -139,6 +155,8 @@ export function MessageActions({
 						}}
 					>
 						<option value="">{t("moveTo")}</option>
+						{/* Inbox is what makes archive/spam/trash reversible. */}
+						<option value="inbox">{t("moveToInbox")}</option>
 						<option value="spam">{t("moveToSpam")}</option>
 						<option value="trash">{t("moveToTrash")}</option>
 					</Select>
