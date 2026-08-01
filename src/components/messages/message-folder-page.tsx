@@ -28,6 +28,8 @@ import {
 	runBulkMessageAction,
 } from "./utils";
 import { canRecoverMessage } from "./message-folder-utils";
+import { formatMessageListTime } from "./message-time-utils";
+import { MOBILE_QUERY, useMediaQuery } from "@/hooks/use-media-query";
 import { canMailboxSend } from "@/components/mailbox-provider-utils";
 
 const pageSize = 25;
@@ -48,6 +50,8 @@ function MessageListRow({
 	onStarToggle,
 	canSend = false,
 	mailboxLabel,
+	compact = false,
+	timestamp,
 }: MessageListRowProps) {
 	const t = useTranslations("messages");
 	const { openDraftComposer } = useCompose();
@@ -95,8 +99,12 @@ function MessageListRow({
 			/>
 		</>
 	) : null;
+	// Flex rather than a fixed grid: the grid gave the subject a `1fr` track that
+	// the mailbox chip and the timestamp could squeeze to zero width on a phone,
+	// which hid the subject entirely. Here the subject owns its own line at
+	// compact widths and the meta cluster is `shrink-0` beside it.
 	const className =
-		`grid min-h-12 w-full grid-cols-[24px_32px_minmax(96px,180px)_1fr_auto_auto] items-center gap-2 px-4 text-left text-sm sm:grid-cols-[24px_32px_minmax(160px,240px)_1fr_auto_auto] sm:gap-3 sm:px-6 hover:relative hover:z-10 hover:bg-surface-subtle hover:shadow-sm ${
+		`flex min-h-12 w-full items-center gap-2 px-4 text-left text-sm sm:gap-3 sm:px-6 hover:relative hover:z-10 hover:bg-surface-subtle hover:shadow-sm ${
 			selected ? "bg-accent-muted" : ""
 		}`;
 
@@ -119,17 +127,15 @@ function MessageListRow({
 		</button>
 	);
 
-	const content = (
-		<>
-			<span className={getMessagePartyClassName(message, config.folder)}>
-				{getMessageParty(message, config.folder)}
-			</span>
-			<span className="min-w-0 truncate text-ink-muted">
-				<span className={unread ? "font-bold text-ink" : ""}>
-					{message.subject ?? t("noSubject")}
-				</span>
-				<span className="text-ink-muted"> - {getMessagePreview(message, config.folder)}</span>
-			</span>
+	/**
+	 * Mailbox chip, folder badge, and timestamp. Rendered once — on the sender
+	 * line when compact, at the end of the row otherwise. `compact` comes from a
+	 * media query rather than `sm:hidden` so only one copy exists in the DOM;
+	 * two would be read twice by a screen reader and would make every strict
+	 * `getByText` locator in the suites ambiguous.
+	 */
+	const meta = (
+		<div className="flex shrink-0 items-center gap-2">
 			{mailboxLabel && (
 				<Badge variant="outline" title={mailboxLabel}>
 					{mailboxLabel}
@@ -140,7 +146,37 @@ function MessageListRow({
 					{getMessageBadge(message, config.folder)}
 				</Badge>
 			)}
-		</>
+			{timestamp && (
+				<time
+					dateTime={message.createdAt}
+					className={`shrink-0 text-xs tabular-nums ${unread ? "font-semibold text-ink" : "text-ink-muted"}`}
+				>
+					{timestamp}
+				</time>
+			)}
+		</div>
+	);
+
+	const content = (
+		<div
+			className={`flex min-w-0 flex-1 gap-0.5 ${
+				compact ? "flex-col py-1.5" : "flex-row items-center gap-3"
+			}`}
+		>
+			<div className={`flex min-w-0 items-center gap-2 ${compact ? "" : "w-40 shrink-0 sm:w-60"}`}>
+				<span className={`${getMessagePartyClassName(message, config.folder)} ${compact ? "flex-1" : ""}`}>
+					{getMessageParty(message, config.folder)}
+				</span>
+				{compact && meta}
+			</div>
+			<span className="min-w-0 flex-1 truncate text-ink-muted">
+				<span className={unread ? "font-bold text-ink" : ""}>
+					{message.subject ?? t("noSubject")}
+				</span>
+				<span className="text-ink-muted"> - {getMessagePreview(message, config.folder)}</span>
+			</span>
+			{!compact && meta}
+		</div>
 	);
 
 	if (config.folder === "drafts") {
@@ -150,11 +186,15 @@ function MessageListRow({
 					type="checkbox"
 					checked={selected}
 					onChange={(event) => onSelectedChange(message.id, event.target.checked)}
-					className="h-4 w-4 rounded border-border-strong"
+					className="h-4 w-4 shrink-0 rounded border-border-strong"
 					aria-label={t("selectMessage")}
 				/>
 				{starButton}
-				<button type="button" className="contents text-left" onClick={() => openDraftComposer(message.id)}>
+				<button
+					type="button"
+					className="flex min-w-0 flex-1 text-left"
+					onClick={() => openDraftComposer(message.id)}
+				>
 					{content}
 				</button>
 			</div>
@@ -167,11 +207,11 @@ function MessageListRow({
 				type="checkbox"
 				checked={selected}
 				onChange={(event) => onSelectedChange(message.id, event.target.checked)}
-				className="h-4 w-4 rounded border-border-strong"
+				className="h-4 w-4 shrink-0 rounded border-border-strong"
 				aria-label={t("selectMessage")}
 			/>
 			{starButton}
-			<Link href={`${config.hrefPrefix}/${message.id}`} className="contents">
+			<Link href={`${config.hrefPrefix}/${message.id}`} className="flex min-w-0 flex-1">
 				{content}
 			</Link>
 			{retryButton}
@@ -212,6 +252,11 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 		[messages, selectedIds],
 	);
 	const hasUnreadSelection = selectedMessages.some((message) => !message.read);
+	// One media-query listener for the whole list rather than one per row.
+	const compact = useMediaQuery(MOBILE_QUERY);
+	// Every row formats against the same instant, so a list cannot show two
+	// different "todays" if it renders across midnight.
+	const renderedAt = useMemo(() => new Date(), [messages]);
 	// Only built in all-mailboxes scope; every row shares one mailbox otherwise.
 	const mailboxLabels = useMemo(
 		() =>
@@ -382,6 +427,8 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 						onStarToggle={handleStarToggle}
 						canSend={selectedMailbox ? canMailboxSend(selectedMailbox) : false}
 						mailboxLabel={allMailboxes ? mailboxLabels.get(message.mailboxId ?? "") : undefined}
+						compact={compact}
+						timestamp={formatMessageListTime(message.createdAt, renderedAt)}
 					/>
 				))}
 				{isLoading && <p className="px-6 py-4 text-sm text-ink-muted">{t("loading")}</p>}

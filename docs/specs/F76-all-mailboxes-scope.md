@@ -107,8 +107,10 @@ asserting that the unscoped list for user A never contains user B's rows.
   "All domains" when `selectedMailbox` is null — that display becomes a real state
   instead of a transient pre-selection artifact.
 - **List rows**: while the scope is active, each row shows which mailbox it belongs
-  to. Placed after the subject/preview so it does not compete with the sender.
-  Suppressed when a single mailbox is selected, where it would be noise on every row.
+  to. Suppressed when a single mailbox is selected, where it would be noise on
+  every row. The chip sits in a `shrink-0` meta cluster with the folder badge and
+  the timestamp — **not** inside the subject's flex track, which is what caused
+  the 2026-07-31 regression below.
 - **Reply/forward**: `MessageActions` resolves the message's mailbox through
   `resolveReplyMailboxId` and passes it to the composer as a `fromMailboxId`
   query parameter. `ComposeForm` honours it before its send-capability fallback,
@@ -249,6 +251,43 @@ Notes:
 - Nav folder counts follow `scopedMailboxId`, so a badge always counts what the
   folder will actually show.
 
+### 2026-07-31 — Mailbox chip hid the subject on phones
+
+Type: Bug Fix
+
+Summary:
+- Message-list rows are now two lines below `md` (sender + meta, then subject),
+  and carry a timestamp at every width.
+- The row moved from a fixed grid to flex; the meta cluster (mailbox chip, folder
+  badge, timestamp) is `shrink-0` and no longer shares the subject's track.
+- `formatMessageListTime` degrades with age: today → `3:24 PM`, this year →
+  `Jul 30`, older → `12/31/25`.
+
+Reason:
+- The all-mailboxes chip shipped inside the row's `1fr` subject track. At phone
+  width the chip plus the fixed sender column consumed that track, collapsing the
+  subject to zero and truncating it away. Expected: sender, subject, and preview
+  legible. Actual: sender and mailbox only — the single most important field in a
+  mail list was invisible. Reproduced at 412×915.
+
+Impact:
+- Anyone using the app on a phone in all-mailboxes scope, which is exactly the
+  audience this feature was built for. Desktop was unaffected.
+
+Tests:
+- `tests/unit/components/messages/message-time-utils.test.ts`
+- `tests/e2e/message-list-compact-rows.spec.ts` — asserts the subject's rendered
+  width, not merely its visibility: the element was in the DOM the whole time.
+  Three of its four tests were confirmed to fail against the previous layout.
+
+Notes:
+- `compact` is decided by one `useMediaQuery` in `MessageFolderPage` and passed
+  down, rather than by `sm:hidden` on two copies of the meta cluster. Duplicated
+  markup would have been read twice by screen readers and would have made strict
+  `getByText` locators ambiguous across the suites.
+- The timestamp was added at all widths, not just mobile. The desktop list had no
+  date at all, which was its own gap.
+
 ## 14. Not verified
 
 - **Row-level cross-tenant isolation for the unscoped path has not been executed
@@ -259,5 +298,6 @@ Notes:
   the predicate is unchanged from the already-audited scoped path — but this is
   the one item in this feature where a mistake exposes another tenant's mail, so
   it should be exercised against a real database before deploying.
-- The per-row mailbox label and the scope control have not been checked on a
-  narrow mobile viewport.
+- The scope control (the selector dropdown itself) has not been checked on a
+  narrow mobile viewport. The per-row mailbox label now has automated coverage at
+  412px — see the 2026-07-31 entry above.
