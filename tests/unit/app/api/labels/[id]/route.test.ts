@@ -68,6 +68,59 @@ describe("PATCH /api/labels/[id]", () => {
 		expect((await res.json()) as any).toEqual({ success: true, data: { id: "lbl_1", name: "New" } });
 		expect(m.dbMock.updates[0].set).toEqual({ name: "New" });
 	});
+
+	// F75 parent rules. Lookup order in the handler: existing, parent, child.
+	it("nests a label under a top-level parent", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		m.dbMock.queueSelect([{ id: "lbl_1", userId: "u1" }]); // existing
+		m.dbMock.queueSelect([{ id: "lbl_top", parentId: null }]); // parent
+		m.dbMock.queueSelect([]); // no children of its own
+		m.dbMock.queueSelect([{ id: "lbl_1", parentId: "lbl_top" }]); // returning
+		const res = await PATCH(req({ parentId: "lbl_top" }), params());
+		expect(res.status).toBe(200);
+		expect(m.dbMock.updates[0].set).toEqual({ parentId: "lbl_top" });
+	});
+
+	it("returns 404 for a parent that does not exist or is not the caller's", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		m.dbMock.queueSelect([{ id: "lbl_1", userId: "u1" }]); // existing
+		m.dbMock.queueSelect([]); // parent lookup finds nothing
+		m.dbMock.queueSelect([]); // no children
+		const res = await PATCH(req({ parentId: "lbl_someone_else" }), params());
+		expect(res.status).toBe(404);
+		expect(m.dbMock.updates).toHaveLength(0);
+	});
+
+	it("rejects a label as its own parent", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		m.dbMock.queueSelect([{ id: "lbl_1", userId: "u1" }]);
+		m.dbMock.queueSelect([{ id: "lbl_1", parentId: null }]);
+		m.dbMock.queueSelect([]);
+		const res = await PATCH(req({ parentId: "lbl_1" }), params());
+		expect(res.status).toBe(400);
+		expect(((await res.json()) as any).error.message).toBe("A label cannot be its own parent");
+		expect(m.dbMock.updates).toHaveLength(0);
+	});
+
+	it("rejects giving a parent to a label that has children", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		m.dbMock.queueSelect([{ id: "lbl_1", userId: "u1" }]);
+		m.dbMock.queueSelect([{ id: "lbl_top", parentId: null }]);
+		m.dbMock.queueSelect([{ id: "lbl_child" }]); // lbl_1 is itself a parent
+		const res = await PATCH(req({ parentId: "lbl_top" }), params());
+		expect(res.status).toBe(400);
+		expect(((await res.json()) as any).error.message).toBe("Move this label's children first");
+		expect(m.dbMock.updates).toHaveLength(0);
+	});
+
+	it("promotes a label to top level without any parent lookups", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		m.dbMock.queueSelect([{ id: "lbl_1", userId: "u1" }]); // existing
+		m.dbMock.queueSelect([{ id: "lbl_1", parentId: null }]); // returning
+		const res = await PATCH(req({ parentId: null }), params());
+		expect(res.status).toBe(200);
+		expect(m.dbMock.updates[0].set).toEqual({ parentId: null });
+	});
 });
 
 describe("DELETE /api/labels/[id]", () => {

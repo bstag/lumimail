@@ -176,14 +176,18 @@ export const updateAliasGroupSchema = z.object({
 	}
 });
 
+// Depth and cycle rules for `parentId` need database reads, so they live in
+// `src/app/api/labels/utils.ts` rather than here. Zod only checks the shape.
 export const createLabelSchema = z.object({
 	name: z.string().trim().min(1).max(50),
 	color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default(DEFAULT_LABEL_COLOR),
+	parentId: z.string().nullable().optional(),
 });
 
 export const updateLabelSchema = z.object({
 	name: z.string().trim().min(1).max(50).optional(),
 	color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+	parentId: z.string().nullable().optional(),
 });
 
 export const createContactSchema = z.object({

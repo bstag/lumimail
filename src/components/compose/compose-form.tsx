@@ -95,6 +95,18 @@ export function ComposeForm({
 	});
 	const { loadingDraft } = draft;
 
+	// A reply carries the mailbox that received the message (F76). Honoured before
+	// the send-capability fallback below so it wins, and only when that mailbox
+	// can actually send — otherwise the composer would seed an identity the
+	// server will refuse.
+	const fromMailboxIdParam = searchParams.get("fromMailboxId");
+	useEffect(() => {
+		if (!fromMailboxIdParam) return;
+		if (selectedMailbox?.id === fromMailboxIdParam) return;
+		const requested = mailboxes.find((mailbox) => mailbox.id === fromMailboxIdParam);
+		if (requested && canMailboxSend(requested)) setSelectedMailbox(requested);
+	}, [fromMailboxIdParam, mailboxes, selectedMailbox?.id, setSelectedMailbox]);
+
 	useEffect(() => {
 		if (canMailboxSend(selectedMailbox)) return;
 		const sendMailbox = findSendCapableMailbox(mailboxes);

@@ -7,6 +7,7 @@ export function getMessageBackHref(direction: "inbound" | "outbound", status: st
 	if (status === "trash") return "/trash";
 	if (status === "spam") return "/spam";
 	if (status === "draft") return "/drafts";
+	if (status === "archived") return "/archive";
 	return direction === "inbound" ? "/inbox" : "/sent";
 }
 

@@ -1,4 +1,11 @@
-import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+	sqliteTable,
+	text,
+	integer,
+	index,
+	uniqueIndex,
+	type AnySQLiteColumn,
+} from "drizzle-orm/sqlite-core";
 import {
 	DEFAULT_LABEL_COLOR,
 	MAILBOX_ROLES,
@@ -446,9 +453,21 @@ export const labels = sqliteTable(
 		organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
 		color: text("color").notNull().default(DEFAULT_LABEL_COLOR),
+		/**
+		 * One level of nesting (F75). `set null` promotes children to top level
+		 * when their parent is deleted, so a delete never strands rows. Depth and
+		 * cycle rules are enforced in the route handler — SQLite cannot express
+		 * "the parent must itself have no parent" as a constraint.
+		 */
+		parentId: text("parent_id").references((): AnySQLiteColumn => labels.id, {
+			onDelete: "set null",
+		}),
 		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 	},
-	(t) => [uniqueIndex("labels_user_name_idx").on(t.userId, t.name)],
+	(t) => [
+		uniqueIndex("labels_user_name_idx").on(t.userId, t.name),
+		index("labels_user_parent_idx").on(t.userId, t.parentId),
+	],
 );
 
 export const messageLabels = sqliteTable(

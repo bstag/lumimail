@@ -128,6 +128,7 @@
     "logOut": "Đăng xuất",
     "signOutSession": "Đăng xuất khỏi phiên này",
     "allMailboxes": "Tất cả hộp thư",
+    "allMailboxesDesc": "{count} hộp thư trong một luồng",
     "allDomains": "Tất cả tên miền",
     "chooseMailbox": "Chọn tài khoản gửi và hộp thư đến đang hoạt động.",
     "primary": "Chính",
@@ -135,6 +136,7 @@
     "adminSettingsDesc": "Tên miền, hộp thư, khóa API",
     "countOverflow": "99+",
     "starred": "Starred",
+    "archive": "Lưu trữ",
     "contacts": "Contacts",
     "members": "Thành viên",
     "more": "Thêm"
@@ -244,6 +246,7 @@
     "moveTo": "Di chuyển đến...",
     "moveToSpam": "Di chuyển đến Thư rác",
     "moveToTrash": "Di chuyển đến Thùng rác",
+    "moveToInbox": "Di chuyển đến Hộp thư đến",
     "markRead": "Đánh dấu đã đọc",
     "markUnread": "Đánh dấu chưa đọc",
     "clearSelection": "Xóa lựa chọn",

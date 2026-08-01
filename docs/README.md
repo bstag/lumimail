@@ -78,7 +78,9 @@ Source of truth for behavior. Each follows
    [`F71-preference-controls-in-header`](./specs/F71-preference-controls-in-header.md),
    [`F72-mail-ui-state-synchronization`](./specs/F72-mail-ui-state-synchronization.md),
    [`F73-hermetic-playwright-cloudflare-bindings`](./specs/F73-hermetic-playwright-cloudflare-bindings.md),
-   [`F74-authentication-and-registration-hardening`](./specs/F74-authentication-and-registration-hardening.md).
+   [`F74-authentication-and-registration-hardening`](./specs/F74-authentication-and-registration-hardening.md),
+   [`F75-nested-label-folders`](./specs/F75-nested-label-folders.md),
+   [`F76-all-mailboxes-scope`](./specs/F76-all-mailboxes-scope.md).
 
 ## Implementation notes (`implementation/`)
 

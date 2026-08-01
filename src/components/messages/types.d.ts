@@ -7,6 +7,10 @@ export type MessageFolderConfig = {
 	hrefPrefix: string;
 	badgeVariant?: "default" | "secondary" | "outline";
 	showRowBadge?: boolean;
+	/** Set for a label view (F75); pins the list to one label. */
+	labelId?: string;
+	/** Heading shown above the list. Label views name the label. */
+	title?: string;
 };
 
 export type MessageListRowProps = {
@@ -16,6 +20,11 @@ export type MessageListRowProps = {
 	onSelectedChange: (messageId: string, selected: boolean) => void;
 	onStarToggle: (messageId: string, starred: boolean) => void;
 	canSend?: boolean;
+	/**
+	 * Which mailbox the row belongs to. Set only in all-mailboxes scope (F76) —
+	 * with a single mailbox selected it would repeat the same value on every row.
+	 */
+	mailboxLabel?: string;
 };
 
 export type BulkMessageToolbarProps = {

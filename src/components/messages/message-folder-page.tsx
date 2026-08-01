@@ -47,6 +47,7 @@ function MessageListRow({
 	onSelectedChange,
 	onStarToggle,
 	canSend = false,
+	mailboxLabel,
 }: MessageListRowProps) {
 	const t = useTranslations("messages");
 	const { openDraftComposer } = useCompose();
@@ -129,6 +130,11 @@ function MessageListRow({
 				</span>
 				<span className="text-ink-muted"> - {getMessagePreview(message, config.folder)}</span>
 			</span>
+			{mailboxLabel && (
+				<Badge variant="outline" title={mailboxLabel}>
+					{mailboxLabel}
+				</Badge>
+			)}
 			{config.showRowBadge !== false && (
 				<Badge variant={config.badgeVariant ?? "secondary"}>
 					{getMessageBadge(message, config.folder)}
@@ -176,18 +182,28 @@ function MessageListRow({
 export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 	const t = useTranslations("messages");
 	const queryClient = useQueryClient();
-	const { selectedMailbox, isLoading: mailboxesLoading } = useSelectedMailbox();
+	const {
+		selectedMailbox,
+		mailboxes,
+		scopedMailboxId,
+		allMailboxes,
+		isLoading: mailboxesLoading,
+	} = useSelectedMailbox();
 	const { query } = useMailSearch();
 	const [offset, setOffset] = useState(0);
 	const [selectedIds, setSelectedIds] = useState<string[]>([]);
 	const [pendingBulkAction, setPendingBulkAction] = useState(false);
 	const [activeLabelId, setActiveLabelId] = useState<string | null>(null);
 	const { data: labels = [] } = useQuery({ queryKey: labelKeys.all, queryFn: fetchLabels });
-	const { messages, isLoading, total, limit, setMessages } = useMessages(config.folder, selectedMailbox?.id, {
+	// A label view pins its label; the chip row is for narrowing a folder and has
+	// nothing left to narrow once the whole list is one label.
+	const pinnedLabelId = config.labelId ?? null;
+	const effectiveLabelId = pinnedLabelId ?? activeLabelId;
+	const { messages, isLoading, total, limit, setMessages } = useMessages(config.folder, scopedMailboxId, {
 		query,
 		limit: pageSize,
 		offset,
-		labelId: activeLabelId ?? undefined,
+		labelId: effectiveLabelId ?? undefined,
 	}, !mailboxesLoading);
 	const hasActiveFilters = !!query.trim();
 	const pageRange = getPageRange(offset, messages.length, total);
@@ -196,12 +212,22 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 		[messages, selectedIds],
 	);
 	const hasUnreadSelection = selectedMessages.some((message) => !message.read);
+	// Only built in all-mailboxes scope; every row shares one mailbox otherwise.
+	const mailboxLabels = useMemo(
+		() =>
+			new Map(
+				allMailboxes
+					? mailboxes.map((mailbox) => [mailbox.id, `${mailbox.localPart}@${mailbox.hostname}`])
+					: [],
+			),
+		[allMailboxes, mailboxes],
+	);
 	const allVisibleSelected = messages.length > 0 && messages.every((message) => selectedIds.includes(message.id));
 
 	useEffect(() => {
 		setOffset(0);
 		setSelectedIds([]);
-	}, [query, selectedMailbox?.id, config.folder, activeLabelId]);
+	}, [query, scopedMailboxId, config.folder, effectiveLabelId]);
 
 	useEffect(() => {
 		setSelectedIds([]);
@@ -254,7 +280,12 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 
 	return (
 		<div className="flex h-full flex-col">
-			{labels.length > 0 && (
+			{config.title && (
+				<div className="flex items-center gap-2 border-b border-border px-6 py-2">
+					<h1 className="truncate text-sm font-semibold text-ink">{config.title}</h1>
+				</div>
+			)}
+			{!pinnedLabelId && labels.length > 0 && (
 				<div className="flex items-center gap-2 border-b border-border px-6 py-2">
 					<button
 						type="button"
@@ -350,6 +381,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 						onSelectedChange={updateSelectedMessage}
 						onStarToggle={handleStarToggle}
 						canSend={selectedMailbox ? canMailboxSend(selectedMailbox) : false}
+						mailboxLabel={allMailboxes ? mailboxLabels.get(message.mailboxId ?? "") : undefined}
 					/>
 				))}
 				{isLoading && <p className="px-6 py-4 text-sm text-ink-muted">{t("loading")}</p>}

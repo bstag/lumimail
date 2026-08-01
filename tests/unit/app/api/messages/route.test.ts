@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
+import type { SQL } from "drizzle-orm";
 import { createDbMock, type DbMock } from "../../../helpers/db";
 
 const m = vi.hoisted(() => ({
@@ -86,6 +88,54 @@ describe("GET /api/messages", () => {
 		expect(body.total).toBe(0);
 		expect(body.messages[0].fromContactName).toBeNull();
 		expect(body.messages[0].toContactName).toBeNull();
+	});
+
+	/**
+	 * F76 all-mailboxes scope. The client drops `mailboxId` to list across every
+	 * accessible mailbox. That must remove only the *narrowing* mailbox filter —
+	 * the membership-backed access predicate has to stay, or the unscoped list
+	 * would return other tenants' mail.
+	 *
+	 * The db mock ignores SQL semantics, so this compiles the recorded WHERE and
+	 * asserts on its shape rather than on returned rows. Row-level proof lives in
+	 * the local suite (tests/e2e-local), which runs against a real database.
+	 */
+	it("keeps the membership access predicate when no mailbox is scoped", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: "org_1" });
+		mock.queueSelect([{ total: 0 }]);
+		mock.queueSelect([]);
+		await get();
+
+		// The last recorded WHERE is the outer one: `messageAccessCondition`
+		// records its own subquery WHEREs first, while it is being built.
+		const query = new SQLiteSyncDialect().sqlToQuery(mock.wheres.at(-1) as SQL);
+		// The predicate's shape: own private mail, OR organization mail in a
+		// mailbox the membership subquery resolves. Without it the unscoped list
+		// would be filtered by nothing at all.
+		expect(query.sql).toContain('"messages"."user_id" = ?');
+		expect(query.sql).toContain('"messages"."organization_id" = ?');
+		expect(query.sql).toContain('"messages"."mailbox_id" in');
+		expect(query.params).toContain("u1");
+		expect(query.params).toContain("org_1");
+		// No mailbox equality: that is the narrowing filter the all scope drops.
+		expect(query.sql).not.toContain('"messages"."mailbox_id" = ?');
+	});
+
+	it("adds the mailbox filter on top of the access predicate when scoped", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: "org_1" });
+		mock.queueSelect([{ total: 0 }]);
+		mock.queueSelect([]);
+		await get("?mailboxId=mb1");
+
+		// The last recorded WHERE is the outer one: `messageAccessCondition`
+		// records its own subquery WHEREs first, while it is being built.
+		const query = new SQLiteSyncDialect().sqlToQuery(mock.wheres.at(-1) as SQL);
+		// Scoping narrows; it never replaces the access predicate.
+		expect(query.sql).toContain('"messages"."mailbox_id" = ?');
+		expect(query.sql).toContain('"messages"."mailbox_id" in');
+		expect(query.params).toContain("mb1");
+		expect(query.params).toContain("u1");
+		expect(query.params).toContain("org_1");
 	});
 
 	it("applies inbound/outbound, mailbox, status, read, starred and title filters", async () => {

@@ -59,6 +59,8 @@ export function BulkMessageToolbar({
 						}}
 					>
 						<option value="">{t("moveTo")}</option>
+						{/* Inbox is what makes archive/spam/trash reversible. */}
+						<option value="inbox">{t("moveToInbox")}</option>
 						<option value="spam">{t("moveToSpam")}</option>
 						<option value="trash">{t("moveToTrash")}</option>
 					</select>

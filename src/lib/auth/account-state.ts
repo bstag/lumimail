@@ -1,4 +1,9 @@
 export const SELECTED_MAILBOX_STORAGE_KEY = "selected-mailbox-id";
+/**
+ * F76 all-mailboxes scope. Cleared with the selection on account switch (F50) —
+ * otherwise the next account inherits the previous one's scope.
+ */
+export const ALL_MAILBOXES_SCOPE_STORAGE_KEY = "mailbox-scope-all";
 const ACCOUNT_STATE_RESET_EVENT = "lumimail:account-state-reset";
 
 type AccountStateResetListener = () => void;
@@ -44,6 +49,7 @@ export function resetAccountScopedClientState(): void {
 	if (typeof window !== "undefined") {
 		try {
 			localStorage.removeItem(SELECTED_MAILBOX_STORAGE_KEY);
+			localStorage.removeItem(ALL_MAILBOXES_SCOPE_STORAGE_KEY);
 		} catch {
 			// Storage can be unavailable; in-memory resets must still run.
 		}

@@ -128,6 +128,7 @@
     "logOut": "Sair",
     "signOutSession": "Sair desta sessão",
     "allMailboxes": "Todas as caixas",
+    "allMailboxesDesc": "{count} caixas em um único fluxo",
     "allDomains": "Todos os domínios",
     "chooseMailbox": "Escolha a conta de envio e caixa de entrada ativa.",
     "primary": "Principal",
@@ -135,6 +136,7 @@
     "adminSettingsDesc": "Domínios, caixas, chaves API",
     "countOverflow": "99+",
     "starred": "Starred",
+    "archive": "Arquivo",
     "contacts": "Contacts",
     "members": "Membros",
     "more": "Mais"
@@ -244,6 +246,7 @@
     "moveTo": "Mover para...",
     "moveToSpam": "Mover para Spam",
     "moveToTrash": "Mover para Lixeira",
+    "moveToInbox": "Mover para Caixa de entrada",
     "markRead": "Marcar como lido",
     "markUnread": "Marcar como não lido",
     "clearSelection": "Limpar seleção",

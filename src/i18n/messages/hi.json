@@ -128,6 +128,7 @@
     "logOut": "लॉग आउट",
     "signOutSession": "इस सत्र से साइन आउट करें",
     "allMailboxes": "सभी मेलबॉक्स",
+    "allMailboxesDesc": "एक ही धारा में {count} मेलबॉक्स",
     "allDomains": "सभी डोमेन",
     "chooseMailbox": "सक्रिय भेजने और इनबॉक्स खाता चुनें।",
     "primary": "प्राथमिक",
@@ -135,6 +136,7 @@
     "adminSettingsDesc": "डोमेन, मेलबॉक्स, API की",
     "countOverflow": "99+",
     "starred": "Starred",
+    "archive": "संग्रह",
     "contacts": "Contacts",
     "members": "सदस्य",
     "more": "और"
@@ -244,6 +246,7 @@
     "moveTo": "इसमें ले जाएं...",
     "moveToSpam": "स्पैम में ले जाएं",
     "moveToTrash": "ट्रैश में ले जाएं",
+    "moveToInbox": "इनबॉक्स में ले जाएं",
     "markRead": "पढ़ा हुआ चिह्नित करें",
     "markUnread": "अपठित चिह्नित करें",
     "clearSelection": "चयन साफ़ करें",

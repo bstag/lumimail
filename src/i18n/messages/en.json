@@ -129,6 +129,7 @@
     "logOut": "Log out",
     "signOutSession": "Sign out of this session",
     "allMailboxes": "All mailboxes",
+    "allMailboxesDesc": "{count} mailboxes in one stream",
     "allDomains": "All domains",
     "chooseMailbox": "Choose the active sending and inbox account.",
     "primary": "Primary",
@@ -136,6 +137,7 @@
     "adminSettingsDesc": "Domains, mailboxes, API keys",
     "countOverflow": "99+",
     "starred": "Starred",
+    "archive": "Archive",
     "contacts": "Contacts",
     "more": "More"
   },
@@ -244,6 +246,7 @@
     "moveTo": "Move to...",
     "moveToSpam": "Move to Spam",
     "moveToTrash": "Move to Trash",
+    "moveToInbox": "Move to Inbox",
     "markRead": "Mark as read",
     "markUnread": "Mark as unread",
     "clearSelection": "Clear selection",

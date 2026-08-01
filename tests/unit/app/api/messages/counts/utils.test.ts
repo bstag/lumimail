@@ -33,6 +33,13 @@ describe("getMessageFolder", () => {
 		expect(getMessageFolder(row({ direction: "outbound", status: "draft" }))).toBe("drafts");
 	});
 
+	// Archived mail used to classify as null, so it was invisible to the nav
+	// counts as well as to every folder list. See F04's 2026-07-31 entry.
+	it("classifies archived regardless of direction", () => {
+		expect(getMessageFolder(row({ direction: "inbound", status: "archived" }))).toBe("archived");
+		expect(getMessageFolder(row({ direction: "outbound", status: "archived" }))).toBe("archived");
+	});
+
 	it("returns null for rows that match no folder", () => {
 		expect(getMessageFolder(row({ direction: "inbound", status: "sent" }))).toBeNull();
 		expect(getMessageFolder(row({ direction: "outbound", status: "received" }))).toBeNull();
@@ -46,6 +53,7 @@ describe("createEmptyFolderCounts", () => {
 			inbox: { total: 0, unread: 0 },
 			sent: { total: 0, unread: 0 },
 			drafts: { total: 0, unread: 0 },
+			archived: { total: 0, unread: 0 },
 			spam: { total: 0, unread: 0 },
 			trash: { total: 0, unread: 0 },
 			starred: { total: 0, unread: 0 },
@@ -60,14 +68,16 @@ describe("buildMessageCounts", () => {
 			row({ mailboxId: "mb_1", direction: "inbound", status: "received", read: true }),
 			row({ mailboxId: "mb_1", direction: "outbound", status: "sent", read: true }),
 			row({ mailboxId: "mb_2", direction: "inbound", status: "spam", read: false }),
+			row({ mailboxId: "mb_2", direction: "inbound", status: "archived", read: true }),
 		]);
 
 		expect(result.folders.inbox).toEqual({ total: 2, unread: 1 });
 		expect(result.folders.sent).toEqual({ total: 1, unread: 0 });
 		expect(result.folders.spam).toEqual({ total: 1, unread: 1 });
+		expect(result.folders.archived).toEqual({ total: 1, unread: 0 });
 		expect(result.mailboxes).toEqual([
 			{ mailboxId: "mb_1", total: 3, unread: 1, inbox: 2 },
-			{ mailboxId: "mb_2", total: 1, unread: 1, inbox: 0 },
+			{ mailboxId: "mb_2", total: 2, unread: 1, inbox: 0 },
 		]);
 	});
 

@@ -128,6 +128,7 @@
     "logOut": "Se déconnecter",
     "signOutSession": "Se déconnecter de cette session",
     "allMailboxes": "Toutes les boîtes",
+    "allMailboxesDesc": "{count} boîtes dans un seul flux",
     "allDomains": "Tous les domaines",
     "chooseMailbox": "Choisissez le compte d'envoi et de réception actif.",
     "primary": "Principal",
@@ -135,6 +136,7 @@
     "adminSettingsDesc": "Domaines, boîtes mail, clés API",
     "countOverflow": "99+",
     "starred": "Starred",
+    "archive": "Archives",
     "contacts": "Contacts",
     "members": "Membres",
     "more": "Plus"
@@ -244,6 +246,7 @@
     "moveTo": "Déplacer vers...",
     "moveToSpam": "Déplacer vers Spam",
     "moveToTrash": "Déplacer vers Corbeille",
+    "moveToInbox": "Déplacer vers Boîte de réception",
     "markRead": "Marquer comme lu",
     "markUnread": "Marquer comme non lu",
     "clearSelection": "Effacer la sélection",
