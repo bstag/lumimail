@@ -227,7 +227,7 @@ offline verification for one D1 export and 15 referenced R2 objects, and its loc
 to the user/SYSTEM/Administrators. The at-rest encryption/storage policy remains before this packet
 is marked complete.
 
-#### L1.4 — isolated remote restore
+#### L1.4 — isolated remote restore — complete 2026-08-12
 
 - Create or select explicitly named disposable D1, R2, Worker, Queue, and configuration resources.
 - Verify they are outside production routing and empty.
@@ -237,6 +237,13 @@ is marked complete.
   and external forwarding disabled until verification finishes.
 
 Output: isolated staging installation that cannot emit or receive production mail.
+
+Implementation evidence: the guarded restore imported the captured D1 data and all 15 manifest
+objects into the explicit same-account staging resources. All 29 application-table row counts match
+production, migration counts/latest IDs match, foreign-key check reports zero violations, and all 15
+remote R2 objects pass exact byte-length and SHA-256 comparison. Recovery Worker version
+`34571aef-6642-4ea5-bc42-85eebb730e16` passes the six public smoke checks at its workers.dev origin
+with no mail route, Queue, Cron, Email Sending, custom route, or service binding.
 
 #### L1.5 — integrity and application verification
 
@@ -287,7 +294,7 @@ Output: completed recovery-gate evidence and a repeatable operator runbook.
 - [ ] Production capture is read-only and the backup verifies before restore.
 - [ ] Every D1-referenced R2 object is present with matching exact-byte checksum.
 - [ ] Target guards reject production and routed/non-empty resources before mutation.
-- [ ] Isolated remote D1 and R2 restore succeeds.
+- [x] Isolated remote D1 and R2 restore succeeds.
 - [ ] Restored schema, references, rows, objects, and representative app reads verify.
 - [ ] Restricted-user and mailbox-isolation checks pass on the restored site.
 - [ ] Worker rollback and return-to-current-version both pass smoke tests.

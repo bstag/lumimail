@@ -1,6 +1,6 @@
 # F79 — Remote Recovery Rehearsal
 
-> Status: In Progress — Layers 1.1–1.3 capture complete; Layer 1.4 restore active
+> Status: In Progress — Layers 1.1–1.4 complete; Layer 1.5 verification next
 > Owner area: `scripts/recovery-target-guard.mjs`, `scripts/r2-backup.mjs`,
 > `scripts/recovery-capture.mjs`, `scripts/recovery-restore.mjs`, `docs/OPERATIONS.md`
 
@@ -465,3 +465,13 @@ Type: Feature / Recovery capture
   `lumimail-recovery-20260812.blackstag.workers.dev`, revealing that the configured
   `PUBLIC_APP_URL` lacked the workers.dev account subdomain. The recovery config now fixes and tests
   the exact deployed origin before application smoke checks.
+- The guarded isolated restore completed with one D1 import and 15 exact R2 object writes. A
+  content-free comparison proves all 29 application-table row counts equal production, both targets
+  have 29 migrations at the same latest migration ID, and staging has zero foreign-key violations.
+  All 15 restored objects were downloaded to a dedicated temporary directory and matched the
+  manifest byte lengths and SHA-256 values with zero problems; the temporary files were removed.
+- Recovery Worker version `34571aef-6642-4ea5-bc42-85eebb730e16` is deployed only at
+  `lumimail-recovery-20260812.blackstag.workers.dev` with the staging D1/R2 plus assets/images and no
+  Email Routing, custom route, Queue, Cron, Email Sending, or service binding. Public smoke passes
+  6/6, and direct browser inspection confirms the labeled login UI renders. No production binding
+  or route was changed.
