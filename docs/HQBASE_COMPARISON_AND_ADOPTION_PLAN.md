@@ -221,6 +221,10 @@ The legacy R2-only producer remains unchanged until L1.3 can supply the complete
 
 Output: one self-contained encrypted backup directory plus a content-free capture report.
 
+Implementation status 2026-08-12: the read-only capture command and five fail-closed orchestration
+contracts are complete. The actual production capture and at-rest encryption/storage policy remain
+before this packet is marked complete.
+
 #### L1.4 — isolated remote restore
 
 - Create or select explicitly named disposable D1, R2, Worker, Queue, and configuration resources.

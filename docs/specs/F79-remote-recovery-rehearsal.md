@@ -54,6 +54,18 @@ Names, naming conventions, environment labels, or operator intent are not suffic
 - The versioned recovery manifest, read-only production capture, remote D1/R2 restore, integrity
   verification, Worker rollback, cleanup, and operator evidence.
 
+**In scope for Layer 1.3:**
+
+- A production capture CLI that uses only read operations against the active Worker deployment,
+  D1, and R2.
+- Refusal before D1 export when the Git worktree is dirty, the source commit is not `HEAD`, traffic
+  is split across Worker versions, required bindings do not match production configuration, or the
+  final output path already exists.
+- Capture into a randomly named sibling partial directory, followed by complete offline verification
+  and an atomic rename to the requested final directory.
+- Removal of only the command-created partial directory after failure; an existing path is never
+  reused, merged, emptied, or overwritten.
+
 **Out of scope for Layer 1.1:**
 
 - Calling Cloudflare or running Wrangler.
@@ -169,6 +181,30 @@ The exact v1 shape is:
 Unknown fields fail closed. The manifest contains identifiers and hashes but no credentials,
 cookies, email addresses, subjects, bodies, attachment names, or object contents.
 
+### 5.2 production read-only capture — Layer 1.3
+
+```text
+node scripts/recovery-capture.mjs <new-output-directory>
+```
+
+The command derives rather than accepts production resource identity. In order, it:
+
+1. Refuses a dirty worktree and records the exact full `HEAD` commit.
+2. Reads `wrangler.jsonc` for the expected account, Worker, D1 binding/UUID/name, R2 bucket, and
+   compatibility date; placeholders or ambiguous/missing bindings fail.
+3. Queries `wrangler deployments status --json` and requires exactly one version at 100% traffic.
+4. Queries that exact version and requires its script ETag, compatibility date, D1 UUID, and R2
+   bucket to match configuration.
+5. Records a current D1 Time Travel bookmark, exports D1 to `d1.sql`, and hashes the completed file.
+6. Extracts only D1-referenced `attachments/` and `inbound/` keys and downloads each exact object.
+7. Emits canonical `lumimail-recovery-v1`, verifies the entire directory offline, then atomically
+   publishes the new output directory.
+
+Every Wrangler invocation uses explicit `--remote` where the command supports local/remote choice.
+The command never invokes D1 execute/import/restore, R2 put/delete, deployment mutation, Queue
+mutation, or Email Routing mutation. Standard output contains counts, hashes, resource identities,
+and paths only—never SQL, object bytes, object keys, mail metadata, or credentials.
+
 ## 6. UI/UX
 
 No product UI in Layer 1. The operator surface is a future CLI and a content-free evidence report.
@@ -180,6 +216,7 @@ Recovery mutation remains outside ordinary authenticated web sessions.
 |-------|------|-----------------|
 | Unit | `tests/unit/scripts/recovery-target-guard.test.ts` | Safe target, missing/malformed/placeholders, production overlap, wrong account, non-empty D1/R2, active Email Routing, duplicate Queues, aggregate stable errors, immutability |
 | Unit | `tests/unit/scripts/recovery-manifest.test.ts` | Strict v1 parsing, normalization, canonical bytes, version/product rejection, duplicate/path traversal rejection, D1/R2 missing/size/checksum integrity, immutable errors |
+| Unit | `tests/unit/scripts/recovery-capture.test.ts` | Read-only command sequence, atomic publication, dirty/existing/split-traffic/binding-drift refusal, partial cleanup |
 | Existing regression | `tests/unit/scripts/r2-backup.test.ts` | Exact referenced-key extraction and missing/corrupt object detection |
 | Full | repository commands | `npm run verify`; no E2E because Layer 1.1 has no site behavior |
 
@@ -254,6 +291,13 @@ Coverage target: all statements and branches in the new guard module.
   while Time Travel is only a short-window aid. — 2026-08-12
 - Decision: legacy unversioned R2 manifests remain usable only by the legacy helper and are not
   accepted as complete recovery evidence. — 2026-08-12
+- Decision: L1.3 requires one Worker version at 100% traffic. A gradual deployment needs one backup
+  per active artifact or an explicit later manifest extension; silently choosing the largest share
+  is unsafe. — 2026-08-12
+- Decision: the deployed version UUID and script ETag come from `deployments status` plus `versions
+  view`; the latest uploaded version is not assumed active. — 2026-08-12
+- Decision: a clean `HEAD` is mandatory because the manifest must name recoverable source. The
+  deployment at 2026-08-12 13:29 UTC was built from commit `d53b475`. — 2026-08-12
 - Open: choose the long-term backup destination and retention policy after the same-account rehearsal.
 
 ## 13. Bug / Change Log
@@ -325,3 +369,29 @@ Tests:
   L1.3.
 - `npm run verify` passes with 1,784 application tests across 196 files at 100% configured coverage,
   plus all 21 IMAP/SMTP bridge tests. ESLint reports 36 pre-existing warnings and zero errors.
+
+### 2026-08-12 — Deploy the recovery-foundation checkpoint
+
+Type: Deployment evidence
+
+- Commit `d53b475` was pushed to `origin/codex/recovery-foundation` and deployed to production.
+- D1 reported no pending migrations.
+- Worker version `74b98ae8-484f-4262-9a02-0f224bc8e5cd` (version 69) receives 100% of traffic and
+  reports script ETag `6affc3eedacf8467cb333ce1d4d6ea011253b54157efa3cc9ad147d22a2cf330`.
+- All six public smoke checks pass: landing/login/manifest return `200`; anonymous session/mailbox/
+  admin-mailbox APIs return `401`.
+- Read-only inventory confirms the deployed D1 UUID, R2 bucket, queue names, account, Worker name,
+  and compatibility date match the production configuration.
+
+### 2026-08-12 — Implement production read-only capture
+
+Type: Feature / Recovery capture
+
+- Add `scripts/recovery-capture.mjs` with clean-commit, unused-output, single-active-version,
+  compatibility-date, D1-binding, and R2-binding preconditions before mail data is read.
+- Capture D1 plus only its referenced R2 objects into a randomized partial sibling, emit canonical
+  v1, verify every byte offline, and publish with an atomic rename.
+- Remove only the command-created partial directory on failure and render content-free errors.
+- Five focused capture contracts pass after first failing because the module did not exist.
+- `npm run verify` passes with 1,789 application tests across 197 files at 100% configured coverage,
+  plus all 21 bridge tests. Production capture remains to be run from the clean committed checkpoint.
