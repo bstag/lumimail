@@ -1,6 +1,6 @@
 # F80 — Operator Lifecycle and Readiness Doctor
 
-> Status: In Progress — specification and Layer 2.1 local contract
+> Status: In Progress — Layer 2.1 local doctor complete; remote checks next
 > Owner area: `scripts/doctor.mjs`, `docs/OPERATIONS.md`
 
 ## 1. Problem & User Job
@@ -150,3 +150,32 @@ Tests:
 Notes:
 
 - F81 owns signed artifacts and deliberate promotion; F80 only observes readiness.
+
+### 2026-08-12 — Implement the local readiness doctor
+
+Type: Feature
+
+Summary:
+
+- Add `npm run doctor` and JSON output for 15 deterministic local readiness checks covering Node,
+  Worker identity/origin/compatibility/provider, D1/R2/Queue/Cron/Email/service bindings, contiguous
+  migrations, and required operational paths.
+- Aggregate every independent failure, exit non-zero on any failure, deeply freeze pure reports, and
+  omit account IDs, sender addresses, secret values, and other config contents from observations.
+
+Reason:
+
+- Establish a reliable local preflight before adding read-only provider checks.
+
+Impact:
+
+- The command is non-mutating and makes no network call in local mode.
+
+Tests:
+
+- Six focused unit contracts pass after the module-not-found failure was observed first.
+- The real repository report passes 15/15 with migration sequence `0000..0028`.
+
+Notes:
+
+- Remote mode remains unimplemented and must not be inferred from the local ready result.
