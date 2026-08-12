@@ -74,6 +74,22 @@ Last updated: 2026-08-12
   user agents, request bodies, mailbox/message content, or provider response bodies. Audit history UI
   remains a later slice.
 
+### Fifth slice — owner-visible security history
+
+- Add owner-only `GET /api/admin/security-events` and a Security history card on `/members`.
+- Return only the content-free metadata already persisted in `security_audit_events`: opaque event,
+  actor, resource, and request IDs; action; resource type; affected count; outcome; and timestamp.
+- Scope every query by the authenticated owner's active organization. Organization admins and
+  members are denied before the audit table is read.
+- Use descending keyset pagination ordered by timestamp and opaque event ID. The default page is 20,
+  the server-enforced maximum is 50, and the server returns a cursor only when an older row exists.
+- Treat the cursor as navigation state, never authorization. A malformed cursor returns a bounded
+  `400`; a valid cursor can never widen the organization predicate.
+- Resolve actor labels only from member data already authorized on `/members`. The audit endpoint
+  itself does not join or return email addresses, and a removed actor has an explicit fallback label.
+- This slice is read-only. It does not add retention, export, filtering, denied-attempt logging, or
+  a new migration.
+
 ### Second slice — read-only active sessions
 
 - Add an owner-only organization session inventory containing account identity, issued time, expiry,
@@ -108,6 +124,8 @@ Last updated: 2026-08-12
   never treated as authorization and every deletion includes the active organization predicate.
 - A successful deletion and its audit event are atomic. If the audit write fails, D1 rolls back the
   deletion and the API returns a bounded failure.
+- Security history is owner-only, organization-scoped in SQL, content-free at the API boundary, and
+  bounded independently of caller input.
 
 ## 4. Edge cases and error states
 
@@ -133,6 +151,13 @@ Last updated: 2026-08-12
 - If another request removes a validated target before the atomic deletion batch runs, the mutation
   is treated as idempotently successful and the audit record remains an accurate record of the
   owner's confirmed request.
+- An organization with no audit events returns an empty first page and no cursor.
+- Events with equal timestamps are ordered deterministically by opaque event ID with no duplicates
+  between pages.
+- A cursor from another organization reveals no event and cannot cross the active organization
+  predicate; it simply positions the requesting organization's own history.
+- Unknown historical actor IDs remain visible as `Former member` rather than dropping the event or
+  joining an identity outside the current authorized member set.
 
 ## 5. Test plan
 
@@ -160,6 +185,9 @@ Last updated: 2026-08-12
 - Revoke others preserves the exact presented session, scopes deletion by organization, returns the
   affected count, and batches deletion with audit even when the count is zero.
 - Audit persistence contains only the specified metadata and has organization/timestamp indexes.
+- Audit-history reads deny non-owners before database access, enforce organization scope and the
+  50-row maximum, reject malformed cursors, and return deterministic non-overlapping pages.
+- The audit response contains no credential, email, network, request-body, message, or provider data.
 
 ### Browser
 
@@ -174,6 +202,8 @@ Last updated: 2026-08-12
   explicit destructive confirmation dialog.
 - The current-session row has no revoke control; successful revocation refreshes the active count,
   and a failed reconfirmation or mutation keeps the dialog open with its error.
+- Owners see content-free security events, can load older pages, and see a stable removed-actor
+  fallback; admins neither request nor render the owner-only history.
 
 ### Verification
 
@@ -217,6 +247,12 @@ Last updated: 2026-08-12
 - Decision 2026-08-12: generate a request ID on the server instead of trusting a caller-controlled
   header. Audit history presentation, retention, export, and failed/denied-attempt logging remain
   separate contracts.
+- Decision 2026-08-12: expose security history as a read-only fifth slice before bulk grants. Keep
+  retention, export, filtering, and denied-attempt logging out of this contract.
+- Decision 2026-08-12: use a timestamp-plus-event-ID keyset cursor with a 20-row default and 50-row
+  maximum. The cursor is validated navigation state and never replaces the organization predicate.
+- Decision 2026-08-12: keep the audit API identity-minimal. The page may label an actor from its
+  separately authorized current-member dataset, but the history response returns only actor user ID.
 
 ## 7. Open questions
 
@@ -450,5 +486,58 @@ Verification:
 - Public smoke passes 6/6. Anonymous requests to a normal session-ID-shaped target and to
   `/api/admin/sessions/revoke-others` both return the bounded JSON `401` envelope.
 - The remote doctor passes 25 checks with zero failures and the documented live-Cron-inventory
-  warning. Authenticated destructive production execution remains covered by the production-shaped
-  browser/service suites; no production password was requested and no live session was revoked.
+  warning. On 2026-08-12 the operator confirmed a live production session was revoked through the
+  published control, closing the authenticated destructive-action production gate without sharing
+  a password or session credential with automation.
+
+### 2026-08-12 — Specify owner-visible security history
+
+Type: Security feature
+
+Summary:
+
+- Define an owner-only, organization-scoped audit-history endpoint and `/members` card over the
+  existing content-free security events.
+- Define deterministic keyset pagination with a 20-row default, 50-row maximum, and explicit empty,
+  removed-actor, invalid-cursor, and tenant-isolation behavior.
+
+Reason:
+
+- Owners can now perform audited session revocations, but the resulting evidence is not visible in
+  the product without direct database access.
+
+Impact:
+
+- Specification first. This slice is read-only, introduces no migration, and does not broaden the
+  audit event schema or collect credentials, message content, network data, or request bodies.
+
+### 2026-08-12 — Implement owner-visible security history
+
+Type: Security feature
+
+Summary:
+
+- Add owner-only `GET /api/admin/security-events` over the existing audit table with descending
+  timestamp/event-ID keyset pagination, a 20-row default, and a strict 50-row maximum.
+- Add a Security history card on `/members` with current-member actor labels, a removed-member
+  fallback, request IDs, timestamps, explicit empty state, and incremental loading.
+- Refresh both active sessions and security history after a successful session revocation.
+
+Security:
+
+- The owner guard runs before query parsing reaches the history service or any audit database read.
+- SQL and the response builder both enforce the active organization; a cursor only adds a descending
+  boundary and never substitutes for tenant scope.
+- The endpoint returns only content-free audit fields. It performs no user join and returns no email,
+  credential, network, request-body, message, or provider data.
+
+Verification:
+
+- Service and route tests were written first and failed for the absent implementation. They cover
+  cursor validation, limit enforcement, owner-before-read denial, tenant filtering, empty pages,
+  deterministic limit-plus-one pagination, response minimization, and the D1-backed entry point.
+- `npm run verify` passes 1,960 tests with 100% statement, branch, function, and line coverage, plus
+  all 21 IMAP bridge tests. The existing 36 lint warnings remain with zero errors.
+- `npm run e2e` passes all 83 Chromium scenarios. New contracts prove owner rendering, older-page
+  loading, current-member and removed-member labels, content minimization, and zero admin requests.
+- No schema migration or new dependency was added.

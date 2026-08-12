@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";
 import { Mail, Clock, KeyRound, Plus, ShieldCheck, X } from "lucide-react";
 import { apiJson } from "@/lib/api/client-response";
@@ -15,6 +15,7 @@ import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/ui/page-header";
 import type { AccessCapability, AccessMailboxRole, AccessOverview, OrganizationRole } from "@/lib/access-overview";
 import type { SessionOverview } from "@/lib/session-overview";
+import type { SecurityAuditHistory } from "@/lib/security-audit-history";
 import { useAuthSession } from "@/components/auth/auth-session-context";
 
 type Member = {
@@ -51,6 +52,10 @@ const accessOverviewKeys = {
 
 const sessionOverviewKeys = {
   all: ["admin", "sessions"] as const,
+};
+
+const securityHistoryKeys = {
+  all: ["admin", "security-events"] as const,
 };
 
 const ORGANIZATION_ROLE_LABELS: Record<OrganizationRole, string> = {
@@ -108,6 +113,15 @@ export default function MembersPage() {
     queryFn: () => apiJson.get<SessionOverview>("/api/admin/sessions"),
     enabled: isOwner,
   });
+  const securityHistoryQuery = useInfiniteQuery({
+    queryKey: securityHistoryKeys.all,
+    queryFn: ({ pageParam }) => apiJson.get<SecurityAuditHistory>(
+      pageParam ? `/api/admin/security-events?cursor=${encodeURIComponent(pageParam)}` : "/api/admin/security-events",
+    ),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    enabled: isOwner,
+  });
 
   const changeRole = useMutation({
     mutationFn: ({ memberId, role }: { memberId: string; role: string }) =>
@@ -135,6 +149,7 @@ export default function MembersPage() {
       setSessionRevocationTarget(null);
       setSessionPassword("");
       await qc.invalidateQueries({ queryKey: sessionOverviewKeys.all });
+      await qc.invalidateQueries({ queryKey: securityHistoryKeys.all });
     },
   });
 
@@ -150,6 +165,7 @@ export default function MembersPage() {
     errorText(membersQuery.error, t("loadMembersFailed")) ??
     errorText(accessOverviewQuery.error, "Failed to load access overview") ??
     (isOwner ? errorText(sessionOverviewQuery.error, "Failed to load active sessions") : null) ??
+    (isOwner ? errorText(securityHistoryQuery.error, "Failed to load security history") : null) ??
     errorText(changeRole.error, t("changeRoleFailed")) ??
     errorText(removeMember.error, t("removeMemberFailed"));
 
@@ -273,6 +289,19 @@ export default function MembersPage() {
       )}
       {isOwner && sessionOverviewQuery.data && (
         <SessionOverviewCard overview={sessionOverviewQuery.data} onRevoke={openSessionRevocation} />
+      )}
+
+      {isOwner && securityHistoryQuery.isLoading && (
+        <p className="text-sm text-ink-muted">Loading security history…</p>
+      )}
+      {isOwner && securityHistoryQuery.data && (
+        <SecurityHistoryCard
+          history={securityHistoryQuery.data.pages}
+          members={members}
+          hasNextPage={securityHistoryQuery.hasNextPage}
+          loadingMore={securityHistoryQuery.isFetchingNextPage}
+          onLoadMore={() => { void securityHistoryQuery.fetchNextPage(); }}
+        />
       )}
 
       {invites.length > 0 && (
@@ -430,6 +459,72 @@ function SessionOverviewCard({ overview, onRevoke }: { overview: SessionOverview
               </dl>
             </article>
           ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SecurityHistoryCard({
+  history,
+  members,
+  hasNextPage,
+  loadingMore,
+  onLoadMore,
+}: {
+  history: SecurityAuditHistory[];
+  members: Member[];
+  hasNextPage: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+}) {
+  const format = useFormatter();
+  const events = history.flatMap((page) => page.events);
+  const memberNames = new Map(members.map((member) => [member.userId, member.name]));
+
+  return (
+    <section data-testid="security-history" className="space-y-4 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
+      <div className="flex items-start gap-3">
+        <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
+        <div>
+          <h3 className="text-base font-semibold text-ink">Security history</h3>
+          <p className="mt-1 text-sm text-ink-muted">Content-free records of security actions in this organization.</p>
+        </div>
+      </div>
+
+      {events.length === 0 ? (
+        <p className="rounded-md bg-surface-subtle px-3 py-2 text-sm text-ink-muted">No security events yet</p>
+      ) : (
+        <div className="space-y-2">
+          {events.map((event) => {
+            const actor = memberNames.get(event.actorUserId) ?? "Former member";
+            const action = event.action === "session.revoke"
+              ? "revoked a session"
+              : `revoked ${event.affectedCount} other ${event.affectedCount === 1 ? "session" : "sessions"}`;
+            return (
+              <article key={event.id} className="rounded-lg border border-border bg-surface p-3 sm:p-4">
+                <p className="text-sm font-medium text-ink">{actor} {action}</p>
+                <dl className="mt-2 grid gap-2 text-xs text-ink-muted sm:grid-cols-2">
+                  <div>
+                    <dt className="font-medium text-ink">When</dt>
+                    <dd>{format.dateTime(new Date(event.createdAt), { dateStyle: "medium", timeStyle: "short" })}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-ink">Request ID</dt>
+                    <dd className="break-all font-mono">{event.requestId}</dd>
+                  </div>
+                </dl>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {hasNextPage && (
+        <div className="flex justify-center">
+          <Button variant="outline" size="sm" disabled={loadingMore} onClick={onLoadMore}>
+            {loadingMore ? "Loading…" : "Load older events"}
+          </Button>
         </div>
       )}
     </section>

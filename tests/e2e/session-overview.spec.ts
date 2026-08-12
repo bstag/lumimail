@@ -13,7 +13,55 @@ async function mockMembersSurface(page: Page, role: "owner" | "admin") {
 		members: [{ id: `mem_${role}`, userId: `${role}_1`, name: role === "owner" ? "Owner" : "Admin", email: `${role}@example.com`, organizationRole: role, grants: [] }],
 		mailboxes: [],
 	} } }));
+	if (role === "owner") {
+		await page.route("**/api/admin/security-events", (route) => route.fulfill({ json: { success: true, data: {
+			events: [], nextCursor: null,
+		} } }));
+	}
 }
+
+test("owner sees content-free security history and loads an older page", async ({ page }) => {
+	await mockMembersSurface(page, "owner");
+	await page.unroute("**/api/admin/security-events");
+	let requests = 0;
+	await page.route("**/api/admin/security-events**", (route) => {
+		requests += 1;
+		const older = route.request().url().includes("cursor=");
+		const data = older ? {
+			events: [{ id: "aud_1", actorUserId: "removed_user", action: "session.revoke_others", resourceType: "session", resourceId: null, affectedCount: 2, requestId: "req_1", outcome: "succeeded", createdAt: "2026-08-12T19:00:00.000Z" }],
+			nextCursor: null,
+		} : {
+			events: [{ id: "aud_2", actorUserId: "owner_1", action: "session.revoke", resourceType: "session", resourceId: "sess_other", affectedCount: 1, requestId: "req_2", outcome: "succeeded", createdAt: "2026-08-12T20:00:00.000Z" }],
+			nextCursor: "m0.aud_2",
+		};
+		return route.fulfill({ json: { success: true, data } });
+	});
+	await page.route("**/api/admin/sessions", (route) => route.fulfill({ json: { success: true, data: {
+		observedAt: "2026-08-12T20:00:00.000Z", activeCount: 0, sessions: [],
+	} } }));
+
+	await page.goto("/members");
+	const history = page.getByTestId("security-history");
+	await expect(history.getByRole("heading", { name: "Security history" })).toBeVisible();
+	await expect(history.getByText("Owner revoked a session", { exact: true })).toBeVisible();
+	await expect(history).not.toContainText(/token|password|email|ip address|user agent|request body|message body/i);
+	await history.getByRole("button", { name: "Load older events" }).click();
+	await expect(history.getByText("Former member revoked 2 other sessions", { exact: true })).toBeVisible();
+	await expect.poll(() => requests).toBe(2);
+});
+
+test("organization admin does not request or render owner-only security history", async ({ page }) => {
+	await mockMembersSurface(page, "admin");
+	let historyRequests = 0;
+	await page.route("**/api/admin/security-events**", (route) => {
+		historyRequests += 1;
+		return route.fulfill({ status: 403, json: { success: false, error: { message: "Forbidden" } } });
+	});
+
+	await page.goto("/members");
+	await expect(page.getByTestId("security-history")).toHaveCount(0);
+	await expect.poll(() => historyRequests).toBe(0);
+});
 
 test("owner sees active sessions and the current-session marker", async ({ page }) => {
 	await mockMembersSurface(page, "owner");
