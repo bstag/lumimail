@@ -389,6 +389,11 @@ versions, a deterministic source epoch, contiguous migration head, and strict co
 compatibility policy. Eleven focused contracts pass; current compatibility is intentionally bounded
 to schema `0028` until wider compatibility is exercised.
 
+Layer 2.6 wires those guards into one offline `release:prepare` command with exact build/notes/output
+arguments, a HEAD-derived deterministic epoch, atomic unsigned publication, and content-free output.
+Five command contracts prove that operators cannot override provenance or leak private notes through
+caught errors. The command has no signing, provider upload, deployment, migration, or promotion path.
+
 Deliverables:
 
 - Add a non-mutating `doctor` command that checks runtime version, bindings, D1 migrations, R2 access,

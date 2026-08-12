@@ -1,6 +1,6 @@
 # F81 — Signed Releases and Deliberate Promotion
 
-> Status: In Progress — provenance, deterministic bundles, and clean-checkout metadata complete; protected CI workflow next
+> Status: In Progress — offline release preparation complete; protected signing/publication CI next
 > Owner area: `scripts/release-manifest.mjs`, `.github/workflows/`, `docs/OPERATIONS.md`
 
 ## 1. Problem & User Job
@@ -72,6 +72,20 @@ wrong-product, or schema-incompatible artifact before any upload or promotion.
   produce identical canonical manifest bytes. Release notes come from a strict JSON string array,
   not shell-delimited text.
 
+**Layer 2.6 operator preparation command:**
+
+- Expose one offline command with exactly three positional inputs: OpenNext build directory, release-
+  notes JSON file, and previously absent output directory. Resolve all paths from the checkout root.
+- Refuse unknown/missing arguments, a dirty checkout, malformed notes, missing build input, an
+  existing output, or any provenance/schema/runtime failure before publishing a bundle.
+- Derive `SOURCE_DATE_EPOCH` from the committed HEAD timestamp. The command does not accept commit,
+  version, schema, runtime, digest, or build timestamp overrides.
+- Print only a content-free success report containing version, abbreviated commit, schema range,
+  archive size/entry count, and output path. On failure print one stable content-free error and exit
+  nonzero; never print release-note contents or arbitrary caught errors.
+- This command produces an unsigned two-file bundle only. It neither signs, uploads, deploys, nor
+  promotes traffic.
+
 **Out of scope:**
 
 - Storing signing private keys in source, artifacts, app bindings, D1, or ordinary application
@@ -112,6 +126,7 @@ accepted as a command-line argument because process lists and shell history may 
 | Unit | `tests/unit/scripts/release-archive.test.ts` | sorted USTAR/gzip determinism, normalized metadata, empty directories, changed bytes, unsafe/symlink/duplicate/long-path refusal, atomic output and partial cleanup |
 | Unit | `tests/unit/scripts/release-prepare.test.ts` | exact two-file unsigned bundle, byte-derived canonical manifest, atomic directory publication, existing-output preservation, invalid metadata/source cleanup |
 | Unit | `tests/unit/scripts/release-metadata.test.ts` | clean/full commit, deterministic epoch, exact installed tool versions, contiguous migration head, strict schema policy/range, bounded notes, caller immutability |
+| Unit | `tests/unit/scripts/release-command.test.ts` | exact CLI arguments, checkout-derived inputs, notes privacy, stable success/error reporting, no signing/upload/promotion |
 | CI | workflow validation | clean install, verify, deterministic archive, manifest/signature creation, verification before publication |
 | Operator | disposable Cloudflare release rehearsal | verified upload without traffic, smoke, upgrade rehearsal, recovery evidence, deliberate promotion/return |
 | Full | repository commands | `npm run verify`; no E2E for the manifest core |
@@ -143,6 +158,8 @@ manifest or immutable archive, and the current CI workflow does not publish rele
 - Empty/truncated/repacked artifact after signing.
 - Unknown/revoked key IDs and key rotation with overlapping verification-only public keys.
 - CI rerun for the same version/commit must not overwrite an already published immutable release.
+- Relative and absolute command paths, JSON values other than an array, extra positional arguments,
+  and a failure containing private release-note text.
 - Upload succeeds but smoke/recovery/upgrade rehearsal fails; traffic remains on the prior version.
 
 ## 11. Permissions & Security
@@ -324,3 +341,33 @@ Notes:
 
 - Current compatibility policy is exactly schema `0028`; widening it requires explicit evidence
   that the release operates correctly against the additional schema version.
+
+### 2026-08-12 — Wire one offline release preparation command
+
+Type: Feature
+
+Summary:
+
+- Add `npm run release:prepare -- <build-directory> <notes.json> <output-directory>` as the only
+  operator-facing entry point for clean-checkout metadata derivation and atomic unsigned bundling.
+- Derive the deterministic build timestamp from committed HEAD and reject missing/extra arguments,
+  dirty or invalid provenance, malformed private notes, unsafe build input, and existing output.
+- Emit one bounded success line or one stable content-free failure without forwarding caught errors.
+
+Reason:
+
+- Make the proven metadata/archive/bundle layers executable as one repeatable CI/operator action
+  without allowing claimed provenance overrides.
+
+Impact:
+
+- Offline filesystem output only. The command cannot sign, upload, deploy, migrate, or promote.
+
+Tests:
+
+- Five focused command contracts pass alongside the metadata and bundle suites.
+
+Notes:
+
+- Protected signing/publication CI remains blocked on the signer authority and immutable artifact-
+  storage decisions; those choices are not silently encoded here.
