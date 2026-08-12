@@ -1,6 +1,6 @@
 # F81 — Signed Releases and Deliberate Promotion
 
-> Status: In Progress — Layer 2.3 provenance and Layer 2.4 deterministic unsigned bundles complete; CI workflow next
+> Status: In Progress — provenance, deterministic bundles, and clean-checkout metadata complete; protected CI workflow next
 > Owner area: `scripts/release-manifest.mjs`, `.github/workflows/`, `docs/OPERATIONS.md`
 
 ## 1. Problem & User Job
@@ -57,6 +57,21 @@ wrong-product, or schema-incompatible artifact before any upload or promotion.
   before atomically renaming the directory. The unsigned bundle is not releasable until a detached
   trusted signature is added and verified.
 
+**Layer 2.5 clean-checkout metadata contract:**
+
+- Refuse a dirty Git worktree, detached/unresolved/non-full commit, missing package/lock metadata,
+  non-contiguous migration sequence, schema policy drift, malformed notes, or missing deterministic
+  build epoch before reading build output.
+- Derive commit from `git rev-parse HEAD`; release version from `package.json`; Node from the running
+  process; Next/OpenNext/Wrangler from exact `package-lock.json` installed-package versions; and
+  current schema from the highest contiguous migration prefix.
+- Keep an explicit strict `release.schema.json` with minimum/maximum compatible schema. Require the
+  derived current schema to be inside that range; never infer compatibility merely because a
+  migration exists.
+- Derive `builtAt` from integer `SOURCE_DATE_EPOCH` seconds so rebuilds of the same release inputs can
+  produce identical canonical manifest bytes. Release notes come from a strict JSON string array,
+  not shell-delimited text.
+
 **Out of scope:**
 
 - Storing signing private keys in source, artifacts, app bindings, D1, or ordinary application
@@ -96,6 +111,7 @@ accepted as a command-line argument because process lists and shell history may 
 | Unit | `tests/unit/scripts/release-manifest.test.ts` | strict parsing/canonicalization, ordering, immutability, schema/version/note/path limits, artifact hash/size, Ed25519 sign/verify, wrong product/key/signature/artifact refusal |
 | Unit | `tests/unit/scripts/release-archive.test.ts` | sorted USTAR/gzip determinism, normalized metadata, empty directories, changed bytes, unsafe/symlink/duplicate/long-path refusal, atomic output and partial cleanup |
 | Unit | `tests/unit/scripts/release-prepare.test.ts` | exact two-file unsigned bundle, byte-derived canonical manifest, atomic directory publication, existing-output preservation, invalid metadata/source cleanup |
+| Unit | `tests/unit/scripts/release-metadata.test.ts` | clean/full commit, deterministic epoch, exact installed tool versions, contiguous migration head, strict schema policy/range, bounded notes, caller immutability |
 | CI | workflow validation | clean install, verify, deterministic archive, manifest/signature creation, verification before publication |
 | Operator | disposable Cloudflare release rehearsal | verified upload without traffic, smoke, upgrade rehearsal, recovery evidence, deliberate promotion/return |
 | Full | repository commands | `npm run verify`; no E2E for the manifest core |
@@ -276,3 +292,35 @@ Notes:
 
 - A future CLI/CI wrapper must derive commit/build/runtime inputs from a clean checkout rather than
   accepting operator claims; the pure bundle writer intentionally remains dependency-injected.
+
+### 2026-08-12 — Derive release metadata from a clean checkout
+
+Type: Feature
+
+Summary:
+
+- Add strict `release.schema.json` compatibility policy and a pure derivation guard for clean Git
+  status/full HEAD, package/lock identity, required Node, exact installed Next/OpenNext/Wrangler,
+  contiguous migration head, deterministic `SOURCE_DATE_EPOCH`, and bounded notes.
+- Require the derived migration head to fall inside the explicit compatibility range and pass all
+  metadata through the canonical manifest validator before returning a deeply frozen result.
+
+Reason:
+
+- Prevent CI or an operator from signing manually claimed commit, build time, runtime, or schema
+  metadata.
+
+Impact:
+
+- Offline/read-only derivation only. No build, archive write, signature, publication, or provider
+  operation.
+
+Tests:
+
+- Eleven focused metadata contracts pass; the combined provenance/preparation/metadata subset passes
+  34 tests.
+
+Notes:
+
+- Current compatibility policy is exactly schema `0028`; widening it requires explicit evidence
+  that the release operates correctly against the additional schema version.

@@ -384,6 +384,11 @@ rehashes both outputs, requires the exact two-file inventory, rejects unknown me
 the bundle directory only after all checks pass. Five focused bundle contracts pass; the output is
 not considered trusted until later protected CI signing and pinned-key verification succeed.
 
+Layer 2.5 now derives release identity only from a clean full Git HEAD, exact package/lock runtime
+versions, a deterministic source epoch, contiguous migration head, and strict committed schema
+compatibility policy. Eleven focused contracts pass; current compatibility is intentionally bounded
+to schema `0028` until wider compatibility is exercised.
+
 Deliverables:
 
 - Add a non-mutating `doctor` command that checks runtime version, bindings, D1 migrations, R2 access,
