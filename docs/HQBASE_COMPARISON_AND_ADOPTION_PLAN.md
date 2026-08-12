@@ -245,7 +245,7 @@ remote R2 objects pass exact byte-length and SHA-256 comparison. Recovery Worker
 `34571aef-6642-4ea5-bc42-85eebb730e16` passes the six public smoke checks at its workers.dev origin
 with no mail route, Queue, Cron, Email Sending, custom route, or service binding.
 
-#### L1.5 — integrity and application verification
+#### L1.5 — integrity and application verification — complete 2026-08-12
 
 - Verify manifest hashes, D1 foreign keys, exact migration parity, table/row counts, D1-to-R2
   referencedness, R2-to-D1 orphan reporting, and representative attachment byte hashes.
@@ -255,6 +255,14 @@ with no mail route, Queue, Cron, Email Sending, custom route, or service binding
 - Prove restricted-user and unrelated-mailbox denial against restored production-shaped data.
 
 Output: machine-readable verification report and human-readable evidence checklist.
+
+Implementation evidence: a random-password, fixed-ID recovery-only `viewer` authenticated at the
+workers.dev origin and received exactly one restored mailbox. Allowed message/body and attachment
+reads passed, including an exact manifest SHA-256 match; unrelated mailbox listing returned zero and
+direct message/attachment reads returned `404`. Browser proof covered the 13-message inbox,
+attachment controls, rich HTML text/link rendering, and the absence of send/draft UI. Exact cleanup
+removed the identity, sessions, memberships, and fixed denial fixture; foreign keys remain clean and
+the deleted session redirects to login.
 
 #### L1.6 — Worker rollback drill
 
@@ -295,8 +303,8 @@ Output: completed recovery-gate evidence and a repeatable operator runbook.
 - [ ] Every D1-referenced R2 object is present with matching exact-byte checksum.
 - [ ] Target guards reject production and routed/non-empty resources before mutation.
 - [x] Isolated remote D1 and R2 restore succeeds.
-- [ ] Restored schema, references, rows, objects, and representative app reads verify.
-- [ ] Restricted-user and mailbox-isolation checks pass on the restored site.
+- [x] Restored schema, references, rows, objects, and representative app reads verify.
+- [x] Restricted-user and mailbox-isolation checks pass on the restored site.
 - [ ] Worker rollback and return-to-current-version both pass smoke tests.
 - [ ] Production resource and routing inventory is unchanged afterward.
 - [ ] Commands, versions, timestamps, hashes, and cleanup results are recorded.

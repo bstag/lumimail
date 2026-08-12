@@ -1,6 +1,6 @@
 # F79 — Remote Recovery Rehearsal
 
-> Status: In Progress — Layers 1.1–1.4 complete; Layer 1.5 verification next
+> Status: In Progress — Layers 1.1–1.5 complete; Layer 1.6 rollback next
 > Owner area: `scripts/recovery-target-guard.mjs`, `scripts/r2-backup.mjs`,
 > `scripts/recovery-capture.mjs`, `scripts/recovery-restore.mjs`, `docs/OPERATIONS.md`
 
@@ -517,3 +517,15 @@ Type: Feature / Recovery capture
 - The first API verification login succeeded, but the verifier incorrectly expected a generic
   `session` cookie instead of Lumimail's `ep_session`. The contract now requires the exact
   application cookie name; the disposable session is covered by fixed-user cleanup.
+- Authenticated API verification then passed: the verifier session authenticated, `/api/mailboxes`
+  returned exactly one allowed mailbox, the allowed message/body loaded, and its 90-byte attachment
+  matched manifest SHA-256 `6cafeee8a9f9321f72732db37ab184faaada73530d53bcc3bd40f63ccbc87e5a`.
+  The unrelated mailbox list returned zero messages, and direct unrelated message/attachment reads
+  both returned `404`.
+- Browser verification showed the single permitted mailbox with 13 messages, omitted Compose and
+  Drafts for the `viewer`, rendered the attachment message with three attachment controls, and
+  rendered restored rich HTML text/link content without console errors. The server session endpoint
+  identified only `usr_recoveryverify` throughout.
+- Exact cleanup removed the staging-only attachment fixture, all verifier sessions, mailbox/org
+  memberships, and user. All five fixed-ID counts are zero, `PRAGMA foreign_key_check` remains
+  empty, and the former browser session redirects to `/login` after reload.
