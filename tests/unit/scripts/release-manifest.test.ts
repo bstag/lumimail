@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
 	ReleaseManifestError,
 	canonicalizeReleaseManifest,
+	createReleaseManifest,
 	parseReleaseManifest,
 	signReleaseManifest,
 	verifySignedRelease,
@@ -27,6 +28,31 @@ function manifestFixture() {
 }
 
 describe("release manifest v1", () => {
+	it("derives artifact size and digest instead of trusting caller metadata", () => {
+		const fixture = manifestFixture();
+		const created = createReleaseManifest({
+			version: fixture.version,
+			builtAt: fixture.builtAt,
+			commit: fixture.commit,
+			artifactPath: fixture.artifact.path,
+			artifactBytes: artifact,
+			schema: fixture.schema,
+			runtime: fixture.runtime,
+			notes: fixture.notes,
+		});
+		expect(created).toEqual(parseReleaseManifest(fixture));
+		expect(Object.isFrozen(created)).toBe(true);
+	});
+
+	it("refuses manifest creation without exact artifact bytes", () => {
+		const fixture = manifestFixture();
+		expect(() => createReleaseManifest({
+			version: fixture.version, builtAt: fixture.builtAt, commit: fixture.commit,
+			artifactPath: fixture.artifact.path, artifactBytes: "not-bytes",
+			schema: fixture.schema, runtime: fixture.runtime, notes: fixture.notes,
+		})).toThrow(ReleaseManifestError);
+	});
+
 	it("strictly normalizes, canonicalizes, sorts notes, freezes, and preserves input", () => {
 		const source = manifestFixture();
 		const original = structuredClone(source);

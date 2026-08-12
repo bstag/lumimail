@@ -370,7 +370,8 @@ Ed25519 trust boundary, artifact and schema compatibility checks, immutable publ
 and upload-before-deliberate-promotion sequence. Signing authority and release storage remain explicit
 operator/security decisions rather than being inferred by implementation.
 
-The pure Layer 2.3 core now passes 16 contracts for canonical provenance, bounded schema/runtime/
+The pure Layer 2.3 core now passes 18 contracts for canonical provenance, byte-derived artifact
+metadata, bounded schema/runtime/
 notes metadata, exact artifact hashing, Ed25519 signing with pinned key IDs, and tamper/substitution/
 identity/schema refusal. It performs no file, network, provider, upload, or promotion operation.
 

@@ -132,6 +132,36 @@ export function canonicalizeReleaseManifest(value) {
 	return `${JSON.stringify(parseReleaseManifest(value), null, 2)}\n`;
 }
 
+export function createReleaseManifest({
+	version,
+	builtAt,
+	commit,
+	artifactPath,
+	artifactBytes,
+	schema,
+	runtime,
+	notes,
+}) {
+	if (!(artifactBytes instanceof Uint8Array)) {
+		throw new ReleaseManifestError(["artifactBytes: exact bytes are required"]);
+	}
+	return parseReleaseManifest({
+		format: "lumimail-release-v1",
+		product: "lumimail",
+		version,
+		builtAt,
+		commit,
+		artifact: {
+			path: artifactPath,
+			size: artifactBytes.byteLength,
+			sha256: createHash("sha256").update(artifactBytes).digest("hex"),
+		},
+		schema,
+		runtime,
+		notes,
+	});
+}
+
 function manifestDigest(manifest) {
 	return createHash("sha256").update(canonicalizeReleaseManifest(manifest)).digest("hex");
 }

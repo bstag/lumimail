@@ -161,7 +161,7 @@ Type: Feature
 
 Summary:
 
-- Add strict parsing and canonicalization for `lumimail-release-v1`, including artifact, commit,
+- Add strict parsing, deterministic construction, and canonicalization for `lumimail-release-v1`, including artifact, commit,
   semantic version, build runtime, bounded notes, and inclusive schema compatibility.
 - Add detached `lumimail-release-signature-v1` Ed25519 signing and pinned-key verification using
   built-in Node crypto.
@@ -179,7 +179,7 @@ Impact:
 
 Tests:
 
-- Sixteen focused contracts pass after the missing-module failure was observed first.
+- Eighteen focused contracts pass after the missing-module failure was observed first.
 - Tests cover strict/unknown fields, normalization, path/version/time/schema/note constraints,
   immutability, valid Ed25519 verification, unknown key, artifact substitution, wrong version/schema,
   and manifest tampering.
@@ -188,3 +188,5 @@ Notes:
 
 - The API accepts key objects/bytes from its caller; a future CLI must use protected stdin/file
   input and must never put private-key material in argv.
+- Manifest creation accepts exact artifact bytes and derives size/SHA-256 internally; callers cannot
+  supply digest metadata for CI to sign blindly.
