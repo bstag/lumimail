@@ -7,6 +7,9 @@ async function mockAdminSession(page: Page) {
 		sessionToken: null,
 		user: { id: "owner_1", role: "owner" },
 	});
+	await page.route("**/api/admin/access-overview", (route) =>
+		route.fulfill({ json: { success: true, data: { members: [], mailboxes: [] } } }),
+	);
 }
 
 test.describe("identity-bound organization invitations", () => {

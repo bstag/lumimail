@@ -191,3 +191,14 @@ Notes:
   and remote doctor passed 25 checks with the documented live-Cron-inventory warning. An unsigned
   browser session was redirected from `/operations` to `/login`; authenticated 9/9 rendering remains
   covered by the production-shaped browser suite without requesting production credentials.
+
+### 2026-08-12 — Record the evidence-source boundary
+
+- Recovery capture/restore, signed-release verification, public smoke, and traced-mail-flow evidence
+  are currently produced by operator scripts and retained outside D1/R2 state readable by the
+  deployed Worker.
+- The Operations Center must not manufacture a "latest successful" timestamp from source
+  documentation or a local artifact. Those cards require a separately specified, authenticated,
+  content-free evidence-ingestion and retention contract.
+- Live Cron inventory remains delegated to the F80 provider doctor because Wrangler does not expose
+  a trustworthy schedule read in the current workflow.

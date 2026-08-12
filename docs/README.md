@@ -86,7 +86,8 @@ Source of truth for behavior. Each follows
      [`F79-remote-recovery-rehearsal`](./specs/F79-remote-recovery-rehearsal.md),
      [`F80-operator-lifecycle`](./specs/F80-operator-lifecycle.md),
       [`F81-signed-releases`](./specs/F81-signed-releases.md),
-      [`F82-operations-center`](./specs/F82-operations-center.md).
+       [`F82-operations-center`](./specs/F82-operations-center.md),
+       [`F83-access-and-security-center`](./specs/F83-access-and-security-center.md).
 
 ## Implementation notes (`implementation/`)
 

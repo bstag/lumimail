@@ -454,6 +454,10 @@ or secret names/values. Live provider readiness remains explicitly delegated to 
 This slice was deployed as Worker version `25d931e2-b762-454d-bbff-80df63bfb005`; all nine expected
 capabilities appeared in deployment inventory, smoke passed 6/6, and remote doctor passed 25 checks
 with only the known live-Cron-inventory warning.
+Recovery, signed-release, and smoke/mail-flow success records are currently external operator
+artifacts rather than Worker-readable persisted evidence. F82 will not present invented "latest"
+timestamps; those cards wait for a separately specified, authenticated, content-free ingestion
+contract.
 
 Access and security center:
 
@@ -463,6 +467,14 @@ Access and security center:
 - Active sessions/devices with revoke-one and revoke-others
 - Content-free audit history with actor, action, resource, outcome, request ID, and timestamp
 - Immediate access-revocation and cross-tenant negative tests for every new surface
+
+F83 progress 2026-08-12: the first read-only slice is implemented as an extension of `/members`
+backed by `/api/admin/access-overview`. The server-built, organization-scoped model separates
+organization role from explicit mailbox viewer/responder/manager grants and their read/send/manage
+capabilities, while exposing members without access and mailboxes without assignments. Cross-tenant,
+missing-reference, unknown-role, and denial-before-read contracts pass; the complete 76-scenario
+browser suite includes desktop and 390px matrix coverage. Existing mutations remain unchanged;
+invitation delivery, session controls, audit history, and bulk grants remain later slices.
 
 Exit gate: an owner can answer who has access, what changed, whether the platform is healthy, and
 whether recovery has been proven without opening Cloudflare or reading logs.
