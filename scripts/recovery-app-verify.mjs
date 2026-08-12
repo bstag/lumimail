@@ -44,25 +44,21 @@ export function renderVerifierProvisionSql(input) {
 		throw new Error("Recovery verifier timestamp is invalid");
 	}
 	return [
-		"BEGIN IMMEDIATE;",
 		`INSERT INTO users (id, email, password_hash, name, organization_id, created_at) VALUES (${sqlString(input.userId)}, ${sqlString(input.email)}, ${sqlString(input.passwordHash)}, 'Recovery Verifier', ${sqlString(input.organizationId)}, ${input.now});`,
 		`INSERT INTO organization_members (id, organization_id, user_id, role, created_at) VALUES (${sqlString(input.organizationMembershipId)}, ${sqlString(input.organizationId)}, ${sqlString(input.userId)}, 'member', ${input.now});`,
 		`INSERT INTO mailbox_memberships (id, mailbox_id, user_id, role, created_at, updated_at) VALUES (${sqlString(input.membershipId)}, ${sqlString(input.allowedMailboxId)}, ${sqlString(input.userId)}, 'viewer', ${input.now}, ${input.now});`,
 		`INSERT INTO attachments (id, message_id, filename, content_type, size, r2_key, disposition, content_id, created_at) SELECT ${sqlString(input.deniedAttachmentId)}, ${sqlString(input.deniedMessageId)}, filename, content_type, size, r2_key, disposition, content_id, ${input.now} FROM attachments WHERE id = ${sqlString(input.allowedAttachmentId)};`,
-		"COMMIT;",
 	].join("\n");
 }
 
 export function renderVerifierCleanupSql(plan) {
 	assertPlan(plan);
 	return [
-		"BEGIN IMMEDIATE;",
 		`DELETE FROM attachments WHERE id = ${sqlString(plan.deniedAttachmentId)};`,
 		`DELETE FROM sessions WHERE user_id = ${sqlString(plan.userId)};`,
 		`DELETE FROM mailbox_memberships WHERE id = ${sqlString(plan.membershipId)};`,
 		`DELETE FROM organization_members WHERE id = ${sqlString(plan.organizationMembershipId)};`,
 		`DELETE FROM users WHERE id = ${sqlString(plan.userId)};`,
-		"COMMIT;",
 	].join("\n");
 }
 

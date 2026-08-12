@@ -35,6 +35,7 @@ describe("recovery application verifier", () => {
 		expect(sql).toContain("INSERT INTO attachments");
 		expect(sql).toContain("att_denied");
 		expect(sql).toContain("$2b$10$hash");
+		expect(sql).not.toMatch(/\b(?:BEGIN|COMMIT|SAVEPOINT)\b/);
 		expect(sql).not.toContain("password-plaintext");
 		expect(() =>
 			renderVerifierProvisionSql({ ...plan, now: 1, passwordHash: "hash", deniedMailboxId: "mbx_allowed" }),
@@ -49,6 +50,7 @@ describe("recovery application verifier", () => {
 		expect(sql).toContain("DELETE FROM organization_members WHERE id = 'om_recoveryverify'");
 		expect(sql).toContain("DELETE FROM users WHERE id = 'usr_recoveryverify'");
 		expect(sql).not.toMatch(/DELETE FROM (?:messages|mailboxes|organizations)/);
+		expect(sql).not.toMatch(/\b(?:BEGIN|COMMIT|SAVEPOINT)\b/);
 	});
 
 	it("proves allowed reads and unrelated mailbox denial without reporting secrets", async () => {

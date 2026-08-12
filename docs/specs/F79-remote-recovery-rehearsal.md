@@ -269,7 +269,9 @@ secrets and never includes either in the report.
 
 The cleanup SQL names only the fixed verifier user/membership IDs and optional fixed denial-fixture
 attachment ID. It deletes the fixture and sessions before removing the membership rows and user,
-and it is safe to repeat after a partial run.
+and it is safe to repeat after a partial run. Remote D1 rejects explicit transaction statements in
+imported SQL, so the live wrapper runs ordered statements and invokes this cleanup after any
+provisioning failure; a fixed-ID absence check is required before retry.
 
 ## 6. UI/UX
 
@@ -509,3 +511,6 @@ Type: Feature / Recovery capture
   Email Routing, custom route, Queue, Cron, Email Sending, or service binding. Public smoke passes
   6/6, and direct browser inspection confirms the labeled login UI renders. No production binding
   or route was changed.
+- The first verifier provision attempt was rejected before execution because remote D1 does not
+  accept `BEGIN` in imported SQL. All four fixed-ID row counts remained zero. Provision/cleanup SQL
+  now omits transaction control and relies on mandatory exact-ID cleanup after partial failure.
