@@ -286,7 +286,7 @@ function wrangler(args) {
 		process.execPath,
 		[resolve("node_modules/wrangler/bin/wrangler.js"), ...args],
 		{
-			env: { ...process.env, WRANGLER_LOG: "none" },
+			env: process.env,
 			stdio: ["ignore", "pipe", "pipe"],
 		},
 	);

@@ -395,3 +395,6 @@ Type: Feature / Recovery capture
 - Five focused capture contracts pass after first failing because the module did not exist.
 - `npm run verify` passes with 1,789 application tests across 197 files at 100% configured coverage,
   plus all 21 bridge tests. Production capture remains to be run from the clean committed checkpoint.
+- First live attempt failed safely before D1 export because `WRANGLER_LOG=none` suppresses Wrangler's
+  JSON command result as well as logging. No final directory or partial data remained; the wrapper
+  now preserves Wrangler's normal JSON standard output.
