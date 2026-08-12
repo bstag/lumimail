@@ -413,6 +413,15 @@ Verification:
   registration presentation.
 - Cloudflare Email Sending reports `henriksen.dev` enabled, the production `EMAIL` binding and
   verified sender already exist, and no new dependency or provider credential was introduced.
+- Commit `88ff5c2` deployed with migration `0031` as Worker version
+  `a7ca2d42-3dba-4a2a-8e08-ae5de61c1433`, receiving 100% of production traffic. Remote D1 exposes
+  the four lifecycle columns with the rolling-deploy defaults and has no pending migrations.
+- Public smoke passes 6/6; the remote doctor passes 25 checks with zero failures and only the
+  documented live-Cron-inventory warning. A fake public token returns bounded JSON `404`, and an
+  anonymous resend returns bounded JSON `401`.
+- A metadata-only D1 aggregation reports zero invitation rows before the human gate. Automation did
+  not send email or create an account; production delivery, resend presentation, and retained
+  acceptance require an operator-controlled recipient.
 
 ### 2026-08-12 — Specify a read-only access matrix
 
