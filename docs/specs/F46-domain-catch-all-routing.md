@@ -40,7 +40,7 @@ An organization operator needs one predictable catch-all per domain so named ali
 - Raw R2 object cleanup for unroutable mail (R-11).
 - Provisioning aliases/groups as Cloudflare literal routes (F16/F30).
 - Automatically changing an active provider catch-all that targets another Worker or forwarding address.
-- Domain-admin role enforcement; the existing organization-member admin boundary remains until ACL remediation.
+- Per-domain delegated administration roles beyond the existing organization owner/admin boundary.
 
 ## 4. Provider and Data Model
 
@@ -59,10 +59,10 @@ No schema migration is required. Duplicate catch-alls are prevented by the tenan
 
 | Method | Route | Auth | Request | Success | Errors |
 |--------|-------|------|---------|---------|--------|
-| GET | `/api/routing-rules` | Session + organization | — | `{ rules }` | 400 no organization, 401 |
-| POST | `/api/routing-rules` | Session + organization | Complete routing rule | Created rule with canonical pattern | 400 validation/target, 404 domain, 409 duplicate/provider conflict, 502 Cloudflare |
-| PATCH | `/api/routing-rules/[id]` | Session + organization | Partial routing rule | `{ rule }` with canonical pattern | 400 validation/target, 404/cross-tenant, 409 duplicate/provider conflict, 502 Cloudflare |
-| DELETE | `/api/routing-rules/[id]` | Session + organization | — | `{ ok: true }` | 404/cross-tenant, 502 Cloudflare |
+| GET | `/api/routing-rules` | Organization owner/admin | — | `{ rules }` | 401, 403 |
+| POST | `/api/routing-rules` | Organization owner/admin | Complete routing rule | Created rule with canonical pattern | 400 validation/target, 401, 403, 404 domain, 409 duplicate/provider conflict, 502 Cloudflare |
+| PATCH | `/api/routing-rules/[id]` | Organization owner/admin | Partial routing rule | `{ rule }` with canonical pattern | 400 validation/target, 401, 403, 404/cross-tenant, 409 duplicate/provider conflict, 502 Cloudflare |
+| DELETE | `/api/routing-rules/[id]` | Organization owner/admin | — | `{ ok: true }` | 401, 403, 404/cross-tenant, 502 Cloudflare |
 
 Provider conflict means the selected zone already has an enabled catch-all that does not target this Lumimail Worker. Lumimail refuses to overwrite it and tells the operator to review Cloudflare Email Routing.
 
@@ -128,7 +128,7 @@ Action invariants:
 - Every mailbox target is scoped to both organization and rule domain.
 - Cross-tenant rule/domain/mailbox identifiers return generic not-found/invalid-target responses.
 - `CF_TOKEN`, provider credentials, and raw Cloudflare error bodies are never returned.
-- The existing application lets any organization member administer routing. This bounded work preserves that behavior and must not be treated as safe restricted-user access before R-12/R-13.
+- Routing reads and writes require an organization owner/admin at the server boundary. Restricted members receive 403 before database or Cloudflare access (F77).
 
 ## 10. Test Plan
 
@@ -156,6 +156,12 @@ Action invariants:
 - Resource ownership metadata is not stored. Safe disable therefore depends on inspecting that the current provider action still targets the configured Lumimail Worker.
 
 ## 13. Bug / Change Log
+
+### 2026-08-06 — Enforce routing administration authorization (F77)
+
+Type: Security Fix
+
+Summary: all routing collection and item methods now require the existing organization owner/admin guard; restricted members fail with 403 before DB or provider work.
 
 ### 2026-07-31 — Extract the catch-all dance into a routing-rules service (T-40)
 

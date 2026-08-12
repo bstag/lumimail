@@ -80,7 +80,10 @@ Source of truth for behavior. Each follows
    [`F73-hermetic-playwright-cloudflare-bindings`](./specs/F73-hermetic-playwright-cloudflare-bindings.md),
    [`F74-authentication-and-registration-hardening`](./specs/F74-authentication-and-registration-hardening.md),
    [`F75-nested-label-folders`](./specs/F75-nested-label-folders.md),
-   [`F76-all-mailboxes-scope`](./specs/F76-all-mailboxes-scope.md).
+    [`F76-all-mailboxes-scope`](./specs/F76-all-mailboxes-scope.md),
+     [`F77-security-hardening-routing-dependencies-imap`](./specs/F77-security-hardening-routing-dependencies-imap.md),
+     [`F78-local-equivalence-mvp-readiness`](./specs/F78-local-equivalence-mvp-readiness.md),
+     [`F79-remote-recovery-rehearsal`](./specs/F79-remote-recovery-rehearsal.md).
 
 ## Implementation notes (`implementation/`)
 

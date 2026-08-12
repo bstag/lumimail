@@ -81,7 +81,7 @@ test.describe("a viewer may read a shared mailbox but not send from it", () => {
 		const drafts = await api(page, `/api/drafts?mailboxId=${SHARED_MAILBOX}`);
 		expect(drafts.status).toBe(200);
 		expect(drafts.body).not.toContain(SHARED_DRAFT_SUBJECT);
-		expect(JSON.parse(drafts.body).drafts).toEqual([]);
+		expect(JSON.parse(drafts.body).data.drafts).toEqual([]);
 	});
 
 	test("is offered no send affordances and cannot navigate to compose", async ({ page }) => {

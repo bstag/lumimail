@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq, desc, and, like, or, count, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
-import { messages, messageLabels } from "@/db/schema";
+import { labels, messages, messageLabels } from "@/db/schema";
 import { withUser } from "@/lib/api/handler";
 import { apiSuccess } from "@/lib/api/response";
 import { enrichMessagesWithContacts } from "@/lib/messages/enrich";
@@ -79,7 +79,8 @@ export const GET = withUser(async ({ request, env, user }) => {
 		const labelledMessageIds = await db
 			.select({ messageId: messageLabels.messageId })
 			.from(messageLabels)
-			.where(eq(messageLabels.labelId, labelId));
+			.innerJoin(labels, eq(labels.id, messageLabels.labelId))
+			.where(and(eq(messageLabels.labelId, labelId), eq(labels.userId, user.id)));
 		const ids = labelledMessageIds.map((r) => r.messageId);
 		if (ids.length === 0) {
 			return apiSuccess({ messages: [], total: 0, limit, offset });

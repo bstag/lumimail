@@ -53,6 +53,26 @@ test.describe("owner access", () => {
 		expect(options).toContain("shared@e2e.test");
 		expect(options).toContain("private@e2e.test");
 	});
+
+	test("lists and browses only the owner's nested labels", async ({ page }) => {
+		await page.goto("/inbox");
+
+		const labels = await api(page, "/api/labels");
+		expect(labels.status).toBe(200);
+		expect(labels.body).toContain("E2E Projects");
+		expect(labels.body).toContain("E2E Lumimail");
+		expect(labels.body).not.toContain("E2E Member Private");
+
+		const child = await api(page, "/api/messages?labelId=e2e_lbl_owner_child");
+		expect(child.status).toBe(200);
+		expect(child.body).toContain("alpha subject 0");
+
+		// The foreign label is deliberately linked to a message the owner may read.
+		// An empty result therefore proves label ownership, not mailbox isolation.
+		const foreign = await api(page, "/api/messages?labelId=e2e_lbl_member_private");
+		expect(foreign.status).toBe(200);
+		expect(JSON.parse(foreign.body).data.messages).toEqual([]);
+	});
 });
 
 test.describe("member access is limited to granted mailboxes", () => {
@@ -88,6 +108,25 @@ test.describe("member access is limited to granted mailboxes", () => {
 
 		expect(messages.status).toBe(200);
 		expect(messages.body).toContain("shared subject");
+	});
+
+	test("lists every permitted mailbox and no forbidden mailbox when unscoped", async ({ page }) => {
+		await page.goto("/inbox");
+
+		const messages = await api(page, "/api/messages");
+		expect(messages.status).toBe(200);
+		expect(messages.body).toContain("shared subject");
+		expect(messages.body).toContain("team subject");
+		expect(messages.body).not.toContain("private subject");
+		expect(messages.body).not.toContain("alpha subject");
+	});
+
+	test("offers All mailboxes on a narrow viewport", async ({ page }) => {
+		await page.setViewportSize({ width: 412, height: 915 });
+		await page.goto("/inbox");
+
+		await page.getByRole("button", { name: /shared@e2e\.test|team@e2e\.test/ }).first().click();
+		await expect(page.getByRole("button", { name: "All mailboxes" })).toBeVisible();
 	});
 
 	test("is offered composing, because responder carries send capability", async ({ page }) => {

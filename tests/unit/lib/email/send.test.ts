@@ -235,6 +235,75 @@ describe("sendEmail producer", () => {
 		expect(body.htmlBody).not.toContain("<script");
 	});
 
+	it("traces a persisted inbound RFC id through reply, queue, provider, and delivery state", async () => {
+		queueAuthorization("org_1");
+		const inboundRfcId = "<trace-inbound@example.com>";
+		mock.queueSelect([{
+			id: "msg_inbound",
+			threadId: "thr_trace",
+			rfcMessageId: inboundRfcId,
+			providerMessageId: inboundRfcId,
+			referencesHeader: null,
+			fromAddr: "Sender <sender@example.com>",
+			textBody: "Inbound body",
+			htmlBody: "<p>Inbound body</p>",
+		}]);
+
+		const accepted = await sendEmail(env, {
+			userId: "u1",
+			from: "a@example.com",
+			to: "sender@example.com",
+			subject: "Re: traced message",
+			replyToMessageId: "msg_inbound",
+			text: "Reply body",
+		});
+
+		const persistedMessage = mock.inserts[0].values as Record<string, unknown>;
+		const persistedJob = mock.inserts[2].values as { id: string; payload: string };
+		expect(accepted.messageId).toBe("msg_id");
+		expect(persistedMessage).toMatchObject({
+			id: "msg_id",
+			threadId: "thr_trace",
+			replySourceMessageId: "msg_inbound",
+			inReplyTo: inboundRfcId,
+		});
+		expect(queueSend).toHaveBeenCalledWith({ kind: "outbound", jobId: persistedJob.id });
+		expect(JSON.parse(persistedJob.payload).headers).toEqual({
+			"In-Reply-To": inboundRfcId,
+			References: inboundRfcId,
+		});
+
+		mock.queueSelect([{
+			id: persistedJob.id,
+			userId: "u1",
+			messageId: accepted.messageId,
+			status: "processing",
+			deliveryToken: "delivery_trace",
+			payload: persistedJob.payload,
+		}]);
+		providerSend.mockResolvedValue({ providerMessageId: "<trace-outbound@example.com>" });
+
+		expect(
+			await processOutboundQueue(
+				env,
+				{ kind: "outbound", jobId: persistedJob.id },
+				"delivery_trace",
+			),
+		).toEqual({ action: "ack" });
+		expect(providerSend).toHaveBeenCalledWith(expect.objectContaining({
+			headers: { "In-Reply-To": inboundRfcId, References: inboundRfcId },
+		}));
+		expect(mock.updates.at(-1)?.set).toMatchObject({
+			status: "sent",
+			providerMessageId: "<trace-outbound@example.com>",
+		});
+		expect(dispatch).toHaveBeenCalledWith(env, "u1", "message.outbound", {
+			messageId: accepted.messageId,
+			providerMessageId: "<trace-outbound@example.com>",
+			to: "sender@example.com",
+		});
+	});
+
 	it("rejects a reply source outside the selected accessible mailbox", async () => {
 		queueAuthorization("org_1");
 		mock.queueSelect([]);

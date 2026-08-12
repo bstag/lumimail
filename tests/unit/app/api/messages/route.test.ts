@@ -198,6 +198,12 @@ describe("GET /api/messages", () => {
 		const res = await get("?labelId=lbl1");
 		const body = ((await res.json()) as any).data;
 		expect(body.messages).toHaveLength(1);
+
+		const labelWhere = mock.wheres
+			.map((condition) => new SQLiteSyncDialect().sqlToQuery(condition as SQL))
+			.find((query) => query.sql.includes('"message_labels"."label_id"'));
+		expect(labelWhere?.sql).toContain('"labels"."user_id" = ?');
+		expect(labelWhere?.params).toContain("u1");
 	});
 
 	it("short-circuits to an empty result when labelId has no messages", async () => {

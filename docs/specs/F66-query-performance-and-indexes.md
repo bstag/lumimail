@@ -157,14 +157,17 @@ runs alongside each plan.
 
 | Query | Target | Measured | Plan |
 |---|---|---|---|
-| Folder listing, first page | < 1 ms | 0.054 ms | `messages_mailbox_created_idx` |
-| Folder listing, page 200 | < 10 ms | 4.33 ms | index; `OFFSET` walks skipped rows |
-| Unread counts | < 10 ms | 4.27 ms | index scan over the mailbox |
-| Search by subject/snippet | < 10 ms | 5.10 ms | index scan; `LIKE` cannot use an index |
-| Thread fetch | < 1 ms | 0.010 ms | `messages_thread_created_idx` |
+| Folder listing, first page | < 1 ms | 0.047 ms | `messages_mailbox_created_idx` |
+| Folder listing, page 200 | < 10 ms | 4.074 ms | index; `OFFSET` walks skipped rows |
+| Unread counts | < 10 ms | 3.737 ms | index scan over the mailbox |
+| Search by subject/snippet | < 10 ms | 4.397 ms | index scan; `LIKE` cannot use an index |
+| Thread fetch | < 1 ms | 0.011 ms | `messages_thread_created_idx` |
 | Mailbox access subquery | < 1 ms | 0.004 ms | covering index |
 | Session lookup | < 1 ms | 0.002 ms | `sessions_token_lookup_idx` |
-| Routing rules for a domain | < 1 ms | 0.002 ms | `routing_rules_domain_idx` |
+| Routing rules for a domain | < 1 ms | 0.003 ms | `routing_rules_domain_idx` |
+
+The table was reproduced on 2026-08-11 against migration `0028`; all eight local
+database targets still pass. The fixture was reseeded immediately afterward.
 
 Three of these deserve explanation rather than a number alone:
 

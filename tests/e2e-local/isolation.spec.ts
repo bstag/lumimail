@@ -152,4 +152,34 @@ test.describe("a member cannot reach a mailbox they were not granted", () => {
 		// F51: the client hides the entry point, but the server is the control.
 		expect((await api(page, "/api/admin/mailboxes")).status).toBe(403);
 	});
+
+	test("cannot read or mutate routing administration through the API", async ({ page }) => {
+		await page.goto("/inbox");
+
+		expect((await api(page, "/api/routing-rules")).status).toBe(403);
+		expect((await api(page, "/api/routing-rules", {
+			method: "POST",
+			body: {},
+		})).status).toBe(403);
+		expect((await api(page, "/api/routing-rules/e2e_rule", { method: "GET" })).status).toBe(403);
+		expect((await api(page, "/api/routing-rules/e2e_rule", {
+			method: "PATCH",
+			body: {},
+		})).status).toBe(403);
+		expect((await api(page, "/api/routing-rules/e2e_rule", { method: "DELETE" })).status).toBe(403);
+	});
+
+	test("cannot read or mutate domain administration through the API", async ({ page }) => {
+		await page.goto("/inbox");
+
+		expect((await api(page, "/api/domains")).status).toBe(403);
+		expect((await api(page, "/api/domains", { method: "POST", body: {} })).status).toBe(403);
+		expect((await api(page, "/api/domains/e2e_dom")).status).toBe(403);
+		expect((await api(page, "/api/domains/e2e_dom/dns")).status).toBe(403);
+		expect((await api(page, "/api/domains/e2e_dom/sending", {
+			method: "POST",
+			body: {},
+		})).status).toBe(403);
+		expect((await api(page, "/api/domains/e2e_dom", { method: "DELETE" })).status).toBe(403);
+	});
 });

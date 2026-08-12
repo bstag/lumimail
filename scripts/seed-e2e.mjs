@@ -16,6 +16,8 @@
  *   shared@e2e.test   owner manages,
  *                     member responds,
  *                     viewer reads           — three people, three capabilities
+ *   team@e2e.test     owner manages,
+ *                     member responds         — second permitted mailbox for all-scope proof
  *   private@e2e.test  owner manages,
  *                     member has NO row      — the negative case isolation needs
  *
@@ -45,6 +47,7 @@ export const E2E = {
 	mailboxes: {
 		alpha: { id: "e2e_mbx_alpha", localPart: "alpha" },
 		shared: { id: "e2e_mbx_shared", localPart: "shared" },
+		team: { id: "e2e_mbx_team", localPart: "team" },
 		private: { id: "e2e_mbx_private", localPart: "private" },
 	},
 };
@@ -119,8 +122,10 @@ function seed(db, password) {
 	const memberships = [
 		["e2e_mbm_alpha_owner", E2E.mailboxes.alpha.id, E2E.owner.id, "manager"],
 		["e2e_mbm_shared_owner", E2E.mailboxes.shared.id, E2E.owner.id, "manager"],
+		["e2e_mbm_team_owner", E2E.mailboxes.team.id, E2E.owner.id, "manager"],
 		["e2e_mbm_private_owner", E2E.mailboxes.private.id, E2E.owner.id, "manager"],
 		["e2e_mbm_shared_member", E2E.mailboxes.shared.id, E2E.member.id, "responder"],
+		["e2e_mbm_team_member", E2E.mailboxes.team.id, E2E.member.id, "responder"],
 		// The viewer reads the same mailbox the member responds on. That pairing is
 		// what makes "can read but must not send" testable — a user denied the mailbox
 		// outright would prove nothing about the capability split.
@@ -180,7 +185,24 @@ function seed(db, password) {
 	);
 	n += 1;
 
-	return { users: 3, mailboxes: 3, messages: n };
+	// Real nested-label fixtures (F75/F78). The member-owned label is linked to a
+	// shared message the owner may read, so querying it as the owner isolates label
+	// ownership from mailbox authorization instead of passing on an unreadable row.
+	for (const [id, userId, name, parentId] of [
+		["e2e_lbl_owner_parent", E2E.owner.id, "E2E Projects", null],
+		["e2e_lbl_owner_child", E2E.owner.id, "E2E Lumimail", "e2e_lbl_owner_parent"],
+		["e2e_lbl_member_private", E2E.member.id, "E2E Member Private", null],
+	]) {
+		db.prepare(
+			"INSERT INTO labels (id, user_id, organization_id, name, color, parent_id, created_at) VALUES (?,?,?,?,?,?,?)",
+		).run(id, userId, E2E.orgId, name, "#6366f1", parentId, now);
+	}
+	db.prepare("INSERT INTO message_labels (message_id, label_id) VALUES (?,?)")
+		.run("e2e_msg_alpha_0", "e2e_lbl_owner_child");
+	db.prepare("INSERT INTO message_labels (message_id, label_id) VALUES (?,?)")
+		.run("e2e_msg_shared_1", "e2e_lbl_member_private");
+
+	return { users: 3, mailboxes: 4, messages: n };
 }
 
 export function seedE2E(password = E2E.password) {

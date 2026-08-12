@@ -260,14 +260,16 @@ Notes:
 - The `Labels` nav entry was deliberately kept rather than converted to a section
   header — `tests/e2e-local/navigation.spec.ts` navigates by that link name, and
   the collapsed rail needs it.
-- Not yet exercised against the real local backend: `npm run e2e:local` cannot run
-  in this environment (see §14).
+- Real-backend hierarchy, browse, and foreign-label isolation now pass against
+  migrated local D1 — see §14.
 
-## 14. Not verified
+## 14. Local-equivalence verification — 2026-08-11
 
-- `npm run e2e:local` fails at sign-in on this machine with a 503 from the
-  rate-limit store — local Wrangler bindings are not configured. Confirmed
-  pre-existing (it fails identically with these changes stashed), but it means the
-  label routes have not been exercised against a real D1 database. The migration
-  itself *is* verified against real SQLite by `tests/unit/db/migrations.test.ts`,
-  which applies it through Wrangler on both a fresh and an upgraded database.
+- `npm run e2e:local` passes 52/52 against migrated local D1. The fixture has an
+  owner parent/child hierarchy, an owner-readable message filed in the child, and
+  a second user's label attached to another owner-readable message. The owner can
+  list and browse only their hierarchy; querying by the foreign label returns no
+  rows. The route now joins `labels` and requires `labels.user_id` to match the
+  authenticated user, so ownership does not rely on message access alone.
+- Fresh and upgraded migration parity remains covered by
+  `tests/unit/db/migrations.test.ts`.

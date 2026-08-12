@@ -206,8 +206,9 @@ using `CF_TOKEN`. No message content is sent to the configuration API.
 
 ### Remaining gap
 
-Backup and restore are exercised for D1 and R2, but **a full restore has never been
-performed against a live environment** — the D1 restore was rehearsed into a throwaway
-database and the R2 restore path, while checksum-guarded and tested, has not written to
-a bucket. Exercising a complete restore requires a spare database and bucket to restore
-into, and remains open.
+Backup and restore are exercised locally for D1 and R2: all 15 objects from the
+production-derived fixture were checksum-verified and written into the local R2
+binding, while the restored D1 copy passed foreign-key and orphan checks. A full
+restore has never been performed against **remote** spare resources. Exercising D1
+Time Travel, remote bucket writes, binding cutover, and rollback requires a spare
+database and bucket and remains an operator check.

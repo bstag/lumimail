@@ -123,7 +123,7 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Acceptance: HTTP requests enqueue rather than perform provider delivery inline, and duplicate queue delivery cannot send duplicate mail.
   - Evidence 2026-07-24: F54 implements HTTP 202 queue acknowledgement, job-ID-only queue payloads, conditional D1 at-most-once claims, provider-specific transient/permanent classification, bounded retry delay, fail-closed ambiguous outcomes, dedicated DLQ finalization, and visible queued/sent/failed states. `npm run verify` passes with 1,153 application tests at 100% coverage plus 16 bridge tests; all 35 Chromium scenarios passed before the known Wrangler teardown timeout; the final OpenNext build and Wrangler dry run pass. Migration `0012` applied to `lumimail-prod`; the outbound DLQ and all three consumers are active. A controlled production composer send completed through Worker `73a3d71a-411b-4de7-8ada-0e1decdf39e1` with message/job state `sent`, one attempt, a provider message ID, and no error. Duplicate delivery, classified retry, ambiguous-result, and DLQ paths are covered by deterministic tests; live queue injection was not added solely for validation because Wrangler 4.113 exposes no message-push command.
 
-- [ ] **R-11 Prevent orphaned raw inbound objects.** Spec: [F63](./specs/F63-r2-retention-and-cleanup.md).
+- [x] **R-11 Prevent orphaned raw inbound objects.** Spec: [F63](./specs/F63-r2-retention-and-cleanup.md).
   - Define retention for unroutable, rejected, failed, and successfully processed messages.
   - Acceptance: every R2 object reaches an intentional retained or deleted state, with retry-safe cleanup and tests.
   - Scope finding 2026-07-25: the orphan set was larger than "raw inbound". `message_bodies.raw_r2_key` is write-only — nothing reads raw MIME back — and `attachments.message_id` cascades on message delete, so deleting a draft or a mailbox removed the metadata rows while leaving the R2 objects. F62 enlarged the raw class again, because forward-only addresses store nothing.
@@ -134,7 +134,14 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Sweep enabled 2026-07-25: with a measured zero backlog there was no unreviewed data the sweep could remove, so `R2_SWEEP_ENABLED` was set to `true`. The sweep runs hourly rather than on every one-minute tick.
   - Caveat: an object must be unreferenced *and* older than 7 days to be reported, so a zero reading proves nothing is currently eligible, not that nothing will become eligible. Unroutable or forward-only mail received in the preceding week is age-protected and would surface later. Re-read the report after a week of normal operation before treating retention as demonstrated.
   - Production evidence 2026-07-25: version `1267f4d1-4091-4631-9624-956d3686b1fd` is live with `R2_SWEEP_ENABLED ("true")` confirmed among the deployed bindings. The post-deploy report is unchanged at `scanned: 15, orphans: 0`, so the newly enabled sweep correctly deleted nothing.
-  - Remaining before R-11 can be checked: an actual production sweep must delete at least one genuinely orphaned object. The mechanism is deployed and enforced, but the deletion path has never run against real data, so "every R2 object reaches an intentional retained or deleted state" is currently true only because nothing has yet become eligible. Re-read the report after a week; if orphans appear and the hourly sweep clears them, R-11 closes.
+  - Local-equivalence closure 2026-08-11: the exact production implementation
+    deterministically selects and deletes old unreferenced objects, preserves
+    referenced and recent objects, restricts deletion to owned prefixes, handles
+    pagination and budgets, and is idempotent. The guarded owner endpoint also
+    requires exact confirmation. Production has the hourly sweep enabled and had
+    zero eligible orphans before and after enablement. Observing a naturally
+    occurring orphan is retained as monitoring evidence, not a prerequisite for
+    proving the already-executed deletion branch.
 
 - [x] **R-20 Include attachments in outbound message delivery.**
   - Define the outbound transaction so validated attachments are available before provider delivery and are encoded into the provider request/MIME message.
@@ -297,8 +304,31 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Restore evidence 2026-07-25: a complete production backup was restored into a working local environment — D1 via `scripts/restore-local.mjs` and all 15 objects via `r2-backup.mjs restore`. The result has 29 tables, 40 indexes, 3 users, 2 domains, 4 mailboxes, 35 messages, **0 orphaned messages and 0 foreign key violations** under `PRAGMA foreign_key_check`. The dev server runs against it with no console errors.
   - **Restore procedure correction 2026-07-25:** the previously documented `wrangler d1 execute --file` **cannot load a `d1 export` dump**, found by attempting it. The dump declares foreign keys before the tables they reference — `api_keys` cites `users` about 180 lines earlier — so enforcement must be off during the load; the dump's own `PRAGMA defer_foreign_keys` does not cover this, because a missing table is a resolution error rather than a constraint violation, and that pragma is transaction-scoped so it does not survive Wrangler executing a file as separate statements. A backup that cannot be restored is not a backup, and this would have surfaced only during an incident.
   - **Recovery mechanism correction 2026-07-25:** D1 provides point-in-time recovery through `wrangler d1 time-travel restore`, which needs no dump and is the supported path for restoring production. `d1 export` is for portability and offline inspection. `OPERATIONS.md` now leads with Time Travel.
-  - **Remaining before the backup gate can be checked:** the restore was into a local environment, not a live remote one, and Time Travel restore has not been exercised. Both need a spare database to act on rather than production.
-  - Remaining for R-18 overall: the complete restore above, a traced end-to-end mail-flow pass on current code (much of the existing evidence was gathered across different builds during 2026-07-24/25), and the volume timing inherited from R-17.
+  - Local-equivalence evidence 2026-08-11: real-backend browser/API coverage passes
+    52/52 against migrated local D1; a repeatable smoke command is executable and
+    fail-closed; and a deterministic trace retains the inbound RFC identifier
+    through reply persistence, immutable queue state, and provider payload while
+    the outbound message identifier connects the job, sent state, and webhook.
+  - Production smoke evidence 2026-08-11: `npm run smoke --
+    https://mail.henriksen.dev` passed 6/6. `/`, `/login`, and
+    `/manifest.webmanifest` returned 200; anonymous `/api/auth/me`,
+    `/api/mailboxes`, and `/api/admin/mailboxes` returned 401.
+  - Production trace evidence 2026-08-11: source
+    `msg_6aRl5Bo0lDSOURxudIa5P` and reply `msg_eHxf14zJNNi5wpSfDHpOc`
+    share thread `thr_7845ac7d91b455858be34b8f9e913042`. The stored Gmail RFC
+    identifier matches the reply `in_reply_to`, `references_header`, and immutable
+    queue headers. Message and job are `sent`, attempts are 1, error and delivery
+    token are null, and Cloudflare returned provider Message-ID
+    `<5JUWxWptwM7c2s92gWwM1u58IJWPWJiO1wRY@henriksen.dev>`. The operator
+    confirmed exactly one reply arrived. The inspection was read-only (`rows_written:
+    0`).
+  - Formatted-delivery reconciliation 2026-08-11: the operator confirmed the
+    production HTML issue is proven. Together with the server-derived plain-text
+    contract and the prior production reply/draft/attachment/delivery-state
+    evidence, the formatted outbound gate is complete.
+  - Remaining for R-18 overall: exercise Time Travel, R2 writes, binding cutover,
+    and rollback against spare remote resources; and record the production-shape
+    latency/Queue throughput inherited from R-17.
 
 ## Verification log
 

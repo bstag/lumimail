@@ -8,6 +8,9 @@ const apiClient = require("./api-client");
 
 const FOLDERS = ["INBOX", "Sent", "Drafts", "Spam", "Trash", "Starred"];
 const CAPABILITIES = "IMAP4rev1 NAMESPACE";
+const MAX_IMAP_COMMAND_BYTES = 64 * 1024;
+const IMAP_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const MAX_IMAP_CONNECTIONS = 100;
 
 function cleanHeader(value) {
 	return String(value ?? "").replace(/[\r\n]+/g, " ").trim();
@@ -71,22 +74,58 @@ class ImapSession {
 		this.readOnly = false;
 		this.messageCache = [];
 		this.deletedUids = new Set();
-		this.buffer = "";
+		this.buffer = Buffer.alloc(0);
+		this.closed = false;
 
 		socket.on("data", (data) => {
-			this.buffer += data.toString("utf8");
-			const lines = this.buffer.split("\r\n");
-			this.buffer = lines.pop() ?? "";
-			for (const line of lines) {
-				if (!line.trim()) continue;
-				this.handleLine(line).catch(() => {
-					const tag = line.split(" ", 1)[0] || "*";
-					this.send(`${tag} NO Lumimail operation failed`);
-				});
-			}
+			if (this.closed) return;
+			this.handleData(Buffer.isBuffer(data) ? data : Buffer.from(data));
 		});
 		socket.on("error", () => {});
+		if (typeof socket.setTimeout === "function") {
+			socket.setTimeout(IMAP_IDLE_TIMEOUT_MS, () => {
+				this.close("IMAP session timed out");
+			});
+		}
 		this.send("* OK Lumimail IMAP bridge ready");
+	}
+
+	handleData(data) {
+		let remaining = data;
+		while (remaining.length > 0 && !this.closed) {
+			const delimiter = remaining.indexOf("\r\n");
+			if (delimiter === -1) {
+				if (this.buffer.length + remaining.length > MAX_IMAP_COMMAND_BYTES) {
+					this.close("IMAP command too long");
+					return;
+				}
+				this.buffer = Buffer.concat([this.buffer, remaining]);
+				return;
+			}
+
+			const commandBytes = remaining.subarray(0, delimiter);
+			if (this.buffer.length + commandBytes.length > MAX_IMAP_COMMAND_BYTES) {
+				this.close("IMAP command too long");
+				return;
+			}
+			const line = Buffer.concat([this.buffer, commandBytes]).toString("utf8");
+			this.buffer = Buffer.alloc(0);
+			remaining = remaining.subarray(delimiter + 2);
+			if (!line.trim()) continue;
+			this.handleLine(line).catch(() => {
+				const tag = line.split(" ", 1)[0] || "*";
+				this.send(`${tag} NO Lumimail operation failed`);
+			});
+		}
+	}
+
+	close(reason) {
+		if (this.closed) return;
+		this.send(`* BYE ${reason}`);
+		this.closed = true;
+		this.buffer = Buffer.alloc(0);
+		if (typeof this.socket.destroy === "function") this.socket.destroy();
+		else this.socket.end();
 	}
 
 	send(line) {
@@ -465,8 +504,28 @@ class ImapSession {
 	}
 }
 
+function createImapConnectionListener(client = apiClient, maxConnections = MAX_IMAP_CONNECTIONS) {
+	let activeConnections = 0;
+	return (socket) => {
+		if (activeConnections >= maxConnections) {
+			socket.write("* BYE Too many IMAP connections\r\n");
+			if (typeof socket.destroy === "function") socket.destroy();
+			else socket.end();
+			return;
+		}
+		activeConnections += 1;
+		let released = false;
+		socket.once("close", () => {
+			if (released) return;
+			released = true;
+			activeConnections -= 1;
+		});
+		new ImapSession(socket, client);
+	};
+}
+
 function startImapServer(config, client = apiClient) {
-	const listener = (socket) => new ImapSession(socket, client);
+	const listener = createImapConnectionListener(client);
 	const server = config.imapTls
 		? tls.createServer({
 			key: fs.readFileSync(config.tlsKeyPath),
@@ -483,7 +542,11 @@ function startImapServer(config, client = apiClient) {
 module.exports = {
 	CAPABILITIES,
 	FOLDERS,
+	MAX_IMAP_COMMAND_BYTES,
+	IMAP_IDLE_TIMEOUT_MS,
+	MAX_IMAP_CONNECTIONS,
 	ImapSession,
+	createImapConnectionListener,
 	cleanHeader,
 	quoteImap,
 	matchesNumberSet,

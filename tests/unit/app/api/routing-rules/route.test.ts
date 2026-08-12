@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextResponse } from "next/server";
 import { createDbMock, type DbMock } from "../../../helpers/db";
 
 const m = vi.hoisted(() => ({
@@ -19,8 +18,8 @@ vi.mock("@/lib/cloudflare-api", async (importOriginal) => ({
 import { GET, POST } from "@/app/api/routing-rules/route";
 
 let mock: DbMock;
-const unauth = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-const authed = { id: "u1", organizationId: "org1" };
+const authed = { id: "u1", organizationId: "org1", role: "owner" };
+const member = { id: "u2", organizationId: "org1", role: "member" };
 const domain = { id: "dom_1", organizationId: "org1", hostname: "x.test", zoneId: "zone_1" };
 const valid = {
 	domainId: "dom_1",
@@ -50,9 +49,18 @@ describe("POST /api/routing-rules", () => {
 		expect((await POST(post(valid))).status).toBe(401);
 	});
 
-	it("returns 400 when the user has no organization", async () => {
+	it("returns 403 for a restricted member before DB or provider work", async () => {
+		m.getCurrentUser.mockResolvedValue(member);
+		const res = await POST(post(valid));
+		expect(res.status).toBe(403);
+		expect(await res.json()).toEqual({ success: false, error: { message: "Forbidden" } });
+		expect(mock.inserts).toHaveLength(0);
+		expect(m.ensureCatchAll).not.toHaveBeenCalled();
+	});
+
+	it("returns 401 when the user has no organization", async () => {
 		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: null });
-		expect((await POST(post(valid))).status).toBe(400);
+		expect((await POST(post(valid))).status).toBe(401);
 	});
 
 	it("returns 400 for an invalid action target", async () => {
@@ -220,9 +228,16 @@ describe("GET /api/routing-rules", () => {
 		expect((await GET(new Request("https://x.test/api/routing-rules"))).status).toBe(401);
 	});
 
-	it("requires an organization", async () => {
+	it("returns 403 for a restricted member before querying", async () => {
+		m.getCurrentUser.mockResolvedValue(member);
+		const res = await GET(new Request("https://x.test/api/routing-rules"));
+		expect(res.status).toBe(403);
+		expect(mock.db.select).not.toHaveBeenCalled();
+	});
+
+	it("returns 401 without an organization", async () => {
 		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: null });
-		expect((await GET(new Request("https://x.test/api/routing-rules"))).status).toBe(400);
+		expect((await GET(new Request("https://x.test/api/routing-rules"))).status).toBe(401);
 	});
 
 	it("lists only the authenticated organization rows", async () => {

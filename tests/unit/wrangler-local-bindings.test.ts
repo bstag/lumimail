@@ -149,4 +149,24 @@ describe("Wrangler local binding contract", () => {
 		expect(serverSetup).toContain('"taskkill"');
 		expect(nextConfig).toContain('process.env.LUMIMAIL_CLOUDFLARE_DEV !== "false"');
 	});
+
+	it("migrates the persisted local D1 database before seeding real-backend E2E fixtures", () => {
+		const packageJson = JSON.parse(
+			readFileSync(resolve(process.cwd(), "package.json"), "utf8"),
+		) as { scripts?: Record<string, string> };
+		const command = packageJson.scripts?.["e2e:local"] ?? "";
+
+		const migrateIndex = command.indexOf("npm run db:migrate:local");
+		const seedIndex = command.indexOf("node scripts/seed-e2e.mjs");
+		expect(migrateIndex).toBeGreaterThanOrEqual(0);
+		expect(seedIndex).toBeGreaterThan(migrateIndex);
+	});
+
+	it("exposes the repeatable deployment smoke gate as an npm command", () => {
+		const packageJson = JSON.parse(
+			readFileSync(resolve(process.cwd(), "package.json"), "utf8"),
+		) as { scripts?: Record<string, string> };
+
+		expect(packageJson.scripts?.smoke).toBe("node scripts/smoke.mjs");
+	});
 });

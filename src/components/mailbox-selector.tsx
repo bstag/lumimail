@@ -62,6 +62,9 @@ export function MailboxSelector() {
 		<div ref={ref} className="relative shrink-0">
 			<button
 				type="button"
+				aria-label={allMailboxes ? t("allMailboxes") : `${selectedName} ${selectedEmail}`}
+				aria-expanded={open}
+				aria-haspopup="menu"
 				onClick={() => setOpen((value) => !value)}
 				className="flex items-center justify-between gap-3 rounded-full p-1 text-left hover:bg-surface-subtle sm:py-1.5 sm:pr-2 sm:pl-4"
 			>

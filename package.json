@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "e2e": "playwright test --project=chromium",
-    "e2e:local": "node scripts/seed-e2e.mjs && playwright test --project=local --workers=1",
+    "e2e:local": "npm run db:migrate:local && node scripts/seed-e2e.mjs && playwright test --project=local --workers=1",
+    "smoke": "node scripts/smoke.mjs",
     "verify": "npm run typecheck && npm run lint && npm run test:cov && npm --prefix imap-bridge test",
     "deploy": "npm run db:migrate:remote && opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
@@ -80,7 +81,7 @@
     "lucide-react": "^1.23.0",
     "mimetext": "^3.0.28",
     "nanoid": "^5.1.16",
-    "next": "16.2.11",
+    "next": "16.3.0",
     "next-intl": "4.13.1",
     "postal-mime": "^2.7.5",
     "react": "^19.1.7",
@@ -98,11 +99,14 @@
     "@types/react-dom": "^19.1.7",
     "@vitest/coverage-v8": "4.1.9",
     "eslint": "^9",
-    "eslint-config-next": "16.2.11",
+    "eslint-config-next": "16.3.0",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4",
     "typescript": "^6.0.3",
     "vitest": "4.1.9",
-    "wrangler": "^4.113.0"
+    "wrangler": "4.114.0"
+  },
+  "overrides": {
+    "undici": "7.29.0"
   }
 }

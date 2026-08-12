@@ -288,16 +288,13 @@ Notes:
 - The timestamp was added at all widths, not just mobile. The desktop list had no
   date at all, which was its own gap.
 
-## 14. Not verified
+## 14. Local-equivalence verification — 2026-08-11
 
-- **Row-level cross-tenant isolation for the unscoped path has not been executed
-  against a real database in this environment.** `npm run e2e:local` fails at
-  sign-in with a 503 from the rate-limit store (local Wrangler bindings are not
-  configured); confirmed pre-existing, unrelated to these changes. The static
-  guard in §7 and the pre-existing `messageAccessCondition` tests both pass, and
-  the predicate is unchanged from the already-audited scoped path — but this is
-  the one item in this feature where a mistake exposes another tenant's mail, so
-  it should be exercised against a real database before deploying.
-- The scope control (the selector dropdown itself) has not been checked on a
-  narrow mobile viewport. The per-row mailbox label now has automated coverage at
-  412px — see the 2026-07-31 entry above.
+- `npm run e2e:local` passes 52/52 against migrated local D1. The restricted member
+  has two permitted mailboxes and the database also contains two forbidden
+  mailboxes; the unscoped list includes both permitted identities and excludes
+  both forbidden identities. This is a positive aggregation proof as well as a
+  negative isolation proof.
+- The selector is exercised at 390px. That check exposed an unnamed icon-only
+  trigger; the trigger now exposes the selected mailbox through `aria-label` plus
+  `aria-expanded`/`aria-haspopup`, and the narrow-viewport test passes.

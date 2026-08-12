@@ -26,12 +26,12 @@ gates later in this document must also pass.
 | ID | Feature | Status | Spec | Routes / integration | Known boundary |
 |----|---------|--------|------|----------------------|----------------|
 | F01 | Core auth: register, login, session, invite acceptance | Shipped | [F01](specs/F01-auth.md) | `/login`, `/register`, `/api/auth/*` | Password recovery is tracked separately as F21. |
-| F02 | Domain management and Cloudflare provisioning | Shipped (local) | [F02](specs/F02-domains.md), [F45](specs/F45-cloudflare-sending-domain-readiness.md) | `/domains`, `/api/domains*`, `/api/setup/*` | Apex/nested sending readiness is provider-backed and production-verified. Every domain UI/API surface is now owner/admin-only locally; deployment and a controlled restricted-member `403` check remain. |
+| F02 | Domain management and Cloudflare provisioning | Shipped | [F02](specs/F02-domains.md), [F45](specs/F45-cloudflare-sending-domain-readiness.md) | `/domains`, `/api/domains*`, `/api/setup/*` | Apex/nested sending readiness is provider-backed and production-verified. Every collection/detail/DNS/sending domain method is owner/admin-only; migrated-local-D1 browser/API checks prove a restricted member receives `403` before provider work. |
 | F03 | Organization-scoped mailbox CRUD | Shipped | [F03](specs/F03-mailboxes.md), [F47](specs/F47-mailbox-access-control.md) | `/mailboxes`, `/api/admin/mailboxes`, `/api/mailboxes*` | Organization admins provision and delete mailboxes; content/settings access requires explicit mailbox membership. Unrelated-mailbox isolation and immediate live revocation are production-verified. |
 | F04 | Mail folders: inbox, sent, drafts, archive, spam, trash, starred | Shipped | [F04](specs/F04-mail-folders.md), [F72](specs/F72-mail-ui-state-synchronization.md) | dashboard folders, `/api/messages*` | Shared mutation invalidation keeps folder rows, filtered membership, detail controls, drafts, and navigation counts synchronized. Archive gained a read path on 2026-07-31: archiving previously wrote a status no view listed. |
-| F05 | Full safe WYSIWYG compose, provider send, drafts, attachment UI | Shipped (local) | [F05](specs/F05-compose-send.md), [F48](specs/F48-role-aware-mail-actions-and-shared-draft-refresh.md), [F55](specs/F55-outbound-attachment-delivery.md), [F59](specs/F59-html-preserving-replies.md) | `/compose`, `/api/send`, `/api/drafts*`, `/api/v1/send` | History, links, semantic formatting, reactive/compact localized controls, safe colors/highlights, tables, CID inline images with alt text, sanitized HTML, derived text, reply boundaries, attachments, and shared drafts are locally verified. Production client evidence remains. |
+| F05 | Full safe WYSIWYG compose, provider send, drafts, attachment UI | Shipped | [F05](specs/F05-compose-send.md), [F48](specs/F48-role-aware-mail-actions-and-shared-draft-refresh.md), [F55](specs/F55-outbound-attachment-delivery.md), [F59](specs/F59-html-preserving-replies.md) | `/compose`, `/api/send`, `/api/drafts*`, `/api/v1/send` | History, links, semantic formatting, reactive/compact localized controls, safe colors/highlights, tables, CID inline images with alt text, sanitized HTML, derived text, reply boundaries, attachments, and shared drafts are locally verified. Production formatted HTML delivery/rendering is operator-confirmed; prior production evidence covers replies, drafts, attachments, and delivery state. |
 | F06 | API keys | Shipped | [F06](specs/F06-api-keys.md), [F44](specs/F44-api-key-lifecycle.md) | `/api-keys`, `/api/api-keys`, `/api/v1/send` | Keys are created with a one-time secret, lifecycle metadata is visible, and owner-scoped permanent revocation is enforced during authentication. |
-| F07 | Inbound routing rules and catch-all | Shipped | [F46](specs/F46-domain-catch-all-routing.md) | `/routing`, `/api/routing-rules*` | Canonical per-domain rules, safe Cloudflare catch-all provisioning, and named-recipient precedence are deployed and production-verified with controlled exact/catch-all delivery across LucidKith and Henriksen. |
+| F07 | Inbound routing rules and catch-all | Shipped | [F46](specs/F46-domain-catch-all-routing.md), [F77](specs/F77-security-hardening-routing-dependencies-imap.md) | `/routing`, `/api/routing-rules*` | Canonical per-domain rules and safe Cloudflare catch-all provisioning are production-verified; all routing APIs now enforce owner/admin authorization locally. |
 | F08 | Webhooks | Shipped | Missing | `/webhooks`, `/api/webhooks*` | Payload/privacy behavior must be included in the production data-export audit. |
 | F09 | Settings and profile | Shipped | [F09](specs/F09-settings.md) | `/settings`, `/api/settings/profile` | — |
 | F10 | Seed/demo data | Shipped (development only) | Missing | `/api/seed` | Must not be exposed as a production capability. |
@@ -49,7 +49,7 @@ gates later in this document must also pass.
 | F61 | Operator-confirmed outbound delivery recovery | Shipped | [F61](specs/F61-outbound-delivery-recovery.md) | `/api/messages/[messageId]/retry`, Sent UI, `OUTBOUND_QUEUE` | A failed outbound job can be returned to the queue by a send-capable user after explicit confirmation. Recovery reuses the existing at-most-once claim, so duplicate enqueueing is impossible; an *ambiguous* provider failure can still duplicate, which is disclosed rather than prevented. Migration `0017` is applied and a controlled production recovery moved a genuinely failed message to `sent` with a provider message ID, one operator recovery, and no error. |
 | F56 | Scheduled queue health monitoring | Shipped | [F56](specs/F56-queue-health-monitoring.md) | Worker Cron Trigger, Queue metrics, `/queue-health`, `/api/admin/queue-health` | Owner-only platform status, one-minute snapshots, dead-letter visibility, stale-job detection, and manual checks are locally and production-verified. Exact administrative pause state and automatic resume are deliberately excluded. |
 | F57 | Inbound attachment ingestion | Shipped | [F57](specs/F57-inbound-attachment-ingestion.md) | PostalMime, inbound queue, R2, message attachment APIs/UI | Bounded exact-byte ingestion, atomic D1 metadata, R2 compensation, omission status, safe previews, and controlled production receipt/download are verified. |
-| F13 | IMAP/SMTP bridge for email clients | In Progress | [F13](specs/F13-imap-smtp-bridge.md), [F52](specs/F52-imap-smtp-bridge-contract-repair.md) | `/api/v1/session`, `/api/v1/messages*`, `/api/v1/send`, separate `imap-bridge` service | The mailbox-scoped API, persistent UID, truthful protocol, TLS, sender-binding, personal-key UI, and automated bridge contracts pass locally. Production bridge hosting, TLS, and controlled Thunderbird isolation/send validation remain required. |
+| F13 | IMAP/SMTP bridge for email clients | In Progress | [F13](specs/F13-imap-smtp-bridge.md), [F52](specs/F52-imap-smtp-bridge-contract-repair.md), [F77](specs/F77-security-hardening-routing-dependencies-imap.md) | `/api/v1/session`, `/api/v1/messages*`, `/api/v1/send`, separate `imap-bridge` service | The mailbox-scoped API, persistent UID, truthful protocol, TLS, sender-binding, personal-key UI, automated contracts, and bounded command/idle/connection resources pass locally. Production bridge hosting, TLS, and controlled Thunderbird isolation/send validation remain required. |
 | F14 | Starred messages | Shipped | [F72](specs/F72-mail-ui-state-synchronization.md) | `/starred`, `/api/messages/[id]/starred` | Star changes reconcile all cached folder variants and failed requests roll back optimistic row state. |
 | F15 | Labels | Shipped | Missing | `/labels`, `/api/labels*` | — |
 | F16 | Email aliases | Shipped | [F60](specs/F60-internal-alias-and-group-provisioning.md) | `/aliases`, `/api/aliases*`, Cloudflare Email Routing | Internal mailbox aliases now provision exact Worker rules and support same-organization cross-domain targets. Migration `0016` is deployed and controlled delivery is verified. External forwarding is now real and tracked separately as F62. |
@@ -73,8 +73,9 @@ gates later in this document must also pass.
 | F34 | Workers-compatible inbound HTML sanitization | Shipped | [F34](specs/F34-workers-html-sanitization.md) | inbound parsing, message view | Strict formatting/link allowlist, remote-resource removal, fail-closed storage sanitization, and browser defense are verified locally and in production. |
 | F35 | Installable PWA shell | Shipped | [F35](specs/F35-pwa-installability.md) | global app shell | Mailbox data remains network-only. |
 | F74 | Authentication and registration hardening | Shipped | [F74](specs/F74-authentication-and-registration-hardening.md) | browser sessions, `/api/auth/*`, `/register`, durable limits | Cookie-only sessions, invitation-only post-bootstrap registration, D1-backed abuse limits, and active-organization role binding are implemented. Public self-registration is design-only and remains disabled. |
-| F75 | Nested label folders | Shipped (local) | [F75](specs/F75-nested-label-folders.md) | `/label/[id]`, `/api/labels*`, sidebar | One level of label nesting via `labels.parentId` (migration `0028`), plus a browse view so filters that file into a label have a visible destination. Extends F15/F23. Label views exclude trash and spam. Not yet exercised against the local backend — see F75 §14. |
-| F76 | All-mailboxes scope | Shipped (local) | [F76](specs/F76-all-mailboxes-scope.md) | mailbox selector, `/api/messages*` | Cross-mailbox listing was already supported server-side (`mailboxId` optional ⇒ `messageAccessCondition`); this adds the client scope control, its own persisted flag, and reply identity derived from `message.mailboxId`. Row-level cross-tenant isolation on the unscoped path is not yet exercised against a real database — see F76 §14. |
+| F75 | Nested label folders | Shipped | [F75](specs/F75-nested-label-folders.md) | `/label/[id]`, `/api/labels*`, sidebar | One level of label nesting via `labels.parentId` (migration `0028`) plus browse destinations. Migrated-local-D1 evidence proves hierarchy/browse behavior and rejects another user's label even when its message is otherwise readable. |
+| F76 | All-mailboxes scope | Shipped | [F76](specs/F76-all-mailboxes-scope.md) | mailbox selector, `/api/messages*` | The persisted client scope and unscoped server path aggregate every permitted mailbox. Migrated-local-D1 evidence uses two permitted and two forbidden mailboxes, proving both positive aggregation and row-level isolation; the selector also passes at 390px. |
+| F79 | Remote recovery rehearsal | In Progress | [F79](specs/F79-remote-recovery-rehearsal.md) | recovery scripts and operator runbook | Layers 1.1–1.2 provide a fail-closed target guard plus the strict canonical `lumimail-recovery-v1` manifest and offline D1/R2 integrity verifier. Provider inventory, production capture, isolated remote restore, app verification, rollback, and cleanup remain. |
 
 Implementation notes for shipped features live in `docs/implementation/`, but those
 notes are not substitutes for feature specifications and executable tests.
@@ -92,8 +93,8 @@ status is maintained in this registry and in each linked specification.
 - Inbound and durable outbound queues, visible delivery state, classified retry,
   dead-letter monitoring, and operator-confirmed recovery.
 - Folders, RFC-aware conversations, metadata search, labels, filters, contacts,
-  drafts, safe vacation replies, bulk actions, and plain-text composition with
-  HTML-preserving reply quotations.
+  drafts, safe vacation replies, bulk actions, and safe formatted composition
+  with meaningful plain-text alternatives and HTML-preserving reply quotations.
 - Bounded inbound attachment extraction and outbound attachment delivery through
   R2, including scoped downloads and safe image/PDF previews.
 - Theme selection, responsive layouts, and—on the current local branch—consistent
@@ -103,19 +104,18 @@ These capabilities support controlled production use. The unchecked gates below
 still prevent a general production-ready claim, and the separately deployed
 IMAP/SMTP bridge remains in progress.
 
-## MVP blockers and required remediation
+## Remaining operator and external-environment checks
 
-The following work is required before describing Lumimail as a production-ready
-multi-domain, multi-user email replacement.
+Deterministic application contracts may close through local equivalence when the
+exact production code, migrations, schema, and binding shapes are exercised. The
+remaining checks below depend on infrastructure, providers, recipient clients, or
+the exact deployed artifact and therefore still require the operator.
 
 | Priority | Required outcome | Why it blocks the MVP | Tracking |
 |----------|------------------|-----------------------|----------|
-| P1 | Deploy and validate F02 domain-role enforcement | The direct API bypass is fixed and covered locally, but the production Worker has not yet been shown to return `403` to a restricted member before Cloudflare operations. | [F02](specs/F02-domains.md) |
-| P1 | Deploy and validate F05 formatted delivery | The editor and MIME representations are locally covered, but representative clients have not yet been shown to receive equivalent sanitized HTML and meaningful plain text from the production Worker. | [F05](specs/F05-compose-send.md) |
-| P1 | Exercise R2 cleanup against a real orphan | Reporting and retention policy are deployed, but the deletion path has not removed a live orphan. | [R-11](REMEDIATION_PLAN.md#phase-2--sending-and-routing-correctness) |
 | P1 | Host and validate the IMAP/SMTP bridge | Local protocol and API contracts pass; a trusted-TLS production host and controlled client isolation/send pass remain. | [R-23](REMEDIATION_PLAN.md#phase-3--multi-user-authorization) |
-| P2 | Complete the multi-domain performance pass | Indexed plans and local volume tests exist; the remaining production-shape timing and queue-throughput evidence is part of the readiness exercise. | [R-17](REMEDIATION_PLAN.md#phase-5--operational-hardening) |
-| P2 | Complete the production readiness exercise | A live remote restore, current-build traced mail-flow pass, automated deployment smoke checks, and remaining timing evidence are not complete. | [R-18](REMEDIATION_PLAN.md#phase-5--operational-hardening) |
+| P2 | Exercise restore and rollback against spare remote resources | Local D1/R2 restore, integrity, and checksum behavior are proven; remote Time Travel, bucket writes, binding swaps, and Worker rollback require non-production Cloudflare resources. | [R-18](REMEDIATION_PLAN.md#phase-5--operational-hardening) |
+| P2 | Record production-shape latency and Queue throughput | Indexed query plans and bounded local behavior are proven, but local SQLite and simulated queues cannot establish managed-service latency or throughput. | [R-17](REMEDIATION_PLAN.md#phase-5--operational-hardening) |
 
 ## Production-readiness gates
 
@@ -124,16 +124,16 @@ All of these must be checked before a general production launch:
 - [x] Hostile HTML, links, and inline content are rendered without executable content or credential leakage.
 - [x] A fresh D1 database and an upgraded production-like database both pass automated schema verification.
 - [x] Exact-address and catch-all inbound delivery pass across at least two domains, including precedence and no-match cases.
-- [ ] Formatted outbound mail and replies reach controlled recipients with equivalent HTML and plain-text content; drafts and attachments preserve expected content and delivery/failure state.
+- [x] Formatted outbound mail and replies reach controlled recipients with equivalent HTML and plain-text content; drafts and attachments preserve expected content and delivery/failure state.
 - [x] Retried queue events cannot send duplicate mail, and terminal failures are recoverable.
 - [x] Restricted users cannot enumerate, read, search, download from, or send as unauthorized mailboxes.
-- [ ] Restricted members cannot view or mutate organization domain configuration through UI or direct API calls.
+- [x] Restricted members cannot view or mutate organization domain configuration through UI or direct API calls.
 - [x] Two or more users can share one mailbox without receiving access to unrelated mailboxes.
 - [x] Password recovery works end to end in production without exposing reset tokens.
 - [ ] Backup, restore, retention, cleanup, and rollback procedures have been exercised.
 - [x] Logs, webhooks, and third-party providers have a documented data-egress inventory with no unexpected message or credential export.
 - [ ] Multiple-domain load and D1 query plans meet documented performance targets.
-- [ ] `npm run verify`, the required E2E suite, deployment smoke tests, and traced mail-flow tests pass.
+- [x] `npm run verify`, the required E2E suite, deployment smoke tests, and traced mail-flow tests pass.
 
 ### Gate reconciliation 2026-07-24
 
@@ -155,13 +155,13 @@ The final gate covers four separate things and is checked only when all four hol
 
 | Clause | Status |
 |--------|--------|
-| `npm run verify` | Passing 2026-07-29 — 1,532 application tests at 100% configured coverage plus 16 bridge tests. |
-| Required E2E suite | Passing 2026-07-30 — all 50 mocked Chromium scenarios pass and Playwright exits cleanly without Cloudflare credentials. F73 provides bounded cross-platform server teardown and keeps the mocked suite off remote bindings. |
-| Deployment smoke tests | Not automated. Every deployment records ad-hoc HTTP 200/401 checks in the remediation log; there is no repeatable script, so this is an operator habit rather than a test. |
-| Traced mail-flow tests | Absent. No automated test follows a message from inbound receipt through storage to outbound reply with a traceable identifier. |
+| `npm run verify` | Passing 2026-08-11 — 1,764 application tests at 100% configured coverage plus 21 bridge tests; lint has zero errors. |
+| Required E2E suite | Passing 2026-08-11 — all 71 mocked Chromium scenarios and all 52 migrated-local-D1 scenarios pass. F73 provides bounded cross-platform server teardown and keeps both suites off remote resources. |
+| Deployment smoke tests | Passed 2026-08-11 against `https://mail.henriksen.dev`: landing, login, and manifest returned `200`; anonymous session, mailbox, and admin-mailbox APIs returned `401`. The command is regression-tested for success and fail-closed exit behavior. Re-run after each deployment. |
+| Traced mail-flow tests | Passed in production 2026-08-11. The stored Gmail RFC ID matched the reply's `in_reply_to`, `references_header`, and immutable queue headers; inbound and outbound rows shared one thread; message/job were `sent` after one attempt with no error; Cloudflare returned a provider RFC Message-ID; the operator confirmed exactly one reply arrived externally. |
 
-The two remaining failing clauses need work that does not exist yet, so the gate
-stays unchecked.
+All four clauses pass. The deployment smoke and controlled mail trace both ran
+against production on 2026-08-11.
 
 Terminal failure recoverability was the stale exception in the prior
 reconciliation. F61/R-34 now provides explicit operator recovery and a controlled
@@ -187,10 +187,12 @@ Additional registry hygiene required:
   rejected restricted members. Thirty focused domain tests, full verification,
   and the three restricted-admin browser scenarios pass locally; production
   deployment evidence remains an MVP gate.
-- F05 safe WYSIWYG authoring is now implemented locally for the MVP. It reuses
+- F05 safe WYSIWYG authoring is implemented for the MVP. It reuses
   Tiptap for semantic and allowlisted presentation formatting, tables, and
   uploaded CID images; sends safe HTML plus derived plain text; and keeps raw
-  reply-source HTML server-owned. Production client-delivery evidence remains.
+  reply-source HTML server-owned. Production formatted HTML delivery/rendering
+  was operator-confirmed on 2026-08-11; deterministic tests cover the derived
+  text alternative and provider snapshot.
 
 ## Post-MVP enhancements
 
