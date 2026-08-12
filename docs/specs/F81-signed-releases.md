@@ -1,6 +1,6 @@
 # F81 — Signed Releases and Deliberate Promotion
 
-> Status: In Progress — Layer 2.3 manifest/signature core complete; CI/archive workflow next
+> Status: In Progress — Layer 2.3 provenance and Layer 2.4 deterministic archive cores complete; CI workflow next
 > Owner area: `scripts/release-manifest.mjs`, `.github/workflows/`, `docs/OPERATIONS.md`
 
 ## 1. Problem & User Job
@@ -36,6 +36,21 @@ wrong-product, or schema-incompatible artifact before any upload or promotion.
   `versions deploy` promotion contract.
 - Disposable upgrade rehearsal from the previous supported release and pre-promotion recovery
   evidence as later F81 layers.
+
+**Layer 2.4 deterministic archive contract:**
+
+- Archive only an explicit build directory (normally `.open-next`) and write only to an explicit,
+  previously absent output file outside that directory.
+- Walk with `lstat`; accept regular files and directories only. Reject symbolic links, junctions,
+  sockets, devices, path traversal, backslashes, absolute paths, duplicates, and USTAR-unrepresentable
+  names before publishing an archive.
+- Sort normalized forward-slash paths bytewise. Use USTAR with uid/gid/mtime zero, empty owner/group,
+  directory mode `0755`, file mode `0644`, deterministic padding/checksum, and two zero end blocks.
+- Gzip at a fixed level with zero timestamp and normalized OS header byte. The same tree bytes must
+  yield identical `.tar.gz` bytes regardless of enumeration order or source mtimes.
+- Build in a randomized partial sibling, derive manifest metadata from the completed archive bytes,
+  and atomically rename only after a second deterministic pass matches. Remove only the command's
+  partial file on failure; never alter the source build directory or an existing output.
 
 **Out of scope:**
 
@@ -74,6 +89,7 @@ accepted as a command-line argument because process lists and shell history may 
 | Layer | File | What it covers |
 |-------|------|-----------------|
 | Unit | `tests/unit/scripts/release-manifest.test.ts` | strict parsing/canonicalization, ordering, immutability, schema/version/note/path limits, artifact hash/size, Ed25519 sign/verify, wrong product/key/signature/artifact refusal |
+| Unit | `tests/unit/scripts/release-archive.test.ts` | sorted USTAR/gzip determinism, normalized metadata, empty directories, changed bytes, unsafe/symlink/duplicate/long-path refusal, atomic output and partial cleanup |
 | CI | workflow validation | clean install, verify, deterministic archive, manifest/signature creation, verification before publication |
 | Operator | disposable Cloudflare release rehearsal | verified upload without traffic, smoke, upgrade rehearsal, recovery evidence, deliberate promotion/return |
 | Full | repository commands | `npm run verify`; no E2E for the manifest core |
@@ -190,3 +206,36 @@ Notes:
   input and must never put private-key material in argv.
 - Manifest creation accepts exact artifact bytes and derives size/SHA-256 internally; callers cannot
   supply digest metadata for CI to sign blindly.
+
+### 2026-08-12 — Implement deterministic OpenNext release archives
+
+Type: Feature
+
+Summary:
+
+- Add a dependency-free deterministic USTAR/gzip writer with normalized paths, modes, ownership,
+  timestamps, ordering, padding, checksums, compression settings, and gzip OS header.
+- Add fail-closed directory walking for regular files/directories only, a double-build byte match,
+  randomized partial sibling, and atomic publication to a previously absent output.
+- Reject unsafe/duplicate/unrepresentable paths, links/special files, missing sources, output-inside-
+  source, missing output parent, and existing output without changing source or existing bytes.
+
+Reason:
+
+- Give the signed manifest one stable immutable byte artifact rather than a mutable build directory.
+
+Impact:
+
+- Offline filesystem tooling only; no signing, CI publication, Cloudflare upload, or traffic change.
+
+Tests:
+
+- Eleven focused archive contracts pass after the missing-module failure was observed first.
+- A real `.open-next` rehearsal archived 2,158 entries twice into 7,860,951-byte artifacts with the
+  same SHA-256 `763c87ff6d64b77bf00914d02a7c6f1035beb4d41c9fe3c11c64ad7a712e7086`.
+  Both command-created temporary archives were removed afterward.
+
+Notes:
+
+- The rehearsal proves deterministic packaging of the current local build tree; it does not label
+  that pre-existing tree as a signed or publishable release.

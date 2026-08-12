@@ -371,9 +371,13 @@ and upload-before-deliberate-promotion sequence. Signing authority and release s
 operator/security decisions rather than being inferred by implementation.
 
 The pure Layer 2.3 core now passes 18 contracts for canonical provenance, byte-derived artifact
-metadata, bounded schema/runtime/
-notes metadata, exact artifact hashing, Ed25519 signing with pinned key IDs, and tamper/substitution/
-identity/schema refusal. It performs no file, network, provider, upload, or promotion operation.
+metadata, bounded schema/runtime/notes metadata, exact artifact hashing, Ed25519 signing with pinned
+key IDs, and tamper/substitution/identity/schema refusal. It performs no file, network, provider,
+upload, or promotion operation.
+
+Layer 2.4 now adds deterministic dependency-free USTAR/gzip packaging and atomic fail-closed output.
+Eleven focused contracts pass, and two independent archives of the current 2,158-entry OpenNext tree
+matched byte-for-byte and by SHA-256 before both temporary outputs were removed.
 
 Deliverables:
 
