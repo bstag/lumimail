@@ -1,6 +1,6 @@
 # F82 — Read-only Operations Center
 
-> Status: In Progress — runtime-readiness slice implemented; production rollout next
+> Status: In Progress — runtime-readiness slice deployed and verified
 > Owner area: `src/lib/operations.ts`, `src/app/api/admin/operations/`, `src/app/(admin)/operations/`
 
 ## 1. Problem & User Job
@@ -179,8 +179,15 @@ Tests:
 
 - Seven focused operations service/route contracts and two focused browser scenarios pass before
   the repository-wide gates.
+- Full verification passes 1,892 tests at 100% statement/branch/function/line coverage, all 21 IMAP
+  tests, and the complete 74-scenario mocked Chromium suite.
 
 Notes:
 
 - This card deliberately says configuration presence, not live readiness. F80 remote doctor remains
   authoritative for Cloudflare inventory and public smoke.
+- Deployed as Worker version `25d931e2-b762-454d-bbff-80df63bfb005` with no pending migrations. The
+  deployment inventory contained all nine expected runtime capabilities, public smoke passed 6/6,
+  and remote doctor passed 25 checks with the documented live-Cron-inventory warning. An unsigned
+  browser session was redirected from `/operations` to `/login`; authenticated 9/9 rendering remains
+  covered by the production-shaped browser suite without requesting production credentials.

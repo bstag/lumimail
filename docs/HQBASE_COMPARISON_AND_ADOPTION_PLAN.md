@@ -451,6 +451,9 @@ The next F82 slice adds in-process runtime configuration presence for storage, q
 delivery, service self-reference, and assets/images. It returns category booleans and counts only,
 normalizes provider identity, and never returns binding names, resource identifiers, account data,
 or secret names/values. Live provider readiness remains explicitly delegated to the F80 doctor.
+This slice was deployed as Worker version `25d931e2-b762-454d-bbff-80df63bfb005`; all nine expected
+capabilities appeared in deployment inventory, smoke passed 6/6, and remote doctor passed 25 checks
+with only the known live-Cron-inventory warning.
 
 Access and security center:
 
