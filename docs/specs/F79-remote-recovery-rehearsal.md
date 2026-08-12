@@ -222,9 +222,12 @@ and paths only—never SQL, object bytes, object keys, mail metadata, or credent
 
 The restore command requires the private backup directory plus the resolved staging D1 UUID. It
 verifies the backup offline, resolves live production and staging inventory, invokes the target
-guard, and then performs only these writes in order: staging D1 import, exact staging R2 object puts,
-and staging Worker deployment. A command cannot infer `--remote` from an environment name; every D1
-and R2 operation names the staging environment/resource explicitly.
+guard, and then performs only these writes in order: apply the manifest-matched staging migrations,
+derive and import data-only SQL from the verified full export, exact staging R2 object puts, and
+staging Worker deployment. `d1_migrations` rows are not copied because the migration command owns
+them. The SQL derivation is quote-aware, so delimiters inside stored message text remain data. A
+command cannot infer `--remote` from an environment name; every D1 and R2 operation names the
+recovery configuration/resource explicitly.
 
 ## 6. UI/UX
 
@@ -431,3 +434,7 @@ Type: Feature / Recovery capture
   local Administrators retain access; integrity still passes afterward.
 - Separate archive encryption remains an operator decision. BitLocker status could not be inspected
   without administrator access, so this evidence does not claim volume encryption.
+- First remote D1 import attempt failed atomically before R2 writes with `no such table: main.users`.
+  Content-free inspection proved the full D1 export creates foreign-key tables before referenced
+  tables under alphabetical export ordering. Target inventory afterward remained zero tables/zero
+  objects. The restore contract now applies schema migrations first and imports derived data only.

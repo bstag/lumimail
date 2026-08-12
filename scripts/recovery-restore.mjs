@@ -1,5 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import {
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -24,6 +30,43 @@ function routingZones(output) {
 	);
 }
 
+function splitSqlStatements(sql) {
+	const statements = [];
+	let start = 0;
+	let quote = null;
+	for (let index = 0; index < sql.length; index += 1) {
+		const character = sql[index];
+		if (quote) {
+			if (character === quote) {
+				if (sql[index + 1] === quote) index += 1;
+				else quote = null;
+			}
+			continue;
+		}
+		if (character === "'" || character === '"' || character === "`") {
+			quote = character;
+			continue;
+		}
+		if (character === ";") {
+			const statement = sql.slice(start, index).trim();
+			if (statement) statements.push(statement);
+			start = index + 1;
+		}
+	}
+	const remainder = sql.slice(start).trim();
+	if (remainder) statements.push(remainder);
+	return statements;
+}
+
+export function createDataOnlyImport(dumpSql) {
+	const inserts = splitSqlStatements(dumpSql).filter(
+		(statement) =>
+			/^INSERT\s+INTO\b/i.test(statement) &&
+			!/^INSERT\s+INTO\s+[`"]?d1_migrations[`"]?\b/i.test(statement),
+	);
+	return `PRAGMA defer_foreign_keys=TRUE;\n${inserts.map((statement) => `${statement};\n`).join("")}`;
+}
+
 export function restoreRecovery({ backupDirectory, target, runWrangler }) {
 	const directory = resolve(backupDirectory);
 	const verification = verifyRecoveryDirectory(directory);
@@ -34,6 +77,9 @@ export function restoreRecovery({ backupDirectory, target, runWrangler }) {
 	}
 	const manifest = parseRecoveryManifest(
 		readFileSync(join(directory, "manifest.json"), "utf8"),
+	);
+	const dataOnlySql = createDataOnlyImport(
+		readFileSync(join(directory, manifest.database.path), "utf8"),
 	);
 
 	const d1Result = parseJson(
@@ -112,28 +158,44 @@ export function restoreRecovery({ backupDirectory, target, runWrangler }) {
 		},
 	});
 
-	runWrangler([
-		"d1",
-		"execute",
-		target.d1.binding,
-		"--config",
-		target.configPath,
-		"--remote",
-		"--file",
-		join(directory, manifest.database.path),
-	]);
+	const temporaryDirectory = mkdtempSync(join(tmpdir(), "lumimail-d1-data-"));
+	const dataPath = join(temporaryDirectory, "data.sql");
+	writeFileSync(dataPath, dataOnlySql);
 	let restoredObjects = 0;
-	for (const entry of manifest.objects) {
+	try {
 		runWrangler([
-			"r2",
-			"object",
-			"put",
-			`${target.r2.bucketName}/${entry.key}`,
+			"d1",
+			"migrations",
+			"apply",
+			target.d1.binding,
+			"--config",
+			target.configPath,
+			"--remote",
+		]);
+		runWrangler([
+			"d1",
+			"execute",
+			target.d1.binding,
+			"--config",
+			target.configPath,
 			"--remote",
 			"--file",
-			keyToPath(directory, entry.key),
+			dataPath,
 		]);
-		restoredObjects += 1;
+		for (const entry of manifest.objects) {
+			runWrangler([
+				"r2",
+				"object",
+				"put",
+				`${target.r2.bucketName}/${entry.key}`,
+				"--remote",
+				"--file",
+				keyToPath(directory, entry.key),
+			]);
+			restoredObjects += 1;
+		}
+	} finally {
+		rmSync(temporaryDirectory, { recursive: true, force: true });
 	}
 
 	return { restoredDatabase: 1, restoredObjects };

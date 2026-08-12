@@ -5,7 +5,10 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { canonicalizeRecoveryManifest } from "../../../scripts/recovery-manifest.mjs";
-import { restoreRecovery } from "../../../scripts/recovery-restore.mjs";
+import {
+	createDataOnlyImport,
+	restoreRecovery,
+} from "../../../scripts/recovery-restore.mjs";
 
 const temporary: string[] = [];
 
@@ -94,6 +97,7 @@ function runner(options?: { userTables?: number; objects?: number; routeOutput?:
 		if (args[0] === "email" && args[2] === "rules") {
 			return options?.routeOutput ?? "Actions: worker:lumimail";
 		}
+		if (args[0] === "d1" && args[1] === "migrations") return "";
 		if (args[0] === "d1" && args[1] === "execute" && args.includes("--file")) {
 			return "";
 		}
@@ -105,6 +109,22 @@ function runner(options?: { userTables?: number; objects?: number; routeOutput?:
 }
 
 describe("restoreRecovery", () => {
+	it("derives quote-safe data SQL and excludes migration ownership", () => {
+		const dump = `
+PRAGMA defer_foreign_keys=TRUE;
+CREATE TABLE users (id text);
+INSERT INTO d1_migrations VALUES(1, 'migration');
+INSERT INTO users VALUES('value; still one statement');
+INSERT INTO users VALUES('escaped ''quote; value');
+`;
+
+		expect(createDataOnlyImport(dump)).toBe(
+			"PRAGMA defer_foreign_keys=TRUE;\n" +
+				"INSERT INTO users VALUES('value; still one statement');\n" +
+				"INSERT INTO users VALUES('escaped ''quote; value');\n",
+		);
+	});
+
 	it("guards fresh remote resources and restores only the declared D1/R2 data", () => {
 		const runWrangler = runner();
 		const result = restoreRecovery({
@@ -115,6 +135,9 @@ describe("restoreRecovery", () => {
 
 		expect(result).toEqual({ restoredDatabase: 1, restoredObjects: 1 });
 		const commands = runWrangler.mock.calls.map(([args]) => args.join(" "));
+		expect(commands).toContain(
+			"d1 migrations apply DB --config wrangler.recovery.jsonc --remote",
+		);
 		expect(commands.at(-2)).toMatch(
 			/^d1 execute DB --config wrangler\.recovery\.jsonc --remote --file /,
 		);
