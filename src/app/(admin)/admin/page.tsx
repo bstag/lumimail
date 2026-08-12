@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, Globe2, KeyRound, Mail, Settings, Webhook } from "lucide-react";
+import { Activity, Gauge, Globe2, KeyRound, Mail, Settings, Webhook } from "lucide-react";
 import { useAuthSession } from "@/components/auth/auth-session-context";
 import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +19,11 @@ export default function AdminSettingsPage() {
 		{ href: "/settings", title: t("accountCard"), description: t("accountDesc"), icon: Settings },
 		...(session?.user.role === "owner"
 			? [{
+				href: "/operations",
+				title: "Operations",
+				description: "Review read-only platform health and integrity evidence.",
+				icon: Gauge,
+			}, {
 				href: "/queue-health",
 				title: t("queueHealthTitle"),
 				description: t("queueHealthCardDesc"),

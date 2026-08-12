@@ -11,6 +11,7 @@ import {
   Webhook,
   GitBranch,
   Activity,
+  Gauge,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useAuthSession } from "@/components/auth/auth-session-context";
@@ -39,7 +40,10 @@ export function AdminNav({
     { href: "/routing", label: "Routing", icon: GitBranch },
     { href: "/webhooks", label: "Webhooks", icon: Webhook },
     ...(session?.user.role === "owner"
-      ? [{ href: "/queue-health", label: "Queue health", icon: Activity }]
+      ? [
+          { href: "/operations", label: "Operations", icon: Gauge },
+          { href: "/queue-health", label: "Queue health", icon: Activity },
+        ]
       : []),
   ];
 

@@ -439,6 +439,12 @@ Operations center:
 - Read-only diagnostics first; every mutation uses confirmation, recent authentication, audit, and a
   separately authorized server action
 
+F82 progress 2026-08-12: the first owner-only read slice now aggregates package/schema identity,
+persisted queue snapshots, and sanitized R2-retention counts on `/operations`. Partial failures stay
+visible without exposing caught errors or R2 object-key samples. The endpoint has no mutation path;
+five service/API contracts, six focused browser scenarios, and the full 74-scenario mocked browser
+suite pass. Binding/provider, recovery, release, smoke/mail-flow, and cron evidence remain later slices.
+
 Access and security center:
 
 - Organization role versus effective mailbox capabilities
