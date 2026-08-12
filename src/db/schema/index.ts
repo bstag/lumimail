@@ -474,6 +474,25 @@ export const securityAuditEvents = sqliteTable(
 	],
 );
 
+export const operationalEvidence = sqliteTable(
+	"operational_evidence",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		actorUserId: text("actor_user_id").notNull(),
+		category: text("category", { enum: ["recovery", "release", "smoke", "mail_flow"] }).notNull(),
+		outcome: text("outcome", { enum: ["passed", "failed"] }).notNull(),
+		passedChecks: integer("passed_checks").notNull(),
+		totalChecks: integer("total_checks").notNull(),
+		observedAt: integer("observed_at", { mode: "timestamp" }).notNull(),
+		recordedAt: integer("recorded_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [
+		uniqueIndex("operational_evidence_org_category_observed_idx").on(t.organizationId, t.category, t.observedAt),
+		index("operational_evidence_org_recorded_idx").on(t.organizationId, t.recordedAt),
+	],
+);
+
 export const labels = sqliteTable(
 	"labels",
 	{
@@ -622,6 +641,7 @@ export const schema = {
 	webhookDeliveries,
 	sessions,
 	securityAuditEvents,
+	operationalEvidence,
 	labels,
 	messageLabels,
 	attachments,

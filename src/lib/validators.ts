@@ -59,6 +59,25 @@ export const reconfirmPasswordSchema = z.object({
 	password: z.string().min(1),
 });
 
+export const operationalEvidenceSchema = z.object({
+	format: z.literal("lumimail-operations-evidence-v1"),
+	category: z.enum(["recovery", "release", "smoke", "mail_flow"]),
+	outcome: z.enum(["passed", "failed"]),
+	passedChecks: z.number().int().min(0).max(1000),
+	totalChecks: z.number().int().min(1).max(1000),
+	observedAt: z.string().datetime(),
+}).strict().superRefine((value, ctx) => {
+	if (value.passedChecks > value.totalChecks) {
+		ctx.addIssue({ code: "custom", path: ["passedChecks"], message: "Passed checks cannot exceed total checks" });
+	}
+	if (value.outcome === "passed" && value.passedChecks !== value.totalChecks) {
+		ctx.addIssue({ code: "custom", path: ["outcome"], message: "Passed evidence requires every check to pass" });
+	}
+	if (value.outcome === "failed" && value.passedChecks >= value.totalChecks) {
+		ctx.addIssue({ code: "custom", path: ["outcome"], message: "Failed evidence requires at least one failed check" });
+	}
+});
+
 export const forgotPasswordSchema = z.object({
 	email: z.string().trim().toLowerCase().email(),
 });

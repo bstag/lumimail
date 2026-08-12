@@ -1,6 +1,6 @@
 # F82 — Read-only Operations Center
 
-> Status: In Progress — runtime-readiness slice deployed and verified
+> Status: In Progress — content-free evidence-history slice implemented locally
 > Owner area: `src/lib/operations.ts`, `src/app/api/admin/operations/`, `src/app/(admin)/operations/`
 
 ## 1. Problem & User Job
@@ -20,6 +20,11 @@ state, and retention integrity without opening Cloudflare, exposing secrets, or 
 - The API never returns R2 object keys, messages, addresses, secret values/names, provider errors,
   account IDs, or raw caught errors.
 - One unavailable subsystem remains visible as unavailable without hiding safely available sections.
+- As an owner, I can see the newest recovery, signed-release, public-smoke, and traced-mail-flow
+  evidence recorded for my organization without seeing artifact contents or operator credentials.
+- Trusted operator tooling can append a fixed-shape evidence result only through an exact recently
+  authenticated owner session. An organization can neither write nor read another organization's
+  evidence.
 
 ## 3. First-slice Contract
 
@@ -42,6 +47,10 @@ state, and retention integrity without opening Cloudflare, exposing secrets, or 
   and fresh-data states without a mutation button.
 - Link detailed queue diagnostics to the existing owner-only `/queue-health` page.
 - No object-key samples or destructive retention controls appear in this slice.
+- Add one Operational evidence card with fixed Recovery, Signed release, Public smoke, and Mail flow
+  rows. Each row shows only outcome, passed/total checks, observation time, and recording freshness.
+- Missing evidence is visibly `Not recorded`; ingestion, retry, cleanup, deploy, restore, signing,
+  and send controls do not appear on the page.
 
 ### Second-slice runtime readiness contract
 
@@ -57,6 +66,32 @@ state, and retention integrity without opening Cloudflare, exposing secrets, or 
 - This is configuration presence, not a live provider probe. The existing remote doctor remains the
   authoritative provider-inventory check.
 
+### Third-slice operational evidence contract
+
+- Add `operational_evidence` in migration `0032`. Each row stores only organization/actor ownership,
+  one fixed category (`recovery`, `release`, `smoke`, or `mail_flow`), one fixed outcome (`passed` or
+  `failed`), bounded passed/total check counts, the evidence observation timestamp, and the server
+  recording timestamp. There is no arbitrary payload, detail, filename, URL, commit, resource ID,
+  address, message identifier, provider response, token, or free-text column.
+- `POST /api/admin/operations/evidence` accepts the strict versioned
+  `lumimail-operations-evidence-v1` shape. It requires an organization owner and the exact current
+  session to have been password-confirmed within the existing recent-authentication window.
+- `passedChecks` and `totalChecks` are integers from 0/1 through 1,000, `passedChecks` cannot exceed
+  `totalChecks`, a `passed` outcome requires equality, and a `failed` outcome requires at least one
+  failed check. `observedAt` must be valid UTC and cannot be in the future or more than 90 days old.
+- `(organization, category, observedAt)` is immutable and unique. An exact replay is idempotent; a
+  conflicting replay receives `409` and cannot rewrite history.
+- The evidence row itself is the content-minimized audit record: actor, organization, and server
+  recording time are retained but not returned by the Operations read model. There is no update or
+  delete endpoint. A D1 trigger atomically retains only the newest 200 rows per organization.
+- The overview reads at most the newest 200 rows in the authenticated owner's organization and
+  exposes only the newest row per category. No evidence is `unknown`, a read failure is
+  `unavailable`, any failed latest result is `attention`, and all four latest results passing is
+  `healthy`. Unknown/failed evidence contributes attention to overall status; unavailable evidence
+  makes overall status unavailable.
+- Updating the schema also advances the exact signed-release schema policy from stale `0030` to
+  `0032`; production already has invitation lifecycle migration `0031`.
+
 ## 5. Error and Privacy States
 
 | Condition | Result |
@@ -69,23 +104,35 @@ state, and retention integrity without opening Cloudflare, exposing secrets, or 
 | Provider/storage exception contains private text | Text is discarded and never returned |
 | Required runtime binding absent | Readiness status `unavailable`; category and count only |
 | Unsupported outbound provider | Provider `unsupported`; no raw configured value returned |
+| Evidence body has unknown/additional fields | `400`; no write |
+| Owner session is not recently confirmed | `403`; no evidence read/write attempt |
+| Evidence timestamp is future or older than 90 days | `400`; no write |
+| Exact evidence replay | Existing record retained; successful idempotent response |
+| Same category/timestamp with different result | `409`; existing record retained |
+| Evidence read fails | Evidence status `unavailable`; other safe sections still render |
+| Evidence belongs to another organization | Neither read nor conflict detection can observe it |
 
 ## 6. Test Plan
 
 | Layer | Coverage |
 |-------|----------|
 | Unit `tests/unit/lib/operations.test.ts` | aggregation, timestamps, degraded sections, no sample/error leakage, immutable report |
+| Unit `tests/unit/lib/operational-evidence.test.ts` | recent-auth boundary, validation window, tenant scope, idempotency/conflict, bounded read model |
 | Route `tests/unit/app/api/admin/operations/route.test.ts` | owner guard, exact response, no reads after denial |
+| Route `tests/unit/app/api/admin/operations/evidence/route.test.ts` | strict body, exact-session recent auth, 201/idempotent/409/error envelopes |
+| Migration `tests/unit/db/operational-evidence-migration.test.ts` | content-free columns, unique/index/retention trigger, fresh and upgrade parity |
 | E2E `tests/e2e/operations.spec.ts` | owner navigation/page, healthy and attention states, sanitized rendering |
 | E2E restricted navigation | admin/member direct-route redirect and hidden owner-only link |
 | Full | `npm run verify` and `npm run e2e` |
 
 ## 7. Scope Boundaries and Later Slices
 
-This slice does not persist new evidence. Later F82 work may add sanitized binding/provider readiness,
-backup/restore rehearsal evidence, release/signature status, smoke/mail-flow evidence, cron state, and
-integrity observations after each has a server-authorized read model. All mutations remain separate,
-recently authenticated, confirmed, audited, and explicitly specified.
+The first two slices do not persist evidence. The third slice adds only a server-authorized,
+content-free result ledger and read model; it does not upload or parse source artifacts and cannot
+claim that an operator result is cryptographically derived from those artifacts. Adapters that
+translate each existing script's successful output into the fixed ingestion contract, live Cron
+inventory, and additional integrity observations remain later work. All other mutations remain
+separate, recently authenticated, confirmed, audited, and explicitly specified.
 
 ## 8. Decisions
 
@@ -96,6 +143,16 @@ recently authenticated, confirmed, audited, and explicitly specified.
   instead of turning other safe evidence into a page-wide error. — 2026-08-12
 - Decision: first slice is owner-only because queue and platform storage health are deployment-wide,
   not organization-admin data. — 2026-08-12
+- Decision: scope persisted evidence by organization even though runtime health is deployment-wide.
+  This preserves Lumimail's mandatory tenant boundary and prevents one owner from manufacturing or
+  enumerating another owner's evidence. — 2026-08-12
+- Decision: authorize ingestion with the existing recent-authenticated owner session rather than a
+  new long-lived deployment secret. This slice creates no credential distribution or rotation
+  problem. — 2026-08-12
+- Decision: store fixed enums, counts, and timestamps instead of JSON. Privacy is structural rather
+  than dependent on every producer remembering to redact a payload. — 2026-08-12
+- Decision: evidence results are trusted operator assertions. Cryptographically binding smoke,
+  recovery, and mail-flow claims to source artifacts is not implied by this slice. — 2026-08-12
 
 ## 9. Bug / Change Log
 
@@ -202,3 +259,61 @@ Notes:
   content-free evidence-ingestion and retention contract.
 - Live Cron inventory remains delegated to the F80 provider doctor because Wrangler does not expose
   a trustworthy schedule read in the current workflow.
+
+### 2026-08-12 — Specify content-free operational evidence history
+
+Type: Feature / security boundary
+
+Summary:
+
+- Define an organization-scoped, recently-authenticated, fixed-shape evidence ledger for recovery,
+  release, smoke, and mail-flow outcomes.
+- Define append-only idempotency, conflict behavior, automatic bounded retention, partial read
+  failure, aggregate status, and a read-only four-row Operations presentation.
+
+Reason:
+
+- Existing operator artifacts cannot truthfully appear in the deployed Operations Center until the
+  Worker has an authorized persisted read model. Accepting arbitrary JSON or free text would turn
+  that model into a new data-egress and secret-retention risk.
+
+Impact:
+
+- Specification first. No ingestion or persistence exists until failing contracts cover the
+  authorization, tenant, privacy, time-window, idempotency, and migration boundaries above.
+
+### 2026-08-12 — Implement content-free operational evidence history
+
+Type: Feature / security boundary
+
+Summary:
+
+- Add migration `0032` with structurally content-free evidence rows, fixed database checks, exact
+  organization/category/time uniqueness, organization indexes, timestamp normalization, and an
+  atomic newest-200-per-organization retention trigger.
+- Add an owner-only ingestion route backed by exact-session recent authentication, strict v1 input,
+  90-day/future bounds, immutable idempotency, and race-safe conflict handling.
+- Add an organization-scoped newest-per-category read model and a fixed four-row read-only
+  Operations card with explicit missing, failed, passed, and unavailable states.
+- Advance the signed-release schema policy from stale `0030` to exact `0032`, accounting for the
+  already-deployed invitation lifecycle migration `0031`.
+
+Security:
+
+- Neither the table nor response has an arbitrary payload/free-text field. Actor and organization
+  are retained for accountability but omitted from the overview. Every lookup, idempotency check,
+  race resolution, and list query applies the authenticated organization boundary.
+- Denied or stale owner sessions perform no evidence read. Concurrent conflicting replays cannot
+  overwrite a winner, and the page adds no mutation controls.
+
+Verification:
+
+- Tests were written first and failed for the absent migration, service, and route.
+- Focused migration/service/route/overview contracts and the two Operations browser scenarios pass.
+- `npm run verify` passes 233 test files and 2,005 application tests at 100% statement, branch,
+  function, and line coverage, plus all 21 IMAP bridge tests. Lint remains at the existing 36
+  warnings with zero errors.
+- `npm run e2e` passes all 86 Chromium scenarios, including passed/failed/missing operational
+  evidence and partial-subsystem unavailability without rendering private fields or mutation
+  controls.
+- Migration/deployment and production-safe boundary evidence remain the final gate for this slice.

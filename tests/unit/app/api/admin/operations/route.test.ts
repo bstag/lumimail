@@ -36,6 +36,6 @@ describe("GET /api/admin/operations", () => {
 		const response = await GET(new Request("https://x.test/api/admin/operations"));
 		expect(response.status).toBe(200);
 		expect(await response.json()).toEqual({ success: true, data: overview });
-		expect(h.read).toHaveBeenCalledWith(h.env);
+		expect(h.read).toHaveBeenCalledWith(h.env, "org_1");
 	});
 });

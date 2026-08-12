@@ -3,6 +3,10 @@ import schemaPolicy from "../../release.schema.json";
 
 import { readQueueHealthSnapshots, type QueueHealthSnapshot } from "@/lib/queue-health";
 import { reportR2Retention, type RetentionReport } from "@/lib/r2-retention";
+import {
+	readOperationalEvidence,
+	type OperationalEvidenceSummary,
+} from "@/lib/operational-evidence";
 
 export type OperationsStatus = "healthy" | "attention" | "unavailable";
 export type OperationsQueueStatus = OperationsStatus | "unknown";
@@ -26,6 +30,7 @@ export type OperationsOverview = {
 	observedAt: string;
 	application: { version: string; schema: string };
 	readiness: RuntimeReadiness;
+	evidence: OperationalEvidenceSummary;
 	queues: {
 		status: OperationsQueueStatus;
 		checkedAt: string | null;
@@ -50,6 +55,7 @@ type OverviewInput = {
 	schema: string;
 	observedAt: string;
 	readiness: RuntimeReadiness | null;
+	evidence: OperationalEvidenceSummary | null;
 	queues: QueueHealthSnapshot[] | null;
 	retention: RetentionReport | null;
 };
@@ -57,6 +63,9 @@ type OverviewInput = {
 function freezeOverview(report: OperationsOverview): Readonly<OperationsOverview> {
 	Object.freeze(report.application);
 	Object.freeze(report.readiness);
+	for (const record of report.evidence.records) Object.freeze(record);
+	Object.freeze(report.evidence.records);
+	Object.freeze(report.evidence);
 	Object.freeze(report.queues);
 	Object.freeze(report.retention);
 	return Object.freeze(report);
@@ -88,9 +97,12 @@ export function buildOperationsOverview(input: OverviewInput): Readonly<Operatio
 	const retentionStatus: OperationsStatus = input.retention === null
 		? "unavailable"
 		: input.retention.orphans > 0 ? "attention" : "healthy";
-	const status: OperationsStatus = readiness.status === "unavailable" || queueStatus === "unavailable" || retentionStatus === "unavailable"
+	const evidence = input.evidence ?? { status: "unavailable" as const, records: [] };
+	const status: OperationsStatus = readiness.status === "unavailable" || queueStatus === "unavailable" ||
+		retentionStatus === "unavailable" || evidence.status === "unavailable"
 		? "unavailable"
-		: queueStatus === "attention" || queueStatus === "unknown" || retentionStatus === "attention"
+		: queueStatus === "attention" || queueStatus === "unknown" || retentionStatus === "attention" ||
+			evidence.status === "attention" || evidence.status === "unknown"
 			? "attention"
 			: "healthy";
 	const checkedAt = input.queues?.reduce<string | null>((latest, queue) =>
@@ -101,6 +113,7 @@ export function buildOperationsOverview(input: OverviewInput): Readonly<Operatio
 		observedAt: input.observedAt,
 		application: { version: input.version, schema: input.schema },
 		readiness,
+		evidence,
 		queues: {
 			status: queueStatus,
 			checkedAt,
@@ -125,6 +138,7 @@ type OperationsDependencies = {
 	readQueues: typeof readQueueHealthSnapshots;
 	readRetention: typeof reportR2Retention;
 	readReadiness: typeof readRuntimeReadiness;
+	readEvidence: typeof readOperationalEvidence;
 	version: string;
 	schema: string;
 };
@@ -164,6 +178,7 @@ const defaults: OperationsDependencies = {
 	readQueues: readQueueHealthSnapshots,
 	readRetention: reportR2Retention,
 	readReadiness: readRuntimeReadiness,
+	readEvidence: readOperationalEvidence,
 	version: packageManifest.version,
 	// F81 currently requires an exact compatibility policy. Widening that range must
 	// replace this with an installed-schema read rather than presenting maximum as current.
@@ -172,19 +187,22 @@ const defaults: OperationsDependencies = {
 
 export async function readOperationsOverview(
 	env: CloudflareEnv,
+	organizationId: string,
 	now = new Date(),
 	dependencies: OperationsDependencies = defaults,
 ): Promise<Readonly<OperationsOverview>> {
-	const [queues, retention, readiness] = await Promise.allSettled([
+	const [queues, retention, readiness, evidence] = await Promise.allSettled([
 		dependencies.readQueues(env),
 		dependencies.readRetention(env),
 		dependencies.readReadiness(env),
+		dependencies.readEvidence(env, organizationId),
 	]);
 	return buildOperationsOverview({
 		version: dependencies.version,
 		schema: dependencies.schema,
 		observedAt: now.toISOString(),
 		readiness: readiness.status === "fulfilled" ? readiness.value : null,
+		evidence: evidence.status === "fulfilled" ? evidence.value : null,
 		queues: queues.status === "fulfilled" ? queues.value : null,
 		retention: retention.status === "fulfilled" ? retention.value : null,
 	});

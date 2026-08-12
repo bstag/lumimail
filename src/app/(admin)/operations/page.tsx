@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Boxes, CheckCircle2, Database, Server, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Boxes, CheckCircle2, ClipboardCheck, Database, Server, ShieldCheck } from "lucide-react";
 
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +47,12 @@ function OperationsContent() {
 	const providerLabel = data?.readiness.provider === "cloudflare"
 		? "Cloudflare"
 		: data?.readiness.provider === "resend" ? "Resend" : "Unsupported";
+	const evidenceLabels = {
+		recovery: "Recovery",
+		release: "Signed release",
+		smoke: "Public smoke",
+		mail_flow: "Mail flow",
+	} as const;
 
 	return (
 		<div className="h-full overflow-auto">
@@ -140,6 +146,34 @@ function OperationsContent() {
 							</CardContent>
 						</Card>
 					</div>
+
+					<Card>
+						<CardHeader className="flex-row items-center justify-between gap-3">
+							<div className="flex items-center gap-3"><ClipboardCheck className="h-5 w-5 text-accent" /><CardTitle>Operational evidence</CardTitle></div>
+							<StatusBadge status={data.evidence.status} />
+						</CardHeader>
+						<CardContent>
+							<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+								{(Object.keys(evidenceLabels) as Array<keyof typeof evidenceLabels>).map((category) => {
+									const record = data.evidence.records.find((item) => item.category === category);
+									return (
+										<div key={category} className="rounded-lg border border-border bg-surface-subtle p-3 text-sm">
+											<div className="flex items-center justify-between gap-3">
+												<p className="font-medium text-ink">{evidenceLabels[category]}</p>
+												{record ? <Badge variant={record.outcome === "passed" ? "success" : "outline"}>{record.outcome === "passed" ? "Passed" : "Failed"}</Badge> : <Badge variant="outline">Not recorded</Badge>}
+											</div>
+											{record && <div className="mt-3 space-y-1 text-xs text-ink-muted">
+												<p>{record.passedChecks} of {record.totalChecks} checks passed</p>
+												<p>Observed {formatTimestamp(record.observedAt)}</p>
+												<p>Recorded {formatTimestamp(record.recordedAt)}</p>
+											</div>}
+										</div>
+									);
+								})}
+							</div>
+							<p className="mt-4 text-xs text-ink-muted">Content-free operator results only. Source artifacts and credentials are never stored here.</p>
+						</CardContent>
+					</Card>
 				</div>
 			)}
 		</div>
