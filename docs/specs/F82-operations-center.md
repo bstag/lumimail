@@ -92,6 +92,34 @@ state, and retention integrity without opening Cloudflare, exposing secrets, or 
 - Updating the schema also advances the exact signed-release schema policy from stale `0030` to
   `0032`; production already has invitation lifecycle migration `0031`.
 
+### Fourth-slice trusted producer-adapter contract
+
+- Evidence publication is an explicit operator choice. The existing smoke and signed-release
+  verification commands retain their current behavior unless the dedicated recording mode/command
+  is invoked; verification never writes evidence merely because a session token exists.
+- The shared publisher accepts only an exact HTTPS origin with no credentials, path, query, or
+  fragment. It takes the recently confirmed owner session token from the runtime-only
+  `LUMIMAIL_SESSION_TOKEN` environment variable and sends it as a bearer credential. The token is
+  never accepted as a command-line argument, persisted, or printed.
+- The publisher sends only the strict `lumimail-operations-evidence-v1` request and accepts only the
+  bounded success envelope returned by the ingestion route. Network, authorization, response, and
+  caught errors collapse to `Operational evidence could not be recorded.` without echoing response
+  bodies, request bodies, credentials, or private verification details.
+- Public smoke derives `passedChecks`, `totalChecks`, and outcome from the fixed six HTTP checks.
+  Recording mode can persist a real passing or failing smoke result, but cannot turn a failed check
+  into a passing claim. If publication fails, the command exits non-zero; otherwise it preserves the
+  underlying smoke result exit code.
+- Signed-release recording first performs the existing pinned Ed25519 trust, identity, schema, and
+  artifact verification. Only a successful verification publishes `release`, `passed`, `1/1`; a
+  verification failure publishes nothing. A publication failure exits non-zero.
+- `observedAt` is captured by the producer when its verification completes. Exact retries remain
+  idempotent through the server contract. Neither adapter accepts a category, outcome, count, or
+  timestamp from the command line.
+- Recovery and mail-flow are deliberately not connected in this slice. Recovery is currently a
+  sequence of separately successful capture, restore, application-isolation, rollback/return, and
+  cleanup operations; mail-flow remains a controlled trace. A partial step or arbitrary operator
+  count must not claim either end-to-end category passed.
+
 ## 5. Error and Privacy States
 
 | Condition | Result |
@@ -118,6 +146,8 @@ state, and retention integrity without opening Cloudflare, exposing secrets, or 
 |-------|----------|
 | Unit `tests/unit/lib/operations.test.ts` | aggregation, timestamps, degraded sections, no sample/error leakage, immutable report |
 | Unit `tests/unit/lib/operational-evidence.test.ts` | recent-auth boundary, validation window, tenant scope, idempotency/conflict, bounded read model |
+| Unit `tests/unit/scripts/operations-evidence.test.ts` | strict publisher URL/body/response, bounded failures, bearer non-disclosure |
+| Unit producer adapters | smoke-derived pass/fail counts, opt-in only, release verification-before-publish, publication failure exit |
 | Route `tests/unit/app/api/admin/operations/route.test.ts` | owner guard, exact response, no reads after denial |
 | Route `tests/unit/app/api/admin/operations/evidence/route.test.ts` | strict body, exact-session recent auth, 201/idempotent/409/error envelopes |
 | Migration `tests/unit/db/operational-evidence-migration.test.ts` | content-free columns, unique/index/retention trigger, fresh and upgrade parity |
@@ -128,11 +158,11 @@ state, and retention integrity without opening Cloudflare, exposing secrets, or 
 ## 7. Scope Boundaries and Later Slices
 
 The first two slices do not persist evidence. The third slice adds only a server-authorized,
-content-free result ledger and read model; it does not upload or parse source artifacts and cannot
-claim that an operator result is cryptographically derived from those artifacts. Adapters that
-translate each existing script's successful output into the fixed ingestion contract, live Cron
-inventory, and additional integrity observations remain later work. All other mutations remain
-separate, recently authenticated, confirmed, audited, and explicitly specified.
+content-free result ledger and read model; it does not upload or parse source artifacts. The fourth
+slice binds public smoke and successful signed-release verification to that ledger without accepting
+operator-authored results. Complete recovery and traced-mail-flow producers, live Cron inventory,
+and additional integrity observations remain later work. All other mutations remain separate,
+recently authenticated, confirmed, audited, and explicitly specified.
 
 ## 8. Decisions
 
@@ -153,6 +183,11 @@ separate, recently authenticated, confirmed, audited, and explicitly specified.
   than dependent on every producer remembering to redact a payload. — 2026-08-12
 - Decision: evidence results are trusted operator assertions. Cryptographically binding smoke,
   recovery, and mail-flow claims to source artifacts is not implied by this slice. — 2026-08-12
+- Decision: expose no general evidence CLI. Only named producers may construct evidence so an
+  operator cannot use arbitrary flags to manufacture a passing category/count. — 2026-08-12
+- Decision: use a runtime-only recently confirmed session bearer rather than a new API key or
+  long-lived secret. Explicit recording therefore inherits the route's owner, tenant, expiry, and
+  recent-authentication boundaries. — 2026-08-12
 
 ## 9. Bug / Change Log
 
@@ -326,3 +361,34 @@ Verification:
   retention trigger. The table contains zero rows, proving deployment did not manufacture operator
   evidence or touch account/message content. Authenticated operator ingestion and script adapters
   remain later work.
+
+### 2026-08-12 — Connect trusted smoke and signed-release producers
+
+Type: Feature / operator tooling
+
+Summary:
+
+- Add a non-CLI, fixed-shape evidence publisher with exact HTTPS-origin, runtime bearer, response,
+  and content-free failure contracts.
+- Make smoke import-safe and add explicit recording mode that derives the real fixed six-check
+  outcome and counts while preserving the underlying smoke exit status.
+- Add a separate signed-release recording command that publishes a fixed `release` pass only after
+  the existing pinned cryptographic verification succeeds.
+
+Security:
+
+- No generic evidence command or flags for category, outcome, count, or observation time exist.
+  Tokens are runtime-only and never printed; redirects and malformed/unexpected responses fail
+  closed without returning server or caught-error content.
+- Recovery and mail-flow remain unrecorded because their current sources do not yet prove one
+  complete end-to-end result.
+
+Verification:
+
+- Producer and publisher tests were written first and failed because both modules were absent.
+- All 35 focused publisher, producer, existing smoke, and existing signed-release contracts pass.
+- `npm run verify` passes 235 test files and 2,033 application tests at 100% statement, branch,
+  function, and line coverage, plus all 21 IMAP bridge tests. Lint retains the existing 36 warnings
+  with zero errors after the new test fixtures add none.
+- Browser E2E and Worker deployment are not rerun: this slice changes operator scripts and
+  documentation only, while the already-deployed ingestion API/UI contract is unchanged.

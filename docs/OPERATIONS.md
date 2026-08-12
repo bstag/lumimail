@@ -32,6 +32,47 @@ Wrangler 4.114 has no read-only live Cron Trigger inventory. Doctor proves the e
 the active version's `scheduled` handler, then retains a warning until the provider schedule is
 observed separately. Do not reinterpret that warning as a passing provider-side schedule check.
 
+## Record verified operational evidence
+
+The Operations page can show content-free results from public smoke and signed-release verification.
+Recording is always explicit: normal `npm run smoke` and `npm run release:verify` never write.
+
+Use a newly signed-in owner session so its password authentication is within the 15-minute recent-
+authentication window. In browser developer tools, copy the `ep_session` cookie value. It is an
+HttpOnly bearer credential: do not paste it into a command argument, file, issue, log, or shell
+history. In PowerShell, prompt for it without echoing or storing the value in command history:
+
+```powershell
+$evidenceSecret = Read-Host "Paste the fresh ep_session value" -AsSecureString
+$env:LUMIMAIL_SESSION_TOKEN = [System.Net.NetworkCredential]::new("", $evidenceSecret).Password
+```
+
+Record the fixed six-check public smoke result. The script derives passed/total and records a failed
+result when any boundary fails; it cannot be told to claim a passing count:
+
+```powershell
+npm run smoke:record -- https://mail.example.com
+```
+
+Record a signed release only after the existing pinned trust, expected version/schema, manifest, and
+artifact verification succeeds:
+
+```powershell
+npm run release:verify:record -- <bundle-directory> <signature-json> <trust-json> <expected-version> <expected-schema> https://mail.example.com
+```
+
+A stale/invalid session, non-owner session, non-HTTPS origin, verification failure, or ingestion
+failure exits non-zero with bounded output. The scripts never print the token or server response.
+Remove the runtime credential immediately afterward and clear any clipboard copy:
+
+```powershell
+Remove-Item Env:LUMIMAIL_SESSION_TOKEN
+Set-Clipboard -Value $null
+```
+
+Recovery and mail-flow are not recordable by these commands. Their current workflows do not yet
+produce one complete end-to-end result, so partial steps must remain `Not recorded`.
+
 ## Backup
 
 `wrangler d1 export` produces a complete SQL dump — schema, indexes, and rows.
