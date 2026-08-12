@@ -264,7 +264,7 @@ attachment controls, rich HTML text/link rendering, and the absence of send/draf
 removed the identity, sessions, memberships, and fixed denial fixture; foreign keys remain clean and
 the deleted session redirects to login.
 
-#### L1.6 — Worker rollback drill
+#### L1.6 — Worker rollback drill — complete 2026-08-12
 
 - Record current and previous Worker version IDs.
 - Prove code rollback independently from D1 restore, because Worker versions do not version D1 or R2.
@@ -273,6 +273,12 @@ the deleted session redirects to login.
 - Document when schema compatibility makes code-only rollback unsafe.
 
 Output: rollback transcript with version IDs and smoke results.
+
+Implementation evidence: the isolated recovery Worker activated previous version
+`7e9f2f79-a2f9-43d8-bbf8-430c0a7bcee1` at 100% and passed 6/6 public smoke checks. Its mandatory
+return path restored intended version `34571aef-6642-4ea5-bc42-85eebb730e16`, which passed 6/6
+again. An independent provider read confirmed only the intended version at 100%, and an independent
+smoke invocation also passed 6/6. The drill did not alter production traffic or data resources.
 
 #### L1.7 — cleanup and gate closure
 
@@ -305,7 +311,7 @@ Output: completed recovery-gate evidence and a repeatable operator runbook.
 - [x] Isolated remote D1 and R2 restore succeeds.
 - [x] Restored schema, references, rows, objects, and representative app reads verify.
 - [x] Restricted-user and mailbox-isolation checks pass on the restored site.
-- [ ] Worker rollback and return-to-current-version both pass smoke tests.
+- [x] Worker rollback and return-to-current-version both pass smoke tests.
 - [ ] Production resource and routing inventory is unchanged afterward.
 - [ ] Commands, versions, timestamps, hashes, and cleanup results are recorded.
 

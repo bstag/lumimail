@@ -1,6 +1,6 @@
 # F79 — Remote Recovery Rehearsal
 
-> Status: In Progress — Layers 1.1–1.5 complete; Layer 1.6 rollback next
+> Status: In Progress — Layers 1.1–1.6 complete; Layer 1.7 cleanup and gate closure next
 > Owner area: `scripts/recovery-target-guard.mjs`, `scripts/r2-backup.mjs`,
 > `scripts/recovery-capture.mjs`, `scripts/recovery-restore.mjs`, `docs/OPERATIONS.md`
 
@@ -552,3 +552,19 @@ Type: Feature / Recovery capture
 - Exact cleanup removed the staging-only attachment fixture, all verifier sessions, mailbox/org
   memberships, and user. All five fixed-ID counts are zero, `PRAGMA foreign_key_check` remains
   empty, and the former browser session redirects to `/login` after reload.
+
+### 2026-08-12 — Exercise isolated Worker rollback and return
+
+Type: Operational evidence
+
+- Add a fail-closed rollback runner that accepts two explicit deployable version UUIDs, requires
+  one active recovery version at 100% traffic, and refuses production config, HTTP origins, split
+  traffic, duplicate IDs, and missing versions.
+- Recovery Worker version `7e9f2f79-a2f9-43d8-bbf8-430c0a7bcee1` was activated at 100% and passed
+  all six public smoke checks against the restored staging data.
+- The mandatory return path restored intended version
+  `34571aef-6642-4ea5-bc42-85eebb730e16`, which also passed all six smoke checks.
+- An independent deployment read afterward reported only intended version
+  `34571aef-6642-4ea5-bc42-85eebb730e16` at 100% traffic, followed by an independent 6/6 smoke run.
+- `npm run verify` passes after the rollback implementation; ESLint retains the existing warnings
+  and reports zero errors.
