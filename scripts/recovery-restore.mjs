@@ -51,6 +51,10 @@ function populatedUserTableCount(target, runWrangler) {
 	for (const row of tables) {
 		if (typeof row?.name !== "string") return Number.NaN;
 		const escapedName = row.name.replaceAll('"', '""');
+		const inventoryCommand =
+			row.name === "imap_uid_counter"
+				? 'SELECT CASE WHEN count(*) = 1 AND min("id") = 1 AND min("value") = 0 THEN 0 ELSE 1 END AS hasRows FROM "imap_uid_counter";'
+				: `SELECT EXISTS(SELECT 1 FROM "${escapedName}" LIMIT 1) AS hasRows;`;
 		const rowResult = parseJson(
 			"Recovery D1 row inventory",
 			runWrangler([
@@ -61,7 +65,7 @@ function populatedUserTableCount(target, runWrangler) {
 				target.configPath,
 				"--remote",
 				"--command",
-				`SELECT EXISTS(SELECT 1 FROM "${escapedName}" LIMIT 1) AS hasRows;`,
+				inventoryCommand,
 				"--json",
 			]),
 		);
@@ -133,7 +137,11 @@ export function createDataOnlyImport(dumpSql) {
 			throw new Error("D1 export contains data for a table without schema");
 		}
 		const rows = grouped.get(table) ?? [];
-		rows.push(statement);
+		rows.push(
+			table === "imap_uid_counter"
+				? statement.replace(/^INSERT\s+INTO/i, "INSERT OR REPLACE INTO")
+				: statement,
+		);
 		grouped.set(table, rows);
 	}
 

@@ -229,11 +229,14 @@ them. The SQL derivation is quote-aware, so delimiters inside stored message tex
 foreign-key dependency graph derived from the verified schema orders parent-table inserts before
 child-table inserts because remote D1 imports do not preserve deferred constraints across provider
 batches. Before a retry, every application table is checked for rows; migration-created schema is
-allowed, but any populated table fails closed. A command cannot infer `--remote` from an environment
+allowed, including only the exact migration-owned `imap_uid_counter` baseline `(id=1, value=0)`;
+any other populated state fails closed. A command cannot infer `--remote` from an environment
 name; every D1 and R2 operation names the
 recovery configuration/resource explicitly.
 SQLite-owned `sqlite_sequence` rows are excluded from the derived import; AUTOINCREMENT state is
 re-established by inserting the captured application rows into the migrated target schema.
+The captured `imap_uid_counter` row uses `INSERT OR REPLACE` so its production value replaces the
+exact migration baseline and preserves monotonic IMAP UID allocation.
 
 ## 6. UI/UX
 
@@ -455,3 +458,6 @@ Type: Feature / Recovery capture
 - The next retry stopped locally before provider access because the full export includes
   SQLite-owned `sqlite_sequence` inserts without a corresponding exported `CREATE TABLE`. The
   derived import now excludes that internal table explicitly.
+- The subsequent live guard identified one row in `imap_uid_counter`. Migration `0011` owns the
+  exact `(id=1, value=0)` baseline on an otherwise empty target. The guard now permits only that
+  exact row and the import replaces it with the captured counter value.

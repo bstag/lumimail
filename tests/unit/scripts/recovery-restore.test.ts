@@ -82,6 +82,7 @@ const target = {
 };
 
 function runner(options?: {
+	baselineCounter?: "exact" | "changed";
 	malformedInventory?: boolean;
 	objects?: number;
 	populatedTables?: number;
@@ -92,12 +93,15 @@ function runner(options?: {
 		if (args[0] === "d1" && args[1] === "execute" && args.includes("--command")) {
 			const command = args[args.indexOf("--command") + 1];
 			if (command.startsWith("SELECT name FROM")) {
+				const tableNames = options?.baselineCounter
+					? ["imap_uid_counter"]
+					: Array.from(
+							{ length: options?.schemaTables ?? options?.populatedTables ?? 0 },
+							(_, index) => `table_${index}`,
+						);
 				return JSON.stringify([
 					{
-						results: Array.from(
-							{ length: options?.schemaTables ?? options?.populatedTables ?? 0 },
-							(_, index) => ({ name: `table_${index}` }),
-						),
+						results: tableNames.map((name) => ({ name })),
 						success: true,
 					},
 				]);
@@ -107,7 +111,12 @@ function runner(options?: {
 					results: [
 						options?.malformedInventory
 							? {}
-							: { hasRows: options?.populatedTables ? 1 : 0 },
+							: {
+								 hasRows:
+									options?.baselineCounter === "changed" || options?.populatedTables
+										? 1
+										: 0,
+							},
 					],
 					success: true,
 				},
@@ -138,14 +147,17 @@ describe("restoreRecovery", () => {
 		const dump = `
 PRAGMA defer_foreign_keys=TRUE;
 CREATE TABLE users (id text);
+CREATE TABLE imap_uid_counter (id integer, value integer);
 INSERT INTO d1_migrations VALUES(1, 'migration');
 INSERT INTO sqlite_sequence VALUES('users', 2);
+INSERT INTO imap_uid_counter VALUES(1, 42);
 INSERT INTO users VALUES('value; still one statement');
 INSERT INTO users VALUES('escaped ''quote; value');
 `;
 
 		expect(createDataOnlyImport(dump)).toBe(
 			"PRAGMA defer_foreign_keys=TRUE;\n" +
+				"INSERT OR REPLACE INTO imap_uid_counter VALUES(1, 42);\n" +
 				"INSERT INTO users VALUES('value; still one statement');\n" +
 				"INSERT INTO users VALUES('escaped ''quote; value');\n",
 		);
@@ -198,6 +210,18 @@ INSERT INTO parent VALUES('p1');
 				([args]) => args.includes("--command") && args.join(" ").includes("hasRows"),
 			),
 		).toHaveLength(30);
+	});
+
+	it("allows only the exact migration-owned IMAP counter baseline", () => {
+		const exactRunner = runner({ baselineCounter: "exact" });
+		expect(
+			restoreRecovery({ backupDirectory: backupDirectory(), target, runWrangler: exactRunner }),
+		).toEqual({ restoredDatabase: 1, restoredObjects: 1 });
+
+		const changedRunner = runner({ baselineCounter: "changed" });
+		expect(() =>
+			restoreRecovery({ backupDirectory: backupDirectory(), target, runWrangler: changedRunner }),
+		).toThrow("Recovery target is unsafe");
 	});
 
 	it("rejects corrupt local evidence before provider access", () => {
