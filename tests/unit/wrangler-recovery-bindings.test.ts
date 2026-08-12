@@ -19,6 +19,8 @@ describe("recovery Worker binding isolation", () => {
 		expect(config).not.toHaveProperty("queues");
 		expect(config).not.toHaveProperty("services");
 		expect(config.vars).toMatchObject({
+			PUBLIC_APP_URL:
+				"https://lumimail-recovery-20260812.blackstag.workers.dev",
 			R2_SWEEP_ENABLED: "false",
 			SEED_ENABLED: "false",
 		});

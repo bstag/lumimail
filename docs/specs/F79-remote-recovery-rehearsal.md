@@ -461,3 +461,7 @@ Type: Feature / Recovery capture
 - The subsequent live guard identified one row in `imap_uid_counter`. Migration `0011` owns the
   exact `(id=1, value=0)` baseline on an otherwise empty target. The guard now permits only that
   exact row and the import replaces it with the captured counter value.
+- The first isolated Worker deployment resolved the account-specific hostname as
+  `lumimail-recovery-20260812.blackstag.workers.dev`, revealing that the configured
+  `PUBLIC_APP_URL` lacked the workers.dev account subdomain. The recovery config now fixes and tests
+  the exact deployed origin before application smoke checks.

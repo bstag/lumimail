@@ -13,7 +13,7 @@
 		"CF_ACCOUNT_ID": "caddde404ba5d0324c315dc5cf143696",
 		"CF_EMAIL_WORKER_NAME": "lumimail-recovery-20260812",
 		"MAIL_PROVIDER": "cloudflare",
-		"PUBLIC_APP_URL": "https://lumimail-recovery-20260812.workers.dev",
+		"PUBLIC_APP_URL": "https://lumimail-recovery-20260812.blackstag.workers.dev",
 		"PASSWORD_RESET_FROM": "noreply@invalid.example",
 		"R2_SWEEP_ENABLED": "false",
 		"SEED_ENABLED": "false"
