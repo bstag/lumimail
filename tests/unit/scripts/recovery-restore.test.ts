@@ -139,6 +139,7 @@ describe("restoreRecovery", () => {
 PRAGMA defer_foreign_keys=TRUE;
 CREATE TABLE users (id text);
 INSERT INTO d1_migrations VALUES(1, 'migration');
+INSERT INTO sqlite_sequence VALUES('users', 2);
 INSERT INTO users VALUES('value; still one statement');
 INSERT INTO users VALUES('escaped ''quote; value');
 `;

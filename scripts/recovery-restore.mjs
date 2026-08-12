@@ -122,7 +122,9 @@ export function createDataOnlyImport(dumpSql) {
 	const inserts = statements.filter(
 		(statement) =>
 			/^INSERT\s+INTO\b/i.test(statement) &&
-			!/^INSERT\s+INTO\s+[`"]?d1_migrations[`"]?\b/i.test(statement),
+			!/^INSERT\s+INTO\s+[`"]?(?:d1_migrations|sqlite_sequence)[`"]?\b/i.test(
+				statement,
+			),
 	);
 	const grouped = new Map();
 	for (const statement of inserts) {

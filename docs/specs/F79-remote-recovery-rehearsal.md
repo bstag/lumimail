@@ -232,6 +232,8 @@ batches. Before a retry, every application table is checked for rows; migration-
 allowed, but any populated table fails closed. A command cannot infer `--remote` from an environment
 name; every D1 and R2 operation names the
 recovery configuration/resource explicitly.
+SQLite-owned `sqlite_sequence` rows are excluded from the derived import; AUTOINCREMENT state is
+re-established by inserting the captured application rows into the migrated target schema.
 
 ## 6. UI/UX
 
@@ -450,3 +452,6 @@ Type: Feature / Recovery capture
   applied schema with no application rows or R2 objects. The derived import now orders tables from
   referenced parents to children and the retry guard accepts schema-only targets only after checking
   every application table for rows.
+- The next retry stopped locally before provider access because the full export includes
+  SQLite-owned `sqlite_sequence` inserts without a corresponding exported `CREATE TABLE`. The
+  derived import now excludes that internal table explicitly.
