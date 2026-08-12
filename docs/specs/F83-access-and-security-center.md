@@ -646,6 +646,9 @@ Impact:
 - The deployed endpoint returns bounded JSON `401` to an anonymous POST. Public smoke passes 6/6,
   and the remote doctor passes 25 checks with zero failures and only the documented live-Cron-
   inventory warning.
-- A metadata-only remote D1 aggregation still reports the single previously proven `session.revoke`
-  event and no `mailbox.grant_bulk` event. Automation intentionally did not change a production
-  member's access; one signed-in owner grant remains the human production gate.
+- Before the human gate, a metadata-only remote D1 aggregation reported only the previously proven
+  `session.revoke` event. Automation intentionally did not change a production member's access.
+- On 2026-08-12 the operator confirmed a signed-in owner bulk grant worked. A subsequent metadata-only
+  D1 read found exactly one `mailbox.grant_bulk` / `mailbox_membership` event with affected count one
+  and outcome `succeeded`, closing the production mutation/audit gate without reading member identity,
+  mailbox address, role, credentials, or message content.
