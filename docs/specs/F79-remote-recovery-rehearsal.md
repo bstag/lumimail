@@ -113,6 +113,22 @@ Names, naming conventions, environment labels, or operator intent are not suffic
 - Record deployment/version IDs and pass/fail timestamps without credentials, mail data, or bindings
   beyond the already public recovery resource identities.
 
+**In scope for Layer 1.7:**
+
+- Accept the private recovery directory only as an explicit argument, verify its canonical manifest
+  and every recorded byte offline again, and never delete or modify that local evidence.
+- Require the exact checked-in `wrangler.recovery.jsonc`, recovery Worker name, D1 UUID/name, R2
+  bucket, HTTPS workers.dev origin, intended Worker version at 100%, and 6/6 public smoke before any
+  deletion. Re-run the forbidden route/binding and production-overlap checks.
+- Require the recovery R2 bucket's observed object count to equal the manifest and delete only the
+  manifest's exact object keys. Stop if the bucket cannot then be deleted; do not continue to D1.
+- Delete in exposure-first order: recovery Worker, exact R2 objects, empty R2 bucket, then recovery
+  D1. Do not use Worker force-delete, wildcard object deletion, name inference, or production config.
+- Verify the Worker, bucket, and D1 are absent afterward, and compare a content-free production
+  resource/routing fingerprint captured immediately before and after cleanup.
+- Preserve the private backup until the operator chooses an at-rest encryption, retention, and
+  destruction policy. Cleanup of remote rehearsal resources does not imply local archive deletion.
+
 **Out of scope for Layer 1.1:**
 
 - Calling Cloudflare or running Wrangler.
@@ -295,6 +311,15 @@ deployment before mutation, uses `versions deploy <uuid>@100 --yes`, validates p
 each deployment, and always attempts to restore the current version. The report contains version
 IDs, smoke counts, and final status only. Production config/name/version inference is not supported.
 
+### 5.6 Disposable-resource cleanup — Layer 1.7
+
+The cleanup runner consumes the already verified recovery directory and exact recovery config. Its
+preflight is wholly read-only and must complete before the first deletion. The injected command
+contract makes deletion order, exact identities, partial-failure stops, absence checks, and
+production fingerprint equality executable unit-test behavior. The final report contains resource
+names/IDs, deleted-object count, and before/after fingerprint equality only; it contains no mail
+content, object keys, SQL, cookies, passwords, or manifest contents.
+
 ## 6. UI/UX
 
 No product UI in Layer 1. The operator surface is a future CLI and a content-free evidence report.
@@ -311,6 +336,7 @@ Recovery mutation remains outside ordinary authenticated web sessions.
 | Unit | `tests/unit/wrangler-recovery-bindings.test.ts` | Recovery Worker has exact isolated D1/R2 bindings and no route, Queue, Cron, Email Sending, or service bindings |
 | Unit | `tests/unit/scripts/recovery-app-verify.test.ts` | Fixed-ID provision/cleanup SQL, secret-free report, allowed mailbox/message/attachment reads, and direct/list denial for an unrelated mailbox |
 | Unit | `tests/unit/scripts/recovery-rollback.test.ts` | Initial/split/unknown-version refusal, exact rollback command/status/smoke, mandatory return on failure, and final intended-version proof |
+| Unit | `tests/unit/scripts/recovery-cleanup.test.ts` | Exact manifest/config/target preflight, ordered deletion, partial-failure stops, absence verification, production-fingerprint equality, and private-evidence preservation |
 | Existing regression | `tests/unit/scripts/r2-backup.test.ts` | Exact referenced-key extraction and missing/corrupt object detection |
 | Full | repository commands | `npm run verify`; no E2E because Layer 1.1 has no site behavior |
 
