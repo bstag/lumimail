@@ -1,6 +1,6 @@
 # F83 — Access and security center
 
-Status: In Progress
+Status: Shipped
 Owner: Platform
 Last updated: 2026-08-12
 
@@ -13,10 +13,11 @@ Last updated: 2026-08-12
   `manager`) are stored and enforced separately, but no single screen explains both layers.
 - `/api/org/members` is organization-admin scoped. Individual mailbox-member APIs require effective
   mailbox-manager access and preserve tenant isolation through the mailbox access predicate.
-- `/members` now combines the access matrix, owner-only active sessions, destructive session
-  controls, owner-only content-free security history, and audited bulk mailbox grants. Invitations
-  still expose only a manually shared one-time link: no email is sent, accepted rows are deleted,
-  and delivery, expiry, and acceptance state are not presented together.
+- `/members` combines the access matrix, owner-only active sessions, destructive session controls,
+  owner-only content-free security history, audited bulk mailbox grants, and the complete invitation
+  lifecycle. New and resent invitations are delivered automatically, resend rotates the token and
+  extends expiry behind a durable cooldown, provider acceptance is distinguished from an attempt,
+  and accepted rows remain as bounded organization history.
 
 ## 2. Desired behavior
 
@@ -422,6 +423,12 @@ Verification:
 - A metadata-only D1 aggregation reports zero invitation rows before the human gate. Automation did
   not send email or create an account; production delivery, resend presentation, and retained
   acceptance require an operator-controlled recipient.
+- The operator then confirmed the controlled invitation email arrived, the pending/sent state was
+  visible, resend produced a second email with a newly rotated fallback link, the newest link
+  registered the invited identity, and `/members` showed the accepted timestamp.
+- A content-minimized remote D1 aggregation subsequently reported one invitation, one delivery
+  attempt, one provider-accepted send, and one retained acceptance recorded after provider
+  acceptance. The query read no address, token, role, organization, or account details.
 
 ### 2026-08-12 — Specify a read-only access matrix
 
