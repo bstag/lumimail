@@ -398,3 +398,15 @@ Type: Feature / Recovery capture
 - First live attempt failed safely before D1 export because `WRANGLER_LOG=none` suppresses Wrangler's
   JSON command result as well as logging. No final directory or partial data remained; the wrapper
   now preserves Wrangler's normal JSON standard output.
+- Commit `f4c48db` was deployed, smoke passed 6/6, and the second live capture completed at
+  `2026-08-12T13:44:35.174Z` against active Worker version
+  `721ad103-ec5a-4b0d-a48c-f664d6814451` and script ETag
+  `5bd0e61aed0aa76c3173ab81b708572df8a6362879965d37887e4f77209947c6`.
+- The private local capture contains a 99,637-byte D1 export at schema `0028`, a Time Travel
+  bookmark, and 15 referenced R2 objects. A second offline pass reports one database, 15 objects,
+  and zero integrity problems. The 17 files total 8,519,183 bytes; canonical manifest SHA-256 is
+  `e56311ef96d9063b3c5fe04a2610df674d990ac00eedd7dc96a2058b41f482ee`.
+- Windows ACL inheritance was removed from the exact backup directory. Only the user, SYSTEM, and
+  local Administrators retain access; integrity still passes afterward.
+- Separate archive encryption remains an operator decision. BitLocker status could not be inspected
+  without administrator access, so this evidence does not claim volume encryption.
