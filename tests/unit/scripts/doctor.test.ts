@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { buildLocalDoctorReport } from "../../../scripts/doctor.mjs";
+import { buildLocalDoctorReport, runRemoteDoctor } from "../../../scripts/doctor.mjs";
 
 function config() {
 	return {
@@ -109,5 +109,113 @@ describe("buildLocalDoctorReport", () => {
 		expect(Object.isFrozen(report)).toBe(true);
 		expect(Object.isFrozen(report.checks)).toBe(true);
 		expect(Object.isFrozen(report.checks[0])).toBe(true);
+	});
+});
+
+const versionId = "721ad103-ec5a-4b0d-a48c-f664d6814451";
+
+function remoteRunner(overrides: Record<string, string | Error> = {}) {
+	const outputs: Record<string, string> = {
+		"deployments status --config wrangler.jsonc --json": JSON.stringify({
+			versions: [{ version_id: versionId, percentage: 100 }],
+		}),
+		[`versions view ${versionId} --config wrangler.jsonc --json`]: JSON.stringify({
+			id: versionId,
+			resources: {
+				script: { handlers: ["fetch", "email", "queue", "scheduled"] },
+				script_runtime: { compatibility_date: "2026-07-22" },
+				bindings: [
+					{ name: "DB", type: "d1", database_id: "d1-id" },
+					{ name: "BUCKET", type: "r2_bucket", bucket_name: "lumimail-raw-prod" },
+					{ name: "EMAIL", type: "send_email" },
+					{ name: "INBOUND_QUEUE", type: "queue", queue_name: "lumimail-inbound-prod" },
+					{ name: "OUTBOUND_QUEUE", type: "queue", queue_name: "lumimail-outbound-prod" },
+					{ name: "OUTBOUND_DLQ_QUEUE", type: "queue", queue_name: "lumimail-outbound-dlq-prod" },
+					{ name: "WORKER_SELF_REFERENCE", type: "service", service: "lumimail" },
+					{ name: "CF_TOKEN", type: "secret_text" },
+				],
+			},
+		}),
+		"d1 info lumimail-prod --config wrangler.jsonc --json": JSON.stringify({ uuid: "d1-id", name: "lumimail-prod", num_tables: 30 }),
+		"d1 migrations list DB --config wrangler.jsonc --remote": "No migrations to apply!",
+		"r2 bucket info lumimail-raw-prod --config wrangler.jsonc --json": JSON.stringify({ name: "lumimail-raw-prod", object_count: "15" }),
+		"queues list --config wrangler.jsonc --page 1": "lumimail-inbound-prod 1 1\nlumimail-outbound-prod 1 1\nlumimail-outbound-dlq-prod 1 1",
+		"queues list --config wrangler.jsonc --page 2": "",
+		"secret list --config wrangler.jsonc --format json": JSON.stringify([{ name: "CF_TOKEN", type: "secret_text" }]),
+		"email routing list": "│ henriksen.dev │ zone-1 │ yes │",
+		"email routing rules list henriksen.dev --zone-id zone-1": "Enabled: true\nActions: worker:lumimail\nCatch-all rule: enabled, action: worker:lumimail",
+		"email sending settings henriksen.dev": "Email Sending for henriksen.dev:\nEnabled: true",
+	};
+	return vi.fn((args: string[]) => {
+		const key = args.join(" ");
+		const value = overrides[key] ?? outputs[key];
+		if (value instanceof Error) throw value;
+		if (value === undefined) throw new Error(`Unexpected command: ${key}`);
+		return value;
+	});
+}
+
+describe("runRemoteDoctor", () => {
+	it("adds content-free read-only provider and smoke checks", () => {
+		const runWrangler = remoteRunner();
+		const report = runRemoteDoctor({
+			localReport: buildLocalDoctorReport(inputs()),
+			config: config(),
+			origin: "https://mail.henriksen.dev",
+			runWrangler,
+			runSmoke: vi.fn(() => ({ passed: 6, total: 6 })),
+		});
+
+		expect(report.mode).toBe("remote");
+		expect(report.ready).toBe(true);
+		expect(report.summary).toEqual({ pass: report.checks.length - 1, fail: 0, warn: 1 });
+		expect(report.checks).toEqual(expect.arrayContaining([
+			expect.objectContaining({ id: "remote.cron", status: "warn" }),
+			expect.objectContaining({ id: "remote.deployment", status: "pass", observed: 1 }),
+			expect.objectContaining({ id: "remote.queues", status: "pass", observed: 3 }),
+			expect.objectContaining({ id: "remote.secrets", status: "pass", observed: 1 }),
+			expect.objectContaining({ id: "remote.smoke", status: "pass", observed: 6 }),
+		]));
+		expect(JSON.stringify(report)).not.toContain("zone-1");
+		expect(JSON.stringify(report)).not.toContain("CF_TOKEN");
+		expect(runWrangler.mock.calls.flatMap(([args]) => args)).not.toContain("execute");
+	});
+
+	it("aggregates malformed, incomplete, missing-secret, and failed-smoke results safely", () => {
+		const report = runRemoteDoctor({
+			localReport: buildLocalDoctorReport(inputs()),
+			config: config(),
+			origin: "https://mail.henriksen.dev",
+			runWrangler: remoteRunner({
+				"deployments status --config wrangler.jsonc --json": "not-json token-value",
+				"d1 migrations list DB --config wrangler.jsonc --remote": "0029_pending.sql",
+				"queues list --config wrangler.jsonc --page 2": "another-page",
+				"secret list --config wrangler.jsonc --format json": "[]",
+				"email sending settings henriksen.dev": new Error("provider leaked-secret-value"),
+			}),
+			runSmoke: vi.fn(() => ({ passed: 5, total: 6 })),
+		});
+
+		expect(report.ready).toBe(false);
+		expect(report.checks.filter((entry: { status: string }) => entry.status === "fail").map((entry: { id: string }) => entry.id))
+			.toEqual(expect.arrayContaining([
+				"remote.deployment", "remote.migrations", "remote.queues", "remote.secrets", "remote.email-sending", "remote.smoke",
+			]));
+		expect(JSON.stringify(report)).not.toContain("token-value");
+		expect(JSON.stringify(report)).not.toContain("leaked-secret-value");
+	});
+
+	it.each([
+		["HTTP origin", "http://mail.henriksen.dev"],
+		["origin path", "https://mail.henriksen.dev/admin"],
+		["wrong host", "https://other.example.com"],
+	])("refuses %s before provider access", (_label, origin) => {
+		const runWrangler = remoteRunner();
+		const report = runRemoteDoctor({
+			localReport: buildLocalDoctorReport(inputs()), config: config(), origin, runWrangler,
+			runSmoke: vi.fn(() => ({ passed: 6, total: 6 })),
+		});
+		expect(report.ready).toBe(false);
+		expect(runWrangler).not.toHaveBeenCalled();
 	});
 });

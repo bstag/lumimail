@@ -360,6 +360,11 @@ Progress 2026-08-12: F80 now defines the non-mutating, fail-closed doctor contra
 schema, local/remote phases, edge cases, and operator-only security boundary. Layer 2.1 begins with
 runtime, production-config, migration-continuity, and deterministic aggregation tests.
 
+Implementation progress: Layer 2.1 passes 15/15 locally. Layer 2.2 passes ten live read-only checks
+for deployment/version bindings, D1/R2/Queues, pending migrations, required secret names, Email
+Routing/Sending, and public smoke. Wrangler exposes no read-only live Cron inventory, so the doctor
+proves source configuration plus the deployed `scheduled` handler and reports one explicit warning.
+
 Deliverables:
 
 - Add a non-mutating `doctor` command that checks runtime version, bindings, D1 migrations, R2 access,

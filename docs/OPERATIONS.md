@@ -8,6 +8,30 @@ id, and zone ids live in `wrangler.jsonc`, which is gitignored; `wrangler.jsonc.
 documents the shape. Commands below name resources by binding or name so they work
 without secrets in this file.
 
+## Readiness doctor
+
+Run the local preflight before any deployment work:
+
+```bash
+npm run doctor
+```
+
+With authorized read-only Cloudflare credentials, add provider inventory and public smoke:
+
+```bash
+npm run doctor -- --remote https://mail.example.com
+npm run doctor -- --remote https://mail.example.com --json
+```
+
+Remote mode reads deployment/version metadata, critical binding shapes, D1/R2/Queue identity,
+pending migrations, secret names (never values), Email Routing/Sending readiness, and six public
+HTTP contracts. It does not deploy, apply migrations, execute SQL, read R2 objects, send mail, or
+change provider configuration. Any failed or malformed required check exits non-zero.
+
+Wrangler 4.114 has no read-only live Cron Trigger inventory. Doctor proves the exact source Cron and
+the active version's `scheduled` handler, then retains a warning until the provider schedule is
+observed separately. Do not reinterpret that warning as a passing provider-side schedule check.
+
 ## Backup
 
 `wrangler d1 export` produces a complete SQL dump — schema, indexes, and rows.
