@@ -325,5 +325,12 @@ Verification:
 - Full `npm run e2e` passes all 78 Chromium scenarios after advancing the Operations schema contract
   to `0029`; this backend-only foundation adds no new UI flow.
 - A migrated local D1 copy applied `0029` successfully and a second migration pass reported no
-  pending migrations. Deployment and production authorization evidence are recorded after those
-  gates run.
+  pending migrations.
+- Commit `df81009` deployed as Worker version `76dfd2e5-2f15-4de9-a765-c1fb242820a7`; remote D1
+  applied `0029`, the production build includes `/api/auth/reconfirm`, and a second remote migration
+  pass reports no pending migrations.
+- Public smoke passes 6/6, anonymous `POST /api/auth/reconfirm` returns the bounded `401` envelope,
+  and the remote doctor passes 25 checks with zero failures and the documented live-Cron-inventory
+  warning.
+- Successful authenticated password proof remains covered by the production-shaped service/API
+  suite; no production password or session credential was requested for automation.
