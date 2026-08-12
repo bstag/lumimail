@@ -1,6 +1,6 @@
 # F82 — Read-only Operations Center
 
-> Status: In Progress — content-free evidence-history slice implemented locally
+> Status: In Progress — content-free evidence-history slice deployed and boundary-verified
 > Owner area: `src/lib/operations.ts`, `src/app/api/admin/operations/`, `src/app/(admin)/operations/`
 
 ## 1. Problem & User Job
@@ -316,4 +316,13 @@ Verification:
 - `npm run e2e` passes all 86 Chromium scenarios, including passed/failed/missing operational
   evidence and partial-subsystem unavailability without rendering private fields or mutation
   controls.
-- Migration/deployment and production-safe boundary evidence remain the final gate for this slice.
+- Commit `c00108c` deployed with migration `0032` as Worker version
+  `53965c0f-6da0-44f1-8f79-c98ec3bc4944`. The production build contains both the read-only
+  Operations page/API and `/api/admin/operations/evidence`; D1 has no pending migrations.
+- Public smoke passes 6/6 and the remote doctor passes 25 checks with zero failures and only the
+  documented live-Cron-inventory warning. The new ingestion route refuses an anonymous POST with
+  `401` before body processing.
+- A content-minimized remote D1 inspection confirms exactly the nine specified columns and one
+  retention trigger. The table contains zero rows, proving deployment did not manufacture operator
+  evidence or touch account/message content. Authenticated operator ingestion and script adapters
+  remain later work.
