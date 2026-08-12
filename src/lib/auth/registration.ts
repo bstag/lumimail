@@ -1,4 +1,4 @@
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import type { z } from "zod";
 import { getDb } from "@/db";
 import { mailboxes, users, orgInvites, organizationMembers } from "@/db/schema";
@@ -16,9 +16,9 @@ import { ensureUserOrg } from "@/lib/migration/backfill-orgs";
  * The register route has two multi-step flows whose failure handling is
  * compensation, not just error mapping:
  *
- *  - Invite claim: the invite row is atomically consumed (delete-returning)
- *    before the user + membership batch is written; if that batch fails the
- *    claimed invite is inserted back so the invitation link keeps working.
+ *  - Invite claim: the invite row is conditionally marked accepted before the
+ *    user + membership batch is written; if that batch fails the claim is
+ *    conditionally cleared so the invitation link keeps working.
  *  - First-run: the very first user is created, then domain provisioning /
  *    routing / mailbox creation run; any failure deletes the just-created user
  *    so a retry does not hit "Email already registered" for an account that
@@ -43,7 +43,7 @@ export async function registerFromInvite(
 	const [invite] = await db
 		.select()
 		.from(orgInvites)
-		.where(and(eq(orgInvites.token, tokenHash), gt(orgInvites.expiresAt, new Date())))
+		.where(and(eq(orgInvites.token, tokenHash), gt(orgInvites.expiresAt, new Date()), isNull(orgInvites.acceptedAt)))
 		.limit(1);
 	if (!invite) return { ok: false, error: "invite_not_found" };
 
@@ -53,13 +53,16 @@ export async function registerFromInvite(
 
 	const userId = newId("usr");
 	const userName = email.split("@")[0];
+	const acceptedAt = new Date();
 	const [claimedInvite] = await db
-		.delete(orgInvites)
+		.update(orgInvites)
+		.set({ acceptedAt })
 		.where(
 			and(
 				eq(orgInvites.id, invite.id),
 				eq(orgInvites.token, tokenHash),
 				gt(orgInvites.expiresAt, new Date()),
+				isNull(orgInvites.acceptedAt),
 			),
 		)
 		.returning();
@@ -84,20 +87,12 @@ export async function registerFromInvite(
 			}),
 		]);
 	} catch {
-		// Compensation: the invite was already consumed, so put it back (idempotent
-		// under a concurrent successful claim) rather than burning the invitation.
-		await db
-			.insert(orgInvites)
-			.values({
-				id: claimedInvite.id,
-				organizationId: claimedInvite.organizationId,
-				email: claimedInvite.email,
-				role: claimedInvite.role,
-				token: claimedInvite.token,
-				expiresAt: claimedInvite.expiresAt,
-				createdAt: claimedInvite.createdAt,
-			})
-			.onConflictDoNothing();
+		// Compensation restores claimability only if this request still owns the
+		// acceptance timestamp; a later state transition is never overwritten.
+		await db.update(orgInvites).set({ acceptedAt: null }).where(and(
+			eq(orgInvites.id, claimedInvite.id),
+			eq(orgInvites.acceptedAt, acceptedAt),
+		));
 		return { ok: false, error: "unavailable" };
 	}
 

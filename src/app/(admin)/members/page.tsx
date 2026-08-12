@@ -33,7 +33,14 @@ type Invite = {
   role: "admin" | "member";
   expiresAt: string;
   createdAt: string;
+  status: "pending" | "expired" | "accepted";
+  deliveryStatus: "not_sent" | "sending" | "sent" | "failed";
+  lastDeliveryAttemptAt: string | null;
+  lastDeliveredAt: string | null;
+  acceptedAt: string | null;
 };
+
+type ResentInvite = { email: string; link: string; deliveryStatus: Invite["deliveryStatus"] };
 
 const ROLE_BADGES: Record<string, string> = {
   owner: "bg-warning-muted text-warning",
@@ -103,6 +110,7 @@ export default function MembersPage() {
   const [bulkGrantMailboxIds, setBulkGrantMailboxIds] = useState<string[]>([]);
   const [bulkGrantRole, setBulkGrantRole] = useState<AccessMailboxRole>("responder");
   const [bulkGrantPassword, setBulkGrantPassword] = useState("");
+  const [resentInvite, setResentInvite] = useState<ResentInvite | null>(null);
 
   const membersQuery = useQuery({
     queryKey: orgMemberKeys.all,
@@ -186,6 +194,24 @@ export default function MembersPage() {
         qc.invalidateQueries({ queryKey: accessOverviewKeys.all }),
         qc.invalidateQueries({ queryKey: securityHistoryKeys.all }),
       ]);
+    },
+  });
+
+  const resendInvite = useMutation({
+    mutationFn: async (invite: Invite) => {
+      const result = await apiJson.post<{ invite: { token: string; deliveryStatus: Invite["deliveryStatus"] } }>(
+        `/api/org/invites/${invite.id}/resend`,
+      );
+      return {
+        email: invite.email,
+        link: `${window.location.origin}/register?token=${result.invite.token}`,
+        deliveryStatus: result.invite.deliveryStatus,
+      };
+    },
+    meta: { suppressErrorToast: true },
+    onSuccess: async (result) => {
+      setResentInvite(result);
+      await qc.invalidateQueries({ queryKey: orgMemberKeys.all });
     },
   });
 
@@ -314,6 +340,25 @@ export default function MembersPage() {
         }}
       />
 
+      <Dialog open={resentInvite !== null} onOpenChange={(open) => { if (!open) setResentInvite(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invitation resent</DialogTitle>
+            <DialogDescription>The previous link is no longer valid.</DialogDescription>
+          </DialogHeader>
+          {resentInvite && (
+            <div className="space-y-3">
+              <p className={`rounded-md px-3 py-2 text-sm font-medium ${resentInvite.deliveryStatus === "sent" ? "bg-success-muted text-success" : "bg-warning-muted text-warning"}`}>
+                {resentInvite.deliveryStatus === "sent" ? "Invitation sent" : resentInvite.deliveryStatus === "failed" ? "Email delivery failed — share this link" : "Delivery is unconfirmed — share this link"}
+              </p>
+              <p className="text-sm text-ink-muted">Fallback link for {resentInvite.email}</p>
+              <Input value={resentInvite.link} readOnly />
+              <Button variant="outline" className="w-full" onClick={() => { void navigator.clipboard.writeText(resentInvite.link); }}>Copy link</Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <div className="space-y-2">
         {members.map((member) => (
           <div
@@ -387,7 +432,12 @@ export default function MembersPage() {
 
       {invites.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-ink">{t("pendingInvites")}</h3>
+          <h3 className="text-sm font-semibold text-ink">Invitations</h3>
+          {resendInvite.error && (
+            <p className="rounded-md bg-danger-muted px-3 py-2 text-sm text-danger">
+              {errorText(resendInvite.error, "Failed to resend invitation")}
+            </p>
+          )}
           {invites.map((invite) => (
             <div
               key={invite.id}
@@ -407,12 +457,32 @@ export default function MembersPage() {
                       }),
                     })}
                   </p>
+                  <p className="mt-1 text-xs text-ink-faint">
+                    {invite.acceptedAt
+                      ? `Accepted ${format.dateTime(new Date(invite.acceptedAt), { dateStyle: "medium", timeStyle: "short" })}`
+                      : invite.lastDeliveredAt
+                        ? `Provider accepted ${format.dateTime(new Date(invite.lastDeliveredAt), { dateStyle: "medium", timeStyle: "short" })}`
+                        : invite.lastDeliveryAttemptAt
+                          ? `Last attempted ${format.dateTime(new Date(invite.lastDeliveryAttemptAt), { dateStyle: "medium", timeStyle: "short" })}`
+                          : "No delivery attempted"}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <span className="rounded-full bg-surface px-2.5 py-0.5 text-xs font-medium text-ink-muted">
+                  {invite.status === "pending" ? "Pending" : invite.status === "expired" ? "Expired" : "Accepted"}
+                </span>
+                <span className="rounded-full bg-surface px-2.5 py-0.5 text-xs font-medium text-ink-muted">
+                  {invite.deliveryStatus === "sent" ? "Invitation sent" : invite.deliveryStatus === "failed" ? "Delivery failed" : invite.deliveryStatus === "sending" ? "Delivery unconfirmed" : "Not sent"}
+                </span>
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${ROLE_BADGES[invite.role]}`}>
                   {invite.role}
                 </span>
+                {invite.status !== "accepted" && (
+                  <Button variant="outline" size="sm" disabled={resendInvite.isPending} onClick={() => resendInvite.mutate(invite)}>
+                    Resend invitation
+                  </Button>
+                )}
               </div>
             </div>
           ))}

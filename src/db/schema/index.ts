@@ -34,15 +34,23 @@ export const organizationMembers = sqliteTable(
 	(t) => [uniqueIndex("org_members_user_org_idx").on(t.userId, t.organizationId)],
 );
 
-export const orgInvites = sqliteTable("org_invites", {
-	id: text("id").primaryKey(),
-	organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-	email: text("email").notNull(),
-	role: text("role", { enum: ORG_INVITE_ROLES }).notNull().default("member"),
-	token: text("token").notNull().unique(),
-	expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
-	createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-});
+export const orgInvites = sqliteTable(
+	"org_invites",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		email: text("email").notNull(),
+		role: text("role", { enum: ORG_INVITE_ROLES }).notNull().default("member"),
+		token: text("token").notNull().unique(),
+		expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		deliveryStatus: text("delivery_status", { enum: ["not_sent", "sending", "sent", "failed"] }).notNull().default("not_sent"),
+		lastDeliveryAttemptAt: integer("last_delivery_attempt_at", { mode: "timestamp" }),
+		lastDeliveredAt: integer("last_delivered_at", { mode: "timestamp" }),
+		acceptedAt: integer("accepted_at", { mode: "timestamp" }),
+	},
+	(t) => [index("org_invites_org_created_idx").on(t.organizationId, t.createdAt)],
+);
 
 export const users = sqliteTable("users", {
 	id: text("id").primaryKey(),

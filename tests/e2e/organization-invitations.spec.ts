@@ -16,7 +16,7 @@ async function mockAdminSession(page: Page) {
 }
 
 test.describe("identity-bound organization invitations", () => {
-	test("reveals a new link once and does not expose links for listed invitations", async ({ page }) => {
+	test("sends a new invitation, reveals its link once, and presents lifecycle state", async ({ page }) => {
 		await mockAdminSession(page);
 		let postCount = 0;
 		await page.route("**/api/org/members", async (route) => {
@@ -25,7 +25,7 @@ test.describe("identity-bound organization invitations", () => {
 				await route.fulfill({
 					json: {
 						success: true,
-						data: { invite: { id: "inv_new", token: "tok_visible_once" } },
+						data: { invite: { id: "inv_new", token: "tok_visible_once", deliveryStatus: "sent" } },
 					},
 				});
 				return;
@@ -51,6 +51,11 @@ test.describe("identity-bound organization invitations", () => {
 								role: "member",
 								expiresAt: "2026-07-30T12:00:00.000Z",
 								createdAt: "2026-07-23T12:00:00.000Z",
+								status: "expired",
+								deliveryStatus: "failed",
+								lastDeliveryAttemptAt: "2026-07-23T12:01:00.000Z",
+								lastDeliveredAt: null,
+								acceptedAt: null,
 							},
 						],
 					},
@@ -60,11 +65,13 @@ test.describe("identity-bound organization invitations", () => {
 
 		await page.goto("/members");
 		await expect(page.getByText("pending@external.test")).toBeVisible();
+		await expect(page.getByText("Expired", { exact: true })).toBeVisible();
+		await expect(page.getByText("Delivery failed", { exact: true })).toBeVisible();
 		await expect(page.getByRole("button", { name: "Copy link" })).toHaveCount(0);
 
 		await page.getByRole("button", { name: "Invite member" }).click();
 		await page.getByLabel("Email address").fill("teammate@external.test");
-		await page.getByRole("button", { name: "Create invite link" }).click();
+		await page.getByRole("button", { name: "Send invitation" }).click();
 
 		await expect.poll(() => postCount).toBe(1);
 		const dialog = page.getByRole("dialog", { name: "Invite member" });
@@ -72,6 +79,34 @@ test.describe("identity-bound organization invitations", () => {
 			/http:\/\/localhost:\d+\/register\?token=tok_visible_once/,
 		);
 		await expect(dialog.getByRole("button", { name: "Copy" })).toBeVisible();
+		await expect(dialog.getByText("Invitation sent", { exact: true })).toBeVisible();
+	});
+
+	test("resends an eligible invitation and exposes the rotated fallback link once", async ({ page }) => {
+		await mockAdminSession(page);
+		let resendCount = 0;
+		await page.route("**/api/org/members", (route) => route.fulfill({ json: {
+			success: true,
+			data: { members: [], invites: [{
+				id: "inv_expired", email: "expired@example.com", role: "member",
+				expiresAt: "2026-08-01T12:00:00.000Z", createdAt: "2026-07-20T12:00:00.000Z",
+				status: "expired", deliveryStatus: "sent", lastDeliveryAttemptAt: "2026-07-20T12:00:00.000Z",
+				lastDeliveredAt: "2026-07-20T12:00:00.000Z", acceptedAt: null,
+			}] },
+		} }));
+		await page.route("**/api/org/invites/inv_expired/resend", async (route) => {
+			resendCount += 1;
+			await route.fulfill({ json: { success: true, data: { invite: {
+				id: "inv_expired", token: "tok_rotated", deliveryStatus: "sent",
+			} } } });
+		});
+
+		await page.goto("/members");
+		await page.getByRole("button", { name: "Resend invitation" }).click();
+		await expect.poll(() => resendCount).toBe(1);
+		const dialog = page.getByRole("dialog", { name: "Invitation resent" });
+		await expect(dialog.getByRole("textbox")).toHaveValue(/register\?token=tok_rotated/);
+		await expect(dialog.getByText("Invitation sent", { exact: true })).toBeVisible();
 	});
 
 	test("shows the invited email as the fixed account identity", async ({ page }) => {

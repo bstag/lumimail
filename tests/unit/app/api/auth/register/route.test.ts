@@ -214,7 +214,7 @@ describe("POST /api/auth/register — primary domain (non-first-run)", () => {
 });
 
 describe("POST /api/auth/register — invite-driven (non-first-run)", () => {
-	it("uses the invited email, adds membership, consumes the invite, and creates no mailbox", async () => {
+	it("uses the invited email, adds membership, marks the invite accepted, and creates no mailbox", async () => {
 		const invite = {
 			id: "inv_1",
 			organizationId: "org_inv",
@@ -238,7 +238,8 @@ describe("POST /api/auth/register — invite-driven (non-first-run)", () => {
 			(i.values as { email?: string }).email === "teammate@external.test"
 		)).toBe(true);
 		expect(mock.inserts.some((i) => (i.values as { role?: string }).role === "member")).toBe(true);
-		expect(mock.deletes.length).toBeGreaterThan(0);
+		expect(mock.deletes).toHaveLength(0);
+		expect(mock.updates[0].set).toMatchObject({ acceptedAt: expect.any(Date) });
 		expect(mock.db.batch).toHaveBeenCalledTimes(1);
 		expect(m.ensureUserOrg).not.toHaveBeenCalled();
 		expect(m.getPrimaryDomainForOrg).not.toHaveBeenCalled();
@@ -310,7 +311,7 @@ describe("POST /api/auth/register — invite-driven (non-first-run)", () => {
 		expect(mock.db.batch).not.toHaveBeenCalled();
 	});
 
-	it("restores a claimed invite when account creation fails", async () => {
+	it("restores claimability when account creation fails", async () => {
 		const invite = {
 			id: "inv_1",
 			organizationId: "org_inv",
@@ -332,8 +333,6 @@ describe("POST /api/auth/register — invite-driven (non-first-run)", () => {
 		}));
 
 		expect(res.status).toBe(503);
-		expect(mock.inserts.some((operation) =>
-			(operation.values as { token?: string }).token === "hashed-token"
-		)).toBe(true);
+		expect(mock.updates.at(-1)?.set).toEqual({ acceptedAt: null });
 	});
 });

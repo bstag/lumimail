@@ -14,8 +14,9 @@ Last updated: 2026-08-12
 - `/api/org/members` is organization-admin scoped. Individual mailbox-member APIs require effective
   mailbox-manager access and preserve tenant isolation through the mailbox access predicate.
 - `/members` now combines the access matrix, owner-only active sessions, destructive session
-  controls, and owner-only content-free security history. Mailbox grants are still changed one
-  mailbox at a time, and invitation delivery state is not yet presented.
+  controls, owner-only content-free security history, and audited bulk mailbox grants. Invitations
+  still expose only a manually shared one-time link: no email is sent, accepted rows are deleted,
+  and delivery, expiry, and acceptance state are not presented together.
 
 ## 2. Desired behavior
 
@@ -30,10 +31,6 @@ Last updated: 2026-08-12
   visible rather than being silently omitted.
 - Keep existing member and mailbox mutation controls unchanged. This slice adds no grant, revoke,
   invitation, session, or audit mutation.
-
-### Later slices
-
-- Invitation delivery/resend/expiry/acceptance state.
 
 ### Third slice — recent-authentication foundation
 
@@ -112,6 +109,35 @@ Last updated: 2026-08-12
   and no physical database migration is required because the audit action/resource columns are
   unconstrained text in migration `0030`.
 
+### Seventh slice — invitation delivery and lifecycle
+
+- Send every new organization invitation to its identity-bound email through the configured
+  transactional provider while continuing to reveal the plaintext link only in the successful
+  create/resend response as an operator fallback. Persist only the token hash.
+- Use the existing verified transactional sender and selected outbound-provider abstraction. Include
+  both escaped HTML and plain-text bodies, the organization name, invited role, seven-day expiry,
+  and the HTTPS registration link. Provider acceptance means `sent`; it does not claim inbox delivery.
+- Extend `org_invites` with rolling-deploy-safe lifecycle metadata: delivery status
+  (`not_sent`, `sending`, `sent`, or `failed`), last delivery-attempt time, provider-accepted time,
+  and acceptance time. Existing rows backfill to `not_sent`; historical acceptances deleted by the
+  old implementation cannot be reconstructed.
+- Retain a successfully claimed invite as accepted instead of deleting it. Public token lookup and
+  registration must require an unaccepted, unexpired row; the existing conditional claim and
+  compensation behavior remains concurrency-safe.
+- Return at most the 50 newest organization-scoped invitation records with server-derived lifecycle
+  state (`pending`, `expired`, or `accepted`) and delivery metadata, never token hashes. The members
+  page shows explicit status badges, attempt/sent/accepted timestamps, and expiry.
+- Add organization-admin `POST /api/org/invites/[id]/resend`. Resend accepts no caller-selected
+  email, role, organization, token, or expiry; it resolves the organization-scoped stored invite,
+  rejects accepted records, rotates the token, extends expiry seven days, and sends only to the
+  stored identity.
+- Enforce a database-backed 60-second cooldown for every creation refresh or resend attempt. Claim
+  the cooldown and persist the rotated hash before contacting the provider so concurrent attempts
+  cannot send multiple live links and an emailed link is never valid before storage.
+- A provider failure leaves the rotated invitation usable, records only `failed`, returns the new
+  link as a manual fallback, and never persists or returns raw provider errors. A final status-write
+  failure leaves `sending` as an explicit unconfirmed state rather than claiming delivery.
+
 ### Second slice — read-only active sessions
 
 - Add an owner-only organization session inventory containing account identity, issued time, expiry,
@@ -150,6 +176,8 @@ Last updated: 2026-08-12
   bounded independently of caller input.
 - Bulk grants authorize the exact owner session before target reads, validate every target against
   the active organization, and atomically couple all membership inserts to one minimized audit row.
+- Invitation list/resend queries always include the active organization. Resend derives every
+  security-sensitive field from the stored row and rotates the token before external delivery.
 
 ## 4. Edge cases and error states
 
@@ -190,6 +218,14 @@ Last updated: 2026-08-12
   grants; a repeated request creates zero and remains observable.
 - If any statement in the grant/audit batch fails, D1 rolls back the full batch and the API does not
   claim success.
+- An accepted invitation can no longer be looked up or claimed even though its lifecycle row remains
+  visible to organization administrators.
+- Expired and legacy `not_sent` invitations remain visible and can be resent; resend extends expiry
+  from the new attempt rather than the old deadline.
+- A concurrent or too-soon resend receives a bounded rate-limit result and cannot rotate or send a
+  second link. Accepted, unknown, and cross-organization IDs use bounded non-disclosing errors.
+- Provider rejection never burns the invitation: the one-time response supplies the newly rotated
+  link for manual delivery and the list reports `failed` without provider payloads.
 
 ## 5. Test plan
 
@@ -223,6 +259,11 @@ Last updated: 2026-08-12
 - Bulk grants reject invalid and duplicate input before reads, require owner and recent-session proof
   before target reads, validate the complete organization member/mailbox set, preserve existing
   roles, and atomically insert only missing grants with one minimized audit event.
+- Invitation migration parity proves legacy rows become `not_sent`; list reads are tenant-scoped and
+  bounded; create/resend derives stored identity, rotates before sending, enforces the durable
+  cooldown, and records sent, failed, and unconfirmed outcomes without exposing token hashes.
+- Invite registration excludes accepted rows, conditionally marks one row accepted, retains it after
+  successful account creation, and restores claimability when the account batch fails.
 
 ### Browser
 
@@ -242,6 +283,9 @@ Last updated: 2026-08-12
 - Owners preview the member, mailbox addresses, role capabilities, and new-grant count, then enter a
   password before the bulk mutation. Success refreshes access and history; failed confirmation or
   mutation keeps the dialog open. Admins never receive the bulk action.
+- Owners/admins see pending, expired, and accepted invitations plus provider-acceptance state. Create
+  sends automatically while preserving the one-time copy fallback; eligible rows can be resent,
+  successful resend refreshes the list/link, and cooldown or delivery failure is explained safely.
 
 ### Verification
 
@@ -299,12 +343,76 @@ Last updated: 2026-08-12
   authentication even though individual mailbox managers retain their existing one-mailbox controls.
 - Decision 2026-08-12: represent the target member as the audit resource ID and keep role/address
   details out of storage. Current authorized member/mailbox data supplies human labels in the UI.
+- Decision 2026-08-12: use the configured outbound-provider abstraction and existing verified
+  `PASSWORD_RESET_FROM` transactional sender for invitations; do not introduce another provider,
+  API credential, or sender setting in this slice.
+- Decision 2026-08-12: use a 60-second cooldown stored on the invitation itself so it applies across
+  isolates, sessions, owners/admins, and retries without relying on process memory.
+- Decision 2026-08-12: persist provider acceptance as `sent`, not `delivered`, because the synchronous
+  sending API does not prove inbox placement. Preserve `sending` for an indeterminate final write.
+- Decision 2026-08-12: retain accepted invitation rows and exclude them in every public token
+  predicate. This enables lifecycle visibility prospectively without weakening one-time acceptance.
+- Decision 2026-08-12: bound invitation history to the newest 50 rows. Retention policy and manual
+  invite revocation remain outside F83.
 
 ## 7. Open questions
 
-- Which transactional email provider should deliver invitations, and what resend rate limit applies?
+- None for this slice.
 
 ## 8. Bug / change log draft
+
+### 2026-08-12 — Specify invitation delivery and lifecycle visibility
+
+Type: Security feature
+
+Summary:
+
+- Define automatic transactional invitation email, one-time manual link fallback, provider-accurate
+  delivery status, durable resend cooldown, token rotation, and retained expiry/acceptance history.
+
+Reason:
+
+- Identity-bound links are secure but currently require manual delivery and disappear on acceptance,
+  leaving administrators unable to distinguish unsent, failed, expired, or completed invitations.
+
+Impact:
+
+- Specification first. The change adds rolling-deploy-safe lifecycle columns and preserves the
+  existing tenant, identity, token-hashing, expiration, and single-claim boundaries.
+
+### 2026-08-12 — Implement invitation delivery and lifecycle visibility
+
+Type: Security feature
+
+Summary:
+
+- Add automatic transactional invitation delivery through Lumimail's selected outbound provider,
+  with escaped HTML and plain-text bodies plus a one-time manual link fallback.
+- Add migration `0031` for provider-acceptance and lifecycle timestamps, retain accepted rows, and
+  keep public lookup/registration limited to unaccepted, unexpired token hashes.
+- Add tenant-scoped bounded history, status/timestamp presentation, and admin resend with shared
+  durable cooldown, token rotation, expiry extension, and conditional race-safe persistence.
+
+Security:
+
+- Recipient identity, role, and organization always come from validated or organization-scoped
+  storage. Resend accepts only an opaque invite ID and sends no link unless token rotation wins the
+  unaccepted-row condition.
+- Raw provider/storage errors are neither stored nor returned. `sent` means provider acceptance;
+  failed and indeterminate final writes remain explicit, and every successful response retains the
+  newly valid fallback link exactly once.
+
+Verification:
+
+- Tests were written first and failed for the absent migration, lifecycle service, resend route, and
+  retained acceptance behavior.
+- `npm run verify` passes 230 test files and 1,991 tests with 100% statement, branch, function, and
+  line coverage, plus all 21 IMAP bridge tests. Existing lint warnings remain at 36 with zero errors.
+- `npm run e2e` passes all 86 Chromium scenarios, including automatic-send state, failed-delivery
+  visibility, one-time fallback links, resend/token rotation, fixed invited identity, and invite-only
+  registration presentation.
+- Cloudflare Email Sending reports `henriksen.dev` enabled, the production `EMAIL` binding and
+  verified sender already exist, and no new dependency or provider credential was introduced.
 
 ### 2026-08-12 — Specify a read-only access matrix
 
