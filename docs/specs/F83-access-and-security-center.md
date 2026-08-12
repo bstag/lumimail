@@ -442,4 +442,13 @@ Verification:
 - Full `npm run e2e` passes 81 Chromium scenarios. New scenarios prove password-before-mutation,
   failed-password dialog persistence, inventory refresh, and exact current-session preservation.
 - A migrated local D1 copy applied `0030` successfully and the second pass reported no pending
-  migrations. Deployment and production authorization evidence follow after publication.
+  migrations.
+- Commit `437b70b` deployed as Worker version `0a5a08a8-e846-47a1-a697-9d16751a74dc`; remote D1
+  applied `0030`, and the production build includes both session-revocation routes.
+- A schema-only remote D1 query confirms the exact ten content-free audit columns with zero rows
+  written. A second remote migration pass reports no pending migrations.
+- Public smoke passes 6/6. Anonymous requests to a normal session-ID-shaped target and to
+  `/api/admin/sessions/revoke-others` both return the bounded JSON `401` envelope.
+- The remote doctor passes 25 checks with zero failures and the documented live-Cron-inventory
+  warning. Authenticated destructive production execution remains covered by the production-shaped
+  browser/service suites; no production password was requested and no live session was revoked.
