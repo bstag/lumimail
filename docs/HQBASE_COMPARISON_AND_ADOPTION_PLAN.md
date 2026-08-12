@@ -290,6 +290,12 @@ smoke invocation also passed 6/6. The drill did not alter production traffic or 
 
 Output: completed recovery-gate evidence and a repeatable operator runbook.
 
+Progress 2026-08-12: the guarded cleanup implementation and six focused contracts pass. The
+recovery-only Worker has been removed and production still passes 6/6 smoke checks. D1 and R2 are
+intentionally retained because the private backup directory is not currently accessible; the
+runner refuses their deletion until it can re-verify that archive. The exact D1 remains present and
+the exact R2 bucket retains all 15 restored objects.
+
 ### What can be automated versus operator-proven
 
 | Evidence | Automated locally/CI | Requires disposable Cloudflare resources | Requires production read |

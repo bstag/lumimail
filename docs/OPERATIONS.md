@@ -139,6 +139,18 @@ wrangler rollback <version-id>
 
 Version history is retained, so any recent deployment can be restored.
 
+For the production-shaped remote rehearsal, use the guarded command rather than an inferred
+rollback target:
+
+```bash
+node scripts/recovery-rollback.mjs <current-version-uuid> <previous-version-uuid>
+```
+
+It requires the exact isolated recovery config, switches the previous version to 100%, runs all six
+public smoke checks, and restores the intended version in a mandatory return path. Exercised
+2026-08-12: previous and intended versions each passed 6/6, followed by an independent provider
+read showing the intended version alone at 100% and another independent 6/6 smoke run.
+
 ### Database — read this before rolling back
 
 **Migrations are forward-only. Rolling back the Worker does not roll back D1.** A
@@ -204,11 +216,34 @@ Inbound mail transits Cloudflare Email Routing before reaching the Worker.
 Domain, zone, routing-rule, and destination-address configuration is read and written
 using `CF_TOKEN`. No message content is sent to the configuration API.
 
-### Remaining gap
+## Remote recovery rehearsal
 
-Backup and restore are exercised locally for D1 and R2: all 15 objects from the
-production-derived fixture were checksum-verified and written into the local R2
-binding, while the restored D1 copy passed foreign-key and orphan checks. A full
-restore has never been performed against **remote** spare resources. Exercising D1
-Time Travel, remote bucket writes, binding cutover, and rollback requires a spare
-database and bucket and remains an operator check.
+The complete production-shaped path is implemented by the `recovery-*` scripts. Keep its output
+directory private and outside the repository:
+
+```bash
+node scripts/recovery-capture.mjs <new-private-output-directory>
+node scripts/recovery-restore.mjs <private-output-directory>
+node scripts/recovery-app-verify.mjs <private-output-directory>
+node scripts/recovery-rollback.mjs <current-version-uuid> <previous-version-uuid>
+node scripts/recovery-cleanup.mjs <private-output-directory> <current-version-uuid>
+```
+
+Capture is read-only and publishes only after its canonical `lumimail-recovery-v1` directory passes
+offline verification. Restore requires exact empty/schema-only remote targets and refuses routed or
+production-overlapping resources. Application verification uses a random, fixed-ID, recovery-only
+viewer and removes it afterward. Cleanup re-verifies the private archive and every remote identity
+before deleting the Worker, exact manifest keys, empty bucket, and D1; it compares production
+resource/routing fingerprints before and after.
+
+Exercised 2026-08-12: a production capture restored into a spare remote D1 and R2 with all 29
+application-table counts equal, 29 matching migrations, zero foreign-key violations, and 15/15
+exact-byte object hashes. Public smoke passed 6/6. Authenticated allowed message/body/attachment
+reads passed, unrelated-mailbox list/direct reads were denied, and browser inspection covered rich
+HTML plus attachment controls. Worker rollback and return each passed 6/6.
+
+Cleanup is partially complete: the recovery-only Worker is deleted and production remains 6/6.
+The restored D1 and 15-object R2 bucket remain because the private capture path is not currently
+available for mandatory re-verification. Supply that directory to the guarded cleanup command; do
+not manually delete these remaining copies. Choose and document encrypted-at-rest retention and
+eventual destruction for the private archive before marking F79 complete.

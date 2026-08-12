@@ -326,9 +326,19 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
     production HTML issue is proven. Together with the server-derived plain-text
     contract and the prior production reply/draft/attachment/delivery-state
     evidence, the formatted outbound gate is complete.
-  - Remaining for R-18 overall: exercise Time Travel, R2 writes, binding cutover,
-    and rollback against spare remote resources; and record the production-shape
-    latency/Queue throughput inherited from R-17.
+  - Remote recovery evidence 2026-08-12: a versioned production capture restored into exact spare
+    remote D1/R2 resources. All 29 application-table counts and 29 migrations matched, foreign keys
+    were clean, and all 15 objects matched exact-byte SHA-256. Public smoke, authenticated allowed
+    message/body/attachment reads, rich-HTML browser rendering, and unrelated-mailbox denial passed.
+    A previous Worker version and the intended return version each passed 6/6 smoke, followed by an
+    independent 100%-intended-version provider read and another 6/6 run.
+  - Cleanup evidence 2026-08-12: exact fail-closed cleanup automation passes six focused contracts.
+    The recovery-only Worker was deleted and production remains 6/6. The remote D1/R2 copy is
+    intentionally retained because the private capture directory is not currently accessible for
+    mandatory re-verification; archive encryption/retention policy remains an operator decision.
+  - Remaining for R-18 overall: supply the private capture path, run guarded D1/R2 cleanup, choose
+    archive encryption/retention policy, and record production-shape latency/Queue throughput
+    inherited from R-17.
 
 ## Verification log
 

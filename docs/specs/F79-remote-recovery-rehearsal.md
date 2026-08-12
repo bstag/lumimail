@@ -594,3 +594,26 @@ Type: Operational evidence
   `34571aef-6642-4ea5-bc42-85eebb730e16` at 100% traffic, followed by an independent 6/6 smoke run.
 - `npm run verify` passes after the rollback implementation; ESLint retains the existing warnings
   and reports zero errors.
+
+### 2026-08-12 — Add guarded cleanup and remove public recovery access
+
+Type: Feature / Partial operational evidence
+
+- Add an exact-target cleanup runner whose preflight re-verifies the private recovery directory,
+  intended Worker version, smoke result, R2 object count, D1 identity, routing isolation, and a
+  content-free production fingerprint before the first deletion.
+- Six focused tests prove exact exposure-first deletion order, wrong-target and failed-smoke
+  refusal, stop-before-D1 behavior when the bucket cannot be emptied, final absence checks, and
+  production-fingerprint drift detection. `npm run verify` passes with zero lint errors.
+- Read-only inventory showed the staging D1 and R2 were created for this rehearsal on 2026-08-12
+  and no standing `lumimail-staging` Worker exists. The resource names nevertheless remain declared
+  in the repository's future staging environment, so the cleanup evidence names exact UUIDs rather
+  than relying on the `staging` label.
+- The private capture directory could not be located on any mounted drive. The cleanup runner
+  therefore refused to delete D1/R2 rather than reducing the number of recoverable copies without
+  first re-verifying the local archive.
+- The independently isolated `lumimail-recovery-20260812` Worker was deleted to remove public
+  access. Provider status now returns Worker-not-found, while production smoke remains 6/6.
+- The exact recovery D1 remains present and the exact recovery R2 bucket still contains 15 objects.
+  Their removal and production before/after fingerprint comparison remain pending the private
+  backup path. No local backup deletion was attempted.
