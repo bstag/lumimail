@@ -444,6 +444,9 @@ persisted queue snapshots, and sanitized R2-retention counts on `/operations`. P
 visible without exposing caught errors or R2 object-key samples. The endpoint has no mutation path;
 five service/API contracts, six focused browser scenarios, and the full 74-scenario mocked browser
 suite pass. Binding/provider, recovery, release, smoke/mail-flow, and cron evidence remain later slices.
+The slice was then deployed as Worker version `a6af68c4-e135-4bb3-9c96-a7a12af2b703`: production smoke
+passed 6/6, the owner API refused anonymous access, and the remote doctor passed 25 checks with only
+the already documented inability to read live Cron inventory through Wrangler.
 
 Access and security center:
 

@@ -1,6 +1,6 @@
 # F82 — Read-only Operations Center
 
-> Status: In Progress — first sanitized overview slice implemented and locally verified
+> Status: In Progress — first sanitized overview slice deployed and verified
 > Owner area: `src/lib/operations.ts`, `src/app/api/admin/operations/`, `src/app/(admin)/operations/`
 
 ## 1. Problem & User Job
@@ -130,4 +130,8 @@ Notes:
 
 - Current F81 schema compatibility is exact (`0028`), so this slice presents its maximum as the
   current schema. If compatibility widens, F82 must read the installed D1 migration head instead.
-- Production deployment/runtime evidence is not claimed by local browser tests.
+- Deployed as Worker version `a6af68c4-e135-4bb3-9c96-a7a12af2b703` on 2026-08-12 with no pending
+  migrations. The production build included `/operations` and `/api/admin/operations`; public smoke
+  passed 6/6, the new API refused an anonymous caller with `401`, and the remote doctor passed 25
+  checks with the one documented live-Cron-inventory warning. Authenticated owner rendering remains
+  covered by the production-shaped browser suite rather than a production-session automation.
