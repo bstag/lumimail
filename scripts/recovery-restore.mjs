@@ -30,6 +30,48 @@ function routingZones(output) {
 	);
 }
 
+function populatedUserTableCount(target, runWrangler) {
+	const tableResult = parseJson(
+		"Recovery D1 table inventory",
+		runWrangler([
+			"d1",
+			"execute",
+			target.d1.binding,
+			"--config",
+			target.configPath,
+			"--remote",
+			"--command",
+			"SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name != 'd1_migrations' ORDER BY name;",
+			"--json",
+		]),
+	);
+	const tables = tableResult?.[0]?.results;
+	if (!Array.isArray(tables)) return Number.NaN;
+	let populated = 0;
+	for (const row of tables) {
+		if (typeof row?.name !== "string") return Number.NaN;
+		const escapedName = row.name.replaceAll('"', '""');
+		const rowResult = parseJson(
+			"Recovery D1 row inventory",
+			runWrangler([
+				"d1",
+				"execute",
+				target.d1.binding,
+				"--config",
+				target.configPath,
+				"--remote",
+				"--command",
+				`SELECT EXISTS(SELECT 1 FROM "${escapedName}" LIMIT 1) AS hasRows;`,
+				"--json",
+			]),
+		);
+		const hasRows = rowResult?.[0]?.results?.[0]?.hasRows;
+		if (hasRows !== 0 && hasRows !== 1) return Number.NaN;
+		if (hasRows === 1) populated += 1;
+	}
+	return populated;
+}
+
 function splitSqlStatements(sql) {
 	const statements = [];
 	let start = 0;
@@ -59,12 +101,60 @@ function splitSqlStatements(sql) {
 }
 
 export function createDataOnlyImport(dumpSql) {
-	const inserts = splitSqlStatements(dumpSql).filter(
+	const statements = splitSqlStatements(dumpSql);
+	const dependencies = new Map();
+	for (const statement of statements) {
+		const table = /^CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+[`"]?([\w]+)/i.exec(
+			statement,
+		)?.[1];
+		if (!table) continue;
+		dependencies.set(
+			table,
+			[
+				...new Set(
+					[...statement.matchAll(/REFERENCES\s+[`"]?([\w]+)/gi)].map(
+						(match) => match[1],
+					),
+				),
+			].filter((dependency) => dependency !== table),
+		);
+	}
+	const inserts = statements.filter(
 		(statement) =>
 			/^INSERT\s+INTO\b/i.test(statement) &&
 			!/^INSERT\s+INTO\s+[`"]?d1_migrations[`"]?\b/i.test(statement),
 	);
-	return `PRAGMA defer_foreign_keys=TRUE;\n${inserts.map((statement) => `${statement};\n`).join("")}`;
+	const grouped = new Map();
+	for (const statement of inserts) {
+		const table = /^INSERT\s+INTO\s+[`"]?([\w]+)/i.exec(statement)?.[1];
+		if (!table || !dependencies.has(table)) {
+			throw new Error("D1 export contains data for a table without schema");
+		}
+		const rows = grouped.get(table) ?? [];
+		rows.push(statement);
+		grouped.set(table, rows);
+	}
+
+	const orderedTables = [];
+	const visited = new Set();
+	const visiting = new Set();
+	function visit(table) {
+		if (visited.has(table)) return;
+		if (visiting.has(table)) {
+			throw new Error("D1 export contains a cross-table foreign-key cycle");
+		}
+		visiting.add(table);
+		for (const dependency of dependencies.get(table) ?? []) {
+			if (grouped.has(dependency)) visit(dependency);
+		}
+		visiting.delete(table);
+		visited.add(table);
+		if (grouped.has(table)) orderedTables.push(table);
+	}
+	for (const table of grouped.keys()) visit(table);
+
+	const orderedInserts = orderedTables.flatMap((table) => grouped.get(table));
+	return `PRAGMA defer_foreign_keys=TRUE;\n${orderedInserts.map((statement) => `${statement};\n`).join("")}`;
 }
 
 export function restoreRecovery({ backupDirectory, target, runWrangler }) {
@@ -82,21 +172,7 @@ export function restoreRecovery({ backupDirectory, target, runWrangler }) {
 		readFileSync(join(directory, manifest.database.path), "utf8"),
 	);
 
-	const d1Result = parseJson(
-		"Recovery D1 inventory",
-		runWrangler([
-			"d1",
-			"execute",
-			target.d1.binding,
-			"--config",
-			target.configPath,
-			"--remote",
-			"--command",
-			"SELECT count(*) AS userTableCount FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%';",
-			"--json",
-		]),
-	);
-	const userTableCount = d1Result?.[0]?.results?.[0]?.userTableCount;
+	const userTableCount = populatedUserTableCount(target, runWrangler);
 	const r2Result = parseJson(
 		"Recovery R2 inventory",
 		runWrangler([

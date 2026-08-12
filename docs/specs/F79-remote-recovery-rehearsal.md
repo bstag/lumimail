@@ -1,8 +1,8 @@
 # F79 — Remote Recovery Rehearsal
 
-> Status: In Progress — Layers 1.1–1.2 complete; Layer 1.3 next
+> Status: In Progress — Layers 1.1–1.3 capture complete; Layer 1.4 restore active
 > Owner area: `scripts/recovery-target-guard.mjs`, `scripts/r2-backup.mjs`,
-> `scripts/restore-local.mjs`, `docs/OPERATIONS.md`
+> `scripts/recovery-capture.mjs`, `scripts/recovery-restore.mjs`, `docs/OPERATIONS.md`
 
 ## 1. Problem & User Job
 
@@ -70,7 +70,7 @@ Names, naming conventions, environment labels, or operator intent are not suffic
 
 - Provision or resolve the explicit same-account staging identities `lumimail-staging` Worker,
   `lumimail-staging` D1, and `lumimail-raw-staging` R2 bucket.
-- Read target D1 user-table count and R2 `object_count`, and list Email Routing rules for every
+- Read target D1 populated-application-table count and R2 `object_count`, and list Email Routing rules for every
   enabled zone. Feed the resolved inventory through `assertSafeRecoveryTarget` immediately before
   the first restore write.
 - Import the already verified `d1.sql`, restore the 15 manifest-declared objects to the exact target
@@ -99,7 +99,7 @@ The guard consumes an ephemeral content-free inventory:
 | `workerName` | Explicit non-placeholder Worker service name | Production overlap and routing checks |
 | `d1.id` | Cloudflare UUID | D1 names are not accepted as identity |
 | `d1.name` | Display/diagnostic name | Human-readable evidence only |
-| `d1.userTableCount` | Non-negative integer | Target must contain no user tables |
+| `d1.userTableCount` | Non-negative integer | Target must contain no populated application tables; schema-only retries are allowed |
 | `r2.bucketName` | Explicit non-placeholder bucket name | R2 bucket identity within account |
 | `r2.objectCount` | Non-negative integer | Target must be empty |
 | `queueNames` | Explicit unique Queue names | Production overlap check |
@@ -226,7 +226,11 @@ guard, and then performs only these writes in order: apply the manifest-matched 
 derive and import data-only SQL from the verified full export, exact staging R2 object puts, and
 staging Worker deployment. `d1_migrations` rows are not copied because the migration command owns
 them. The SQL derivation is quote-aware, so delimiters inside stored message text remain data. A
-command cannot infer `--remote` from an environment name; every D1 and R2 operation names the
+foreign-key dependency graph derived from the verified schema orders parent-table inserts before
+child-table inserts because remote D1 imports do not preserve deferred constraints across provider
+batches. Before a retry, every application table is checked for rows; migration-created schema is
+allowed, but any populated table fails closed. A command cannot infer `--remote` from an environment
+name; every D1 and R2 operation names the
 recovery configuration/resource explicitly.
 
 ## 6. UI/UX
@@ -241,6 +245,8 @@ Recovery mutation remains outside ordinary authenticated web sessions.
 | Unit | `tests/unit/scripts/recovery-target-guard.test.ts` | Safe target, missing/malformed/placeholders, production overlap, wrong account, non-empty D1/R2, active Email Routing, duplicate Queues, aggregate stable errors, immutability |
 | Unit | `tests/unit/scripts/recovery-manifest.test.ts` | Strict v1 parsing, normalization, canonical bytes, version/product rejection, duplicate/path traversal rejection, D1/R2 missing/size/checksum integrity, immutable errors |
 | Unit | `tests/unit/scripts/recovery-capture.test.ts` | Read-only command sequence, atomic publication, dirty/existing/split-traffic/binding-drift refusal, partial cleanup |
+| Unit | `tests/unit/scripts/recovery-restore.test.ts` | Offline verification, empty/schema-only target checks, malformed inventory, routing refusal, quote-aware extraction, foreign-key ordering, exact D1/R2 writes |
+| Unit | `tests/unit/wrangler-recovery-bindings.test.ts` | Recovery Worker has exact isolated D1/R2 bindings and no route, Queue, Cron, Email Sending, or service bindings |
 | Existing regression | `tests/unit/scripts/r2-backup.test.ts` | Exact referenced-key extraction and missing/corrupt object detection |
 | Full | repository commands | `npm run verify`; no E2E because Layer 1.1 has no site behavior |
 
@@ -304,7 +310,8 @@ Coverage target: all statements and branches in the new guard module.
 - Decision: D1 UUID is required; a D1 name alone is not identity. — 2026-08-12
 - Decision: R2 has no separate bucket UUID in the current binding/config model, so account plus exact
   bucket name is its identity. — 2026-08-12
-- Decision: target D1 emptiness is based on user-table count, allowing provisioning/migration metadata.
+- Decision: target D1 emptiness is based on populated application-table count, allowing
+  provisioning/migration schema and metadata while rejecting any table containing rows.
   — 2026-08-12
 - Decision: Layer 1.1 validates retrieved inventory but performs no network or Wrangler work.
   Inventory resolution is the next work packet. — 2026-08-12
@@ -438,3 +445,8 @@ Type: Feature / Recovery capture
   Content-free inspection proved the full D1 export creates foreign-key tables before referenced
   tables under alphabetical export ordering. Target inventory afterward remained zero tables/zero
   objects. The restore contract now applies schema migrations first and imports derived data only.
+- The second data-only import failed atomically before R2 writes with a foreign-key constraint.
+  Production `PRAGMA foreign_key_check` returned zero violations, and the target retained only the
+  applied schema with no application rows or R2 objects. The derived import now orders tables from
+  referenced parents to children and the retry guard accepts schema-only targets only after checking
+  every application table for rows.

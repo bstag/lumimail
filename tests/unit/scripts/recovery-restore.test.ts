@@ -81,11 +81,36 @@ const target = {
 	r2: { bucketName: "lumimail-raw-staging" },
 };
 
-function runner(options?: { userTables?: number; objects?: number; routeOutput?: string }) {
+function runner(options?: {
+	malformedInventory?: boolean;
+	objects?: number;
+	populatedTables?: number;
+	routeOutput?: string;
+	schemaTables?: number;
+}) {
 	return vi.fn((args: string[]) => {
 		if (args[0] === "d1" && args[1] === "execute" && args.includes("--command")) {
+			const command = args[args.indexOf("--command") + 1];
+			if (command.startsWith("SELECT name FROM")) {
+				return JSON.stringify([
+					{
+						results: Array.from(
+							{ length: options?.schemaTables ?? options?.populatedTables ?? 0 },
+							(_, index) => ({ name: `table_${index}` }),
+						),
+						success: true,
+					},
+				]);
+			}
 			return JSON.stringify([
-				{ results: [{ userTableCount: options?.userTables ?? 0 }], success: true },
+				{
+					results: [
+						options?.malformedInventory
+							? {}
+							: { hasRows: options?.populatedTables ? 1 : 0 },
+					],
+					success: true,
+				},
 			]);
 		}
 		if (args[0] === "r2" && args[1] === "bucket") {
@@ -125,6 +150,21 @@ INSERT INTO users VALUES('escaped ''quote; value');
 		);
 	});
 
+	it("orders parent rows before children using exported foreign keys", () => {
+		const dump = `
+CREATE TABLE child (id text, parent_id text REFERENCES parent(id));
+INSERT INTO child VALUES('c1', 'p1');
+CREATE TABLE parent (id text);
+INSERT INTO parent VALUES('p1');
+`;
+
+		expect(createDataOnlyImport(dump)).toBe(
+			"PRAGMA defer_foreign_keys=TRUE;\n" +
+				"INSERT INTO parent VALUES('p1');\n" +
+				"INSERT INTO child VALUES('c1', 'p1');\n",
+		);
+	});
+
 	it("guards fresh remote resources and restores only the declared D1/R2 data", () => {
 		const runWrangler = runner();
 		const result = restoreRecovery({
@@ -147,6 +187,18 @@ INSERT INTO users VALUES('escaped ''quote; value');
 		expect(commands.join(" ")).not.toMatch(/\b(?:delete|deploy|routing rules create)\b/);
 	});
 
+	it("allows a schema-only target when every application table is empty", () => {
+		const runWrangler = runner({ schemaTables: 30 });
+		expect(
+			restoreRecovery({ backupDirectory: backupDirectory(), target, runWrangler }),
+		).toEqual({ restoredDatabase: 1, restoredObjects: 1 });
+		expect(
+			runWrangler.mock.calls.filter(
+				([args]) => args.includes("--command") && args.join(" ").includes("hasRows"),
+			),
+		).toHaveLength(30);
+	});
+
 	it("rejects corrupt local evidence before provider access", () => {
 		const runWrangler = runner();
 		expect(() =>
@@ -160,7 +212,15 @@ INSERT INTO users VALUES('escaped ''quote; value');
 	});
 
 	it("rejects populated target stores before writes", () => {
-		const runWrangler = runner({ userTables: 1, objects: 2 });
+		const runWrangler = runner({ populatedTables: 1, objects: 2 });
+		expect(() =>
+			restoreRecovery({ backupDirectory: backupDirectory(), target, runWrangler }),
+		).toThrow("Recovery target is unsafe");
+		expect(runWrangler.mock.calls.some(([args]) => args.includes("--file"))).toBe(false);
+	});
+
+	it("fails closed when the provider returns malformed row inventory", () => {
+		const runWrangler = runner({ malformedInventory: true, schemaTables: 1 });
 		expect(() =>
 			restoreRecovery({ backupDirectory: backupDirectory(), target, runWrangler }),
 		).toThrow("Recovery target is unsafe");

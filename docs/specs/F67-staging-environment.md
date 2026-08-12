@@ -158,7 +158,8 @@ Steps marked **operator** need a purchase or a credential and cannot be automate
    wrangler queues create lumimail-outbound-dlq-staging
    ```
 
-5. The repository now records the resolved staging D1 UUID in `wrangler.jsonc`; set
+5. The local operational `wrangler.jsonc` records the resolved staging D1 UUID; the committed
+   example intentionally retains a placeholder. Set
    `PASSWORD_RESET_FROM` only when a dedicated staging sending domain is introduced.
 6. **Operator:** `wrangler secret put CF_TOKEN --env staging` with the token from step 3.
 7. Apply migrations and deploy:
