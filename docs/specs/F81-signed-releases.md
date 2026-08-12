@@ -1,6 +1,6 @@
 # F81 — Signed Releases and Deliberate Promotion
 
-> Status: In Progress — offline release preparation complete; protected signing/publication CI next
+> Status: In Progress — offline preparation and detached signing complete; protected publication CI next
 > Owner area: `scripts/release-manifest.mjs`, `.github/workflows/`, `docs/OPERATIONS.md`
 
 ## 1. Problem & User Job
@@ -86,6 +86,16 @@ wrong-product, or schema-incompatible artifact before any upload or promotion.
 - This command produces an unsigned two-file bundle only. It neither signs, uploads, deploys, nor
   promotes traffic.
 
+**Layer 2.7 offline detached signing command:**
+
+- Accept exactly an unsigned bundle directory, a bounded key ID, and a previously absent detached-
+  signature output path. Read the private key only from standard input, never argv or environment.
+- Reparse the canonical manifest, re-read and verify its artifact, sign the canonical bytes with
+  Ed25519, and self-verify using the public key derived in memory before atomic signature output.
+- Refuse an invalid key, noncanonical/invalid bundle, artifact substitution, existing output, or
+  output inside the unsigned bundle. Emit no key material, manifest, notes, or caught error text.
+- Signing remains offline: no publication, provider credential, upload, deploy, or promotion path.
+
 **Out of scope:**
 
 - Storing signing private keys in source, artifacts, app bindings, D1, or ordinary application
@@ -127,6 +137,7 @@ accepted as a command-line argument because process lists and shell history may 
 | Unit | `tests/unit/scripts/release-prepare.test.ts` | exact two-file unsigned bundle, byte-derived canonical manifest, atomic directory publication, existing-output preservation, invalid metadata/source cleanup |
 | Unit | `tests/unit/scripts/release-metadata.test.ts` | clean/full commit, deterministic epoch, exact installed tool versions, contiguous migration head, strict schema policy/range, bounded notes, caller immutability |
 | Unit | `tests/unit/scripts/release-command.test.ts` | exact CLI arguments, checkout-derived inputs, notes privacy, stable success/error reporting, no signing/upload/promotion |
+| Unit | `tests/unit/scripts/release-sign.test.ts` | stdin-only Ed25519 key handling, canonical detached envelope, self-verification, atomic refusal/cleanup, content-free output |
 | CI | workflow validation | clean install, verify, deterministic archive, manifest/signature creation, verification before publication |
 | Operator | disposable Cloudflare release rehearsal | verified upload without traffic, smoke, upgrade rehearsal, recovery evidence, deliberate promotion/return |
 | Full | repository commands | `npm run verify`; no E2E for the manifest core |
@@ -371,3 +382,33 @@ Notes:
 
 - Protected signing/publication CI remains blocked on the signer authority and immutable artifact-
   storage decisions; those choices are not silently encoded here.
+
+### 2026-08-12 — Add stdin-only detached release signing
+
+Type: Feature
+
+Summary:
+
+- Add an offline `release:sign` command that reads an Ed25519 private key only from standard input,
+  signs canonical manifest bytes, self-verifies the exact artifact, and atomically writes a detached
+  signature outside the unsigned bundle.
+- Refuse noncanonical bundles, substituted artifacts, invalid keys/key IDs, existing outputs, and
+  output paths inside the immutable unsigned bundle with content-free failure reporting.
+
+Reason:
+
+- Close and test the signing mechanics without selecting, storing, or exercising a production key.
+
+Impact:
+
+- Offline detached-signature output only; no secret persistence, publication, provider, or traffic
+  mutation behavior.
+
+Tests:
+
+- Four focused signing contracts and eighteen manifest/signature contracts pass together.
+
+Notes:
+
+- Production still needs an explicit signer authority/key rotation policy and immutable publication
+  store before a protected workflow can call this command.

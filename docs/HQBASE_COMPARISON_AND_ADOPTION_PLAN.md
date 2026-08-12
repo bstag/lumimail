@@ -394,6 +394,11 @@ arguments, a HEAD-derived deterministic epoch, atomic unsigned publication, and 
 Five command contracts prove that operators cannot override provenance or leak private notes through
 caught errors. The command has no signing, provider upload, deployment, migration, or promotion path.
 
+Layer 2.7 adds offline detached Ed25519 signing with private-key input restricted to standard input,
+canonical bundle and artifact re-verification, in-memory self-verification, atomic output, and stable
+content-free errors. Four signing contracts pass; no production signer, key storage, publication
+channel, provider credential, upload, deployment, or promotion behavior is selected by this layer.
+
 Deliverables:
 
 - Add a non-mutating `doctor` command that checks runtime version, bindings, D1 migrations, R2 access,

@@ -19,6 +19,7 @@
     "smoke": "node scripts/smoke.mjs",
     "doctor": "node scripts/doctor.mjs",
     "release:prepare": "node scripts/release-command.mjs",
+    "release:sign": "node scripts/release-sign.mjs",
     "verify": "npm run typecheck && npm run lint && npm run test:cov && npm --prefix imap-bridge test",
     "deploy": "npm run db:migrate:remote && opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
