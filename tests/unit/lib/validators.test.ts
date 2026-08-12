@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	addDomainSchema,
+	bulkMailboxGrantSchema,
 	createAliasSchema,
 	firstRunRegisterSchema,
 	loginSchema,
@@ -12,6 +13,19 @@ import {
 	updateAliasGroupSchema,
 	webhookSchema,
 } from "@/lib/validators";
+
+describe("bulkMailboxGrantSchema", () => {
+	it("accepts 1–25 unique mailbox IDs and a mailbox role", () => {
+		const valid = { targetUserId: "usr_1", mailboxIds: ["mbx_1", "mbx_2"], role: "manager" };
+		expect(bulkMailboxGrantSchema.safeParse(valid).success).toBe(true);
+		expect(bulkMailboxGrantSchema.safeParse({ ...valid, mailboxIds: [] }).success).toBe(false);
+		expect(bulkMailboxGrantSchema.safeParse({ ...valid, mailboxIds: ["mbx_1", "mbx_1"] }).success).toBe(false);
+		expect(bulkMailboxGrantSchema.safeParse({
+			...valid, mailboxIds: Array.from({ length: 26 }, (_, index) => `mbx_${index}`),
+		}).success).toBe(false);
+		expect(bulkMailboxGrantSchema.safeParse({ ...valid, role: "owner" }).success).toBe(false);
+	});
+});
 
 describe("createAliasSchema", () => {
 	it("normalizes a mailbox alias and rejects external/provider fields", () => {

@@ -25,4 +25,26 @@ describe("0030 security-audit migration", () => {
 			db.close();
 		}
 	});
+
+	it("keeps audit action and resource values extensible without a follow-up migration", () => {
+		const db = new DatabaseSync(":memory:");
+		try {
+			db.exec("PRAGMA foreign_keys = ON; CREATE TABLE organizations (id text PRIMARY KEY NOT NULL); INSERT INTO organizations VALUES ('org_1');");
+			db.exec(migration);
+			db.prepare(`
+				INSERT INTO security_audit_events (
+					id, organization_id, actor_user_id, action, resource_type, resource_id,
+					affected_count, request_id, outcome, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`).run(
+				"aud_1", "org_1", "usr_owner", "mailbox.grant_bulk", "mailbox_membership",
+				"usr_member", 2, "req_1", "succeeded", 1,
+			);
+			const event = db.prepare("SELECT action, resource_type FROM security_audit_events WHERE id = ?")
+				.get("aud_1");
+			expect(event).toEqual({ action: "mailbox.grant_bulk", resource_type: "mailbox_membership" });
+		} finally {
+			db.close();
+		}
+	});
 });

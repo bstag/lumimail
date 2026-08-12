@@ -14,8 +14,8 @@ type SecurityAuditHistoryRow = {
 	id: string;
 	organizationId: string;
 	actorUserId: string;
-	action: "session.revoke" | "session.revoke_others";
-	resourceType: "session";
+	action: "session.revoke" | "session.revoke_others" | "mailbox.grant_bulk";
+	resourceType: "session" | "mailbox_membership";
 	resourceId: string | null;
 	affectedCount: number;
 	requestId: string;

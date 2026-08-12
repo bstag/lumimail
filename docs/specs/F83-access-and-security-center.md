@@ -13,8 +13,9 @@ Last updated: 2026-08-12
   `manager`) are stored and enforced separately, but no single screen explains both layers.
 - `/api/org/members` is organization-admin scoped. Individual mailbox-member APIs require effective
   mailbox-manager access and preserve tenant isolation through the mailbox access predicate.
-- Sessions, invitation delivery state, and content-free audit history are not yet combined into an
-  owner-facing security surface.
+- `/members` now combines the access matrix, owner-only active sessions, destructive session
+  controls, and owner-only content-free security history. Mailbox grants are still changed one
+  mailbox at a time, and invitation delivery state is not yet presented.
 
 ## 2. Desired behavior
 
@@ -32,10 +33,7 @@ Last updated: 2026-08-12
 
 ### Later slices
 
-- Bulk mailbox grants with confirmation and content-free audit events.
 - Invitation delivery/resend/expiry/acceptance state.
-- Revoke-one/revoke-others session controls.
-- Content-free audit history with actor, action, resource, outcome, request ID, and timestamp.
 
 ### Third slice — recent-authentication foundation
 
@@ -90,6 +88,30 @@ Last updated: 2026-08-12
 - This slice is read-only. It does not add retention, export, filtering, denied-attempt logging, or
   a new migration.
 
+### Sixth slice — audited bulk mailbox grants
+
+- Add owner-only `POST /api/admin/mailbox-grants` and a Manage access action for each member in the
+  `/members` access matrix.
+- Accept one current organization member, one mailbox role, and between one and 25 unique mailbox
+  IDs. Apply that role only to selected organization mailboxes where the member has no existing
+  grant; never overwrite, demote, or remove an existing grant.
+- Require the exact requesting session to be recently authenticated before reading the target member,
+  mailboxes, or existing grants. The UI reconfirms the owner's password before submitting the grant.
+- Show a confirmation dialog with target member, selected mailbox addresses, role, capability
+  summary, and the number of new grants before any mutation.
+- Validate the complete member/mailbox set in the active organization. One missing, duplicate,
+  malformed, or cross-tenant target rejects the entire request without revealing which ID failed.
+- Commit every missing membership and one `mailbox.grant_bulk` audit event in one D1 batch. The event
+  uses the target user ID as its opaque resource ID and records the number of newly created grants.
+- Treat already-present grants as idempotent no-ops. A request with zero missing grants still records
+  the owner's confirmed action with affected count zero. A concurrent uniqueness conflict fails the
+  whole batch and never reports partial success.
+- Refresh the access matrix and security history after success. Existing per-mailbox grant, role
+  change, and removal controls remain unchanged.
+- This slice adds no audit payload, email address, password, token, mailbox address, or message data,
+  and no physical database migration is required because the audit action/resource columns are
+  unconstrained text in migration `0030`.
+
 ### Second slice — read-only active sessions
 
 - Add an owner-only organization session inventory containing account identity, issued time, expiry,
@@ -126,6 +148,8 @@ Last updated: 2026-08-12
   deletion and the API returns a bounded failure.
 - Security history is owner-only, organization-scoped in SQL, content-free at the API boundary, and
   bounded independently of caller input.
+- Bulk grants authorize the exact owner session before target reads, validate every target against
+  the active organization, and atomically couple all membership inserts to one minimized audit row.
 
 ## 4. Edge cases and error states
 
@@ -158,6 +182,14 @@ Last updated: 2026-08-12
   predicate; it simply positions the requesting organization's own history.
 - Unknown historical actor IDs remain visible as `Former member` rather than dropping the event or
   joining an identity outside the current authorized member set.
+- Duplicate mailbox IDs are rejected rather than silently collapsed; more than 25 targets are
+  rejected before database access.
+- A target member or any selected mailbox outside the organization receives the same bounded `404`,
+  with no membership insert or audit event.
+- Existing grants keep their original role and timestamps. A mixed request creates only missing
+  grants; a repeated request creates zero and remains observable.
+- If any statement in the grant/audit batch fails, D1 rolls back the full batch and the API does not
+  claim success.
 
 ## 5. Test plan
 
@@ -188,6 +220,9 @@ Last updated: 2026-08-12
 - Audit-history reads deny non-owners before database access, enforce organization scope and the
   50-row maximum, reject malformed cursors, and return deterministic non-overlapping pages.
 - The audit response contains no credential, email, network, request-body, message, or provider data.
+- Bulk grants reject invalid and duplicate input before reads, require owner and recent-session proof
+  before target reads, validate the complete organization member/mailbox set, preserve existing
+  roles, and atomically insert only missing grants with one minimized audit event.
 
 ### Browser
 
@@ -204,6 +239,9 @@ Last updated: 2026-08-12
   and a failed reconfirmation or mutation keeps the dialog open with its error.
 - Owners see content-free security events, can load older pages, and see a stable removed-actor
   fallback; admins neither request nor render the owner-only history.
+- Owners preview the member, mailbox addresses, role capabilities, and new-grant count, then enter a
+  password before the bulk mutation. Success refreshes access and history; failed confirmation or
+  mutation keeps the dialog open. Admins never receive the bulk action.
 
 ### Verification
 
@@ -253,6 +291,14 @@ Last updated: 2026-08-12
   maximum. The cursor is validated navigation state and never replaces the organization predicate.
 - Decision 2026-08-12: keep the audit API identity-minimal. The page may label an actor from its
   separately authorized current-member dataset, but the history response returns only actor user ID.
+- Decision 2026-08-12: begin bulk mutation with additive grants for one member across at most 25
+  mailboxes. Bulk role replacement and bulk revocation remain separate destructive contracts.
+- Decision 2026-08-12: keep existing grants unchanged and count only new rows. This makes retries
+  idempotent without silently changing established access.
+- Decision 2026-08-12: make organization-wide bulk grants owner-only and require exact-session recent
+  authentication even though individual mailbox managers retain their existing one-mailbox controls.
+- Decision 2026-08-12: represent the target member as the audit resource ID and keep role/address
+  details out of storage. Current authorized member/mailbox data supplies human labels in the UI.
 
 ## 7. Open questions
 
@@ -548,5 +594,50 @@ Verification:
   The remote doctor passes 25 checks with zero failures and the documented live-Cron-inventory
   warning.
 - A metadata-only remote D1 aggregation now reports exactly one `session.revoke` event, proving the
-  operator-confirmed production revocation committed its content-free audit record. The signed-in
-  owner card remains a human-visible check; no production session credential was reused by automation.
+  operator-confirmed production revocation committed its content-free audit record. On 2026-08-12
+  the operator also confirmed the signed-in production owner card visibly renders the new security
+  history, closing the final human UI gate without reusing a production credential in automation.
+
+### 2026-08-12 — Specify audited bulk mailbox grants
+
+Type: Security feature
+
+Summary:
+
+- Define an owner-only additive bulk grant for one member, one role, and up to 25 organization
+  mailboxes, with a complete preview and password confirmation on the access matrix.
+- Define exact-session recent authentication, full-set tenant validation, idempotent preservation of
+  existing grants, atomic membership/audit persistence, and refreshed access/history presentation.
+
+Reason:
+
+- The access matrix now explains organization-wide access, but correcting a member with several
+  missing mailbox grants still requires visiting and mutating each mailbox separately.
+
+Impact:
+
+- Specification first. This slice only adds missing grants; it cannot overwrite or remove existing
+  access. No physical migration or new dependency is planned.
+
+### 2026-08-12 — Implement audited bulk mailbox grants
+
+Type: Security feature
+
+Summary:
+
+- Add the owner-only bulk-grant route and access-matrix dialog with mailbox selection, role and
+  capability preview, password confirmation, bounded errors, and access/history refresh.
+- Add exact-session recent-auth enforcement, full-set organization validation, preservation of
+  existing grants, and atomic D1 persistence of missing memberships plus one minimized audit event.
+- Extend the history presentation for `mailbox.grant_bulk` and prove the existing unconstrained audit
+  columns accept the new action/resource pair without a follow-up migration.
+
+Reason:
+
+- Owners need a safe way to correct several missing mailbox grants without replacing established
+  roles or repeating the one-mailbox workflow.
+
+Impact:
+
+- Local verification passes `npm run verify` with 100% coverage across 227 test files and 1,972 tests,
+  plus all 85 Chromium E2E tests, including the executable migration-contract assertion.

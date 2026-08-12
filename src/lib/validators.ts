@@ -88,6 +88,20 @@ export const updateMailboxMembershipSchema = z.object({
 	role: z.enum(MAILBOX_ROLES),
 });
 
+export const bulkMailboxGrantSchema = z.object({
+	targetUserId: z.string().min(1).max(100),
+	mailboxIds: z.array(z.string().min(1).max(100)).min(1).max(25),
+	role: z.enum(MAILBOX_ROLES),
+}).strict().superRefine((value, ctx) => {
+	if (new Set(value.mailboxIds).size !== value.mailboxIds.length) {
+		ctx.addIssue({
+			code: "custom",
+			path: ["mailboxIds"],
+			message: "Mailbox IDs must be unique",
+		});
+	}
+});
+
 export const updateProfileSchema = z.object({
 	name: z.string().trim().min(1).max(100),
 	resetEmail: z.preprocess(

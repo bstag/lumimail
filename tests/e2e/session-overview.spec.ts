@@ -31,7 +31,10 @@ test("owner sees content-free security history and loads an older page", async (
 			events: [{ id: "aud_1", actorUserId: "removed_user", action: "session.revoke_others", resourceType: "session", resourceId: null, affectedCount: 2, requestId: "req_1", outcome: "succeeded", createdAt: "2026-08-12T19:00:00.000Z" }],
 			nextCursor: null,
 		} : {
-			events: [{ id: "aud_2", actorUserId: "owner_1", action: "session.revoke", resourceType: "session", resourceId: "sess_other", affectedCount: 1, requestId: "req_2", outcome: "succeeded", createdAt: "2026-08-12T20:00:00.000Z" }],
+			events: [
+				{ id: "aud_3", actorUserId: "owner_1", action: "mailbox.grant_bulk", resourceType: "mailbox_membership", resourceId: "owner_1", affectedCount: 2, requestId: "req_3", outcome: "succeeded", createdAt: "2026-08-12T20:30:00.000Z" },
+				{ id: "aud_2", actorUserId: "owner_1", action: "session.revoke", resourceType: "session", resourceId: "sess_other", affectedCount: 1, requestId: "req_2", outcome: "succeeded", createdAt: "2026-08-12T20:00:00.000Z" },
+			],
 			nextCursor: "m0.aud_2",
 		};
 		return route.fulfill({ json: { success: true, data } });
@@ -44,6 +47,7 @@ test("owner sees content-free security history and loads an older page", async (
 	const history = page.getByTestId("security-history");
 	await expect(history.getByRole("heading", { name: "Security history" })).toBeVisible();
 	await expect(history.getByText("Owner revoked a session", { exact: true })).toBeVisible();
+	await expect(history.getByText("Owner granted 2 mailbox grants to Owner", { exact: true })).toBeVisible();
 	await expect(history).not.toContainText(/token|password|email|ip address|user agent|request body|message body/i);
 	await history.getByRole("button", { name: "Load older events" }).click();
 	await expect(history.getByText("Former member revoked 2 other sessions", { exact: true })).toBeVisible();
@@ -60,6 +64,7 @@ test("organization admin does not request or render owner-only security history"
 
 	await page.goto("/members");
 	await expect(page.getByTestId("security-history")).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "Manage access" })).toHaveCount(0);
 	await expect.poll(() => historyRequests).toBe(0);
 });
 

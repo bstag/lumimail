@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/ui/page-header";
-import type { AccessCapability, AccessMailboxRole, AccessOverview, OrganizationRole } from "@/lib/access-overview";
+import { mailboxCapabilities, type AccessCapability, type AccessMailboxRole, type AccessOverview, type OrganizationRole } from "@/lib/access-overview";
 import type { SessionOverview } from "@/lib/session-overview";
 import type { SecurityAuditHistory } from "@/lib/security-audit-history";
 import { useAuthSession } from "@/components/auth/auth-session-context";
@@ -77,6 +77,7 @@ const CAPABILITY_LABELS: Record<AccessCapability, string> = {
 };
 
 type SessionRow = SessionOverview["sessions"][number];
+type AccessMember = AccessOverview["members"][number];
 type SessionRevocationTarget =
   | { mode: "one"; session: SessionRow }
   | { mode: "others" };
@@ -98,6 +99,10 @@ export default function MembersPage() {
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
   const [sessionRevocationTarget, setSessionRevocationTarget] = useState<SessionRevocationTarget | null>(null);
   const [sessionPassword, setSessionPassword] = useState("");
+  const [bulkGrantTarget, setBulkGrantTarget] = useState<AccessMember | null>(null);
+  const [bulkGrantMailboxIds, setBulkGrantMailboxIds] = useState<string[]>([]);
+  const [bulkGrantRole, setBulkGrantRole] = useState<AccessMailboxRole>("responder");
+  const [bulkGrantPassword, setBulkGrantPassword] = useState("");
 
   const membersQuery = useQuery({
     queryKey: orgMemberKeys.all,
@@ -153,10 +158,49 @@ export default function MembersPage() {
     },
   });
 
+  const bulkGrant = useMutation({
+    mutationFn: async ({
+      targetUserId,
+      mailboxIds,
+      role,
+      password,
+    }: {
+      targetUserId: string;
+      mailboxIds: string[];
+      role: AccessMailboxRole;
+      password: string;
+    }) => {
+      await apiJson.post("/api/auth/reconfirm", { password });
+      return apiJson.post<{ createdCount: number; requestId: string }>("/api/admin/mailbox-grants", {
+        targetUserId,
+        mailboxIds,
+        role,
+      });
+    },
+    meta: { suppressErrorToast: true },
+    onSuccess: async () => {
+      setBulkGrantTarget(null);
+      setBulkGrantMailboxIds([]);
+      setBulkGrantPassword("");
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: accessOverviewKeys.all }),
+        qc.invalidateQueries({ queryKey: securityHistoryKeys.all }),
+      ]);
+    },
+  });
+
   function openSessionRevocation(target: SessionRevocationTarget) {
     revokeSessions.reset();
     setSessionPassword("");
     setSessionRevocationTarget(target);
+  }
+
+  function openBulkGrant(target: AccessMember) {
+    bulkGrant.reset();
+    setBulkGrantMailboxIds([]);
+    setBulkGrantRole("responder");
+    setBulkGrantPassword("");
+    setBulkGrantTarget(target);
   }
 
   const members = membersQuery.data?.members ?? [];
@@ -235,6 +279,41 @@ export default function MembersPage() {
         }}
       />
 
+      <BulkGrantDialog
+        target={bulkGrantTarget}
+        mailboxes={accessOverviewQuery.data?.mailboxes ?? []}
+        selectedMailboxIds={bulkGrantMailboxIds}
+        role={bulkGrantRole}
+        password={bulkGrantPassword}
+        pending={bulkGrant.isPending}
+        error={errorText(bulkGrant.error, "Failed to grant mailbox access")}
+        onMailboxToggle={(mailboxId, selected) => {
+          setBulkGrantMailboxIds((current) => selected
+            ? [...current, mailboxId]
+            : current.filter((id) => id !== mailboxId));
+        }}
+        onRoleChange={setBulkGrantRole}
+        onPasswordChange={setBulkGrantPassword}
+        onOpenChange={(open) => {
+          if (!open && !bulkGrant.isPending) {
+            setBulkGrantTarget(null);
+            setBulkGrantMailboxIds([]);
+            setBulkGrantPassword("");
+            bulkGrant.reset();
+          }
+        }}
+        onConfirm={() => {
+          if (bulkGrantTarget && bulkGrantMailboxIds.length > 0 && bulkGrantPassword.length > 0) {
+            bulkGrant.mutate({
+              targetUserId: bulkGrantTarget.userId,
+              mailboxIds: bulkGrantMailboxIds,
+              role: bulkGrantRole,
+              password: bulkGrantPassword,
+            });
+          }
+        }}
+      />
+
       <div className="space-y-2">
         {members.map((member) => (
           <div
@@ -282,7 +361,9 @@ export default function MembersPage() {
         ))}
       </div>
 
-      {accessOverviewQuery.data && <AccessMatrix overview={accessOverviewQuery.data} />}
+      {accessOverviewQuery.data && (
+        <AccessMatrix overview={accessOverviewQuery.data} canBulkGrant={isOwner} onManageAccess={openBulkGrant} />
+      )}
 
       {isOwner && sessionOverviewQuery.isLoading && (
         <p className="text-sm text-ink-muted">Loading active sessions…</p>
@@ -401,6 +482,117 @@ function SessionRevocationDialog({
   );
 }
 
+function BulkGrantDialog({
+  target,
+  mailboxes,
+  selectedMailboxIds,
+  role,
+  password,
+  pending,
+  error,
+  onMailboxToggle,
+  onRoleChange,
+  onPasswordChange,
+  onOpenChange,
+  onConfirm,
+}: {
+  target: AccessMember | null;
+  mailboxes: AccessOverview["mailboxes"];
+  selectedMailboxIds: string[];
+  role: AccessMailboxRole;
+  password: string;
+  pending: boolean;
+  error: string | null;
+  onMailboxToggle: (mailboxId: string, selected: boolean) => void;
+  onRoleChange: (role: AccessMailboxRole) => void;
+  onPasswordChange: (password: string) => void;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}) {
+  const existingMailboxIds = new Set(target?.grants.map((grant) => grant.mailboxId) ?? []);
+  const availableMailboxes = mailboxes.filter((mailbox) => !existingMailboxIds.has(mailbox.id));
+  const capabilities = mailboxCapabilities(role).map((capability) => CAPABILITY_LABELS[capability]).join(" · ");
+
+  return (
+    <Dialog open={target !== null} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Grant mailbox access</DialogTitle>
+          <DialogDescription>
+            Add access for {target?.name ?? "this member"}. Existing mailbox roles will not change.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div>
+            <p className="text-sm font-medium text-ink">Mailboxes</p>
+            {availableMailboxes.length === 0 ? (
+              <p className="mt-2 rounded-md bg-surface-subtle px-3 py-2 text-sm text-ink-muted">All mailboxes already have access</p>
+            ) : (
+              <div className="mt-2 max-h-48 space-y-2 overflow-y-auto rounded-md border border-border p-3">
+                {availableMailboxes.map((mailbox) => (
+                  <label key={mailbox.id} className="flex items-start gap-2 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      checked={selectedMailboxIds.includes(mailbox.id)}
+                      disabled={pending}
+                      onChange={(event) => onMailboxToggle(mailbox.id, event.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-border"
+                    />
+                    <span className="break-all">{mailbox.address}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="bulk-grant-role">Mailbox role</Label>
+            <Select
+              id="bulk-grant-role"
+              value={role}
+              disabled={pending}
+              onChange={(event) => onRoleChange(event.target.value as AccessMailboxRole)}
+            >
+              <option value="viewer">Viewer</option>
+              <option value="responder">Responder</option>
+              <option value="manager">Manager</option>
+            </Select>
+            <p className="text-xs text-ink-muted">{capabilities}</p>
+          </div>
+
+          <p className="rounded-md bg-surface-subtle px-3 py-2 text-sm font-medium text-ink">
+            {selectedMailboxIds.length} new {selectedMailboxIds.length === 1 ? "grant" : "grants"} for {target?.name ?? "member"}
+          </p>
+
+          <div className="space-y-2">
+            <Label htmlFor="bulk-grant-password">Password</Label>
+            <Input
+              id="bulk-grant-password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              disabled={pending}
+              onChange={(event) => onPasswordChange(event.target.value)}
+            />
+          </div>
+        </div>
+
+        {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button
+            disabled={pending || selectedMailboxIds.length === 0 || password.length === 0}
+            onClick={onConfirm}
+          >
+            {pending ? "Granting…" : "Grant access"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SessionOverviewCard({ overview, onRevoke }: { overview: SessionOverview; onRevoke: (target: SessionRevocationTarget) => void }) {
   const format = useFormatter();
   const otherSessionCount = overview.sessions.filter((session) => !session.isCurrent).length;
@@ -498,9 +690,12 @@ function SecurityHistoryCard({
         <div className="space-y-2">
           {events.map((event) => {
             const actor = memberNames.get(event.actorUserId) ?? "Former member";
+            const target = event.resourceId ? memberNames.get(event.resourceId) ?? "Former member" : "member";
             const action = event.action === "session.revoke"
               ? "revoked a session"
-              : `revoked ${event.affectedCount} other ${event.affectedCount === 1 ? "session" : "sessions"}`;
+              : event.action === "session.revoke_others"
+                ? `revoked ${event.affectedCount} other ${event.affectedCount === 1 ? "session" : "sessions"}`
+                : `granted ${event.affectedCount} mailbox ${event.affectedCount === 1 ? "grant" : "grants"} to ${target}`;
             return (
               <article key={event.id} className="rounded-lg border border-border bg-surface p-3 sm:p-4">
                 <p className="text-sm font-medium text-ink">{actor} {action}</p>
@@ -531,7 +726,15 @@ function SecurityHistoryCard({
   );
 }
 
-function AccessMatrix({ overview }: { overview: AccessOverview }) {
+function AccessMatrix({
+  overview,
+  canBulkGrant,
+  onManageAccess,
+}: {
+  overview: AccessOverview;
+  canBulkGrant: boolean;
+  onManageAccess: (member: AccessMember) => void;
+}) {
   return (
     <section data-testid="access-matrix" className="space-y-4 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
       <div className="flex items-start gap-3">
@@ -544,15 +747,20 @@ function AccessMatrix({ overview }: { overview: AccessOverview }) {
 
       <div className="space-y-3">
         {overview.members.map((member) => (
-          <article key={member.id} className="rounded-lg border border-border bg-surface p-3 sm:p-4">
+          <article key={member.id} data-testid={`access-member-${member.userId}`} className="rounded-lg border border-border bg-surface p-3 sm:p-4">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="font-medium text-ink">{member.name}</p>
                 <p className="break-all text-xs text-ink-muted">{member.email}</p>
               </div>
-              <span className="rounded-full bg-surface-subtle px-2.5 py-1 text-xs font-medium text-ink-muted">
-                Workspace: {ORGANIZATION_ROLE_LABELS[member.organizationRole]}
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-surface-subtle px-2.5 py-1 text-xs font-medium text-ink-muted">
+                  Workspace: {ORGANIZATION_ROLE_LABELS[member.organizationRole]}
+                </span>
+                {canBulkGrant && (
+                  <Button variant="outline" size="sm" onClick={() => onManageAccess(member)}>Manage access</Button>
+                )}
+              </div>
             </div>
 
             {member.grants.length === 0 ? (
