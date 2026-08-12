@@ -83,7 +83,8 @@ Source of truth for behavior. Each follows
     [`F76-all-mailboxes-scope`](./specs/F76-all-mailboxes-scope.md),
      [`F77-security-hardening-routing-dependencies-imap`](./specs/F77-security-hardening-routing-dependencies-imap.md),
      [`F78-local-equivalence-mvp-readiness`](./specs/F78-local-equivalence-mvp-readiness.md),
-     [`F79-remote-recovery-rehearsal`](./specs/F79-remote-recovery-rehearsal.md).
+     [`F79-remote-recovery-rehearsal`](./specs/F79-remote-recovery-rehearsal.md),
+     [`F80-operator-lifecycle`](./specs/F80-operator-lifecycle.md).
 
 ## Implementation notes (`implementation/`)
 

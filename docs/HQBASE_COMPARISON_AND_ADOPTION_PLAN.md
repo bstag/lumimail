@@ -356,6 +356,10 @@ integrity checks pass. Production itself is not overwritten during the rehearsal
 
 Create `F80-operator-lifecycle.md` and `F81-signed-releases.md`.
 
+Progress 2026-08-12: F80 now defines the non-mutating, fail-closed doctor contract, safe report
+schema, local/remote phases, edge cases, and operator-only security boundary. Layer 2.1 begins with
+runtime, production-config, migration-continuity, and deterministic aggregation tests.
+
 Deliverables:
 
 - Add a non-mutating `doctor` command that checks runtime version, bindings, D1 migrations, R2 access,
