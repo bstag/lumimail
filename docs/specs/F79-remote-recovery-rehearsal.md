@@ -514,3 +514,6 @@ Type: Feature / Recovery capture
 - The first verifier provision attempt was rejected before execution because remote D1 does not
   accept `BEGIN` in imported SQL. All four fixed-ID row counts remained zero. Provision/cleanup SQL
   now omits transaction control and relies on mandatory exact-ID cleanup after partial failure.
+- The first API verification login succeeded, but the verifier incorrectly expected a generic
+  `session` cookie instead of Lumimail's `ep_session`. The contract now requires the exact
+  application cookie name; the disposable session is covered by fixed-user cleanup.

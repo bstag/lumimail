@@ -104,7 +104,7 @@ export async function verifyRecoveryApplication({
 	});
 	if (!login.ok) throw new Error(`Recovery login returned ${login.status}`);
 	const cookie = login.headers.get("set-cookie")?.split(";", 1)[0];
-	if (!cookie?.startsWith("session=")) {
+	if (!cookie?.startsWith("ep_session=")) {
 		throw new Error("Recovery login did not issue a session cookie");
 	}
 	const authenticatedFetch = (path) =>

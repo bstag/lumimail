@@ -61,7 +61,7 @@ describe("recovery application verifier", () => {
 			if (url.pathname === "/api/auth/login") {
 				return new Response(JSON.stringify({ ok: true, redirect: "/inbox" }), {
 					status: 200,
-					headers: { "content-type": "application/json", "set-cookie": "session=secret; Path=/; HttpOnly" },
+					headers: { "content-type": "application/json", "set-cookie": "ep_session=secret; Path=/; HttpOnly" },
 				});
 			}
 			if (url.pathname === "/api/auth/me") return Response.json({ user: { id: plan.userId } });
@@ -107,14 +107,14 @@ describe("recovery application verifier", () => {
 			sessionAuthenticated: true,
 		});
 		expect(JSON.stringify(result)).not.toContain("password-plaintext");
-		expect(JSON.stringify(result)).not.toContain("session=secret");
+		expect(JSON.stringify(result)).not.toContain("ep_session=secret");
 	});
 
 	it("fails when the mailbox surface exposes an unrelated mailbox", async () => {
 		const fetchImpl = vi.fn(async (input: string | URL | Request) => {
 			const path = new URL(typeof input === "string" ? input : input instanceof URL ? input : input.url).pathname;
 			if (path === "/api/auth/login") {
-				return new Response("{}", { status: 200, headers: { "set-cookie": "session=secret" } });
+				return new Response("{}", { status: 200, headers: { "set-cookie": "ep_session=secret" } });
 			}
 			if (path === "/api/auth/me") return Response.json({ user: { id: plan.userId } });
 			if (path === "/api/mailboxes") {
