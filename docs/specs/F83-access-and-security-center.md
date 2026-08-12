@@ -641,3 +641,11 @@ Impact:
 
 - Local verification passes `npm run verify` with 100% coverage across 227 test files and 1,972 tests,
   plus all 85 Chromium E2E tests, including the executable migration-contract assertion.
+- Commit `ca9455e` is deployed as Worker version `34b97da8-bdc3-402c-82f2-9a1eb0ab8f2b`, receiving
+  100% of production traffic. Production D1 reported no pending migrations.
+- The deployed endpoint returns bounded JSON `401` to an anonymous POST. Public smoke passes 6/6,
+  and the remote doctor passes 25 checks with zero failures and only the documented live-Cron-
+  inventory warning.
+- A metadata-only remote D1 aggregation still reports the single previously proven `session.revoke`
+  event and no `mailbox.grant_bulk` event. Automation intentionally did not change a production
+  member's access; one signed-in owner grant remains the human production gate.
