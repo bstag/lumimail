@@ -1,6 +1,6 @@
 # F82 — Read-only Operations Center
 
-> Status: In Progress — first sanitized overview slice deployed and verified
+> Status: In Progress — runtime-readiness slice implemented; production rollout next
 > Owner area: `src/lib/operations.ts`, `src/app/api/admin/operations/`, `src/app/(admin)/operations/`
 
 ## 1. Problem & User Job
@@ -43,6 +43,20 @@ state, and retention integrity without opening Cloudflare, exposing secrets, or 
 - Link detailed queue diagnostics to the existing owner-only `/queue-health` page.
 - No object-key samples or destructive retention controls appear in this slice.
 
+### Second-slice runtime readiness contract
+
+- Inspect the Worker environment in-process without network calls and report only five category
+  booleans: storage (D1 + R2), queues (inbound + outbound + DLQ), outbound provider, service self-
+  reference, and assets/images.
+- Report only the normalized provider family (`cloudflare`, `resend`, or `unsupported`) plus required,
+  ready, and missing binding counts. Never return binding names, resource IDs/names, account IDs,
+  secret names/values, sender addresses, origins, or arbitrary configuration values.
+- Cloudflare delivery is configured only when the Email Sending binding exists. Resend delivery is
+  configured only when its secret is non-empty; the value is never retained or returned. Unknown
+  providers fail closed as unsupported.
+- This is configuration presence, not a live provider probe. The existing remote doctor remains the
+  authoritative provider-inventory check.
+
 ## 5. Error and Privacy States
 
 | Condition | Result |
@@ -53,6 +67,8 @@ state, and retention integrity without opening Cloudflare, exposing secrets, or 
 | Retention read fails | Retention status `unavailable`; queues may still render |
 | Orphans exist | Retention status `attention`; counts/bytes only |
 | Provider/storage exception contains private text | Text is discarded and never returned |
+| Required runtime binding absent | Readiness status `unavailable`; category and count only |
+| Unsupported outbound provider | Provider `unsupported`; no raw configured value returned |
 
 ## 6. Test Plan
 
@@ -135,3 +151,36 @@ Notes:
   passed 6/6, the new API refused an anonymous caller with `401`, and the remote doctor passed 25
   checks with the one documented live-Cron-inventory warning. Authenticated owner rendering remains
   covered by the production-shaped browser suite rather than a production-session automation.
+
+### 2026-08-12 — Add sanitized runtime binding and provider readiness
+
+Type: Feature
+
+Summary:
+
+- Add a fourth Operations card for storage, queue, outbound-delivery, self-service, and asset/image
+  binding categories with configured/required/missing totals.
+- Normalize outbound provider identity to Cloudflare, Resend, or unsupported and require the selected
+  provider's runtime capability without returning binding or secret names/values.
+- Fold missing runtime configuration into overall unavailable status while preserving queue and
+  retention evidence.
+
+Reason:
+
+- Let owners distinguish application/data health from an incomplete runtime deployment without
+  exposing deployment topology or credentials.
+
+Impact:
+
+- In-process environment presence checks only. No network probe, provider request, secret readback,
+  mutation, deploy, migration, or cleanup behavior.
+
+Tests:
+
+- Seven focused operations service/route contracts and two focused browser scenarios pass before
+  the repository-wide gates.
+
+Notes:
+
+- This card deliberately says configuration presence, not live readiness. F80 remote doctor remains
+  authoritative for Cloudflare inventory and public smoke.

@@ -447,6 +447,10 @@ suite pass. Binding/provider, recovery, release, smoke/mail-flow, and cron evide
 The slice was then deployed as Worker version `a6af68c4-e135-4bb3-9c96-a7a12af2b703`: production smoke
 passed 6/6, the owner API refused anonymous access, and the remote doctor passed 25 checks with only
 the already documented inability to read live Cron inventory through Wrangler.
+The next F82 slice adds in-process runtime configuration presence for storage, queues, outbound
+delivery, service self-reference, and assets/images. It returns category booleans and counts only,
+normalizes provider identity, and never returns binding names, resource identifiers, account data,
+or secret names/values. Live provider readiness remains explicitly delegated to the F80 doctor.
 
 Access and security center:
 

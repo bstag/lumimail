@@ -14,6 +14,8 @@ test("owner sees the sanitized read-only operations overview", async ({ page }) 
 	await page.route("**/api/admin/operations", (route) => route.fulfill({ json: { success: true, data: {
 		status: "attention", observedAt: "2026-08-12T18:02:00.000Z",
 		application: { version: "0.1.0", schema: "0028" },
+		readiness: { status: "healthy", provider: "cloudflare", requiredCount: 9, readyCount: 9,
+			missingCount: 0, storage: true, queues: true, delivery: true, service: true, assets: true },
 		queues: { status: "attention", checkedAt: "2026-08-12T18:01:00.000Z", queueCount: 3,
 			attentionCount: 1, unavailableCount: 0, backlogCount: 4, backlogBytes: 2048, staleJobCount: 1 },
 		retention: { status: "healthy", scanned: 12, orphanCount: 0, orphanBytes: 0, oldestOrphanAt: null },
@@ -25,6 +27,9 @@ test("owner sees the sanitized read-only operations overview", async ({ page }) 
 	await expect(page.getByRole("heading", { name: "Application" })).toBeVisible();
 	await expect(page.getByText("0.1.0", { exact: true })).toBeVisible();
 	await expect(page.getByText("0028", { exact: true })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Runtime readiness" })).toBeVisible();
+	await expect(page.getByText("Cloudflare", { exact: true })).toBeVisible();
+	await expect(page.getByText("9 of 9 configured", { exact: true })).toBeVisible();
 	await expect(page.getByRole("heading", { name: "Queues" })).toBeVisible();
 	await expect(page.getByText("4 messages", { exact: true })).toBeVisible();
 	await expect(page.getByRole("heading", { name: "Storage retention" })).toBeVisible();
@@ -37,11 +42,14 @@ test("operations overview renders partial unavailability without hiding safe evi
 	await page.route("**/api/admin/operations", (route) => route.fulfill({ json: { success: true, data: {
 		status: "unavailable", observedAt: "2026-08-12T18:02:00.000Z",
 		application: { version: "0.1.0", schema: "0028" },
+		readiness: { status: "unavailable", provider: "cloudflare", requiredCount: 9, readyCount: 8,
+			missingCount: 1, storage: true, queues: true, delivery: false, service: true, assets: true },
 		queues: { status: "unavailable", checkedAt: null, queueCount: 0,
 			attentionCount: 0, unavailableCount: 0, backlogCount: 0, backlogBytes: 0, staleJobCount: 0 },
 		retention: { status: "healthy", scanned: 12, orphanCount: 0, orphanBytes: 0, oldestOrphanAt: null },
 	} } }));
 	await page.goto("/operations");
 	await expect(page.getByTestId("overall-status")).toHaveText("Unavailable");
+	await expect(page.getByText("8 of 9 configured", { exact: true })).toBeVisible();
 	await expect(page.getByText("12 objects scanned", { exact: true })).toBeVisible();
 });

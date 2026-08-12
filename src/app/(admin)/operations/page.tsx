@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Boxes, CheckCircle2, Database, Server } from "lucide-react";
+import { AlertTriangle, Boxes, CheckCircle2, Database, Server, ShieldCheck } from "lucide-react";
 
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +44,9 @@ function OperationsContent() {
 	const overview = useQuery({ queryKey: ["admin", "operations"], queryFn: fetchOverview });
 	const data = overview.data;
 	const OverallIcon = data?.status === "healthy" ? CheckCircle2 : data?.status === "attention" ? AlertTriangle : Server;
+	const providerLabel = data?.readiness.provider === "cloudflare"
+		? "Cloudflare"
+		: data?.readiness.provider === "resend" ? "Resend" : "Unsupported";
 
 	return (
 		<div className="h-full overflow-auto">
@@ -65,7 +68,7 @@ function OperationsContent() {
 						<StatusBadge status={data.status} />
 					</div>
 
-					<div className="grid gap-4 xl:grid-cols-3">
+					<div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-4">
 						<Card>
 							<CardHeader className="flex-row items-center justify-between gap-3">
 								<div className="flex items-center gap-3"><Boxes className="h-5 w-5 text-accent" /><CardTitle>Application</CardTitle></div>
@@ -75,6 +78,34 @@ function OperationsContent() {
 								<div><dt className="text-ink-muted">Version</dt><dd className="mt-1 font-semibold text-ink">{data.application.version}</dd></div>
 								<div><dt className="text-ink-muted">Schema</dt><dd className="mt-1 font-semibold text-ink">{data.application.schema}</dd></div>
 							</dl></CardContent>
+						</Card>
+
+						<Card>
+							<CardHeader className="flex-row items-center justify-between gap-3">
+								<div className="flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-accent" /><CardTitle>Runtime readiness</CardTitle></div>
+								<StatusBadge status={data.readiness.status} />
+							</CardHeader>
+							<CardContent className="space-y-4 text-sm">
+								<div className="flex items-end justify-between gap-4">
+									<div><p className="text-ink-muted">Outbound provider</p><p className="mt-1 font-semibold text-ink">{providerLabel}</p></div>
+									<p className="text-xs text-ink-muted">{data.readiness.readyCount} of {data.readiness.requiredCount} configured</p>
+								</div>
+								<dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+									{([
+										["Storage", data.readiness.storage],
+										["Queues", data.readiness.queues],
+										["Delivery", data.readiness.delivery],
+										["Service", data.readiness.service],
+										["Assets", data.readiness.assets],
+									] as const).map(([label, ready]) => (
+										<div key={label} className="flex items-center justify-between gap-2">
+											<dt className="text-ink-muted">{label}</dt>
+											<dd className={ready ? "text-success" : "text-danger"}>{ready ? "Ready" : "Missing"}</dd>
+										</div>
+									))}
+								</dl>
+								<p className="text-xs text-ink-muted">Configuration presence only; provider inventory is verified by the operator doctor.</p>
+							</CardContent>
 						</Card>
 
 						<Card>
