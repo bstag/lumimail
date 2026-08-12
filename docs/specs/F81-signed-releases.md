@@ -1,6 +1,6 @@
 # F81 — Signed Releases and Deliberate Promotion
 
-> Status: In Progress — offline preparation and detached signing complete; protected publication CI next
+> Status: In Progress — complete offline trust chain; protected publication CI next
 > Owner area: `scripts/release-manifest.mjs`, `.github/workflows/`, `docs/OPERATIONS.md`
 
 ## 1. Problem & User Job
@@ -96,6 +96,18 @@ wrong-product, or schema-incompatible artifact before any upload or promotion.
   output inside the unsigned bundle. Emit no key material, manifest, notes, or caught error text.
 - Signing remains offline: no publication, provider credential, upload, deploy, or promotion path.
 
+**Layer 2.8 pinned-trust verification command:**
+
+- Accept exactly a bundle directory, detached signature file, strict trust-store JSON file, expected
+  semantic version, and expected four-digit schema version. Product identity is fixed to Lumimail.
+- The trust store has one exact format marker and a bounded object mapping key IDs to PEM-encoded
+  Ed25519 public keys. Reject unknown store fields, unknown key IDs, malformed/non-Ed25519 keys, and
+  never accept an embedded key from the signature or bundle.
+- Require the unsigned bundle's exact two-file inventory and canonical manifest bytes, then verify
+  signature, manifest digest, product/version/schema compatibility, artifact size, and SHA-256.
+- Perform no writes or provider calls. Print one bounded verification report or one stable content-
+  free failure; never print public-key contents, notes, manifests, or caught error text.
+
 **Out of scope:**
 
 - Storing signing private keys in source, artifacts, app bindings, D1, or ordinary application
@@ -138,6 +150,7 @@ accepted as a command-line argument because process lists and shell history may 
 | Unit | `tests/unit/scripts/release-metadata.test.ts` | clean/full commit, deterministic epoch, exact installed tool versions, contiguous migration head, strict schema policy/range, bounded notes, caller immutability |
 | Unit | `tests/unit/scripts/release-command.test.ts` | exact CLI arguments, checkout-derived inputs, notes privacy, stable success/error reporting, no signing/upload/promotion |
 | Unit | `tests/unit/scripts/release-sign.test.ts` | stdin-only Ed25519 key handling, canonical detached envelope, self-verification, atomic refusal/cleanup, content-free output |
+| Unit | `tests/unit/scripts/release-verify.test.ts` | strict pinned trust store, exact expected identity/schema, signature/artifact refusal, read-only and content-free CLI behavior |
 | CI | workflow validation | clean install, verify, deterministic archive, manifest/signature creation, verification before publication |
 | Operator | disposable Cloudflare release rehearsal | verified upload without traffic, smoke, upgrade rehearsal, recovery evidence, deliberate promotion/return |
 | Full | repository commands | `npm run verify`; no E2E for the manifest core |
@@ -412,3 +425,33 @@ Notes:
 
 - Production still needs an explicit signer authority/key rotation policy and immutable publication
   store before a protected workflow can call this command.
+
+### 2026-08-12 — Add pinned-trust pre-publication verification
+
+Type: Feature
+
+Summary:
+
+- Add `release:verify` for a strict pinned Ed25519 trust store, exact expected version/schema, fixed
+  Lumimail product identity, canonical manifest, detached signature, and artifact size/SHA-256.
+- Reject unknown trust fields/key IDs, malformed or non-Ed25519 keys, wrong identity/schema,
+  substituted artifacts, invalid signatures, and noncanonical or non-exact bundle inventories.
+- Keep verification read-only with bounded success output and one content-free failure.
+
+Reason:
+
+- Complete the offline chain of custody before any later workflow receives upload credentials.
+
+Impact:
+
+- Read-only local verification only; no signing secret, output write, provider call, upload, deploy,
+  migration, or promotion.
+
+Tests:
+
+- Five focused verifier contracts pass with four signing and eighteen manifest contracts (27 total).
+
+Notes:
+
+- The trust-store format is implemented, but no production key is pinned until signer ownership and
+  rotation/revocation policy are approved.

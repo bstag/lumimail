@@ -399,6 +399,11 @@ canonical bundle and artifact re-verification, in-memory self-verification, atom
 content-free errors. Four signing contracts pass; no production signer, key storage, publication
 channel, provider credential, upload, deployment, or promotion behavior is selected by this layer.
 
+Layer 2.8 completes the offline trust chain with a read-only pinned-Ed25519 verification command.
+Five contracts enforce strict trust-store structure, explicit signer selection, expected release and
+schema identity, canonical manifest/signature verification, and exact archive size/SHA-256. Unknown
+keys, non-Ed25519 substitution, incompatible identity, and artifact changes fail before provider use.
+
 Deliverables:
 
 - Add a non-mutating `doctor` command that checks runtime version, bindings, D1 migrations, R2 access,
