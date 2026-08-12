@@ -387,8 +387,9 @@ not considered trusted until later protected CI signing and pinned-key verificat
 Layer 2.5 now derives release identity only from a clean full Git HEAD, exact package/lock runtime
 versions, a deterministic source epoch, contiguous migration head, and strict committed schema
 compatibility policy. Eleven focused contracts pass; current compatibility is intentionally bounded
-to schema `0029` until wider compatibility is exercised. Migration `0029` adds exact-session recent
-authentication with a rolling-deploy-compatible nullable timestamp that always fails closed.
+to schema `0030` until wider compatibility is exercised. Migration `0029` adds exact-session recent
+authentication with a rolling-deploy-compatible nullable timestamp that always fails closed;
+`0030` adds content-free security audit events for atomic session revocation.
 
 Layer 2.6 wires those guards into one offline `release:prepare` command with exact build/notes/output
 arguments, a HEAD-derived deterministic epoch, atomic unsigned publication, and content-free output.

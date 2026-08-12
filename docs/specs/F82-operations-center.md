@@ -144,7 +144,7 @@ Tests:
 
 Notes:
 
-- Current F81 schema compatibility is exact (`0029`), so this slice presents its maximum as the
+- Current F81 schema compatibility is exact (`0030`), so this slice presents its maximum as the
   current schema. If compatibility widens, F82 must read the installed D1 migration head instead.
 - Deployed as Worker version `a6af68c4-e135-4bb3-9c96-a7a12af2b703` on 2026-08-12 with no pending
   migrations. The production build included `/operations` and `/api/admin/operations`; public smoke

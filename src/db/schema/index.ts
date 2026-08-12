@@ -446,6 +446,26 @@ export const sessions = sqliteTable(
 	],
 );
 
+export const securityAuditEvents = sqliteTable(
+	"security_audit_events",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		actorUserId: text("actor_user_id").notNull(),
+		action: text("action", { enum: ["session.revoke", "session.revoke_others"] }).notNull(),
+		resourceType: text("resource_type", { enum: ["session"] }).notNull(),
+		resourceId: text("resource_id"),
+		affectedCount: integer("affected_count").notNull(),
+		requestId: text("request_id").notNull(),
+		outcome: text("outcome", { enum: ["succeeded"] }).notNull(),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [
+		index("security_audit_events_org_created_idx").on(t.organizationId, t.createdAt),
+		uniqueIndex("security_audit_events_request_idx").on(t.requestId),
+	],
+);
+
 export const labels = sqliteTable(
 	"labels",
 	{
@@ -593,6 +613,7 @@ export const schema = {
 	webhooks,
 	webhookDeliveries,
 	sessions,
+	securityAuditEvents,
 	labels,
 	messageLabels,
 	attachments,

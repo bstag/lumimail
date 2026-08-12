@@ -13,6 +13,7 @@ vi.mock("@/lib/auth/session", () => ({
 import {
 	RECENT_AUTH_WINDOW_MS,
 	isSessionRecentlyAuthenticated,
+	readRecentlyAuthenticatedSession,
 	reconfirmSession,
 } from "@/lib/auth/recent-auth";
 
@@ -78,5 +79,18 @@ describe("isSessionRecentlyAuthenticated", () => {
 
 		mock.queueSelect([{ authenticatedAt: new Date(now.getTime() + 1) }]);
 		expect(await isSessionRecentlyAuthenticated(env, "usr_1", "session", now)).toBe(false);
+	});
+
+	it("returns bounded context only for a recent exact active session", async () => {
+		mock.queueSelect([{
+			id: "sess_1", organizationId: "org_1", tokenLookup: "lookup:session",
+			authenticatedAt: new Date(now.getTime() - 1),
+		}]);
+		expect(await readRecentlyAuthenticatedSession(env, "usr_1", "session", now)).toEqual({
+			id: "sess_1", organizationId: "org_1", tokenLookup: "lookup:session",
+		});
+
+		mock.queueSelect([{ id: "sess_1", organizationId: "org_1", tokenLookup: "lookup:session", authenticatedAt: null }]);
+		expect(await readRecentlyAuthenticatedSession(env, "usr_1", "session", now)).toBeNull();
 	});
 });

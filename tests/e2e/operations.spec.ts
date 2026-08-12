@@ -13,7 +13,7 @@ test("owner sees the sanitized read-only operations overview", async ({ page }) 
 	await mockOwner(page);
 	await page.route("**/api/admin/operations", (route) => route.fulfill({ json: { success: true, data: {
 		status: "attention", observedAt: "2026-08-12T18:02:00.000Z",
-		application: { version: "0.1.0", schema: "0029" },
+		application: { version: "0.1.0", schema: "0030" },
 		readiness: { status: "healthy", provider: "cloudflare", requiredCount: 9, readyCount: 9,
 			missingCount: 0, storage: true, queues: true, delivery: true, service: true, assets: true },
 		queues: { status: "attention", checkedAt: "2026-08-12T18:01:00.000Z", queueCount: 3,
@@ -26,7 +26,7 @@ test("owner sees the sanitized read-only operations overview", async ({ page }) 
 	await expect(page.getByTestId("overall-status")).toHaveText("Needs attention");
 	await expect(page.getByRole("heading", { name: "Application" })).toBeVisible();
 	await expect(page.getByText("0.1.0", { exact: true })).toBeVisible();
-	await expect(page.getByText("0029", { exact: true })).toBeVisible();
+	await expect(page.getByText("0030", { exact: true })).toBeVisible();
 	await expect(page.getByRole("heading", { name: "Runtime readiness" })).toBeVisible();
 	await expect(page.getByText("Cloudflare", { exact: true })).toBeVisible();
 	await expect(page.getByText("9 of 9 configured", { exact: true })).toBeVisible();
@@ -41,7 +41,7 @@ test("operations overview renders partial unavailability without hiding safe evi
 	await mockOwner(page);
 	await page.route("**/api/admin/operations", (route) => route.fulfill({ json: { success: true, data: {
 		status: "unavailable", observedAt: "2026-08-12T18:02:00.000Z",
-		application: { version: "0.1.0", schema: "0029" },
+		application: { version: "0.1.0", schema: "0030" },
 		readiness: { status: "unavailable", provider: "cloudflare", requiredCount: 9, readyCount: 8,
 			missingCount: 1, storage: true, queues: true, delivery: false, service: true, assets: true },
 		queues: { status: "unavailable", checkedAt: null, queueCount: 0,

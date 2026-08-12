@@ -7,7 +7,10 @@ import { Mail, Clock, KeyRound, Plus, ShieldCheck, X } from "lucide-react";
 import { apiJson } from "@/lib/api/client-response";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { InviteMemberDialog } from "@/components/admin/invite-member-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/ui/page-header";
 import type { AccessCapability, AccessMailboxRole, AccessOverview, OrganizationRole } from "@/lib/access-overview";
@@ -68,6 +71,11 @@ const CAPABILITY_LABELS: Record<AccessCapability, string> = {
   manage: "Manage",
 };
 
+type SessionRow = SessionOverview["sessions"][number];
+type SessionRevocationTarget =
+  | { mode: "one"; session: SessionRow }
+  | { mode: "others" };
+
 function errorText(error: unknown, fallback: string): string | null {
   if (!error) return null;
   return error instanceof Error ? error.message : fallback;
@@ -83,6 +91,8 @@ export default function MembersPage() {
   const qc = useQueryClient();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
+  const [sessionRevocationTarget, setSessionRevocationTarget] = useState<SessionRevocationTarget | null>(null);
+  const [sessionPassword, setSessionPassword] = useState("");
 
   const membersQuery = useQuery({
     queryKey: orgMemberKeys.all,
@@ -111,6 +121,28 @@ export default function MembersPage() {
     meta: { suppressErrorToast: true },
     onSuccess: () => qc.invalidateQueries({ queryKey: orgMemberKeys.all }),
   });
+
+  const revokeSessions = useMutation({
+    mutationFn: async ({ target, password }: { target: SessionRevocationTarget; password: string }) => {
+      await apiJson.post("/api/auth/reconfirm", { password });
+      if (target.mode === "one") {
+        return apiJson.delete<{ revokedCount: number; requestId: string }>(`/api/admin/sessions/${target.session.id}`);
+      }
+      return apiJson.post<{ revokedCount: number; requestId: string }>("/api/admin/sessions/revoke-others");
+    },
+    meta: { suppressErrorToast: true },
+    onSuccess: async () => {
+      setSessionRevocationTarget(null);
+      setSessionPassword("");
+      await qc.invalidateQueries({ queryKey: sessionOverviewKeys.all });
+    },
+  });
+
+  function openSessionRevocation(target: SessionRevocationTarget) {
+    revokeSessions.reset();
+    setSessionPassword("");
+    setSessionRevocationTarget(target);
+  }
 
   const members = membersQuery.data?.members ?? [];
   const invites = membersQuery.data?.invites ?? [];
@@ -167,6 +199,26 @@ export default function MembersPage() {
         }}
       />
 
+      <SessionRevocationDialog
+        target={sessionRevocationTarget}
+        password={sessionPassword}
+        pending={revokeSessions.isPending}
+        error={errorText(revokeSessions.error, "Failed to revoke session")}
+        onPasswordChange={setSessionPassword}
+        onOpenChange={(open) => {
+          if (!open && !revokeSessions.isPending) {
+            setSessionRevocationTarget(null);
+            setSessionPassword("");
+            revokeSessions.reset();
+          }
+        }}
+        onConfirm={() => {
+          if (sessionRevocationTarget && sessionPassword.length > 0) {
+            revokeSessions.mutate({ target: sessionRevocationTarget, password: sessionPassword });
+          }
+        }}
+      />
+
       <div className="space-y-2">
         {members.map((member) => (
           <div
@@ -220,7 +272,7 @@ export default function MembersPage() {
         <p className="text-sm text-ink-muted">Loading active sessions…</p>
       )}
       {isOwner && sessionOverviewQuery.data && (
-        <SessionOverviewCard overview={sessionOverviewQuery.data} />
+        <SessionOverviewCard overview={sessionOverviewQuery.data} onRevoke={openSessionRevocation} />
       )}
 
       {invites.length > 0 && (
@@ -268,8 +320,61 @@ export default function MembersPage() {
   );
 }
 
-function SessionOverviewCard({ overview }: { overview: SessionOverview }) {
+function SessionRevocationDialog({
+  target,
+  password,
+  pending,
+  error,
+  onPasswordChange,
+  onOpenChange,
+  onConfirm,
+}: {
+  target: SessionRevocationTarget | null;
+  password: string;
+  pending: boolean;
+  error: string | null;
+  onPasswordChange: (password: string) => void;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}) {
+  const others = target?.mode === "others";
+  return (
+    <Dialog open={target !== null} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{others ? "Revoke all other sessions?" : "Revoke session?"}</DialogTitle>
+          <DialogDescription>
+            {others
+              ? "Every other session in this organization will stop working immediately. Your current session stays active."
+              : `This session${target?.mode === "one" ? ` for ${target.session.email}` : ""} will stop working immediately.`}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="session-revocation-password">Password</Label>
+          <Input
+            id="session-revocation-password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            disabled={pending}
+            onChange={(event) => onPasswordChange(event.target.value)}
+          />
+        </div>
+        {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="destructive" disabled={pending || password.length === 0} onClick={onConfirm}>
+            {pending ? "Revoking…" : others ? "Revoke other sessions" : "Revoke session"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SessionOverviewCard({ overview, onRevoke }: { overview: SessionOverview; onRevoke: (target: SessionRevocationTarget) => void }) {
   const format = useFormatter();
+  const otherSessionCount = overview.sessions.filter((session) => !session.isCurrent).length;
   return (
     <section data-testid="session-overview" className="space-y-4 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -285,6 +390,14 @@ function SessionOverviewCard({ overview }: { overview: SessionOverview }) {
         </span>
       </div>
 
+      {otherSessionCount > 0 && (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" onClick={() => onRevoke({ mode: "others" })}>
+            Revoke all other sessions
+          </Button>
+        </div>
+      )}
+
       {overview.sessions.length === 0 ? (
         <p className="rounded-md bg-surface-subtle px-3 py-2 text-sm text-ink-muted">No active sessions</p>
       ) : (
@@ -298,6 +411,11 @@ function SessionOverviewCard({ overview }: { overview: SessionOverview }) {
                 </div>
                 {session.isCurrent && (
                   <span className="rounded-full bg-success-muted px-2.5 py-1 text-xs font-medium text-success">This session</span>
+                )}
+                {!session.isCurrent && (
+                  <Button variant="outline" size="sm" onClick={() => onRevoke({ mode: "one", session })}>
+                    Revoke this session
+                  </Button>
                 )}
               </div>
               <dl className="mt-3 grid gap-2 text-xs text-ink-muted sm:grid-cols-2">

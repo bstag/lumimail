@@ -52,6 +52,28 @@ Last updated: 2026-08-12
 - Add a reusable recent-session predicate for later revoke, bulk-grant, and other high-risk routes.
 - This foundation adds no destructive action and no UI prompt by itself.
 
+### Fourth slice — audited session revocation
+
+- Add owner-only targeted revocation and revoke-all-other-session mutations to the existing active
+  session surface.
+- Require the exact requesting session to be inside the 15-minute recent-authentication window
+  before either mutation reads or deletes a target session.
+- A targeted revocation accepts only an opaque session ID from the route path and may delete only an
+  active session whose stored organization matches the owner's active organization. It cannot
+  revoke the requesting session; current-session termination remains the explicit logout flow.
+- Revoke others deletes every other active session carrying the owner's active organization ID,
+  including stale malformed rows no longer visible through the current-member inventory, while
+  preserving exactly the session presenting the request credential.
+- Add a password confirmation dialog for each destructive action. The client first reconfirms the
+  password through `/api/auth/reconfirm`, then performs the selected mutation, keeps a failed dialog
+  open with a bounded error, and refreshes the session inventory after success.
+- Persist each successful mutation in the same D1 batch as its deletion using a content-free audit
+  row: organization ID, actor user ID, action, opaque target session ID when applicable, affected
+  count, server-generated request ID, outcome, and timestamp.
+- Audit rows never store session tokens or digests, password material, email addresses, IP addresses,
+  user agents, request bodies, mailbox/message content, or provider response bodies. Audit history UI
+  remains a later slice.
+
 ### Second slice — read-only active sessions
 
 - Add an owner-only organization session inventory containing account identity, issued time, expiry,
@@ -82,6 +104,10 @@ Last updated: 2026-08-12
   body; all three are derived from the authenticated request and exact credential.
 - Reconfirmation failure uses `403`, not `401`, so the browser does not treat a wrong password as a
   lost authenticated session.
+- Revocation authorizes against the current owner and exact presented session; a path session ID is
+  never treated as authorization and every deletion includes the active organization predicate.
+- A successful deletion and its audit event are atomic. If the audit write fails, D1 rolls back the
+  deletion and the API returns a bounded failure.
 
 ## 4. Edge cases and error states
 
@@ -99,6 +125,14 @@ Last updated: 2026-08-12
 - Existing sessions older than 15 minutes are not recent immediately after migration.
 - A session expiring during reconfirmation is not updated and receives the same bounded failure.
 - A successful reconfirmation of one session does not refresh any other session for the same user.
+- Targeting the current session is rejected without deletion or audit; the UI never offers that
+  action on the current row.
+- An unknown, expired, already-revoked, or cross-organization target receives the same `404` response.
+- Revoke others succeeds with an affected count of zero and still records the owner's confirmed
+  action; repeated use is therefore safe and observable.
+- If another request removes a validated target before the atomic deletion batch runs, the mutation
+  is treated as idempotently successful and the audit record remains an accurate record of the
+  owner's confirmed request.
 
 ## 5. Test plan
 
@@ -121,6 +155,11 @@ Last updated: 2026-08-12
   limits repeated attempts, verifies the current password, and updates only the presented session.
 - The reusable freshness predicate accepts the exact active session inside 15 minutes and rejects
   absent, expired, other-user, other-session, and stale rows.
+- Target revocation denies non-owners and stale sessions before target reads, returns one bounded
+  `404` for out-of-scope targets, rejects the current session, and batches deletion with audit.
+- Revoke others preserves the exact presented session, scopes deletion by organization, returns the
+  affected count, and batches deletion with audit even when the count is zero.
+- Audit persistence contains only the specified metadata and has organization/timestamp indexes.
 
 ### Browser
 
@@ -131,6 +170,10 @@ Last updated: 2026-08-12
 - The layout remains usable at desktop and narrow widths.
 - Owners see session identity, creation, expiry, and current-session state; admins do not request or
   render the owner-only session inventory.
+- Owners can revoke a non-current session or all other sessions only after entering a password in an
+  explicit destructive confirmation dialog.
+- The current-session row has no revoke control; successful revocation refreshes the active count,
+  and a failed reconfirmation or mutation keeps the dialog open with its error.
 
 ### Verification
 
@@ -164,6 +207,16 @@ Last updated: 2026-08-12
   publication cannot break login on the previously deployed Worker or grant freshness.
 - Decision 2026-08-12: make `/api/auth/reconfirm` reusable for any authenticated user while keeping
   organization-wide session inspection owner-only.
+- Decision 2026-08-12: targeted revocation cannot delete the current session. Logout remains the
+  unambiguous current-session control and avoids returning success through a newly invalid session.
+- Decision 2026-08-12: revoke others scopes by the session's stored organization and intentionally
+  removes malformed organization-bound rows even when the read-only inventory hides them because a
+  current membership join is absent.
+- Decision 2026-08-12: persist successful deletion and audit insertion in one D1 batch. A concurrent
+  prior deletion is idempotent; the event records the confirmed action rather than claiming a device.
+- Decision 2026-08-12: generate a request ID on the server instead of trusting a caller-controlled
+  header. Audit history presentation, retention, export, and failed/denied-attempt logging remain
+  separate contracts.
 
 ## 7. Open questions
 
@@ -334,3 +387,59 @@ Verification:
   warning.
 - Successful authenticated password proof remains covered by the production-shaped service/API
   suite; no production password or session credential was requested for automation.
+
+### 2026-08-12 — Specify audited session revocation
+
+Type: Security feature
+
+Summary:
+
+- Define owner-only revoke-one and revoke-others controls protected by exact-session recent
+  authentication, explicit password confirmation, and atomic content-free audit records.
+
+Reason:
+
+- Session visibility is useful only if an owner can safely terminate compromised or obsolete access
+  without exposing credential material or creating unaudited destructive behavior.
+
+Impact:
+
+- Specification first. Implementation, migration `0030`, browser behavior, and deployment evidence
+  follow after failing tests establish the contracts.
+
+### 2026-08-12 — Implement audited session revocation
+
+Type: Security feature
+
+Summary:
+
+- Add owner-only `DELETE /api/admin/sessions/[id]` and
+  `POST /api/admin/sessions/revoke-others`, both protected by the exact requesting session's recent
+  password proof.
+- Extend the owner session card with password-confirmed revoke-one and revoke-others controls while
+  leaving the current session to the existing logout flow.
+- Add migration `0030` and atomically persist successful deletion with a bounded security audit row.
+
+Security:
+
+- Current-session context must match the owner's active organization before target reads. Targeted
+  deletion uses opaque ID, organization, and active-expiry predicates; revoke others preserves the
+  exact presented session and removes every other active organization-bound row.
+- Audit events contain only organization/actor opaque IDs, action/resource metadata, affected count,
+  a server-generated request ID, outcome, and timestamp. No credential, password, address, network,
+  client, body, message, or provider data is stored.
+- D1 batch failure propagates as a bounded API failure; deletion is never reported successful when
+  its audit insertion cannot commit.
+
+Verification:
+
+- Migration, recent-session context, service, and route tests were written first and failed for the
+  absent files/functions. The focused backend contracts pass, including owner denial, cross-org and
+  stale-session refusal, current-session protection, zero-target idempotence, content minimization,
+  and batch-failure propagation.
+- Full `npm run verify` passes 1,940 tests with 100% statement, branch, function, and line coverage,
+  plus all 21 IMAP bridge tests. Existing lint warnings remain at 36 with zero errors.
+- Full `npm run e2e` passes 81 Chromium scenarios. New scenarios prove password-before-mutation,
+  failed-password dialog persistence, inventory refresh, and exact current-session preservation.
+- A migrated local D1 copy applied `0030` successfully and the second pass reported no pending
+  migrations. Deployment and production authorization evidence follow after publication.

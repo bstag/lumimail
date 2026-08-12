@@ -179,7 +179,7 @@ Impact:
 Tests:
 
 - Six focused unit contracts pass after the module-not-found failure was observed first.
-- The real repository report passes 15/15 with migration sequence `0000..0029`.
+- The real repository report passes 15/15 with migration sequence `0000..0030`.
 
 Notes:
 
