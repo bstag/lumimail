@@ -379,6 +379,11 @@ Layer 2.4 now adds deterministic dependency-free USTAR/gzip packaging and atomic
 Eleven focused contracts pass, and two independent archives of the current 2,158-entry OpenNext tree
 matched byte-for-byte and by SHA-256 before both temporary outputs were removed.
 
+Atomic unsigned bundle preparation now adds the canonical manifest beside that archive, reparses and
+rehashes both outputs, requires the exact two-file inventory, rejects unknown metadata, and renames
+the bundle directory only after all checks pass. Five focused bundle contracts pass; the output is
+not considered trusted until later protected CI signing and pinned-key verification succeed.
+
 Deliverables:
 
 - Add a non-mutating `doctor` command that checks runtime version, bindings, D1 migrations, R2 access,

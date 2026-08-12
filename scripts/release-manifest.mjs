@@ -132,16 +132,13 @@ export function canonicalizeReleaseManifest(value) {
 	return `${JSON.stringify(parseReleaseManifest(value), null, 2)}\n`;
 }
 
-export function createReleaseManifest({
-	version,
-	builtAt,
-	commit,
-	artifactPath,
-	artifactBytes,
-	schema,
-	runtime,
-	notes,
-}) {
+export function createReleaseManifest(input) {
+	const expectedKeys = ["artifactBytes", "artifactPath", "builtAt", "commit", "notes", "runtime", "schema", "version"];
+	if (!input || typeof input !== "object" ||
+		JSON.stringify(Object.keys(input).sort()) !== JSON.stringify(expectedKeys)) {
+		throw new ReleaseManifestError(["manifest input: exact fields are required"]);
+	}
+	const { version, builtAt, commit, artifactPath, artifactBytes, schema, runtime, notes } = input;
 	if (!(artifactBytes instanceof Uint8Array)) {
 		throw new ReleaseManifestError(["artifactBytes: exact bytes are required"]);
 	}

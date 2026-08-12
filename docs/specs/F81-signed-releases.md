@@ -1,6 +1,6 @@
 # F81 — Signed Releases and Deliberate Promotion
 
-> Status: In Progress — Layer 2.3 provenance and Layer 2.4 deterministic archive cores complete; CI workflow next
+> Status: In Progress — Layer 2.3 provenance and Layer 2.4 deterministic unsigned bundles complete; CI workflow next
 > Owner area: `scripts/release-manifest.mjs`, `.github/workflows/`, `docs/OPERATIONS.md`
 
 ## 1. Problem & User Job
@@ -51,6 +51,11 @@ wrong-product, or schema-incompatible artifact before any upload or promotion.
 - Build in a randomized partial sibling, derive manifest metadata from the completed archive bytes,
   and atomically rename only after a second deterministic pass matches. Remove only the command's
   partial file on failure; never alter the source build directory or an existing output.
+- Publish one previously absent release-bundle directory containing exactly
+  `lumimail-worker.tar.gz` and canonical `manifest.json`. Build both inside a randomized partial
+  sibling, reparse the written manifest, re-read the archive, and require its exact size/SHA-256
+  before atomically renaming the directory. The unsigned bundle is not releasable until a detached
+  trusted signature is added and verified.
 
 **Out of scope:**
 
@@ -90,6 +95,7 @@ accepted as a command-line argument because process lists and shell history may 
 |-------|------|-----------------|
 | Unit | `tests/unit/scripts/release-manifest.test.ts` | strict parsing/canonicalization, ordering, immutability, schema/version/note/path limits, artifact hash/size, Ed25519 sign/verify, wrong product/key/signature/artifact refusal |
 | Unit | `tests/unit/scripts/release-archive.test.ts` | sorted USTAR/gzip determinism, normalized metadata, empty directories, changed bytes, unsafe/symlink/duplicate/long-path refusal, atomic output and partial cleanup |
+| Unit | `tests/unit/scripts/release-prepare.test.ts` | exact two-file unsigned bundle, byte-derived canonical manifest, atomic directory publication, existing-output preservation, invalid metadata/source cleanup |
 | CI | workflow validation | clean install, verify, deterministic archive, manifest/signature creation, verification before publication |
 | Operator | disposable Cloudflare release rehearsal | verified upload without traffic, smoke, upgrade rehearsal, recovery evidence, deliberate promotion/return |
 | Full | repository commands | `npm run verify`; no E2E for the manifest core |
@@ -239,3 +245,34 @@ Notes:
 
 - The rehearsal proves deterministic packaging of the current local build tree; it does not label
   that pre-existing tree as a signed or publishable release.
+
+### 2026-08-12 — Publish atomic unsigned release bundles
+
+Type: Feature
+
+Summary:
+
+- Add a two-file unsigned bundle writer containing only `lumimail-worker.tar.gz` and canonical
+  `manifest.json`.
+- Derive manifest artifact size/hash from the written archive, then re-read/reparse both files and
+  require the exact two-file inventory before atomically renaming the bundle directory.
+- Reject unknown metadata, invalid identity/schema/runtime/notes, missing source, output-inside-
+  source, missing parent, and existing output; clean only the command-created partial directory.
+
+Reason:
+
+- Give protected CI one complete immutable input to sign and publish as a unit.
+
+Impact:
+
+- Offline unsigned preparation only. A resulting directory is explicitly not a trusted release
+  until a detached signature is added and verified under an approved key.
+
+Tests:
+
+- Five focused preparation contracts plus eighteen manifest contracts pass together (23 tests).
+
+Notes:
+
+- A future CLI/CI wrapper must derive commit/build/runtime inputs from a clean checkout rather than
+  accepting operator claims; the pure bundle writer intentionally remains dependency-injected.
