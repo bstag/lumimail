@@ -99,6 +99,20 @@ Names, naming conventions, environment labels, or operator intent are not suffic
   Verify all fixed IDs are absent after cleanup. Cleanup must never select rows by email/domain or
   delete restored production-shaped data.
 
+**In scope for Layer 1.6:**
+
+- Read the isolated recovery Worker's live deployment and deployable version inventory through
+  `wrangler.recovery.jsonc`. Require exactly one active version at 100% traffic and two distinct,
+  explicit Cloudflare version UUIDs.
+- Activate the chosen previous recovery version at 100% with an explicit deployment message, then
+  re-read deployment status and require the exact version before smoke.
+- Run the six public smoke checks against the workers.dev recovery origin. Do not run mail delivery,
+  queues, cron, sending, routing, schema migration, or data writes during the code-only rollback.
+- In a mandatory `finally` path, reactivate the originally intended version at 100%, re-read status,
+  and run smoke again. A failed rollback smoke must not leave the previous version active.
+- Record deployment/version IDs and pass/fail timestamps without credentials, mail data, or bindings
+  beyond the already public recovery resource identities.
+
 **Out of scope for Layer 1.1:**
 
 - Calling Cloudflare or running Wrangler.
@@ -273,6 +287,14 @@ and it is safe to repeat after a partial run. Remote D1 rejects explicit transac
 imported SQL, so the live wrapper runs ordered statements and invokes this cleanup after any
 provisioning failure; a fixed-ID absence check is required before retry.
 
+### 5.5 Worker rollback drill — Layer 1.6
+
+`scripts/recovery-rollback.mjs` accepts an explicit recovery config path, workers.dev origin, current
+version UUID, previous version UUID, and injected Wrangler/smoke runners. It validates the initial
+deployment before mutation, uses `versions deploy <uuid>@100 --yes`, validates provider status after
+each deployment, and always attempts to restore the current version. The report contains version
+IDs, smoke counts, and final status only. Production config/name/version inference is not supported.
+
 ## 6. UI/UX
 
 No product UI in Layer 1. The operator surface is a future CLI and a content-free evidence report.
@@ -288,6 +310,7 @@ Recovery mutation remains outside ordinary authenticated web sessions.
 | Unit | `tests/unit/scripts/recovery-restore.test.ts` | Offline verification, empty/schema-only target checks, malformed inventory, routing refusal, quote-aware extraction, foreign-key ordering, exact D1/R2 writes |
 | Unit | `tests/unit/wrangler-recovery-bindings.test.ts` | Recovery Worker has exact isolated D1/R2 bindings and no route, Queue, Cron, Email Sending, or service bindings |
 | Unit | `tests/unit/scripts/recovery-app-verify.test.ts` | Fixed-ID provision/cleanup SQL, secret-free report, allowed mailbox/message/attachment reads, and direct/list denial for an unrelated mailbox |
+| Unit | `tests/unit/scripts/recovery-rollback.test.ts` | Initial/split/unknown-version refusal, exact rollback command/status/smoke, mandatory return on failure, and final intended-version proof |
 | Existing regression | `tests/unit/scripts/r2-backup.test.ts` | Exact referenced-key extraction and missing/corrupt object detection |
 | Full | repository commands | `npm run verify`; no E2E because Layer 1.1 has no site behavior |
 
