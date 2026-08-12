@@ -481,8 +481,9 @@ Verification:
   migrations.
 - Commit `437b70b` deployed as Worker version `0a5a08a8-e846-47a1-a697-9d16751a74dc`; remote D1
   applied `0030`, and the production build includes both session-revocation routes.
-- A schema-only remote D1 query confirms the exact ten content-free audit columns with zero rows
-  written. A second remote migration pass reports no pending migrations.
+- At initial deployment, a schema-only remote D1 query confirmed the exact ten content-free audit
+  columns before any live row was written. A second remote migration pass reported no pending
+  migrations.
 - Public smoke passes 6/6. Anonymous requests to a normal session-ID-shaped target and to
   `/api/admin/sessions/revoke-others` both return the bounded JSON `401` envelope.
 - The remote doctor passes 25 checks with zero failures and the documented live-Cron-inventory
@@ -541,3 +542,11 @@ Verification:
 - `npm run e2e` passes all 83 Chromium scenarios. New contracts prove owner rendering, older-page
   loading, current-member and removed-member labels, content minimization, and zero admin requests.
 - No schema migration or new dependency was added.
+- Commit `5904aad` deployed as Worker version `03ff1476-a7ee-4569-a9a1-1e8b4a909038`; remote D1 had
+  no pending migrations, and the production build includes `/api/admin/security-events`.
+- Public smoke passes 6/6 and an anonymous history request returns the bounded JSON `401` envelope.
+  The remote doctor passes 25 checks with zero failures and the documented live-Cron-inventory
+  warning.
+- A metadata-only remote D1 aggregation now reports exactly one `session.revoke` event, proving the
+  operator-confirmed production revocation committed its content-free audit record. The signed-in
+  owner card remains a human-visible check; no production session credential was reused by automation.
