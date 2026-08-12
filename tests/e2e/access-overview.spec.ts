@@ -24,6 +24,9 @@ async function mockAccessPage(page: Page) {
 			{ id: "mbx_1", address: "support@example.com", displayName: "Support", assignedMemberCount: 1 },
 		],
 	} } }));
+	await page.route("**/api/admin/sessions", (route) => route.fulfill({ json: { success: true, data: {
+		observedAt: "2026-08-12T20:00:00.000Z", activeCount: 0, sessions: [],
+	} } }));
 }
 
 test("access matrix separates workspace role from explicit mailbox capabilities", async ({ page }) => {

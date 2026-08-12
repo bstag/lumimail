@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";
-import { Mail, Clock, Plus, ShieldCheck, X } from "lucide-react";
+import { Mail, Clock, KeyRound, Plus, ShieldCheck, X } from "lucide-react";
 import { apiJson } from "@/lib/api/client-response";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -11,6 +11,8 @@ import { InviteMemberDialog } from "@/components/admin/invite-member-dialog";
 import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/ui/page-header";
 import type { AccessCapability, AccessMailboxRole, AccessOverview, OrganizationRole } from "@/lib/access-overview";
+import type { SessionOverview } from "@/lib/session-overview";
+import { useAuthSession } from "@/components/auth/auth-session-context";
 
 type Member = {
   id: string;
@@ -44,6 +46,10 @@ const accessOverviewKeys = {
   all: ["admin", "access-overview"] as const,
 };
 
+const sessionOverviewKeys = {
+  all: ["admin", "sessions"] as const,
+};
+
 const ORGANIZATION_ROLE_LABELS: Record<OrganizationRole, string> = {
   owner: "Owner",
   admin: "Admin",
@@ -72,6 +78,8 @@ export default function MembersPage() {
   const tCommon = useTranslations("common");
   const tNav = useTranslations("nav");
   const format = useFormatter();
+  const authSession = useAuthSession();
+  const isOwner = authSession?.user.role === "owner";
   const qc = useQueryClient();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
@@ -84,6 +92,11 @@ export default function MembersPage() {
   const accessOverviewQuery = useQuery({
     queryKey: accessOverviewKeys.all,
     queryFn: () => apiJson.get<AccessOverview>("/api/admin/access-overview"),
+  });
+  const sessionOverviewQuery = useQuery({
+    queryKey: sessionOverviewKeys.all,
+    queryFn: () => apiJson.get<SessionOverview>("/api/admin/sessions"),
+    enabled: isOwner,
   });
 
   const changeRole = useMutation({
@@ -104,6 +117,7 @@ export default function MembersPage() {
   const error =
     errorText(membersQuery.error, t("loadMembersFailed")) ??
     errorText(accessOverviewQuery.error, "Failed to load access overview") ??
+    (isOwner ? errorText(sessionOverviewQuery.error, "Failed to load active sessions") : null) ??
     errorText(changeRole.error, t("changeRoleFailed")) ??
     errorText(removeMember.error, t("removeMemberFailed"));
 
@@ -202,6 +216,13 @@ export default function MembersPage() {
 
       {accessOverviewQuery.data && <AccessMatrix overview={accessOverviewQuery.data} />}
 
+      {isOwner && sessionOverviewQuery.isLoading && (
+        <p className="text-sm text-ink-muted">Loading active sessions…</p>
+      )}
+      {isOwner && sessionOverviewQuery.data && (
+        <SessionOverviewCard overview={sessionOverviewQuery.data} />
+      )}
+
       {invites.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-ink">{t("pendingInvites")}</h3>
@@ -244,6 +265,56 @@ export default function MembersPage() {
         }}
       />
     </div>
+  );
+}
+
+function SessionOverviewCard({ overview }: { overview: SessionOverview }) {
+  const format = useFormatter();
+  return (
+    <section data-testid="session-overview" className="space-y-4 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
+          <div>
+            <h3 className="text-base font-semibold text-ink">Active sessions</h3>
+            <p className="mt-1 text-sm text-ink-muted">Sessions currently authorized for this organization.</p>
+          </div>
+        </div>
+        <span className="rounded-full bg-surface-subtle px-2.5 py-1 text-xs font-medium text-ink-muted">
+          {overview.activeCount} active
+        </span>
+      </div>
+
+      {overview.sessions.length === 0 ? (
+        <p className="rounded-md bg-surface-subtle px-3 py-2 text-sm text-ink-muted">No active sessions</p>
+      ) : (
+        <div className="space-y-2">
+          {overview.sessions.map((session) => (
+            <article key={session.id} className="rounded-lg border border-border bg-surface p-3 sm:p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium text-ink">{session.name}</p>
+                  <p className="break-all text-xs text-ink-muted">{session.email}</p>
+                </div>
+                {session.isCurrent && (
+                  <span className="rounded-full bg-success-muted px-2.5 py-1 text-xs font-medium text-success">This session</span>
+                )}
+              </div>
+              <dl className="mt-3 grid gap-2 text-xs text-ink-muted sm:grid-cols-2">
+                <div>
+                  <dt className="font-medium text-ink">Created</dt>
+                  <dd>{format.dateTime(new Date(session.createdAt), { dateStyle: "medium", timeStyle: "short" })}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-ink">Expires</dt>
+                  <dd>{format.dateTime(new Date(session.expiresAt), { dateStyle: "medium", timeStyle: "short" })}</dd>
+                </div>
+              </dl>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

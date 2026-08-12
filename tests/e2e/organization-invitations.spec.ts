@@ -10,6 +10,9 @@ async function mockAdminSession(page: Page) {
 	await page.route("**/api/admin/access-overview", (route) =>
 		route.fulfill({ json: { success: true, data: { members: [], mailboxes: [] } } }),
 	);
+	await page.route("**/api/admin/sessions", (route) =>
+		route.fulfill({ json: { success: true, data: { observedAt: "2026-08-12T20:00:00.000Z", activeCount: 0, sessions: [] } } }),
+	);
 }
 
 test.describe("identity-bound organization invitations", () => {

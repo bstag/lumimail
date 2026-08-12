@@ -34,8 +34,20 @@ Last updated: 2026-08-12
 
 - Bulk mailbox grants with confirmation and content-free audit events.
 - Invitation delivery/resend/expiry/acceptance state.
-- Active session/device inspection and revoke-one/revoke-others.
+- Revoke-one/revoke-others session controls.
 - Content-free audit history with actor, action, resource, outcome, request ID, and timestamp.
+
+### Second slice — read-only active sessions
+
+- Add an owner-only organization session inventory containing account identity, issued time, expiry,
+  and whether a row is the session making the request.
+- Return active, organization-bound sessions only. Expired, cross-organization, and malformed rows
+  are excluded even if they reference an in-scope user.
+- Expose the opaque session row ID for stable rendering and future targeted revocation, but never
+  return the session token, token lookup digest, or bcrypt hash.
+- Do not label sessions as devices or locations because the current schema does not capture user
+  agent, IP address, last-seen time, or device identity.
+- Add no revocation mutation in this slice.
 
 ## 3. Security invariants
 
@@ -47,6 +59,10 @@ Last updated: 2026-08-12
   as mailbox access.
 - Mailbox role never implies organization administration.
 - Unauthorized and cross-tenant callers receive no partial access inventory.
+- Organization-wide session visibility is owner-only; an organization admin is denied before the
+  session query runs.
+- Current-session marking uses the same bearer-first, cookie-second credential precedence as
+  authentication and compares only a derived digest in memory.
 
 ## 4. Edge cases and error states
 
@@ -57,6 +73,10 @@ Last updated: 2026-08-12
   deterministic if input order changes.
 - If the overview cannot be loaded, the page shows a bounded error without leaking database details.
 - Unknown mailbox roles fail closed and are not promoted to capabilities.
+- An organization with no active sessions returns an empty list and zero count.
+- A valid request whose current session is absent from the organization-bound result returns no row
+  marked current rather than widening the query.
+- Equal creation timestamps are ordered deterministically by opaque session ID.
 
 ## 5. Test plan
 
@@ -68,6 +88,10 @@ Last updated: 2026-08-12
 - Viewer, responder, and manager roles map to the documented capability sets.
 - Members and mailboxes with no grants remain present.
 - A regular organization member is denied before database reads.
+- An owner receives active sessions for current members only, with expired and cross-tenant rows
+  excluded.
+- The presented bearer or cookie session is marked current without returning credential material.
+- Organization admins and members are denied before session reads.
 
 ### Browser
 
@@ -76,6 +100,8 @@ Last updated: 2026-08-12
 - A member without grants and a mailbox without assigned users have explicit empty states.
 - Restricted users cannot navigate directly to the administrative surface.
 - The layout remains usable at desktop and narrow widths.
+- Owners see session identity, creation, expiry, and current-session state; admins do not request or
+  render the owner-only session inventory.
 
 ### Verification
 
@@ -93,11 +119,16 @@ Last updated: 2026-08-12
   second authorization model for the UI.
 - Decision 2026-08-12: extend `/members` with an access-matrix section instead of adding another
   navigation destination in the first slice.
+- Decision 2026-08-12: make organization-wide session inventory owner-only because it exposes other
+  users' authentication activity, while leaving the access matrix on the existing owner/admin
+  administration boundary.
+- Decision 2026-08-12: describe rows as sessions, not devices. Device/location claims wait for an
+  explicit metadata and privacy contract.
+- Decision 2026-08-12: defer session revocation until recent-authentication, confirmation, and
+  content-free audit behavior are specified together.
 
 ## 7. Open questions
 
-- Should later session and audit views remain owner-only even though the access matrix follows the
-  existing owner/admin administration boundary?
 - Which transactional email provider should deliver invitations, and what resend rate limit applies?
 
 ## 8. Bug / change log draft
@@ -153,3 +184,48 @@ Verification:
   doctor passed 25 checks with zero failures and the documented live-Cron-inventory warning.
 - Authenticated matrix rendering remains covered by the production-shaped browser suite; no
   production credential was requested or reused for automation.
+
+### 2026-08-12 — Specify owner-only active-session visibility
+
+Type: Feature
+
+Summary:
+
+- Define a read-only organization session inventory showing identity, issued time, expiry, and the
+  current session without exposing credential material.
+
+Reason:
+
+- Let an owner see active authentication state before adding destructive revoke controls.
+
+Impact:
+
+- Specification only at this checkpoint. No schema or session mutation is introduced.
+
+### 2026-08-12 — Implement owner-only active-session visibility
+
+Type: Feature
+
+Summary:
+
+- Add owner-only `/api/admin/sessions` and an Active sessions card on `/members`.
+- Show account identity, creation, expiry, active count, and the session making the request.
+- Keep organization admins on the access matrix without requesting the owner-only session dataset.
+
+Security:
+
+- The endpoint denies non-owners before reading the presented cookie or querying sessions.
+- The query requires both the session and current organization membership to match the owner's
+  organization and requires an unexpired session; the pure read model repeats those checks.
+- Bearer credentials take precedence over the cookie exactly as they do for authentication. Only a
+  derived lookup is compared, and the response omits lookup digests, hashes, and credentials.
+- No device, location, IP, user-agent, last-seen, or revocation claim was added.
+
+Verification:
+
+- Focused service/API tests passed after first failing for the absent implementation.
+- Full `npm run verify` passed 1,908 tests with 100% statement, branch, function, and line coverage,
+  plus all 21 IMAP bridge tests.
+- Full `npm run e2e` passed 78 Chromium scenarios. Owner rendering/current marking and zero admin
+  requests are explicit browser contracts.
+- No schema migration or mutation path was added.

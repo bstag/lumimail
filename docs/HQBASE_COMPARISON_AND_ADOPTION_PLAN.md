@@ -478,6 +478,11 @@ invitation delivery, session controls, audit history, and bulk grants remain lat
 The slice deployed as Worker version `8dc958d6-adc4-403c-b570-802ebb730609` with no migrations; public
 smoke passed 6/6, the new endpoint denied an anonymous caller with `401`, and the remote doctor passed
 25 checks with only the known live-Cron-inventory warning.
+The next F83 read slice adds owner-only active-session visibility to `/members` through
+`/api/admin/sessions`. It returns account identity, issue/expiry time, active count, and current-row
+marking only. Organization admins make no request to this endpoint; expired, cross-organization, and
+malformed rows fail closed, and no device/location or revocation claim is made. Full verification
+passes 1,908 tests at 100% coverage and all 78 browser scenarios.
 
 Exit gate: an owner can answer who has access, what changed, whether the platform is healthy, and
 whether recovery has been proven without opening Cloudflare or reading logs.
