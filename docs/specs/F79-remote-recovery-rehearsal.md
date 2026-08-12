@@ -66,6 +66,19 @@ Names, naming conventions, environment labels, or operator intent are not suffic
 - Removal of only the command-created partial directory after failure; an existing path is never
   reused, merged, emptied, or overwritten.
 
+**In scope for Layer 1.4:**
+
+- Provision or resolve the explicit same-account staging identities `lumimail-staging` Worker,
+  `lumimail-staging` D1, and `lumimail-raw-staging` R2 bucket.
+- Read target D1 user-table count and R2 `object_count`, and list Email Routing rules for every
+  enabled zone. Feed the resolved inventory through `assertSafeRecoveryTarget` immediately before
+  the first restore write.
+- Import the already verified `d1.sql`, restore the 15 manifest-declared objects to the exact target
+  bucket, and deploy the matching commit with staging bindings and no production custom domain.
+- Never create an Email Routing rule, Queue consumer/producer, Cron Trigger, or production binding
+  as part of restore.
+- If any staging resource already contains data, stop for operator review rather than deleting it.
+
 **Out of scope for Layer 1.1:**
 
 - Calling Cloudflare or running Wrangler.
@@ -204,6 +217,14 @@ Every Wrangler invocation uses explicit `--remote` where the command supports lo
 The command never invokes D1 execute/import/restore, R2 put/delete, deployment mutation, Queue
 mutation, or Email Routing mutation. Standard output contains counts, hashes, resource identities,
 and paths only—never SQL, object bytes, object keys, mail metadata, or credentials.
+
+### 5.3 isolated remote restore — Layer 1.4
+
+The restore command requires the private backup directory plus the resolved staging D1 UUID. It
+verifies the backup offline, resolves live production and staging inventory, invokes the target
+guard, and then performs only these writes in order: staging D1 import, exact staging R2 object puts,
+and staging Worker deployment. A command cannot infer `--remote` from an environment name; every D1
+and R2 operation names the staging environment/resource explicitly.
 
 ## 6. UI/UX
 
