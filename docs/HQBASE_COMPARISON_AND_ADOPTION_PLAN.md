@@ -475,6 +475,9 @@ capabilities, while exposing members without access and mailboxes without assign
 missing-reference, unknown-role, and denial-before-read contracts pass; the complete 76-scenario
 browser suite includes desktop and 390px matrix coverage. Existing mutations remain unchanged;
 invitation delivery, session controls, audit history, and bulk grants remain later slices.
+The slice deployed as Worker version `8dc958d6-adc4-403c-b570-802ebb730609` with no migrations; public
+smoke passed 6/6, the new endpoint denied an anonymous caller with `401`, and the remote doctor passed
+25 checks with only the known live-Cron-inventory warning.
 
 Exit gate: an owner can answer who has access, what changed, whether the platform is healthy, and
 whether recovery has been proven without opening Cloudflare or reading logs.

@@ -146,3 +146,10 @@ Verification:
 - Full `npm run e2e` passed 76 Chromium scenarios, including explicit no-access/no-assignment states
   and the access matrix at a 390px viewport.
 - No migration or mutation path was added.
+- Commit `588c0ff` deployed as Worker version `8dc958d6-adc4-403c-b570-802ebb730609` with no pending
+  migrations and all nine expected runtime bindings. The production build includes
+  `/api/admin/access-overview`.
+- Public smoke passed 6/6, the new endpoint returned `401` to an anonymous caller, and the remote
+  doctor passed 25 checks with zero failures and the documented live-Cron-inventory warning.
+- Authenticated matrix rendering remains covered by the production-shaped browser suite; no
+  production credential was requested or reused for automation.
