@@ -229,3 +229,13 @@ Verification:
 - Full `npm run e2e` passed 78 Chromium scenarios. Owner rendering/current marking and zero admin
   requests are explicit browser contracts.
 - No schema migration or mutation path was added.
+- Commit `262017f` deployed as Worker version `7d483386-6c92-410a-bb8b-b286c4f99f8c` with no pending
+  migrations and all nine expected runtime bindings. The production build includes
+  `/api/admin/sessions`.
+- The first migration preflight was rejected by Cloudflare with account authorization code `7403`
+  before build or publication. `wrangler whoami` confirmed the expected account and D1 permission;
+  the unchanged retry passed and deployed normally.
+- Public smoke passed 6/6, the new endpoint returned `401` to an anonymous caller, and the remote
+  doctor passed 25 checks with zero failures and the documented live-Cron-inventory warning.
+- Authenticated owner/admin rendering remains covered by the production-shaped browser suite; no
+  production credential was requested or reused for automation.

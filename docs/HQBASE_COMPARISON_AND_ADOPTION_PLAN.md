@@ -483,6 +483,9 @@ The next F83 read slice adds owner-only active-session visibility to `/members` 
 marking only. Organization admins make no request to this endpoint; expired, cross-organization, and
 malformed rows fail closed, and no device/location or revocation claim is made. Full verification
 passes 1,908 tests at 100% coverage and all 78 browser scenarios.
+This session slice deployed as Worker version `7d483386-6c92-410a-bb8b-b286c4f99f8c` with no
+migrations; public smoke passed 6/6, the new endpoint denied an anonymous caller with `401`, and the
+remote doctor passed 25 checks with only the known live-Cron-inventory warning.
 
 Exit gate: an owner can answer who has access, what changed, whether the platform is healthy, and
 whether recovery has been proven without opening Cloudflare or reading logs.
