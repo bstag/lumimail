@@ -84,7 +84,8 @@ Source of truth for behavior. Each follows
      [`F77-security-hardening-routing-dependencies-imap`](./specs/F77-security-hardening-routing-dependencies-imap.md),
      [`F78-local-equivalence-mvp-readiness`](./specs/F78-local-equivalence-mvp-readiness.md),
      [`F79-remote-recovery-rehearsal`](./specs/F79-remote-recovery-rehearsal.md),
-     [`F80-operator-lifecycle`](./specs/F80-operator-lifecycle.md).
+     [`F80-operator-lifecycle`](./specs/F80-operator-lifecycle.md),
+     [`F81-signed-releases`](./specs/F81-signed-releases.md).
 
 ## Implementation notes (`implementation/`)
 

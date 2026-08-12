@@ -365,6 +365,15 @@ for deployment/version bindings, D1/R2/Queues, pending migrations, required secr
 Routing/Sending, and public smoke. Wrangler exposes no read-only live Cron inventory, so the doctor
 proves source configuration plus the deployed `scheduled` handler and reports one explicit warning.
 
+F81 progress 2026-08-12: the signed-release spec now fixes the strict manifest/signature formats,
+Ed25519 trust boundary, artifact and schema compatibility checks, immutable publication behavior,
+and upload-before-deliberate-promotion sequence. Signing authority and release storage remain explicit
+operator/security decisions rather than being inferred by implementation.
+
+The pure Layer 2.3 core now passes 16 contracts for canonical provenance, bounded schema/runtime/
+notes metadata, exact artifact hashing, Ed25519 signing with pinned key IDs, and tamper/substitution/
+identity/schema refusal. It performs no file, network, provider, upload, or promotion operation.
+
 Deliverables:
 
 - Add a non-mutating `doctor` command that checks runtime version, bindings, D1 migrations, R2 access,
