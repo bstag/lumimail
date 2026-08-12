@@ -37,6 +37,21 @@ Last updated: 2026-08-12
 - Revoke-one/revoke-others session controls.
 - Content-free audit history with actor, action, resource, outcome, request ID, and timestamp.
 
+### Third slice — recent-authentication foundation
+
+- Store when each exact session most recently proved the account password.
+- New sessions start fresh at issuance. Existing sessions are backfilled from their creation time,
+  so migration never silently grants a newer proof than actually occurred. Transitional null values
+  created by the previously deployed Worker during rollout are never considered recent.
+- Add authenticated `POST /api/auth/reconfirm` with a password-only body, per-user durable rate
+  limiting, and a 15-minute freshness window.
+- A successful reconfirmation updates only the active session presenting the verified bearer or
+  cookie credential and returns the freshness expiry timestamp.
+- Wrong passwords, a missing presented credential, and a session disappearing between guard and
+  update fail with the same bounded `403` response. Rate-limit storage fails closed.
+- Add a reusable recent-session predicate for later revoke, bulk-grant, and other high-risk routes.
+- This foundation adds no destructive action and no UI prompt by itself.
+
 ### Second slice — read-only active sessions
 
 - Add an owner-only organization session inventory containing account identity, issued time, expiry,
@@ -63,6 +78,10 @@ Last updated: 2026-08-12
   session query runs.
 - Current-session marking uses the same bearer-first, cookie-second credential precedence as
   authentication and compares only a derived digest in memory.
+- Password reconfirmation never accepts a user ID, organization ID, or session ID from the request
+  body; all three are derived from the authenticated request and exact credential.
+- Reconfirmation failure uses `403`, not `401`, so the browser does not treat a wrong password as a
+  lost authenticated session.
 
 ## 4. Edge cases and error states
 
@@ -77,6 +96,9 @@ Last updated: 2026-08-12
 - A valid request whose current session is absent from the organization-bound result returns no row
   marked current rather than widening the query.
 - Equal creation timestamps are ordered deterministically by opaque session ID.
+- Existing sessions older than 15 minutes are not recent immediately after migration.
+- A session expiring during reconfirmation is not updated and receives the same bounded failure.
+- A successful reconfirmation of one session does not refresh any other session for the same user.
 
 ## 5. Test plan
 
@@ -92,6 +114,13 @@ Last updated: 2026-08-12
   excluded.
 - The presented bearer or cookie session is marked current without returning credential material.
 - Organization admins and members are denied before session reads.
+- New session creation persists the initial authentication timestamp.
+- Migration parity proves fresh and upgraded databases preserve authentication age, while the
+  transitional nullable column remains insert-compatible with the previously deployed Worker.
+- Reconfirmation validates the body, fails closed when rate-limit storage is unavailable, rate
+  limits repeated attempts, verifies the current password, and updates only the presented session.
+- The reusable freshness predicate accepts the exact active session inside 15 minutes and rejects
+  absent, expired, other-user, other-session, and stale rows.
 
 ### Browser
 
@@ -126,6 +155,15 @@ Last updated: 2026-08-12
   explicit metadata and privacy contract.
 - Decision 2026-08-12: defer session revocation until recent-authentication, confirmation, and
   content-free audit behavior are specified together.
+- Decision 2026-08-12: use a 15-minute recent-authentication window and refresh it only through an
+  explicit password proof on the exact current session.
+- Decision 2026-08-12: backfill `authenticated_at` from `created_at`; migration must never make an old
+  session newly recent.
+- Decision 2026-08-12: keep `authenticated_at` nullable for the rolling-deploy boundary because D1
+  migrates before Worker publication. New code always writes it, and null fails closed, so a failed
+  publication cannot break login on the previously deployed Worker or grant freshness.
+- Decision 2026-08-12: make `/api/auth/reconfirm` reusable for any authenticated user while keeping
+  organization-wide session inspection owner-only.
 
 ## 7. Open questions
 
@@ -239,3 +277,53 @@ Verification:
   doctor passed 25 checks with zero failures and the documented live-Cron-inventory warning.
 - Authenticated owner/admin rendering remains covered by the production-shaped browser suite; no
   production credential was requested or reused for automation.
+
+### 2026-08-12 — Specify recent authentication
+
+Type: Security foundation
+
+Summary:
+
+- Define exact-session password reconfirmation, a 15-minute freshness predicate, durable attempt
+  limiting, and a migration-safe authentication timestamp.
+
+Reason:
+
+- Destructive security controls must prove recent intent rather than relying on possession of a
+  potentially month-old session.
+
+Impact:
+
+- Specification only at this checkpoint. No revoke or bulk-access mutation is added.
+
+### 2026-08-12 — Implement exact-session recent authentication
+
+Type: Security foundation
+
+Summary:
+
+- Add migration `0029`, initial authentication timestamps on new sessions, authenticated
+  `POST /api/auth/reconfirm`, and a reusable 15-minute freshness predicate.
+- Apply a durable per-user limit of five password-confirmation attempts per 15 minutes.
+
+Security:
+
+- Password proof updates only the exact unexpired session represented by the bearer-first,
+  cookie-second request credential. Missing credentials, wrong passwords, and disappearing sessions
+  share one bounded `403` response.
+- Existing rows inherit their original session creation time. Transitional null timestamps from the
+  rolling-deploy boundary fail closed and never satisfy the freshness predicate.
+- Migration `0029` deliberately permits the old Worker to keep inserting sessions if publication
+  stops after D1 migration, preventing an authentication outage without granting recent status.
+
+Verification:
+
+- Tests were written first and failed for the absent migration, service, route, and session field.
+- Focused migration, session, service, and route contracts pass 35/35.
+- Full `npm run verify` passes 1,920 tests with 100% statement, branch, function, and line coverage,
+  plus all 21 IMAP bridge tests. Existing lint warnings remain at 36 with zero errors.
+- Full `npm run e2e` passes all 78 Chromium scenarios after advancing the Operations schema contract
+  to `0029`; this backend-only foundation adds no new UI flow.
+- A migrated local D1 copy applied `0029` successfully and a second migration pass reported no
+  pending migrations. Deployment and production authorization evidence are recorded after those
+  gates run.

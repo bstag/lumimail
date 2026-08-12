@@ -435,6 +435,7 @@ export const sessions = sqliteTable(
 		tokenLookup: text("token_lookup").notNull(),
 		tokenHash: text("token_hash").notNull().unique(),
 		expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+		authenticatedAt: integer("authenticated_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.notNull()
 			.$defaultFn(() => new Date()),

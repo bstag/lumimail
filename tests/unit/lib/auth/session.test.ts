@@ -78,6 +78,7 @@ describe("createSession", () => {
 		expect(values.tokenHash).toBe("hashed:sess_id");
 		expect(values.organizationId).toBe("org_1");
 		expect(values.expiresAt).toBeInstanceOf(Date);
+		expect(values.authenticatedAt).toBeInstanceOf(Date);
 		// id was generated without a prefix
 		expect(idCalls).toContain(undefined);
 	});

@@ -363,7 +363,7 @@ Tests:
 
 Notes:
 
-- Current compatibility policy is exactly schema `0028`; widening it requires explicit evidence
+- Current compatibility policy is exactly schema `0029`; widening it requires explicit evidence
   that the release operates correctly against the additional schema version.
 
 ### 2026-08-12 — Wire one offline release preparation command
