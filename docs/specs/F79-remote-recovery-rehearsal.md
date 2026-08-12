@@ -79,6 +79,26 @@ Names, naming conventions, environment labels, or operator intent are not suffic
   as part of restore.
 - If any staging resource already contains data, stop for operator review rather than deleting it.
 
+**In scope for Layer 1.5:**
+
+- Select one restored mailbox with a readable message/attachment plus an unrelated restored mailbox
+  using content-free staging inventory. Do not print message bodies, addresses, subjects, filenames,
+  object keys, or production credential material.
+- Create one fixed-ID, recovery-only user with a random one-time password, ordinary organization
+  `member` role, and `viewer` access to exactly the selected mailbox. The identity must not own a
+  domain/mailbox, receive mail, send mail, or exist in production.
+- Authenticate only at the recovery workers.dev origin. Prove session bootstrap, the exact allowed
+  mailbox list, an allowed message/body read, attachment metadata and exact attachment bytes, and a
+  representative thread/HTML rendering path when present.
+- Prove the unrelated mailbox is absent from `/api/mailboxes`, filtered message listing returns no
+  rows, and direct unrelated message and attachment reads return `404`.
+- If the snapshot has no attachment in the unrelated mailbox, insert one fixed-ID staging-only
+  attachment row on the unrelated message by copying metadata/R2 identity from the allowed restored
+  attachment. This writes no object and changes no message; cleanup deletes only that fixed row.
+- Delete verifier sessions first, then its mailbox membership, organization membership, and user.
+  Verify all fixed IDs are absent after cleanup. Cleanup must never select rows by email/domain or
+  delete restored production-shaped data.
+
 **Out of scope for Layer 1.1:**
 
 - Calling Cloudflare or running Wrangler.
@@ -238,6 +258,19 @@ re-established by inserting the captured application rows into the migrated targ
 The captured `imap_uid_counter` row uses `INSERT OR REPLACE` so its production value replaces the
 exact migration baseline and preserves monotonic IMAP UID allocation.
 
+### 5.4 authenticated application verification — Layer 1.5
+
+`scripts/recovery-app-verify.mjs` owns the repeatable verification contract. Its pure SQL renderers
+accept already-resolved organization/mailbox IDs and fixed recovery-only row IDs; they never infer a
+production target. Provisioning fails if any verifier ID/email already exists or if the allowed and
+denied mailboxes are equal. HTTP verification accepts a caller-supplied fetch implementation and
+returns only status/count/hash evidence. It treats the one-time password and session cookie as
+secrets and never includes either in the report.
+
+The cleanup SQL names only the fixed verifier user/membership IDs and optional fixed denial-fixture
+attachment ID. It deletes the fixture and sessions before removing the membership rows and user,
+and it is safe to repeat after a partial run.
+
 ## 6. UI/UX
 
 No product UI in Layer 1. The operator surface is a future CLI and a content-free evidence report.
@@ -252,6 +285,7 @@ Recovery mutation remains outside ordinary authenticated web sessions.
 | Unit | `tests/unit/scripts/recovery-capture.test.ts` | Read-only command sequence, atomic publication, dirty/existing/split-traffic/binding-drift refusal, partial cleanup |
 | Unit | `tests/unit/scripts/recovery-restore.test.ts` | Offline verification, empty/schema-only target checks, malformed inventory, routing refusal, quote-aware extraction, foreign-key ordering, exact D1/R2 writes |
 | Unit | `tests/unit/wrangler-recovery-bindings.test.ts` | Recovery Worker has exact isolated D1/R2 bindings and no route, Queue, Cron, Email Sending, or service bindings |
+| Unit | `tests/unit/scripts/recovery-app-verify.test.ts` | Fixed-ID provision/cleanup SQL, secret-free report, allowed mailbox/message/attachment reads, and direct/list denial for an unrelated mailbox |
 | Existing regression | `tests/unit/scripts/r2-backup.test.ts` | Exact referenced-key extraction and missing/corrupt object detection |
 | Full | repository commands | `npm run verify`; no E2E because Layer 1.1 has no site behavior |
 
