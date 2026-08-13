@@ -1,8 +1,9 @@
 # F79 — Remote Recovery Rehearsal
 
-> Status: In Progress — Layers 1.1–1.7 implemented; live D1/R2 cleanup and archive-policy gate remain
+> Status: In Progress — Layers 1.1–1.8 implemented; recapture, live cleanup, and archive policy remain
 > Owner area: `scripts/recovery-target-guard.mjs`, `scripts/r2-backup.mjs`,
-> `scripts/recovery-capture.mjs`, `scripts/recovery-restore.mjs`, `docs/OPERATIONS.md`
+> `scripts/recovery-capture.mjs`, `scripts/recovery-recapture.mjs`,
+> `scripts/recovery-restore.mjs`, `docs/OPERATIONS.md`
 
 ## 1. Problem & User Job
 
@@ -133,6 +134,23 @@ Names, naming conventions, environment labels, or operator intent are not suffic
   resource/routing fingerprint captured immediately before and after cleanup.
 - Preserve the private backup until the operator chooses an at-rest encryption, retention, and
   destruction policy. Cleanup of remote rehearsal resources does not imply local archive deletion.
+
+**In scope for Layer 1.8 recovery-evidence recapture:**
+
+- Recover from loss of the private local archive by reading only the exact isolated D1/R2 resources
+  already proven by this rehearsal. Never substitute current production data or infer another
+  database/bucket by name.
+- Require the checked-in recovery configuration, exact account/D1/R2 identities, exactly 15 R2
+  objects, exact Worker absence code `10007`, no Email Routing destination for the recovery Worker,
+  an unused output path, and a clean worktree before exporting private data.
+- Export the isolated D1 and download only its D1-referenced R2 keys into a randomly named sibling
+  partial directory. Require exactly 15 unique referenced keys, capture all 15, canonicalize the
+  known original source provenance recorded by the successful 2026-08-12 rehearsal, verify every
+  byte offline, and atomically publish the directory.
+- On any failure, remove only the command-created partial directory. Do not mutate Cloudflare,
+  create/redeploy the Worker, alter routes, delete resources, or print mail content/object keys.
+- Implement and verify the command without executing it until the operator supplies an encrypted
+  destination and archive-retention decision.
 
 **Out of scope for Layer 1.1:**
 
@@ -330,6 +348,20 @@ may resume at R2 only after the deployment lookup returns a recognized Worker-ab
 not deploy or smoke a replacement Worker. The final report records whether Worker removal happened
 in this invocation so operator evidence cannot silently imply a mutation that was already complete.
 
+### 5.7 Isolated recovery recapture — Layer 1.8
+
+`scripts/recovery-recapture.mjs` is an incident-specific read-only bridge from the still-present
+isolated rehearsal resources to a new canonical `lumimail-recovery-v1` directory. It hard-codes the
+exact source provenance already recorded in this spec—production Worker/D1/R2, application commit,
+schema `0028`, active version, and script ETag—and sets the non-portable original D1 bookmark to
+`null`. It separately binds provider reads to the exact recovery D1/R2 identities. Therefore it
+cannot relabel arbitrary input supplied through command arguments, and its manifest remains accepted
+by the existing offline verifier and cleanup guard.
+
+The command performs metadata preflight before creating a partial directory. Its only provider data
+operations are D1 export and R2 object get. Object count equality plus D1-derived unique keys proves
+the recapture covers the entire 15-object recovery bucket without listing or logging private keys.
+
 ## 6. UI/UX
 
 No product UI in Layer 1. The operator surface is a future CLI and a content-free evidence report.
@@ -347,6 +379,7 @@ Recovery mutation remains outside ordinary authenticated web sessions.
 | Unit | `tests/unit/scripts/recovery-app-verify.test.ts` | Fixed-ID provision/cleanup SQL, secret-free report, allowed mailbox/message/attachment reads, and direct/list denial for an unrelated mailbox |
 | Unit | `tests/unit/scripts/recovery-rollback.test.ts` | Initial/split/unknown-version refusal, exact rollback command/status/smoke, mandatory return on failure, and final intended-version proof |
 | Unit | `tests/unit/scripts/recovery-cleanup.test.ts` | Exact manifest/config/target preflight, ordered deletion, partial-failure stops, absence verification, production-fingerprint equality, and private-evidence preservation |
+| Unit | `tests/unit/scripts/recovery-recapture.test.ts` | exact recovery identities, Worker absence/routing isolation, read-only D1/R2 capture, known provenance, atomic publication, count mismatch and partial-failure cleanup |
 | Existing regression | `tests/unit/scripts/r2-backup.test.ts` | Exact referenced-key extraction and missing/corrupt object detection |
 | Full | repository commands | `npm run verify`; no E2E because Layer 1.1 has no site behavior |
 
@@ -431,6 +464,10 @@ Coverage target: all statements and branches in the new guard module.
   exposure solely to repeat smoke. Worker absence weakens no D1/R2 deletion boundary: the private
   manifest, exact resource identities/count, routing isolation, and production fingerprints remain
   mandatory. — 2026-08-13
+- Decision: if the private rehearsal archive is lost while its isolated restored resources remain,
+  recapture those exact resources rather than backing up changed production or weakening cleanup.
+  The one-off command fixes both recovery and original-source identities in code and remains unrun
+  until an encrypted destination is selected. — 2026-08-13
 - Decision: a clean `HEAD` is mandatory because the manifest must name recoverable source. The
   deployment at 2026-08-12 13:29 UTC was built from commit `d53b475`. — 2026-08-12
 - Open: choose the long-term backup destination and retention policy after the same-account rehearsal.
@@ -648,3 +685,20 @@ Type: Recovery safety / resumability
 - `npm run verify` passes: typecheck, lint with 36 existing warnings and zero errors, 238 test files
   with 2,071 application tests at 100% coverage, and 21 IMAP bridge tests.
 - No remote cleanup or deployment is performed by this code change.
+
+### 2026-08-13 — Specify isolated recovery-evidence recapture
+
+Type: Recovery safety / evidence reconstruction
+
+- A metadata-only mounted-drive search found no surviving `lumimail-recovery-v1` manifest.
+- Read-only provider inventory reconfirmed the exact isolated D1, the exact R2 bucket with 15
+  objects, and recovery Worker absence with Cloudflare code `10007`.
+- Define a one-off, fail-closed recapture from those isolated resources using the original provenance
+  already recorded by the successful rehearsal.
+- Add `npm run recovery:recapture -- <new-encrypted-output-directory>` with exact configuration,
+  Worker-absence, D1/R2, routing, count, read-only command, atomic publication, and bounded-failure
+  contracts. Provider failures and missing object errors cannot echo raw private response text.
+- Red-first execution failed because the recapture module did not exist; the completed focused suite
+  passes 6/6. No private export is run until an encrypted destination and archive policy are supplied.
+- `npm run verify` passes: typecheck, lint with 36 existing warnings and zero errors, 239 test files
+  with 2,077 application tests at 100% coverage, and 21 IMAP bridge tests.

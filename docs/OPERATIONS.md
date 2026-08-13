@@ -337,8 +337,26 @@ HTML plus attachment controls. Worker rollback and return each passed 6/6.
 
 Cleanup is partially complete: the recovery-only Worker is deleted and production remains 6/6.
 The restored D1 and 15-object R2 bucket remain because the private capture path is not currently
-available for mandatory re-verification. Supply that directory to the guarded cleanup command; do
-not manually delete these remaining copies. The command recognizes only Wrangler's exact Worker
+available for mandatory re-verification. A metadata-only search on 2026-08-13 found no surviving
+archive on the mounted drives, while read-only Cloudflare inventory reconfirmed the exact recovery
+D1, 15-object R2 bucket, and absent Worker.
+
+After choosing an encrypted destination outside the repository, recapture those exact isolated
+resources without recreating the Worker or reading current production:
+
+```powershell
+npm run recovery:recapture -- <new-encrypted-output-directory>
+```
+
+The command refuses an existing destination, dirty worktree, configuration drift, any Worker result
+other than Cloudflare absence code `10007`, routing to the recovery Worker, any D1/R2 identity or
+15-object count mismatch, or incomplete byte capture. It publishes only after canonical offline
+verification and otherwise removes only its randomly named partial directory. It never writes to
+Cloudflare. The guarded cleanup re-verifies the canonical manifest, D1 export, and all object bytes
+again before its first deletion.
+
+Supply the newly verified directory to the guarded cleanup command; do not manually delete the
+remaining remote copies. The cleanup command recognizes only Wrangler's exact Worker
 absence code (`10007`) as the already-completed exposure-removal step; it will not redeploy the
 Worker, rerun smoke against a replacement, or treat arbitrary `not found` text as proof. Choose and
 document encrypted-at-rest retention and eventual destruction for the private archive before
