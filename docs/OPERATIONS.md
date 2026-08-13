@@ -335,10 +335,10 @@ exact-byte object hashes. Public smoke passed 6/6. Authenticated allowed message
 reads passed, unrelated-mailbox list/direct reads were denied, and browser inspection covered rich
 HTML plus attachment controls. Worker rollback and return each passed 6/6.
 
-Cleanup is partially complete: the recovery-only Worker is deleted and production remains 6/6.
-The restored D1 and 15-object R2 bucket remain. A metadata-only search on 2026-08-13 found no
-surviving archive on the mounted drives, while read-only Cloudflare inventory reconfirmed the exact
-recovery D1, 15-object R2 bucket, and absent Worker.
+On 2026-08-12 cleanup was partially complete: the recovery-only Worker had been deleted while the
+restored D1 and 15-object R2 bucket remained. A metadata-only search on 2026-08-13 found no surviving
+archive on the mounted drives, while read-only Cloudflare inventory reconfirmed the exact recovery
+D1, 15-object R2 bucket, and absent Worker.
 
 After choosing an encrypted destination outside the repository, recapture those exact isolated
 resources without recreating the Worker or reading current production:
@@ -360,9 +360,29 @@ proven with an encrypted write/read/delete probe before export. Recapture then v
 and all 15 objects. An independent offline pass found zero problems across 17 files totaling
 8,519,426 bytes, and every file was EFS-encrypted. No remote mutation occurred.
 
-Supply the newly verified directory to the guarded cleanup command; do not manually delete the
-remaining remote copies. The cleanup command recognizes only Wrangler's exact Worker
+Set or change the archive's bounded retention days independently of Cloudflare cleanup:
+
+```powershell
+npm run recovery:retention -- <archive-directory> 30
+```
+
+After cleanup succeeds, record its immutable basis once (later day changes preserve this timestamp):
+
+```powershell
+node scripts/recovery-retention.mjs <archive-directory> 30 --cleanup-completed-now
+```
+
+If a future rehearsal reaches the same partial state, supply the newly verified directory to the
+guarded cleanup command; do not manually delete remaining remote copies. The cleanup command
+recognizes only Wrangler's exact Worker
 absence code (`10007`) as the already-completed exposure-removal step; it will not redeploy the
-Worker, rerun smoke against a replacement, or treat arbitrary `not found` text as proof. Choose and
-document encrypted-at-rest retention and eventual destruction for the private archive before
-marking F79 complete.
+Worker, rerun smoke against a replacement, or treat arbitrary `not found` text as proof.
+
+Completed 2026-08-13. The first cleanup attempt stopped safely because R2's aggregate reported zero
+objects even though exact reads showed all 15 present and matching. The guard now accepts aggregate
+disagreement only after streaming every exact manifest key in memory and matching size/SHA-256.
+Guarded retry deleted those 15 objects, the empty bucket, and exact staging D1. Independent inventory
+proves Worker/R2/D1 absence, the production fingerprint was unchanged, and production smoke passed
+6/6. The encrypted archive remains verified and its configurable policy records cleanup at
+`2026-08-13T21:48:19.075Z`, 30 days retention, and destruction after
+`2026-09-12T21:48:19.075Z`.

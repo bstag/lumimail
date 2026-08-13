@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 
 import { runRecoveryCleanup } from "../../../scripts/recovery-cleanup.mjs";
@@ -31,6 +32,8 @@ function config() {
 }
 
 function evidence() {
+	const first = Buffer.from("attachment");
+	const second = Buffer.from("mime");
 	return {
 		manifest: {
 			source: {
@@ -40,8 +43,10 @@ function evidence() {
 				r2: production.r2,
 			},
 			objects: [
-				{ key: "attachments/u1/m1/a1" },
-				{ key: "inbound/message-1.eml" },
+				{ key: "attachments/u1/m1/a1", size: first.length,
+					sha256: createHash("sha256").update(first).digest("hex") },
+				{ key: "inbound/message-1.eml", size: second.length,
+					sha256: createHash("sha256").update(second).digest("hex") },
 			],
 		},
 	};
@@ -51,6 +56,8 @@ function runner(options?: {
 	bucketDeleteFails?: boolean;
 	changedFingerprint?: boolean;
 	workerStatusError?: Error & { stderr?: string };
+	bucketObjectCount?: number;
+	remoteObjectMismatch?: boolean;
 }) {
 	let workerExists = !options?.workerStatusError;
 	let d1Exists = true;
@@ -69,7 +76,12 @@ function runner(options?: {
 		}
 		if (command === "r2 bucket info") {
 			if (!bucketExists) throw Object.assign(new Error("Bucket absent"), { code: "BUCKET_NOT_FOUND" });
-			return JSON.stringify({ name: target.r2.bucketName, object_count: "2" });
+			return JSON.stringify({ name: target.r2.bucketName, object_count: String(options?.bucketObjectCount ?? 2) });
+		}
+		if (args[0] === "r2" && args[1] === "object" && args[2] === "get") {
+			const key = args[3].slice(`${target.r2.bucketName}/`.length);
+			if (options?.remoteObjectMismatch && key === "inbound/message-1.eml") return Buffer.from("changed");
+			return Buffer.from(key.startsWith("attachments/") ? "attachment" : "mime");
 		}
 		if (args[0] === "email" && args[1] === "routing" && args[2] === "list") return "";
 		if (args[0] === "delete") {
@@ -165,6 +177,26 @@ describe("runRecoveryCleanup", () => {
 		});
 		expect(args.runSmoke).not.toHaveBeenCalled();
 		expect(args.runWrangler.mock.calls.some(([command]) => command[0] === "delete")).toBe(false);
+	});
+
+	it("verifies every exact object in memory when the provider aggregate disagrees", () => {
+		const args = inputs(runner({ bucketObjectCount: 0 }));
+		expect(runRecoveryCleanup(args)).toEqual(expect.objectContaining({ deletedObjectCount: 2 }));
+		const reads = args.runWrangler.mock.calls
+			.map(([command]) => command)
+			.filter((command) => command[0] === "r2" && command[1] === "object" && command[2] === "get");
+		expect(reads).toEqual([
+			["r2", "object", "get", `${target.r2.bucketName}/attachments/u1/m1/a1`, "--config", target.configPath, "--remote", "--pipe"],
+			["r2", "object", "get", `${target.r2.bucketName}/inbound/message-1.eml`, "--config", target.configPath, "--remote", "--pipe"],
+		]);
+	});
+
+	it("refuses an exact-object mismatch before deletion when the aggregate disagrees", () => {
+		const args = inputs(runner({ bucketObjectCount: 0, remoteObjectMismatch: true }));
+		expect(() => runRecoveryCleanup(args)).toThrow("exact recovery R2 objects do not match");
+		expect(args.runWrangler.mock.calls.some(([command]) => command[0] === "delete" ||
+			(command[0] === "r2" && command[2] === "delete") ||
+			(command[0] === "d1" && command[1] === "delete"))).toBe(false);
 	});
 
 	it("does not reinterpret unclassified Worker status failures as absence", () => {

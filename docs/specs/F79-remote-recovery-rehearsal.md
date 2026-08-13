@@ -1,6 +1,6 @@
 # F79 — Remote Recovery Rehearsal
 
-> Status: In Progress — Layers 1.1–1.8 complete; live cleanup and archive policy remain
+> Status: Shipped — remote rehearsal, exact cleanup, and configurable encrypted retention complete
 > Owner area: `scripts/recovery-target-guard.mjs`, `scripts/r2-backup.mjs`,
 > `scripts/recovery-capture.mjs`, `scripts/recovery-recapture.mjs`,
 > `scripts/recovery-restore.mjs`, `docs/OPERATIONS.md`
@@ -128,6 +128,10 @@ Names, naming conventions, environment labels, or operator intent are not suffic
   failure other than exact absence still fails before mutation.
 - Require the recovery R2 bucket's observed object count to equal the manifest and delete only the
   manifest's exact object keys. Stop if the bucket cannot then be deleted; do not continue to D1.
+- If the provider's aggregate object count disagrees, do not weaken or bypass preflight. Stream each
+  exact manifest key with Wrangler `--pipe`, retain bytes only in memory, and require its exact size
+  and SHA-256. Proceed only when every manifest object matches; any missing/mismatched object or
+  provider failure stops before deletion without printing bytes or keys.
 - Delete in exposure-first order: recovery Worker, exact R2 objects, empty R2 bucket, then recovery
   D1. Do not use Worker force-delete, wildcard object deletion, name inference, or production config.
 - Verify the Worker, bucket, and D1 are absent afterward, and compare a content-free production
@@ -151,6 +155,22 @@ Names, naming conventions, environment labels, or operator intent are not suffic
   create/redeploy the Worker, alter routes, delete resources, or print mail content/object keys.
 - Implement and verify the command without executing it until the operator supplies an encrypted
   destination and archive-retention decision.
+
+**In scope for Layer 1.9 configurable archive retention:**
+
+- Store one strict, content-free `lumimail-recovery-retention-v1` policy beside the encrypted
+  archive. It contains only retention days, cleanup completion/destruction timestamps, and update
+  time; it never contains resource IDs, paths, object keys, mail data, credentials, or free text.
+- `npm run recovery:retention -- <archive-directory> <days>` verifies the canonical archive before
+  writing and accepts an integer from 1 through 3,650. Re-running changes the day count while
+  preserving an already recorded cleanup completion time and recomputing destruction from that
+  immutable basis.
+- `--cleanup-completed-now` may set the basis exactly once after guarded cleanup succeeds. Before
+  cleanup, both completion and destruction timestamps are `null`; afterward, destruction is exactly
+  the selected number of UTC days after cleanup.
+- Validate any existing policy strictly and write through a random same-directory partial file plus
+  atomic rename. On failure, preserve the previous policy and remove only the command-created
+  partial file.
 
 **Out of scope for Layer 1.1:**
 
@@ -348,6 +368,10 @@ may resume at R2 only after the deployment lookup returns a recognized Worker-ab
 not deploy or smoke a replacement Worker. The final report records whether Worker removal happened
 in this invocation so operator evidence cannot silently imply a mutation that was already complete.
 
+R2 bucket `object_count` is a provider aggregate rather than the sole integrity authority. Equality
+remains the zero-egress fast path. On disagreement, exact manifest-key streaming plus byte hashes is
+the fail-closed fallback and provides stronger evidence than trusting a stale aggregate.
+
 ### 5.7 Isolated recovery recapture — Layer 1.8
 
 `scripts/recovery-recapture.mjs` is an incident-specific read-only bridge from the still-present
@@ -361,6 +385,14 @@ by the existing offline verifier and cleanup guard.
 The command performs metadata preflight before creating a partial directory. Its only provider data
 operations are D1 export and R2 object get. Object count equality plus D1-derived unique keys proves
 the recapture covers the entire 15-object recovery bucket without listing or logging private keys.
+
+### 5.8 Archive retention policy — Layer 1.9
+
+The retention setter is separate from cleanup so changing retention never gains Cloudflare mutation
+authority. The archive verifier is its only trust input. A policy can be prepared before cleanup,
+then finalized from the actual successful cleanup time; later day-count changes remain explicit and
+deterministic. The policy file is not part of the recovery manifest and does not change byte-integrity
+evidence for D1/R2.
 
 ## 6. UI/UX
 
@@ -380,6 +412,7 @@ Recovery mutation remains outside ordinary authenticated web sessions.
 | Unit | `tests/unit/scripts/recovery-rollback.test.ts` | Initial/split/unknown-version refusal, exact rollback command/status/smoke, mandatory return on failure, and final intended-version proof |
 | Unit | `tests/unit/scripts/recovery-cleanup.test.ts` | Exact manifest/config/target preflight, ordered deletion, partial-failure stops, absence verification, production-fingerprint equality, and private-evidence preservation |
 | Unit | `tests/unit/scripts/recovery-recapture.test.ts` | exact recovery identities, Worker absence/routing isolation, read-only D1/R2 capture, known provenance, atomic publication, count mismatch and partial-failure cleanup |
+| Unit | `tests/unit/scripts/recovery-retention.test.ts` | archive verification, 1–3,650-day bounds, strict existing policy, pending/final timestamps, immutable cleanup basis, atomic update and partial cleanup |
 | Existing regression | `tests/unit/scripts/r2-backup.test.ts` | Exact referenced-key extraction and missing/corrupt object detection |
 | Full | repository commands | `npm run verify`; no E2E because Layer 1.1 has no site behavior |
 
@@ -468,6 +501,12 @@ Coverage target: all statements and branches in the new guard module.
   recapture those exact resources rather than backing up changed production or weakening cleanup.
   The one-off command fixes both recovery and original-source identities in code and remains unrun
   until an encrypted destination is selected. — 2026-08-13
+- Decision: retain the current encrypted rehearsal archive for 30 days after successful guarded
+  cleanup, then securely delete it. Make the bounded day count explicitly settable without allowing
+  policy changes to mutate Cloudflare or reset the cleanup-time basis. — 2026-08-13
+- Decision: a stale R2 aggregate may be replaced only by complete exact-key byte verification, not
+  by operator confirmation or count bypass. Wrangler `--pipe` keeps remote bytes in memory and the
+  cleanup report remains content-free. — 2026-08-13
 - Decision: a clean `HEAD` is mandatory because the manifest must name recoverable source. The
   deployment at 2026-08-12 13:29 UTC was built from commit `d53b475`. — 2026-08-12
 - Open: choose the long-term backup destination and retention policy after the same-account rehearsal.
@@ -711,3 +750,36 @@ Type: Recovery safety / evidence reconstruction
   to the same three principals. No object key, message content, address, or credential was recorded.
 - The exact recovery D1/R2 remain untouched pending the archive-retention decision and guarded
   cleanup invocation.
+
+### 2026-08-13 — Specify configurable recovery retention
+
+Type: Recovery operations / data lifecycle
+
+- The operator selected 30 days after successful cleanup as the current archive retention period
+  and requested that the duration remain settable.
+- Define strict content-free policy metadata, bounded day changes, immutable cleanup-time basis,
+  deterministic destruction time, archive verification, and atomic same-directory updates.
+- Add `scripts/recovery-retention.mjs` and `npm run recovery:retention` with strict archive
+  verification, 1–3,650-day bounds, content-free policy data, immutable cleanup basis, deterministic
+  destruction time, and atomic update behavior.
+- Red-first execution failed because the setter did not exist; the completed focused suite passes
+  8/8. The encrypted archive accepted a pending 30-day policy and remained byte-valid.
+
+### 2026-08-13 — Specify exact-object fallback for stale R2 aggregate
+
+Type: Recovery safety / provider reconciliation
+
+- The first guarded cleanup attempt stopped before deletion because R2 reported object count `0`
+  against the 15-object manifest.
+- A separate read-only check successfully fetched all 15 exact keys and matched all 15 archive
+  hashes; the staging D1 remains present. No private bytes/keys were logged or retained.
+- Require exact in-memory size/hash verification of every manifest object when the provider aggregate
+  disagrees. The two new tests failed first, then both cleanup/retention suites passed 18/18.
+- `npm run verify` passes with 240 test files, 2,087 application tests at 100% coverage, all 21 bridge
+  tests, and zero lint errors (36 existing warnings).
+- Guarded retry streamed and matched all 15 exact objects, deleted only those objects, the empty
+  recovery bucket, and exact staging D1, then proved all recovery resources absent and the production
+  fingerprint unchanged. A separate production smoke run passed 6/6.
+- The encrypted policy records cleanup completion `2026-08-13T21:48:19.075Z`, 30 retention days,
+  and destruction after `2026-09-12T21:48:19.075Z`. Independent verification reports zero archive
+  problems and confirms the policy file is EFS-encrypted.

@@ -336,9 +336,18 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
     The recovery-only Worker was deleted and production remains 6/6. The remote D1/R2 copy is
     intentionally retained because the private capture directory is not currently accessible for
     mandatory re-verification; archive encryption/retention policy remains an operator decision.
-  - Remaining for R-18 overall: supply the private capture path, run guarded D1/R2 cleanup, choose
-    archive encryption/retention policy, and record production-shape latency/Queue throughput
-    inherited from R-17.
+  - Recovery closure evidence 2026-08-13: the lost private capture was reconstructed read-only from
+    the exact isolated D1/R2 into an EFS-encrypted directory restricted to the operator, SYSTEM, and
+    local Administrators. Independent verification passed one D1 export plus 15 exact objects with
+    zero problems. When R2's aggregate incorrectly reported zero, cleanup stopped before deletion;
+    an exact-key streaming fallback was then specified, tested, and required all 15 SHA-256 matches.
+    Guarded cleanup deleted the 15 exact objects, empty bucket, and exact staging D1, proved Worker/
+    R2/D1 absence and unchanged production fingerprint, and production smoke passed 6/6. The strict
+    settable archive policy records 30 days after cleanup, with destruction after
+    `2026-09-12T21:48:19.075Z`.
+  - Remaining for R-18 overall: record production-shape latency and Queue throughput inherited from
+    R-17. The combined MVP backup/restore/retention gate separately remains open for F63's first
+    genuine production orphan sweep.
 
 ## Verification log
 

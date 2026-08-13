@@ -122,11 +122,31 @@ function assertEvidence(evidence, production) {
 		manifest.source?.r2?.bucketName !== production.r2.bucketName ||
 		!Array.isArray(manifest.objects) ||
 		new Set(manifest.objects.map((entry) => entry?.key)).size !== manifest.objects.length ||
-		manifest.objects.some((entry) => !/^(?:attachments|inbound)\/[^/]+/.test(entry?.key ?? ""))
+		manifest.objects.some((entry) => !/^(?:attachments|inbound)\/[^/]+/.test(entry?.key ?? "") ||
+			!Number.isInteger(entry?.size) || entry.size < 0 || !/^[a-f0-9]{64}$/i.test(entry?.sha256 ?? ""))
 	) {
 		fail("the private recovery evidence does not match the production source");
 	}
 	return manifest;
+}
+
+function assertExactRemoteObjects(runWrangler, target, objects) {
+	for (const entry of objects) {
+		let output;
+		try {
+			output = runWrangler([
+				"r2", "object", "get", `${target.r2.bucketName}/${entry.key}`,
+				"--config", target.configPath, "--remote", "--pipe",
+			]);
+		} catch {
+			fail("the exact recovery R2 objects do not match the private evidence");
+		}
+		const bytes = Buffer.isBuffer(output) ? output : Buffer.from(String(output));
+		if (bytes.length !== entry.size ||
+			createHash("sha256").update(bytes).digest("hex") !== entry.sha256.toLowerCase()) {
+			fail("the exact recovery R2 objects do not match the private evidence");
+		}
+	}
 }
 
 function assertActiveVersion(output, expectedVersionId) {
@@ -238,8 +258,11 @@ export function runRecoveryCleanup({
 		"recovery R2 inventory",
 		runWrangler(["r2", "bucket", "info", target.r2.bucketName, "--config", target.configPath, "--json"]),
 	);
-	if (bucket?.name !== target.r2.bucketName || Number(bucket.object_count) !== manifest.objects.length) {
-		fail("the recovery R2 bucket count does not equal the manifest");
+	if (bucket?.name !== target.r2.bucketName) {
+		fail("the exact recovery R2 bucket is absent");
+	}
+	if (Number(bucket.object_count) !== manifest.objects.length) {
+		assertExactRemoteObjects(runWrangler, target, manifest.objects);
 	}
 	const zones = routingZones(runWrangler(["email", "routing", "list"]));
 	for (const zone of zones) {

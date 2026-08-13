@@ -75,7 +75,7 @@ gates later in this document must also pass.
 | F74 | Authentication and registration hardening | Shipped | [F74](specs/F74-authentication-and-registration-hardening.md) | browser sessions, `/api/auth/*`, `/register`, durable limits | Cookie-only sessions, invitation-only post-bootstrap registration, D1-backed abuse limits, and active-organization role binding are implemented. Public self-registration is design-only and remains disabled. |
 | F75 | Nested label folders | Shipped | [F75](specs/F75-nested-label-folders.md) | `/label/[id]`, `/api/labels*`, sidebar | One level of label nesting via `labels.parentId` (migration `0028`) plus browse destinations. Migrated-local-D1 evidence proves hierarchy/browse behavior and rejects another user's label even when its message is otherwise readable. |
 | F76 | All-mailboxes scope | Shipped | [F76](specs/F76-all-mailboxes-scope.md) | mailbox selector, `/api/messages*` | The persisted client scope and unscoped server path aggregate every permitted mailbox. Migrated-local-D1 evidence uses two permitted and two forbidden mailboxes, proving both positive aggregation and row-level isolation; the selector also passes at 390px. |
-| F79 | Remote recovery rehearsal | In Progress | [F79](specs/F79-remote-recovery-rehearsal.md) | recovery scripts and operator runbook | Capture, remote restore, hashes/schema, authenticated reads, mailbox isolation, verifier cleanup, and Worker rollback/return pass. Lost local evidence was recaptured from the exact isolated resources into an EFS-encrypted, restricted directory and independently verified across D1 plus 15 objects. Live D1/R2 cleanup and archive retention/destruction policy remain. |
+| F79 | Remote recovery rehearsal | Shipped | [F79](specs/F79-remote-recovery-rehearsal.md) | recovery scripts and operator runbook | Production capture, isolated remote restore, schema/hashes, authenticated reads, mailbox isolation, rollback/return, exact cleanup, and production-fingerprint equality pass. The verified archive is EFS-encrypted/restricted with configurable 30-day retention through 2026-09-12; the Worker, R2 bucket/objects, and D1 are absent. |
 | F80 | Operator lifecycle and readiness doctor | In Progress | [F80](specs/F80-operator-lifecycle.md) | `scripts/doctor.mjs`, operator CLI | Local checks pass 15/15 and live remote checks pass 10/10 across deployment, bindings, D1/R2/Queues, migrations, secret presence, Email Routing/Sending, and smoke. Provider-side Cron inventory remains an explicit warning. Post-MVP hardening. |
 | F81 | Signed releases and deliberate promotion | In Progress | [F81](specs/F81-signed-releases.md) | release manifest/signature tooling and CI | Offline trust chain passes provenance 18, archives 11, bundles 5, checkout derivation 11, preparation 5, signing 4, and pinned verification 5 contracts. Protected publication, production key authority, disposable upgrade, and deliberate promotion remain. Post-MVP hardening. |
 | F82 | Read-only Operations Center | In Progress | [F82](specs/F82-operations-center.md) | `/operations`, `/api/admin/operations`, `/api/admin/operations/evidence*` | The deployed overview and organization-scoped ledger are verified. Explicit authenticated adapters derive public-smoke and received mail-flow results, while signed-release recording requires pinned verification; none accepts arbitrary category/count/outcome input. Complete recovery, live Cron evidence, and independent delivery attestation remain later slices. |
@@ -118,7 +118,6 @@ the exact deployed artifact and therefore still require the operator.
 | Priority | Required outcome | Why it blocks the MVP | Tracking |
 |----------|------------------|-----------------------|----------|
 | P1 | Host and validate the IMAP/SMTP bridge | Local protocol and API contracts pass; a trusted-TLS production host and controlled client isolation/send pass remain. | [R-23](REMEDIATION_PLAN.md#phase-3--multi-user-authorization) |
-| P2 | Finish cleanup against spare remote resources | The recovery Worker is removed and exact-target recapture is verified in an encrypted restricted directory. Confirm archive retention/destruction policy, then delete the remaining D1/R2 through the guard. | [R-18](REMEDIATION_PLAN.md#phase-5--operational-hardening) |
 | P2 | Record production-shape latency and Queue throughput | Indexed query plans and bounded local behavior are proven, but local SQLite and simulated queues cannot establish managed-service latency or throughput. | [R-17](REMEDIATION_PLAN.md#phase-5--operational-hardening) |
 
 ## Production-readiness gates
@@ -170,6 +169,15 @@ against production on 2026-08-11.
 Terminal failure recoverability was the stale exception in the prior
 reconciliation. F61/R-34 now provides explicit operator recovery and a controlled
 production failure-to-sent pass; the corresponding gate above is checked.
+
+### Recovery clause reconciliation 2026-08-13
+
+F79 closes backup, remote restore, application/isolation verification, Worker rollback/return,
+disposable-resource cleanup, production-fingerprint equality, encrypted archive handling, and a
+configurable 30-day destruction policy. Independent inventory proves the recovery Worker, 15-object
+R2 bucket, and D1 are absent; production smoke passes 6/6. The combined gate remains unchecked only
+because F63 still requires one genuine eligible orphan to be swept in production, proving the live
+retention deletion path rather than only its deterministic tests and enabled schedule.
 
 ## Specification coverage debt
 
