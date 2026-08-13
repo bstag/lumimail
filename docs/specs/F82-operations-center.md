@@ -467,5 +467,13 @@ Verification:
   function, and line coverage, plus all 21 IMAP bridge tests. Lint retains the existing 36 warnings
   with zero errors.
 - `npm run e2e` passes all 86 Chromium scenarios, including the existing sanitized Operations
-  rendering for present/missing/failed evidence. Deployment and production boundaries remain
-  pending this checkpoint.
+  rendering for present/missing/failed evidence.
+- Commit `cb610b7` deployed with no pending migrations as Worker version
+  `2d65dfbc-bbe9-41a4-ae02-92180c699645`. The production build includes
+  `/api/admin/operations/evidence/mail-flow`; an anonymous POST receives the bounded `401` envelope
+  before proof parsing or trace access.
+- Production public smoke passes 6/6. The corrected direct remote doctor invocation passes 25
+  checks with zero failures and retains only the documented live-Cron-inventory warning.
+- Authenticated recording is intentionally not manufactured during deployment. It requires the
+  owner's fresh exact session and private received `.eml` artifact; that final operator proof remains
+  pending.
