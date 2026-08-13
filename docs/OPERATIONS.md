@@ -336,10 +336,9 @@ reads passed, unrelated-mailbox list/direct reads were denied, and browser inspe
 HTML plus attachment controls. Worker rollback and return each passed 6/6.
 
 Cleanup is partially complete: the recovery-only Worker is deleted and production remains 6/6.
-The restored D1 and 15-object R2 bucket remain because the private capture path is not currently
-available for mandatory re-verification. A metadata-only search on 2026-08-13 found no surviving
-archive on the mounted drives, while read-only Cloudflare inventory reconfirmed the exact recovery
-D1, 15-object R2 bucket, and absent Worker.
+The restored D1 and 15-object R2 bucket remain. A metadata-only search on 2026-08-13 found no
+surviving archive on the mounted drives, while read-only Cloudflare inventory reconfirmed the exact
+recovery D1, 15-object R2 bucket, and absent Worker.
 
 After choosing an encrypted destination outside the repository, recapture those exact isolated
 resources without recreating the Worker or reading current production:
@@ -354,6 +353,12 @@ other than Cloudflare absence code `10007`, routing to the recovery Worker, any 
 verification and otherwise removes only its randomly named partial directory. It never writes to
 Cloudflare. The guarded cleanup re-verifies the canonical manifest, D1 export, and all object bytes
 again before its first deletion.
+
+Exercised 2026-08-13 against the isolated recovery resources. The chosen parent was empty but not
+encrypted or access-restricted, so EFS and owner/SYSTEM/Administrators-only access were applied and
+proven with an encrypted write/read/delete probe before export. Recapture then verified one D1 export
+and all 15 objects. An independent offline pass found zero problems across 17 files totaling
+8,519,426 bytes, and every file was EFS-encrypted. No remote mutation occurred.
 
 Supply the newly verified directory to the guarded cleanup command; do not manually delete the
 remaining remote copies. The cleanup command recognizes only Wrangler's exact Worker

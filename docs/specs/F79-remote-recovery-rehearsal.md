@@ -1,6 +1,6 @@
 # F79 — Remote Recovery Rehearsal
 
-> Status: In Progress — Layers 1.1–1.8 implemented; recapture, live cleanup, and archive policy remain
+> Status: In Progress — Layers 1.1–1.8 complete; live cleanup and archive policy remain
 > Owner area: `scripts/recovery-target-guard.mjs`, `scripts/r2-backup.mjs`,
 > `scripts/recovery-capture.mjs`, `scripts/recovery-recapture.mjs`,
 > `scripts/recovery-restore.mjs`, `docs/OPERATIONS.md`
@@ -702,3 +702,12 @@ Type: Recovery safety / evidence reconstruction
   passes 6/6. No private export is run until an encrypted destination and archive policy are supplied.
 - `npm run verify` passes: typecheck, lint with 36 existing warnings and zero errors, 239 test files
   with 2,077 application tests at 100% coverage, and 21 IMAP bridge tests.
+- The operator selected `F:\testbackup` as the private parent. It was empty but neither EFS-encrypted
+  nor access-restricted, so EFS was enabled and inherited access was replaced with the operator,
+  SYSTEM, and local Administrators only. An encrypted write/read/delete probe passed before export.
+- Live recapture published `F:\testbackup\lumimail-recovery-20260813` only after checking one D1
+  export and all 15 objects. A separate offline pass reports zero problems across 17 files totaling
+  8,519,426 bytes; every file has the EFS encrypted attribute and effective access remains limited
+  to the same three principals. No object key, message content, address, or credential was recorded.
+- The exact recovery D1/R2 remain untouched pending the archive-retention decision and guarded
+  cleanup invocation.
