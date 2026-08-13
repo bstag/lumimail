@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_HEADER_BYTES = 64 * 1024;
+const OBSERVATION_CLOCK_SKEW_MS = 5_000;
 const FAILURE_MESSAGE = "Mail-flow evidence could not be recorded.";
 const INVALID_PROOF_MESSAGE = "Received mail-flow proof is invalid.";
 const MESSAGE_ID_PATTERN = /<[^<>\r\n]+>/g;
@@ -138,7 +139,11 @@ export async function runMailFlowEvidenceCommand(args, {
 		const result = await publishProof({
 			origin: args[1],
 			sessionToken: environment.LUMIMAIL_SESSION_TOKEN,
-			proof: { format: "lumimail-mail-flow-proof-v1", ...headers, observedAt: now().toISOString() },
+			proof: {
+				format: "lumimail-mail-flow-proof-v1",
+				...headers,
+				observedAt: new Date(now().getTime() - OBSERVATION_CLOCK_SKEW_MS).toISOString(),
+			},
 		});
 		stdout(`${result.outcome === "passed" ? "PASS" : "FAIL"}  ${result.passedChecks}/${result.totalChecks} received mail-flow checks recorded`);
 		return result.outcome === "passed" ? 0 : 1;

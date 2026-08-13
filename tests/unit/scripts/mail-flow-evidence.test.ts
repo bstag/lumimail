@@ -63,7 +63,7 @@ describe("mail-flow evidence command", () => {
 				format: "lumimail-mail-flow-proof-v1", deliveredMessageId: "<outbound@example.com>",
 				deliveredInReplyTo: "<inbound@example.com>",
 				deliveredReferences: "<root@example.com> <inbound@example.com>",
-				observedAt: "2026-08-13T12:00:00.000Z",
+				observedAt: "2026-08-13T11:59:55.000Z",
 			},
 		});
 		expect(stdout).toHaveBeenCalledWith("PASS  8/8 received mail-flow checks recorded");

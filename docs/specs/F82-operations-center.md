@@ -136,6 +136,10 @@ state, and retention integrity without opening Cloudflare, exposing secrets, or 
   is entered separately. The command takes the existing recent owner session from
   `LUMIMAIL_SESSION_TOKEN`, uses an exact HTTPS origin, and has the same bounded credential/error
   behavior as the smoke/release publisher.
+- The producer timestamps the already-received artifact five seconds before its local command clock.
+  This conservative offset tolerates ordinary sub-second workstation/edge skew while remaining a
+  truthful lower bound on when the operator possessed the artifact; the server's strict no-future
+  and 90-day bounds remain unchanged.
 - After recent-session and organization equality are established, the server checks exactly eight
   fixed facts inside that organization: inbound persistence; matching reply persistence; shared
   thread/source linkage; stored `In-Reply-To`; stored `References`; immutable queue-snapshot headers;
@@ -475,5 +479,35 @@ Verification:
 - Production public smoke passes 6/6. The corrected direct remote doctor invocation passes 25
   checks with zero failures and retains only the documented live-Cron-inventory warning.
 - Authenticated recording is intentionally not manufactured during deployment. It requires the
-  owner's fresh exact session and private received `.eml` artifact; that final operator proof remains
-  pending.
+  owner's fresh exact session and private received `.eml` artifact.
+- Authenticated production proof completed on 2026-08-13: the received artifact passed all eight
+  derived persistence, threading, immutable queue-header, sent-state, provider-ID, and exact-arrival
+  checks and recorded `mail_flow` passed `8/8`. The first strict attempt exposed approximately
+  0.5-second workstation/edge clock skew; a five-second conservative observation offset passed
+  without weakening the server validator or modifying trace data.
+
+### 2026-08-13 — Tolerate producer clock skew
+
+Type: Bug fix / operator reliability
+
+Summary:
+
+- Backdate the received-artifact observation by five seconds in the local producer so a workstation
+  slightly ahead of the edge does not submit a future timestamp.
+- Keep the API and ledger's strict future/stale validation unchanged.
+
+Reason:
+
+- A valid production artifact and fresh owner session received `400 Invalid mail-flow proof`; the
+  production HTTP clock was approximately 0.5 seconds behind the workstation. Repeating the exact
+  proof with a five-second offset recorded a server-derived pass `8/8`.
+
+Tests:
+
+- Add an exact producer regression asserting the conservative timestamp; it failed first against the
+  unadjusted command and passes after the offset.
+- `npm run verify` remains green across 238 test files and 2,062 application tests at 100% statement,
+  branch, function, and line coverage, plus all 21 IMAP bridge tests. Lint retains the existing 36
+  warnings with zero errors.
+- No Worker redeploy is required: the strict production route already accepted and recorded the
+  correctly offset proof, and this fix changes only the local operator producer and documentation.
