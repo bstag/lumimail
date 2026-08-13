@@ -7,9 +7,23 @@ const OBSERVATION_CLOCK_SKEW_MS = 5_000;
 const FAILURE_MESSAGE = "Mail-flow evidence could not be recorded.";
 const INVALID_PROOF_MESSAGE = "Received mail-flow proof is invalid.";
 const MESSAGE_ID_PATTERN = /<[^<>\r\n]+>/g;
+const FAILURE_CLASSES = new Map([
+	['401\0Unauthorized', "Mail-flow evidence requires a valid owner session."],
+	['403\0Forbidden', "Organization owner access is required."],
+	['403\0Recent authentication required', "Recent owner authentication is required."],
+	['400\0Invalid mail-flow proof', "Received mail-flow proof did not match accepted evidence."],
+	['409\0Evidence already exists with a different result', "Mail-flow evidence conflicts with existing history."],
+]);
+
+class SafeMailFlowEvidenceError extends Error {
+	constructor(message = FAILURE_MESSAGE) {
+		super(message);
+		this.name = "SafeMailFlowEvidenceError";
+	}
+}
 
 function failProof() {
-	throw new Error(INVALID_PROOF_MESSAGE);
+	throw new SafeMailFlowEvidenceError(INVALID_PROOF_MESSAGE);
 }
 
 function normalizeMessageId(value) {
@@ -108,6 +122,25 @@ function exactResult(value, status) {
 	return Object.freeze({ ...value.data });
 }
 
+async function classifiedFailure(response) {
+	try {
+		const value = await response.json();
+		const keys = value && typeof value === "object" && !Array.isArray(value)
+			? Object.keys(value).sort() : [];
+		const errorKeys = value?.error && typeof value.error === "object" && !Array.isArray(value.error)
+			? Object.keys(value.error).sort() : [];
+		if (JSON.stringify(keys) !== JSON.stringify(["error", "success"]) || value.success !== false ||
+			JSON.stringify(errorKeys) !== JSON.stringify(["message"]) || typeof value.error.message !== "string") {
+			return new SafeMailFlowEvidenceError();
+		}
+		return new SafeMailFlowEvidenceError(
+			FAILURE_CLASSES.get(`${response.status}\0${value.error.message}`) ?? FAILURE_MESSAGE,
+		);
+	} catch {
+		return new SafeMailFlowEvidenceError();
+	}
+}
+
 export async function publishMailFlowProof({ origin, sessionToken, proof, fetchImpl = fetch }) {
 	try {
 		const response = await fetchImpl(`${exactOrigin(origin)}/api/admin/operations/evidence/mail-flow`, {
@@ -117,10 +150,11 @@ export async function publishMailFlowProof({ origin, sessionToken, proof, fetchI
 				"content-type": "application/json" },
 			body: JSON.stringify(proof),
 		});
-		if (response.status !== 200 && response.status !== 201) throw new Error();
+		if (response.status !== 200 && response.status !== 201) throw await classifiedFailure(response);
 		return exactResult(await response.json(), response.status);
-	} catch {
-		throw new Error(FAILURE_MESSAGE);
+	} catch (error) {
+		if (error instanceof SafeMailFlowEvidenceError) throw error;
+		throw new SafeMailFlowEvidenceError();
 	}
 }
 
@@ -147,8 +181,8 @@ export async function runMailFlowEvidenceCommand(args, {
 		});
 		stdout(`${result.outcome === "passed" ? "PASS" : "FAIL"}  ${result.passedChecks}/${result.totalChecks} received mail-flow checks recorded`);
 		return result.outcome === "passed" ? 0 : 1;
-	} catch {
-		stderr(FAILURE_MESSAGE);
+	} catch (error) {
+		stderr(error instanceof SafeMailFlowEvidenceError ? error.message : FAILURE_MESSAGE);
 		return 1;
 	}
 }

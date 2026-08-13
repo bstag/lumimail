@@ -86,6 +86,16 @@ describe("mail-flow evidence command", () => {
 		expect(stderr).toHaveBeenCalledWith("Mail-flow evidence could not be recorded.");
 		expect(JSON.stringify(stderr.mock.calls)).not.toMatch(/session-secret|PRIVATE/);
 	});
+
+	it("prints the fixed local artifact class without exposing its path", async () => {
+		const stderr = vi.fn();
+		await expect(runMailFlowEvidenceCommand([
+			"C:/private/missing-message.eml", "https://mail.example.com",
+		], { environment: { ...process.env, LUMIMAIL_SESSION_TOKEN: "session-secret" },
+			stdout: vi.fn(), stderr })).resolves.toBe(1);
+		expect(stderr).toHaveBeenCalledWith("Received mail-flow proof is invalid.");
+		expect(JSON.stringify(stderr.mock.calls)).not.toContain("missing-message.eml");
+	});
 });
 
 describe("mail-flow proof publisher", () => {
@@ -137,5 +147,30 @@ describe("mail-flow proof publisher", () => {
 		} catch (error) { caught = error; }
 		expect(String(caught)).toContain("Mail-flow evidence could not be recorded.");
 		expect(String(caught)).not.toMatch(/session-secret|PRIVATE/);
+	});
+
+	it.each([
+		[401, "Unauthorized", "Mail-flow evidence requires a valid owner session."],
+		[403, "Forbidden", "Organization owner access is required."],
+		[403, "Recent authentication required", "Recent owner authentication is required."],
+		[400, "Invalid mail-flow proof", "Received mail-flow proof did not match accepted evidence."],
+		[409, "Evidence already exists with a different result", "Mail-flow evidence conflicts with existing history."],
+	])("maps only an exact known status and error envelope", async (status, message, expected) => {
+		const fetchImpl = vi.fn(async () => Response.json({ success: false, error: { message } }, { status }));
+		await expect(publishMailFlowProof({
+			origin: "https://mail.example.com", sessionToken: "session-secret", proof, fetchImpl,
+		})).rejects.toThrow(expected);
+	});
+
+	it("keeps a known status generic when the envelope has extra or changed content", async () => {
+		for (const body of [
+			{ success: false, error: { message: "Recent authentication required", detail: "PRIVATE" } },
+			{ success: false, error: { message: "Changed server text" } },
+		]) {
+			await expect(publishMailFlowProof({
+				origin: "https://mail.example.com", sessionToken: "session-secret", proof,
+				fetchImpl: vi.fn(async () => Response.json(body, { status: 403 })),
+			})).rejects.toThrow("Mail-flow evidence could not be recorded.");
+		}
 	});
 });

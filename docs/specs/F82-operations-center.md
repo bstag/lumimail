@@ -157,6 +157,19 @@ state, and retention integrity without opening Cloudflare, exposing secrets, or 
   Providers returning only opaque API identifiers fail closed until Lumimail persists a trustworthy
   mapping to the final RFC Message-ID; the producer does not infer one.
 
+### Sixth-slice bounded operator failure contract
+
+- Mail-flow recording may distinguish only fixed, actionable classes already defined by local
+  validation or an exact HTTP status plus exact Lumimail error envelope: invalid/missing local
+  artifact, invalid session, non-owner access, recent authentication required, invalid proof,
+  immutable-history conflict, and generic service failure.
+- The producer never prints raw response text/JSON, caught errors, RFC identifiers, file paths,
+  addresses, subjects, message content, tokens, or provider/database details. Any unknown status,
+  malformed envelope, changed message, transport exception, or unexpected value collapses to the
+  existing generic `Mail-flow evidence could not be recorded.` message.
+- Classification changes diagnostics only. It does not retry, reconfirm, modify proof data, weaken
+  validation, or turn any failure into success.
+
 ## 5. Error and Privacy States
 
 | Condition | Result |
@@ -233,6 +246,8 @@ recently authenticated, confirmed, audited, and explicitly specified.
   the same organization that receives the evidence. — 2026-08-13
 - Decision: require a received `.eml` artifact and match its RFC headers to persisted provider state.
   Provider acceptance alone is not external arrival; an operator checkbox is not derived proof. — 2026-08-13
+- Decision: expose only an allowlist of exact status/envelope failure classes in operator output.
+  This keeps failures actionable without making arbitrary server or provider text an egress path. — 2026-08-13
 
 ## 9. Bug / Change Log
 
@@ -511,3 +526,30 @@ Tests:
   warnings with zero errors.
 - No Worker redeploy is required: the strict production route already accepted and recorded the
   correctly offset proof, and this fix changes only the local operator producer and documentation.
+
+### 2026-08-13 — Specify bounded mail-flow diagnostics
+
+Type: Operator UX / privacy hardening
+
+Summary:
+
+- Define fixed safe messages for local artifact, session, owner, recent-auth, proof-validation,
+  conflict, and generic service failures.
+- Require unknown or malformed failures to remain generic without echoing response or caught-error
+  content.
+
+Impact:
+
+- The producer now reports actionable fixed diagnostics for exact known failures while preserving the
+  generic privacy boundary for unknown, malformed, or transport failures.
+- No server behavior, authorization boundary, proof data, retry behavior, or deployment changes.
+
+Tests:
+
+- Red-first focused run failed in the six expected local/server classification cases before the
+  implementation.
+- Focused producer suite passes: 23/23.
+- `npm run verify` passes: typecheck, lint with 36 existing warnings and zero errors, 238 test files
+  with 2,069 application tests at 100% coverage, and 21 IMAP bridge tests.
+- `npm run e2e` is not required because this changes only local operator CLI diagnostics and no
+  browser-visible behavior.
