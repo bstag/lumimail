@@ -47,14 +47,18 @@ function evidence() {
 	};
 }
 
-function runner(options?: { bucketDeleteFails?: boolean; changedFingerprint?: boolean }) {
-	let workerExists = true;
+function runner(options?: {
+	bucketDeleteFails?: boolean;
+	changedFingerprint?: boolean;
+	workerStatusError?: Error & { stderr?: string };
+}) {
+	let workerExists = !options?.workerStatusError;
 	let d1Exists = true;
 	let bucketExists = true;
 	const runWrangler = vi.fn((args: string[]) => {
 		const command = args.slice(0, 3).join(" ");
 		if (command === "deployments status --config") {
-			if (!workerExists) throw Object.assign(new Error("Worker absent"), { code: "WORKER_NOT_FOUND" });
+			if (!workerExists) throw options?.workerStatusError ?? Object.assign(new Error("Worker absent"), { code: "WORKER_NOT_FOUND" });
 			return JSON.stringify({ versions: [{ version_id: currentVersionId, percentage: 100 }] });
 		}
 		if (command === "d1 list --config") {
@@ -127,6 +131,7 @@ describe("runRecoveryCleanup", () => {
 			d1Id: target.d1.id,
 			productionFingerprintUnchanged: true,
 			r2BucketName: target.r2.bucketName,
+			workerDeleted: true,
 			workerName: target.workerName,
 		});
 
@@ -143,6 +148,33 @@ describe("runRecoveryCleanup", () => {
 			["d1", "delete", target.d1.name, "--config", target.configPath, "--skip-confirmation"],
 		]);
 		expect(args.loadEvidence).toHaveBeenCalledWith("private/recovery");
+	});
+
+	it("resumes at R2 when the exact recovery Worker is already absent", () => {
+		const statusError = Object.assign(new Error("bounded provider failure"), {
+			stderr: "Cloudflare API request failed [code: 10007]",
+		});
+		const args = inputs(runner({ workerStatusError: statusError }));
+		expect(runRecoveryCleanup(args)).toEqual({
+			deletedObjectCount: 2,
+			d1Id: target.d1.id,
+			productionFingerprintUnchanged: true,
+			r2BucketName: target.r2.bucketName,
+			workerDeleted: false,
+			workerName: target.workerName,
+		});
+		expect(args.runSmoke).not.toHaveBeenCalled();
+		expect(args.runWrangler.mock.calls.some(([command]) => command[0] === "delete")).toBe(false);
+	});
+
+	it("does not reinterpret unclassified Worker status failures as absence", () => {
+		const statusError = Object.assign(new Error("Worker not found"), { stderr: "PRIVATE" });
+		const args = inputs(runner({ workerStatusError: statusError }));
+		expect(() => runRecoveryCleanup(args)).toThrow("Worker not found");
+		expect(args.runSmoke).not.toHaveBeenCalled();
+		expect(args.runWrangler.mock.calls.some(([command]) => command[0] === "delete" ||
+			(command[0] === "r2" && command[2] === "delete") ||
+			(command[0] === "d1" && command[1] === "delete"))).toBe(false);
 	});
 
 	it.each([

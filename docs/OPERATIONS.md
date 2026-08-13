@@ -338,5 +338,8 @@ HTML plus attachment controls. Worker rollback and return each passed 6/6.
 Cleanup is partially complete: the recovery-only Worker is deleted and production remains 6/6.
 The restored D1 and 15-object R2 bucket remain because the private capture path is not currently
 available for mandatory re-verification. Supply that directory to the guarded cleanup command; do
-not manually delete these remaining copies. Choose and document encrypted-at-rest retention and
-eventual destruction for the private archive before marking F79 complete.
+not manually delete these remaining copies. The command recognizes only Wrangler's exact Worker
+absence code (`10007`) as the already-completed exposure-removal step; it will not redeploy the
+Worker, rerun smoke against a replacement, or treat arbitrary `not found` text as proof. Choose and
+document encrypted-at-rest retention and eventual destruction for the private archive before
+marking F79 complete.

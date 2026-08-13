@@ -1,6 +1,6 @@
 # F79 — Remote Recovery Rehearsal
 
-> Status: In Progress — Layers 1.1–1.6 complete; Layer 1.7 cleanup and gate closure next
+> Status: In Progress — Layers 1.1–1.7 implemented; live D1/R2 cleanup and archive-policy gate remain
 > Owner area: `scripts/recovery-target-guard.mjs`, `scripts/r2-backup.mjs`,
 > `scripts/recovery-capture.mjs`, `scripts/recovery-restore.mjs`, `docs/OPERATIONS.md`
 
@@ -120,6 +120,11 @@ Names, naming conventions, environment labels, or operator intent are not suffic
 - Require the exact checked-in `wrangler.recovery.jsonc`, recovery Worker name, D1 UUID/name, R2
   bucket, HTTPS workers.dev origin, intended Worker version at 100%, and 6/6 public smoke before any
   deletion. Re-run the forbidden route/binding and production-overlap checks.
+- A cleanup resumed after the exact recovery Worker was already removed may accept only a bounded
+  provider not-found result for that Worker. It skips Worker smoke and deletion without recreating
+  public exposure, but retains every private-manifest, D1/R2 identity/count, routing-isolation, exact
+  object deletion, absence, and production-fingerprint check. Any malformed status or provider
+  failure other than exact absence still fails before mutation.
 - Require the recovery R2 bucket's observed object count to equal the manifest and delete only the
   manifest's exact object keys. Stop if the bucket cannot then be deleted; do not continue to D1.
 - Delete in exposure-first order: recovery Worker, exact R2 objects, empty R2 bucket, then recovery
@@ -320,6 +325,11 @@ production fingerprint equality executable unit-test behavior. The final report 
 names/IDs, deleted-object count, and before/after fingerprint equality only; it contains no mail
 content, object keys, SQL, cookies, passwords, or manifest contents.
 
+When the exact recovery Worker was removed in an earlier exposure-first cleanup attempt, the runner
+may resume at R2 only after the deployment lookup returns a recognized Worker-absent result. It does
+not deploy or smoke a replacement Worker. The final report records whether Worker removal happened
+in this invocation so operator evidence cannot silently imply a mutation that was already complete.
+
 ## 6. UI/UX
 
 No product UI in Layer 1. The operator surface is a future CLI and a content-free evidence report.
@@ -417,6 +427,10 @@ Coverage target: all statements and branches in the new guard module.
   is unsafe. — 2026-08-12
 - Decision: the deployed version UUID and script ETag come from `deployments status` plus `versions
   view`; the latest uploaded version is not assumed active. — 2026-08-12
+- Decision: cleanup may resume after exact recovery-Worker absence instead of recreating public
+  exposure solely to repeat smoke. Worker absence weakens no D1/R2 deletion boundary: the private
+  manifest, exact resource identities/count, routing isolation, and production fingerprints remain
+  mandatory. — 2026-08-13
 - Decision: a clean `HEAD` is mandatory because the manifest must name recoverable source. The
   deployment at 2026-08-12 13:29 UTC was built from commit `d53b475`. — 2026-08-12
 - Open: choose the long-term backup destination and retention policy after the same-account rehearsal.
@@ -617,3 +631,20 @@ Type: Feature / Partial operational evidence
 - The exact recovery D1 remains present and the exact recovery R2 bucket still contains 15 objects.
   Their removal and production before/after fingerprint comparison remain pending the private
   backup path. No local backup deletion was attempted.
+
+### 2026-08-13 — Specify recovery cleanup resume after exposure removal
+
+Type: Recovery safety / resumability
+
+- Permit the guarded cleanup to resume only when the exact recovery Worker deployment lookup returns
+  a recognized absent result.
+- Keep every private-evidence and remaining-resource safety boundary; do not recreate the Worker or
+  reinterpret unknown provider failures as absence.
+- The report now records whether the Worker was deleted in the current invocation. Focused tests
+  prove both full cleanup and exact-code resume paths plus mutation-free refusal of unclassified
+  failures.
+- Red-first focused tests failed in the two expected report/resume cases, then passed 8/8 after the
+  implementation.
+- `npm run verify` passes: typecheck, lint with 36 existing warnings and zero errors, 238 test files
+  with 2,071 application tests at 100% coverage, and 21 IMAP bridge tests.
+- No remote cleanup or deployment is performed by this code change.

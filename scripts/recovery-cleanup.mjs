@@ -45,6 +45,10 @@ function isAbsentError(error) {
 		/(?:does not exist|not found|code:\s*10007|code:\s*10006)/i.test(errorText(error));
 }
 
+function isWorkerAbsentError(error) {
+	return error?.code === "WORKER_NOT_FOUND" || /\[code:\s*10007\]/i.test(errorText(error));
+}
+
 function assertAbsent(label, operation) {
 	try {
 		operation();
@@ -213,10 +217,16 @@ export function runRecoveryCleanup({
 	assertInputs({ backupDirectory, currentVersionId, production, target, recoveryConfig });
 	const manifest = assertEvidence(loadEvidence(backupDirectory), production);
 
-	assertActiveVersion(
-		runWrangler(["deployments", "status", "--config", target.configPath, "--json"]),
-		currentVersionId,
-	);
+	let workerPresent = true;
+	try {
+		assertActiveVersion(
+			runWrangler(["deployments", "status", "--config", target.configPath, "--json"]),
+			currentVersionId,
+		);
+	} catch (error) {
+		if (!isWorkerAbsentError(error)) throw error;
+		workerPresent = false;
+	}
 	const databases = parseJson(
 		"recovery D1 inventory",
 		runWrangler(["d1", "list", "--config", target.configPath, "--json"]),
@@ -240,10 +250,12 @@ export function runRecoveryCleanup({
 			fail("the recovery Worker still receives Email Routing traffic");
 		}
 	}
-	assertSmoke(runSmoke(target.origin));
+	if (workerPresent) assertSmoke(runSmoke(target.origin));
 	const before = fingerprintReader(runWrangler, production);
 
-	runWrangler(["delete", target.workerName, "--config", target.configPath], { input: "y\n" });
+	if (workerPresent) {
+		runWrangler(["delete", target.workerName, "--config", target.configPath], { input: "y\n" });
+	}
 	for (const entry of manifest.objects) {
 		runWrangler([
 			"r2", "object", "delete", `${target.r2.bucketName}/${entry.key}`,
@@ -273,6 +285,7 @@ export function runRecoveryCleanup({
 
 	return {
 		workerName: target.workerName,
+		workerDeleted: workerPresent,
 		d1Id: target.d1.id,
 		r2BucketName: target.r2.bucketName,
 		deletedObjectCount: manifest.objects.length,
