@@ -295,7 +295,19 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
   - Finding 2026-07-25: seven tables had no index at all, since SQLite does not create them for foreign keys — `sessions`, `routing_rules`, `message_filters`, `attachments`, `api_keys`, `password_reset_tokens`, and `webhook_deliveries`. The first five are on paths hit per request, per inbound message, or per message view. `messages` also lacked an index for its commonest shape, filter by mailbox ordered by date, so every folder page scanned and sorted.
   - Local evidence 2026-07-25: F66 adds an indexed SHA-256 lookup digest so a session resolves in one indexed read plus a single bcrypt comparison, and none at all when the token matches nothing; bcrypt still verifies the matched row, so the digest never authenticates. Ten indexes added. Nine `EXPLAIN QUERY PLAN` assertions run against a real migrated database, asserting plans rather than timings so the contract is stable across machines. `npm run verify` passes with 1,446 tests across 162 files at 100% configured coverage plus 16 bridge tests.
   - Decision 2026-07-25: the synthetic seeded dataset is dropped. Volume will accumulate naturally as real domains are onboarded, and measuring against fabricated data would characterise a distribution the product does not have. The plan and complexity work above stands on its own, since a full table scan is a scan at any size.
-  - Remaining: migration `0024` (which deletes existing sessions) and deployment. The volume measurement — pagination, search, and DNS status loading — is folded into R-18's readiness exercise, to be taken against real data once more domains are onboarded. **Risk:** this has no trigger of its own, so R-18 must explicitly re-run the timing measurement rather than assume F66's plan assertions cover it. Queue throughput also belongs with R-18.
+  - Deployment reconciliation 2026-08-13: migration `0024` and later migrations are live. F84's
+    fixed read-only managed-D1 bundle measured the current four-domain/four-user/four-mailbox shape:
+    eight statements completed in 2.485 ms total Cloudflare-reported SQL time in WNAM, reading 106
+    rows and writing zero. Folder, search, thread, session, and routing paths use their intended
+    production indexes. The three-rule routing plan uses a small temporary order B-tree after its
+    indexed domain lookup; its measured SQL duration was 0.1891 ms.
+  - Production HTTP evidence 2026-08-13: an owner-authenticated, content-free Chrome run measured one
+    warmup plus 15 serial reads across each fixed path. All targets passed: session p95 387 ms,
+    mailboxes 528 ms, domains 358 ms, routing 369 ms, queue health 385 ms, and R2 retention 718 ms.
+    Navigation includes browser-control overhead, making these conservative end-to-end readings.
+  - Remaining: run the separately approved five-message Queue batch. Historical job timestamps are
+    not substituted for throughput because operator/recovery activity can change `updated_at` long
+    after Queue processing.
 
 - [ ] **R-18 Complete a production readiness exercise.** Depends on all earlier critical items.
   - Test inbound exact address and catch-all for at least `lucidkith.com` and `henriksen.dev`.

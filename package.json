@@ -26,6 +26,8 @@
     "mail-flow:record": "node scripts/mail-flow-evidence.mjs",
     "recovery:recapture": "node scripts/recovery-recapture.mjs",
     "recovery:retention": "node scripts/recovery-retention.mjs",
+    "performance:measure": "node scripts/performance-evidence.mjs",
+    "performance:d1": "node scripts/performance-d1.mjs",
     "verify": "npm run typecheck && npm run lint && npm run test:cov && npm --prefix imap-bridge test",
     "deploy": "npm run db:migrate:remote && opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",

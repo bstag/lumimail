@@ -1,6 +1,6 @@
 # F66 — Query Performance, Indexes, and Session Lookup
 
-> Status: In Progress — implemented and locally verified; not yet deployed
+> Status: Shipped — implemented, deployed, and locally plus managed-D1 verified
 > Owner area: `src/lib/auth/session.ts`, `src/db/schema/index.ts`, `drizzle/migrations/`
 
 ## 1. Problem & User Job
@@ -220,7 +220,13 @@ Notes:
 - Plans are asserted rather than durations, because an index name is stable across machines and a millisecond count is not.
 - One assertion was initially over-specific: SQLite chose `mailbox_memberships_mailbox_role_idx` where `..._mailbox_user_idx` was expected, both leading on `mailbox_id`. The assertion was relaxed to require an index rather than a particular one; the schema was not changed to satisfy a test.
 - `deleteSession` was worse than the spec's original description: it scanned *and* continued after matching.
-- Not deployed. Production timing under real load remains R-18's exercise; this item establishes plans and complexity only.
+- At the time of this change log the migration was not yet deployed. Production timing under real
+  load remained R-18's exercise; this item established plans and complexity only.
+- Deployment reconciliation 2026-08-13: migration `0024` and its later migrations are present in
+  production. F84's read-only managed-D1 run proves `messages_mailbox_created_idx`,
+  `messages_thread_created_idx`, `sessions_token_lookup_idx`, and `routing_rules_domain_idx` are
+  active in WNAM with zero rows written. End-to-end HTTP latency and Queue throughput remain F84/R-17
+  evidence rather than F66 implementation work.
 
 ### 2026-07-25 — Index the thread query, found by measuring at volume
 

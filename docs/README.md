@@ -87,7 +87,8 @@ Source of truth for behavior. Each follows
      [`F80-operator-lifecycle`](./specs/F80-operator-lifecycle.md),
       [`F81-signed-releases`](./specs/F81-signed-releases.md),
        [`F82-operations-center`](./specs/F82-operations-center.md),
-       [`F83-access-and-security-center`](./specs/F83-access-and-security-center.md).
+       [`F83-access-and-security-center`](./specs/F83-access-and-security-center.md),
+       [`F84-production-performance-evidence`](./specs/F84-production-performance-evidence.md).
 
 ## Implementation notes (`implementation/`)
 

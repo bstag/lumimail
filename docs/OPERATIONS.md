@@ -386,3 +386,34 @@ proves Worker/R2/D1 absence, the production fingerprint was unchanged, and produ
 6/6. The encrypted archive remains verified and its configurable policy records cleanup at
 `2026-08-13T21:48:19.075Z`, 30 days retention, and destruction after
 `2026-09-12T21:48:19.075Z`.
+
+## Production performance evidence
+
+Measure only the fixed authenticated read paths with an owner session token held in the environment:
+
+```powershell
+$secret = Read-Host "Paste a fresh owner ep_session value" -AsSecureString
+$env:LUMIMAIL_SESSION_TOKEN = [System.Net.NetworkCredential]::new("", $secret).Password
+npm run performance:measure -- https://mail.henriksen.dev
+Remove-Item Env:LUMIMAIL_SESSION_TOKEN
+```
+
+The command performs one warmup plus 15 serial reads of each allowlisted endpoint. It accepts no
+arbitrary path, concurrency, sample-count, or target flags and prints no response data or token.
+
+Run the fixed managed-D1 evidence separately:
+
+```powershell
+npm run performance:d1
+```
+
+This uses individual Wrangler `--command` queries rather than `--file`; the latter is an import path
+that can affect availability even when a file contains only reads. Runtime and tests reject mutation
+keywords and private projections, and a valid report must record zero rows written. Queue throughput
+is not inferred from historical rows and requires the separately approved F84 controlled mail batch.
+
+Exercised 2026-08-13. Managed D1 ran eight statements in 2.485 ms total provider-reported SQL time,
+read 106 rows, wrote zero, and used the intended production indexes in WNAM. An authenticated Chrome
+run then sampled the same six fixed GET paths serially 15 times after warmup; every target passed,
+with p95 from 358 ms through 718 ms. The browser transport is recorded explicitly and includes
+navigation/control overhead. The Queue batch remains separate because it sends real mail.
