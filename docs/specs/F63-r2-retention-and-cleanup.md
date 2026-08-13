@@ -1,6 +1,6 @@
 # F63 — R2 Retention and Orphan Cleanup
 
-> Status: Shipped — deterministic cleanup locally proven; production sweep enabled
+> Status: Shipped — deterministic cleanup locally proven; controlled production sweep proof aging
 > Owner area: `src/lib/email/inbound.ts`, `src/lib/r2-retention.ts`, `worker.ts` scheduled handler, `/api/admin/r2-retention`
 
 ## 1. Problem & User Job
@@ -97,6 +97,21 @@ numbers prove worth watching.
 | Unit | `tests/unit/app/api/admin/r2-retention/route.test.ts` | Owner-only, report deletes nothing, delete requires exact confirmation, non-owner denied. |
 | E2E | — | Not applicable; no user-visible surface. |
 
+### 7.1 Production deletion proof
+
+- Start from an owner-authenticated dry run that reports zero eligible orphans.
+- Put one small, content-free object under `inbound/` whose key is explicitly reserved for
+  retention proof. Do not insert a D1 reference, use a user/message identifier, or alter the
+  seven-day retention constant, sweep enablement, or Cron schedule.
+- While the object is younger than seven days, the owner report must continue to return zero
+  eligible orphans. After seven full days, require the production report to select exactly the
+  controlled object before using the existing exact-confirmation POST (or observing the enabled
+  scheduled sweep) to remove it.
+- Verify the object is absent afterward, the report returns zero eligible orphans, production smoke
+  still passes, and no existing object was selected or removed.
+- If the proof cannot be completed, explicitly delete only the reserved proof key with Wrangler;
+  never weaken the retention age or expand the owned prefixes to accelerate evidence.
+
 ## 8. Current Behavior
 
 `storeRawToR2` writes before routing is known. `processInboundMessage` returns early when
@@ -137,6 +152,10 @@ the terminal state for objects that were written correctly and later became unre
   production report. The report found zero eligible orphans, after which the
   production sweep was enabled. — 2026-07-25
 - Decision: the sweep runs at the top of each hour rather than on every one-minute queue-health tick. Retention is measured in days, so a full bucket listing and its D1 lookups every minute would be pure waste. — 2026-07-25
+- Decision: because production remains clean, prove the live deletion path with one controlled,
+  content-free, unreferenced production object aged through the unchanged seven-day policy. This is
+  valid live-provider evidence, but it is not described as a naturally occurring mail orphan. The
+  proof key is isolated and individually removable if the rehearsal is abandoned. — 2026-08-13
 
 ## 13. Bug / Change Log
 
@@ -183,3 +202,26 @@ Notes:
   deletes eligible objects, and is idempotent. The owner API still requires exact
   confirmation. Observing a naturally occurring production orphan is operational
   monitoring, not an untested application branch.
+
+### 2026-08-13 — Begin controlled live retention proof
+
+Type: Production evidence
+
+Summary:
+
+- An owner-authenticated production dry run scanned 15 objects and reported zero eligible orphans,
+  so no existing object could safely exercise deletion.
+- Specify one content-free reserved `inbound/` proof object that remains unreferenced in D1 and must
+  age through the real seven-day policy before selection/deletion.
+- Preserve the deployed retention duration, prefixes, enabled sweep, hourly execution, and all
+  existing production data unchanged.
+- Created reserved key
+  `inbound/retention-proof-20260813-6ed1f0fc0cbe4ea0a4be6fdeca48bf42.eml` with only fixed
+  explanatory text and no mail, user, message, address, or credential data. Preflight proved
+  the key absent, and read-only D1 queries prove zero raw or attachment references.
+- The immediate owner report scanned 16 objects and still reported zero eligible orphans, proving
+  the seven-day age guard protected the young object. Production smoke passed 6/6.
+- Do not expect eligibility before `2026-08-20T22:16:45Z`. Capture the owner report after that time
+  and before the next top-of-hour sweep when practical; otherwise verify that the enabled scheduled
+  sweep removed only the reserved key. Cloudflare's bucket aggregate remained stale at 15 while the
+  Worker's direct binding listed 16, so the owner report—not the aggregate—is the selection evidence.

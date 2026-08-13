@@ -142,6 +142,13 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
     zero eligible orphans before and after enablement. Observing a naturally
     occurring orphan is retained as monitoring evidence, not a prerequisite for
     proving the already-executed deletion branch.
+  - Controlled production checkpoint 2026-08-13: an owner dry run scanned 15 objects and found zero
+    eligible orphans. A small content-free reserved `inbound/` object was then created with no D1
+    reference. The immediate report scanned 16 and still selected zero, proving the seven-day age
+    guard on the live provider; production smoke passed 6/6. Eligibility/deletion evidence can be
+    captured after `2026-08-20T22:16:45Z` without changing the retention constant, Cron, or sweep
+    enablement. The provider bucket aggregate remained stale at 15, while the Worker binding's direct
+    list correctly scanned 16.
 
 - [x] **R-20 Include attachments in outbound message delivery.**
   - Define the outbound transaction so validated attachments are available before provider delivery and are encoded into the provider request/MIME message.
