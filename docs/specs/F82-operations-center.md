@@ -120,6 +120,39 @@ state, and retention integrity without opening Cloudflare, exposing secrets, or 
   cleanup operations; mail-flow remains a controlled trace. A partial step or arbitrary operator
   count must not claim either end-to-end category passed.
 
+### Fifth-slice received mail-flow proof contract
+
+- Add a dedicated recently authenticated owner endpoint for mail-flow proof. It accepts only the
+  fixed `lumimail-mail-flow-proof-v1` shape: the received message's RFC `Message-ID`, `In-Reply-To`,
+  normalized `References`, and the producer observation timestamp. It never accepts category,
+  outcome, passed/total counts, organization/user IDs, addresses, subject, body, provider response,
+  job/message row IDs, or arbitrary fields.
+- The operator command reads one locally supplied received `.eml` file. It refuses files over 10 MiB,
+  header sections over 64 KiB, malformed/folded ambiguity, duplicate required fields, invalid RFC
+  identifiers, and missing threading headers. It sends only the three required header values; no
+  body, address, subject, received-routing header, attachment, filename, or local path crosses the
+  network or appears in output.
+- The received file supplies its outbound `Message-ID` and inbound `In-Reply-To`; no trace identifier
+  is entered separately. The command takes the existing recent owner session from
+  `LUMIMAIL_SESSION_TOKEN`, uses an exact HTTPS origin, and has the same bounded credential/error
+  behavior as the smoke/release publisher.
+- After recent-session and organization equality are established, the server checks exactly eight
+  fixed facts inside that organization: inbound persistence; matching reply persistence; shared
+  thread/source linkage; stored `In-Reply-To`; stored `References`; immutable queue-snapshot headers;
+  sent message/job state; and provider/RFC/delivered identifier equality with an attempted,
+  error-free job. Missing or inconsistent facts derive a failed count; operators cannot override it.
+- The server stores only the derived `mail_flow` outcome/count and timestamps through the existing
+  append-only ledger. Request identifiers are used transiently for the scoped proof and are neither
+  logged, stored in evidence, nor returned. A recent-auth denial happens before any trace read.
+- A received `.eml` proves possession of a provider-delivered artifact, not independent provider
+  attestation or DKIM verification. The proof therefore establishes Lumimail persistence/threading,
+  queue/provider acceptance, and observed external arrival for that exact Message-ID without
+  claiming universal delivery or inbox placement.
+- A passing proof currently requires the outbound provider to return the same normalized RFC
+  Message-ID that appears in the received artifact, which the Cloudflare Email Sending path does.
+  Providers returning only opaque API identifiers fail closed until Lumimail persists a trustworthy
+  mapping to the final RFC Message-ID; the producer does not infer one.
+
 ## 5. Error and Privacy States
 
 | Condition | Result |
@@ -148,6 +181,8 @@ state, and retention integrity without opening Cloudflare, exposing secrets, or 
 | Unit `tests/unit/lib/operational-evidence.test.ts` | recent-auth boundary, validation window, tenant scope, idempotency/conflict, bounded read model |
 | Unit `tests/unit/scripts/operations-evidence.test.ts` | strict publisher URL/body/response, bounded failures, bearer non-disclosure |
 | Unit producer adapters | smoke-derived pass/fail counts, opt-in only, release verification-before-publish, publication failure exit |
+| Unit mail-flow proof | bounded `.eml` header parser, tenant/recent-auth boundary, eight derived checks, identifier non-retention |
+| Route mail-flow proof | strict body, content-free response/errors, bearer/cookie behavior, no work after owner denial |
 | Route `tests/unit/app/api/admin/operations/route.test.ts` | owner guard, exact response, no reads after denial |
 | Route `tests/unit/app/api/admin/operations/evidence/route.test.ts` | strict body, exact-session recent auth, 201/idempotent/409/error envelopes |
 | Migration `tests/unit/db/operational-evidence-migration.test.ts` | content-free columns, unique/index/retention trigger, fresh and upgrade parity |
@@ -160,8 +195,9 @@ state, and retention integrity without opening Cloudflare, exposing secrets, or 
 The first two slices do not persist evidence. The third slice adds only a server-authorized,
 content-free result ledger and read model; it does not upload or parse source artifacts. The fourth
 slice binds public smoke and successful signed-release verification to that ledger without accepting
-operator-authored results. Complete recovery and traced-mail-flow producers, live Cron inventory,
-and additional integrity observations remain later work. All other mutations remain separate,
+operator-authored results. The fifth slice adds a received-artifact-backed traced-mail-flow producer
+with tenant-scoped server derivation. Complete recovery, live Cron inventory, independent delivery
+attestation, and additional integrity observations remain later work. All other mutations remain separate,
 recently authenticated, confirmed, audited, and explicitly specified.
 
 ## 8. Decisions
@@ -188,6 +224,11 @@ recently authenticated, confirmed, audited, and explicitly specified.
 - Decision: use a runtime-only recently confirmed session bearer rather than a new API key or
   long-lived secret. Explicit recording therefore inherits the route's owner, tenant, expiry, and
   recent-authentication boundaries. — 2026-08-12
+- Decision: verify mail-flow through an owner-scoped application endpoint rather than a direct
+  operator D1 query. This avoids deployment-wide database credentials and binds the trace rows to
+  the same organization that receives the evidence. — 2026-08-13
+- Decision: require a received `.eml` artifact and match its RFC headers to persisted provider state.
+  Provider acceptance alone is not external arrival; an operator checkbox is not derived proof. — 2026-08-13
 
 ## 9. Bug / Change Log
 
@@ -392,3 +433,39 @@ Verification:
   with zero errors after the new test fixtures add none.
 - Browser E2E and Worker deployment are not rerun: this slice changes operator scripts and
   documentation only, while the already-deployed ingestion API/UI contract is unchanged.
+
+### 2026-08-13 — Derive mail-flow evidence from a received artifact
+
+Type: Feature / privacy boundary
+
+Summary:
+
+- Add a bounded local `.eml` header producer that extracts only one canonical received
+  `Message-ID`, `In-Reply-To`, and `References` chain.
+- Add a dedicated recently authenticated owner route and tenant-scoped service that derive eight
+  fixed persistence, threading, immutable snapshot, sent-state, provider, and received-identity
+  checks without accepting an operator outcome or count.
+- Store only the derived `mail_flow` result through the existing content-free append-only ledger.
+
+Security:
+
+- Owner/recent-session and organization equality are established before trace reads. Every message
+  and job query applies that organization, and invalid proof is rejected before D1.
+- The `.eml` body, addresses, subject, routing headers, filename, path, database row IDs, queue
+  payload content, and RFC identifiers are never stored in evidence, logged, printed, or returned.
+  Only the three required identifiers cross the proof request transiently.
+- Opaque provider identifiers fail closed because external arrival cannot be inferred without an
+  exact persisted mapping to the received RFC Message-ID.
+
+Verification:
+
+- Proof parser/service/route tests were written first and failed because all three components were
+  absent. Twenty-nine focused contracts now pass, including tenant denial-before-read, malformed and
+  oversized artifact rejection, derived failure, exact response validation, redirects, and
+  credential/provider-detail non-disclosure.
+- `npm run verify` passes 238 test files and 2,062 application tests at 100% statement, branch,
+  function, and line coverage, plus all 21 IMAP bridge tests. Lint retains the existing 36 warnings
+  with zero errors.
+- `npm run e2e` passes all 86 Chromium scenarios, including the existing sanitized Operations
+  rendering for present/missing/failed evidence. Deployment and production boundaries remain
+  pending this checkpoint.

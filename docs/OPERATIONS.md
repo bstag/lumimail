@@ -70,8 +70,36 @@ Remove-Item Env:LUMIMAIL_SESSION_TOKEN
 Set-Clipboard -Value $null
 ```
 
-Recovery and mail-flow are not recordable by these commands. Their current workflows do not yet
-produce one complete end-to-end result, so partial steps must remain `Not recorded`.
+Recovery is not recordable by these commands. Its current workflow does not yet produce one complete
+end-to-end result, so partial steps must remain `Not recorded`.
+
+### Record a received mail-flow proof
+
+Use a real reply that originated in Lumimail and arrived in the external mailbox. In Gmail, open the
+received reply, choose **More → Show original → Download Original**, and keep the `.eml` outside the
+repository. The file contains the message body and addresses, so treat it as private mail and delete
+the local copy when the proof is complete.
+
+With a fresh owner `ep_session` loaded into `LUMIMAIL_SESSION_TOKEN` as above, run:
+
+```powershell
+npm run mail-flow:record -- <received-reply.eml> https://mail.example.com
+```
+
+The local command reads at most a 64 KiB header block from a file no larger than 10 MiB. It sends
+only normalized `Message-ID`, `In-Reply-To`, and `References` identifiers to Lumimail; it never sends
+or prints the body, addresses, subject, filename, or local path. Lumimail then derives eight fixed
+checks inside the signed-in owner's organization: inbound persistence, reply/thread linkage, stored
+and immutable queue headers, sent state, provider identity, and exact received-message identity.
+Only the resulting `mail_flow` count and timestamps enter the operational evidence ledger.
+
+A pass proves that exact Cloudflare-returned RFC Message-ID was observed in a received artifact. It
+does not prove universal delivery, inbox placement, or independent DKIM authenticity. Providers that
+return only an opaque API identifier fail closed until Lumimail can persist a trustworthy mapping to
+the final received RFC Message-ID.
+
+Afterward, remove the session environment variable, clear the clipboard, and securely delete the
+private `.eml` according to your workstation's data-handling policy.
 
 ## Backup
 

@@ -78,6 +78,16 @@ export const operationalEvidenceSchema = z.object({
 	}
 });
 
+const rfcMessageIdSchema = z.string().trim().min(3).max(998).regex(/^<[^<>\r\n]+>$/);
+
+export const mailFlowEvidenceProofSchema = z.object({
+	format: z.literal("lumimail-mail-flow-proof-v1"),
+	deliveredMessageId: rfcMessageIdSchema,
+	deliveredInReplyTo: rfcMessageIdSchema,
+	deliveredReferences: z.string().trim().min(3).max(2048),
+	observedAt: z.string().datetime(),
+}).strict();
+
 export const forgotPasswordSchema = z.object({
 	email: z.string().trim().toLowerCase().email(),
 });

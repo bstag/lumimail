@@ -23,6 +23,7 @@
     "release:sign": "node scripts/release-sign.mjs",
     "release:verify": "node scripts/release-verify.mjs",
     "release:verify:record": "node scripts/release-evidence.mjs",
+    "mail-flow:record": "node scripts/mail-flow-evidence.mjs",
     "verify": "npm run typecheck && npm run lint && npm run test:cov && npm --prefix imap-bridge test",
     "deploy": "npm run db:migrate:remote && opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
