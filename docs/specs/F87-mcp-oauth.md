@@ -253,6 +253,7 @@ Tests:
 - `npm run verify`: 2,220 application tests at 100% statements, branches, functions, and lines;
   21 bridge tests.
 - `npm run e2e`: 98 Chromium scenarios.
+- `npm run e2e:local`: 53 migrated-D1 browser scenarios after migrations `0034` and `0035`.
 - Managed staging action evidence: 11/11 checks pass.
 - Production public smoke: 6/6; OAuth metadata 200/200, MCP challenge 401, DCR 201.
 
