@@ -1,6 +1,6 @@
 # F86 — Desktop Split View and Conversation Rows
 
-> Status: In Progress
+> Status: Shipped
 > Owner area: `src/components/messages/`, dashboard folder/detail routes, `/api/messages`
 
 ## 1. Current Behavior
@@ -71,3 +71,17 @@ Type: Feature
 - Reserve F86 for the HQBase-inspired desktop presentation after resolving the old F84 numbering
   collision.
 - Preserve full-page/mobile behavior, accessibility, bounded queries, and mailbox isolation.
+
+### 2026-08-13 — Ship the desktop conversation workspace
+
+Type: Feature
+
+- Reuse the existing message detail/thread experience inside a wide-screen conversation panel while
+  preserving every direct detail route and the mobile full-page flow.
+- Synchronize selection through the folder URL, restore row focus on close, and provide a persisted,
+  bounded pointer/keyboard resizer with separator semantics.
+- Add avatar initials and one access-scoped aggregate thread-count query for only the visible page.
+  A real-D1 fixture proves that an inaccessible same-thread message cannot inflate the count.
+- Verification passes 18 focused unit contracts, four split-view Chromium scenarios, all 94 mocked
+  Chromium scenarios, all 53 migrated real-D1 scenarios, and 2,127 application tests at 100%
+  statement, branch, function, and line coverage. The bridge suite remains part of the final gate.

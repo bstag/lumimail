@@ -164,6 +164,27 @@ function seed(db, password) {
 		}
 	}
 
+	// Shares a provider thread id with the permitted shared mailbox while living in
+	// a mailbox the member cannot access. The inbox aggregate must not count this
+	// row when it decorates the member's shared messages with a thread size.
+	db.prepare(
+		`INSERT INTO messages (id, user_id, organization_id, mailbox_id, direction, from_addr,
+		 to_addr, subject, snippet, status, read, starred, thread_id, created_at, attachment_status)
+		 VALUES (?,?,?,?,'inbound',?,?,?,?,'received',0,0,?,?,'none')`,
+	).run(
+		"e2e_msg_private_cross_thread",
+		E2E.owner.id,
+		E2E.orgId,
+		E2E.mailboxes.private.id,
+		"cross-thread@external.test",
+		`${E2E.mailboxes.private.localPart}@${E2E.domain}`,
+		"private cross-thread subject",
+		"must not inflate a permitted thread count",
+		"e2e_thr_shared",
+		now - n * 60,
+	);
+	n += 1;
+
 	// One draft in the shared mailbox. Drafts are gated on send capability rather
 	// than read, so without a draft that actually exists, "the viewer sees no drafts"
 	// would pass against an empty list and prove nothing.

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -31,6 +32,9 @@ import { canRecoverMessage } from "./message-folder-utils";
 import { formatMessageListTime } from "./message-time-utils";
 import { MOBILE_QUERY, useMediaQuery } from "@/hooks/use-media-query";
 import { canMailboxSend } from "@/components/mailbox-provider-utils";
+import { MessageDetailView } from "./message-detail-view";
+import { ResizableMailPanels } from "./resizable-mail-panels";
+import { getConversationInitial, parseSelectedMessageId } from "./desktop-split-utils";
 
 const pageSize = 25;
 
@@ -52,6 +56,8 @@ function MessageListRow({
 	mailboxLabel,
 	compact = false,
 	timestamp,
+	href,
+	active = false,
 }: MessageListRowProps) {
 	const t = useTranslations("messages");
 	const { openDraftComposer } = useCompose();
@@ -105,7 +111,7 @@ function MessageListRow({
 	// compact widths and the meta cluster is `shrink-0` beside it.
 	const className =
 		`flex min-h-12 w-full items-center gap-2 px-4 text-left text-sm sm:gap-3 sm:px-6 hover:relative hover:z-10 hover:bg-surface-subtle hover:shadow-sm ${
-			selected ? "bg-accent-muted" : ""
+			selected || active ? "bg-accent-muted" : ""
 		}`;
 
 	function handleStarClick(event: React.MouseEvent) {
@@ -158,11 +164,13 @@ function MessageListRow({
 	);
 
 	const content = (
-		<div
-			className={`flex min-w-0 flex-1 gap-0.5 ${
+		<div className="flex min-w-0 flex-1 items-center gap-3">
+			<span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-muted text-xs font-semibold text-accent">
+				{getConversationInitial(getMessageParty(message, config.folder))}
+			</span>
+		<div className={`flex min-w-0 flex-1 gap-0.5 ${
 				compact ? "flex-col py-1.5" : "flex-row items-center gap-3"
-			}`}
-		>
+			}`}>
 			<div className={`flex min-w-0 items-center gap-2 ${compact ? "" : "w-40 shrink-0 sm:w-60"}`}>
 				<span className={`${getMessagePartyClassName(message, config.folder)} ${compact ? "flex-1" : ""}`}>
 					{getMessageParty(message, config.folder)}
@@ -175,7 +183,13 @@ function MessageListRow({
 				</span>
 				<span className="text-ink-muted"> - {getMessagePreview(message, config.folder)}</span>
 			</span>
+			{(message.threadCount ?? 1) > 1 && (
+				<Badge variant="outline" aria-label={`${message.threadCount} messages in thread`}>
+					{message.threadCount}
+				</Badge>
+			)}
 			{!compact && meta}
+		</div>
 		</div>
 	);
 
@@ -211,7 +225,12 @@ function MessageListRow({
 				aria-label={t("selectMessage")}
 			/>
 			{starButton}
-			<Link href={`${config.hrefPrefix}/${message.id}`} className="flex min-w-0 flex-1">
+			<Link
+				href={href ?? `${config.hrefPrefix}/${message.id}`}
+				className="flex min-w-0 flex-1"
+				data-message-row-id={message.id}
+				aria-current={active ? "true" : undefined}
+			>
 				{content}
 			</Link>
 			{retryButton}
@@ -221,6 +240,9 @@ function MessageListRow({
 
 export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 	const t = useTranslations("messages");
+	const pathname = usePathname();
+	const router = useRouter();
+	const searchParams = useSearchParams();
 	const queryClient = useQueryClient();
 	const {
 		selectedMailbox,
@@ -254,6 +276,9 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 	const hasUnreadSelection = selectedMessages.some((message) => !message.read);
 	// One media-query listener for the whole list rather than one per row.
 	const compact = useMediaQuery(MOBILE_QUERY);
+	const splitDesktop = useMediaQuery("(min-width: 1200px)");
+	const selectedMessageId = splitDesktop ? parseSelectedMessageId(new URLSearchParams(searchParams.toString())) : null;
+	const [restoreFocusId, setRestoreFocusId] = useState<string | null>(null);
 	// Every row formats against the same instant, so a list cannot show two
 	// different "todays" if it renders across midnight.
 	const renderedAt = useMemo(() => new Date(), [messages]);
@@ -277,6 +302,28 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 	useEffect(() => {
 		setSelectedIds([]);
 	}, [offset]);
+
+	useEffect(() => {
+		if (!restoreFocusId || selectedMessageId) return;
+		document.querySelector<HTMLElement>(`[data-message-row-id="${restoreFocusId}"]`)?.focus();
+		setRestoreFocusId(null);
+	}, [restoreFocusId, selectedMessageId]);
+
+	function desktopMessageHref(messageId: string) {
+		if (!splitDesktop) return `${config.hrefPrefix}/${messageId}`;
+		const next = new URLSearchParams(searchParams.toString());
+		next.set("message", messageId);
+		return `${pathname}?${next.toString()}`;
+	}
+
+	function closeConversation() {
+		if (!selectedMessageId) return;
+		const closingId = selectedMessageId;
+		const next = new URLSearchParams(searchParams.toString());
+		next.delete("message");
+		setRestoreFocusId(closingId);
+		router.push(next.size > 0 ? `${pathname}?${next.toString()}` : pathname, { scroll: false });
+	}
 
 	function updateSelectedMessage(messageId: string, selected: boolean) {
 		setSelectedIds((current) =>
@@ -323,7 +370,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 		}
 	}, [queryClient, setMessages]);
 
-	return (
+	const list = (
 		<div className="flex h-full flex-col">
 			{config.title && (
 				<div className="flex items-center gap-2 border-b border-border px-6 py-2">
@@ -429,6 +476,8 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 						mailboxLabel={allMailboxes ? mailboxLabels.get(message.mailboxId ?? "") : undefined}
 						compact={compact}
 						timestamp={formatMessageListTime(message.createdAt, renderedAt)}
+						href={desktopMessageHref(message.id)}
+						active={message.id === selectedMessageId}
 					/>
 				))}
 				{isLoading && <p className="px-6 py-4 text-sm text-ink-muted">{t("loading")}</p>}
@@ -439,5 +488,13 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 				)}
 			</div>
 		</div>
+	);
+
+	if (!selectedMessageId) return list;
+	return (
+		<ResizableMailPanels
+			list={list}
+			detail={<MessageDetailView messageId={selectedMessageId} presentation="panel" onClose={closeConversation} />}
+		/>
 	);
 }

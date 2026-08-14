@@ -93,6 +93,22 @@ test.describe("a member cannot reach a mailbox they were not granted", () => {
 		expect(allowed.body).toContain(SHARED.mailboxId);
 	});
 
+	test("does not include an unauthorized mailbox in thread counts", async ({ page }) => {
+		await page.goto("/inbox");
+
+		const response = await api(page, `/api/messages?mailboxId=${SHARED.mailboxId}`);
+		expect(response.status).toBe(200);
+		const messages = JSON.parse(response.body).data.messages as Array<{
+			threadId: string | null;
+			threadCount: number;
+		}>;
+		const sharedThread = messages.filter((message) => message.threadId === SHARED.threadId);
+
+		expect(sharedThread).toHaveLength(3);
+		expect(sharedThread.every((message) => message.threadCount === 3)).toBe(true);
+		expect(response.body).not.toContain("private cross-thread subject");
+	});
+
 	test("cannot read it as a mailbox record", async ({ page }) => {
 		await page.goto("/inbox");
 

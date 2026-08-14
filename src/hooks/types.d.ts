@@ -38,6 +38,7 @@ export type Message = {
 	read: boolean;
 	starred: boolean;
 	threadId: string | null;
+	threadCount?: number;
 	createdAt: string;
 };
 

@@ -206,6 +206,42 @@ describe("GET /api/messages", () => {
 		expect(labelWhere?.params).toContain("u1");
 	});
 
+	it("adds thread counts with one access-scoped aggregate query", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: "org_1" });
+		mock.queueSelect([{ total: 2 }]);
+		mock.queueSelect([
+			{ id: "m1", threadId: "thr_1", snippet: "one", fromAddr: "a@x", toAddr: "b@x" },
+			{ id: "m2", threadId: null, snippet: "two", fromAddr: "c@x", toAddr: "d@x" },
+		]);
+		mock.queueSelect([{ threadId: "thr_1", count: 3 }]);
+
+		const res = await get();
+		const body = ((await res.json()) as any).data;
+		expect(body.messages.map((message: any) => message.threadCount)).toEqual([3, 1]);
+
+		const aggregate = mock.wheres
+			.map((condition) => new SQLiteSyncDialect().sqlToQuery(condition as SQL))
+			.find((query) => query.params.includes("thr_1"));
+		expect(aggregate?.sql).toContain('"messages"."user_id" = ?');
+		expect(aggregate?.sql).toContain('"messages"."organization_id" = ?');
+		expect(aggregate?.sql).toContain('"messages"."mailbox_id" in');
+		expect(aggregate?.params).toContain("u1");
+		expect(aggregate?.params).toContain("org_1");
+	});
+
+	it("defaults a thread to one when the aggregate has no matching thread id", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: "org_1" });
+		mock.queueSelect([{ total: 1 }]);
+		mock.queueSelect([
+			{ id: "m1", threadId: "thr_missing", snippet: "one", fromAddr: "a@x", toAddr: "b@x" },
+		]);
+		mock.queueSelect([{ threadId: null, count: 7 }]);
+
+		const res = await get();
+		const body = ((await res.json()) as any).data;
+		expect(body.messages[0].threadCount).toBe(1);
+	});
+
 	it("short-circuits to an empty result when labelId has no messages", async () => {
 		m.getCurrentUser.mockResolvedValue({ id: "u1" });
 		mock.queueSelect([]); // label lookup -> no ids

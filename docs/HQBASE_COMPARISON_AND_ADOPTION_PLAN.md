@@ -1,7 +1,7 @@
 # HQBase comparison and Lumimail adoption plan
 
-Status: planning draft
-Date: 2026-08-12
+Status: active implementation plan
+Date: 2026-08-13
 Reference implementation: [HQBase](https://github.com/HQBase/hqbase), reviewed at `v1.0.1`
 
 ## Purpose
@@ -67,13 +67,16 @@ The remaining work is ordered so it can improve the product without moving the M
 1. Add an optional desktop split view while retaining the existing route-based full-message page.
    Selecting a row should update the URL and render the conversation in a resizable right panel;
    direct links and small screens should continue to use the full page.
+   **Shipped in F86.**
 2. Create one Settings shell with categories for personal settings, mailbox settings, organization,
    security, operations, integrations, and updates. Existing authorization boundaries and routes
    remain server-enforced even if navigation is visually consolidated.
+   **Shipped in F85.**
 3. Replace role-only member editing with an access explanation and matrix showing organization role,
    mailbox capability, invitation state, and effective access.
 4. Add a conversation-list presentation using participant avatar/initials, unread state, thread
    count, mailbox identity, delivery state, and preview without duplicating accessible content.
+   **Shipped in F86.**
 5. Add an Operations center for release version, binding readiness, queue/DLQ state, latest backup,
    restore rehearsal, retention, integrity checks, and smoke-test evidence.
 6. Add session/device management, audit history, invitation delivery/resend state, and push
@@ -109,7 +112,7 @@ authorization, and mobile routes remain the source of truth.
 | Invitation email, resend, and delivery state | Add to the existing identity-bound invitation flow | No |
 | Per-mailbox retention UI | Extend the current R2 retention work carefully | No |
 | Per-sender remote-image trust | Consider only after its privacy contract is specified | No |
-| Three-pane resizable client | Add as an optional desktop presentation | No |
+| Three-pane resizable client | Shipped in F86 as a wide-screen presentation with full-page mobile/direct-link fallback | No |
 
 ### Lumimail capabilities that must not regress
 
@@ -132,9 +135,9 @@ implementation of recovery, access control, or deployment logic.
 |-------|---------|----------|------------|------------|
 | 1. Recovery foundation | A complete production-shaped backup can be restored and verified in isolated remote resources | F79 | Existing F78 local-equivalence helpers and F63 retention rules | Required to close the recovery gate |
 | 2. Operator lifecycle | Deployments are diagnosable, attributable, reproducible, and reversible | F80, F81 | Layer 1 manifests and recovery evidence | Post-MVP hardening |
-| 3. Administrative product surface | Owners can understand health, access, sessions, audit, and recovery from one UI | F82, F83 | Layers 1–2 read models and existing authorization | Post-MVP |
-| 4. Integration surface | AI clients receive narrowly consented mailbox access through OAuth/MCP | F84 | Stable audit, session, capability, and durable-send contracts | Post-MVP |
-| 5. Mail-client experience | Desktop split view and private push notifications improve daily use | F85, F86 | Stable message/query state plus security-center device controls | Post-MVP |
+| 3. Administrative product surface | Owners can understand health, access, sessions, audit, and recovery from one UI | F82, F83, F85 | Layers 1–2 read models and existing authorization | Post-MVP; unified shell shipped |
+| 4. Integration surface | AI clients receive narrowly consented mailbox access through OAuth/MCP | F87 | Stable audit, session, capability, and durable-send contracts | Post-MVP; planned |
+| 5. Mail-client experience | Desktop split view and private push notifications improve daily use | F86, F88 | Stable message/query state plus security-center device controls | Post-MVP; split view shipped |
 
 ### Promotion rules between layers
 
@@ -494,7 +497,7 @@ whether recovery has been proven without opening Cloudflare or reading logs.
 
 ### Layer 4 — MCP as a separately consented API surface
 
-Create `F84-mcp-oauth.md`.
+Create `F87-mcp-oauth.md`. F84 is already assigned to production performance evidence.
 
 Deliverables:
 
@@ -516,7 +519,8 @@ mailbox-scoped API, and repeated send requests cannot bypass durable idempotency
 
 ### Layer 5 — mail-client UX and notifications
 
-Create `F85-desktop-split-view.md` and `F86-push-notifications.md`.
+F86 desktop split view is shipped. Create `F88-push-notifications.md` before implementing push;
+F85 is already assigned to the unified Settings shell.
 
 Split view:
 
@@ -526,6 +530,13 @@ Split view:
 - Keyboard navigation, focus restoration, unread reconciliation, optimistic action rollback, and
   account-switch cache isolation
 - Performance budget that avoids fetching message bodies for every list row
+
+Implementation evidence 2026-08-13: wide-screen selection now keeps the folder list visible beside
+the reusable detail/thread view, synchronizes through `message=<id>`, supports bounded persisted
+pointer and keyboard resizing, restores focus on close, and preserves full-page mobile/direct-link
+behavior. Rows add deterministic initials and an access-scoped bounded thread aggregate. The full
+94-scenario mocked suite and 53-scenario migrated real-D1 suite pass; the latter proves an
+inaccessible same-thread row is neither returned nor counted.
 
 Push notifications:
 
@@ -546,9 +557,9 @@ conventions when each specification is implemented.
 |-------|-------------------------------------|-----------------------------|------|
 | 1 | No product UI; `scripts/r2-backup.mjs`, `scripts/restore-local.mjs` | Operator CLI output and evidence report only | Recovery mutation stays out of the web app |
 | 2 | Deployment scripts, smoke command, queue-health API | `doctor` CLI, release status reader, update-check reader | Read-only before deploy/update controls |
-| 3 | `AdminNav`, settings forms, queue-health page, mailbox member APIs | `SettingsShell`, `OperationsOverview`, `RecoveryStatusCard`, `ReleaseStatusCard`, `AccessMatrix`, `InvitationStatusList`, `SessionList`, `AuditEventTable` | Components render server-authorized read models; they do not reproduce authorization |
+| 3 | `AdminNav`, settings forms, queue-health page, mailbox member APIs | Shipped `SettingsShell`; `OperationsOverview`, `RecoveryStatusCard`, `ReleaseStatusCard`, `AccessMatrix`, `InvitationStatusList`, `SessionList`, `AuditEventTable` | Components render server-authorized read models; they do not reproduce authorization |
 | 4 | API-key and mailbox capability helpers, compose/draft/send services | `McpConnectionDialog`, `McpProfilePicker`, `OAuthConsentPage`, `ConnectedClientList` | Read-only is the default profile; send uses durable queue idempotency |
-| 5 | `MessageFolderPage`, message detail pages, `DashboardNav`, mobile tab bar, service worker | `DesktopMailSplit`, `ConversationList`, `ConversationPanel`, `ResizableMailPanels`, `NotificationDeviceList`, `NotificationPreferences` | Full-page routes remain mobile and accessibility fallback |
+| 5 | `MessageFolderPage`, message detail pages, `DashboardNav`, mobile tab bar, service worker | Shipped reusable conversation panel and `ResizableMailPanels`; planned `NotificationDeviceList`, `NotificationPreferences` | Full-page routes remain mobile and accessibility fallback |
 
 ## Work packaging
 
@@ -573,9 +584,10 @@ change.
 3. F81 signed release and disposable upgrade pipeline.
 4. F82 Operations center.
 5. F83 access, invitation, session, and audit UX.
-6. F84 OAuth-protected MCP.
-7. F85 desktop split view.
-8. F86 push notifications.
+6. F85 unified Settings shell — shipped.
+7. F86 desktop split view and conversation rows — shipped.
+8. F87 OAuth-protected MCP.
+9. F88 push notifications.
 
 This order deliberately keeps MCP and visual redesign out of the MVP critical path while still
 capturing HQBase's best product ideas.
@@ -589,4 +601,4 @@ capturing HQBase's best product ideas.
   deployments initially.
 - Whether in-app infrastructure updates are desirable after the safer CLI/CI workflow exists.
 - Whether MCP is exposed only on the canonical Lumimail origin or a separate integration origin.
-- Whether split view becomes the default on wide screens or starts as an account preference.
+- Whether notification subscriptions are opt-in per mailbox or only per device at first release.

@@ -100,7 +100,27 @@ export const GET = withUser(async ({ request, env, user }) => {
 		.orderBy(desc(messages.createdAt))
 		.limit(limit)
 		.offset(offset);
+	const threadIds = [...new Set(
+		rows.flatMap((message) => message.threadId ? [message.threadId] : []),
+	)];
+	const threadCountRows = threadIds.length > 0
+		? await db
+			.select({ threadId: messages.threadId, count: count() })
+			.from(messages)
+			.where(and(
+				messageAccessCondition(db, user.id, user.organizationId, "read"),
+				inArray(messages.threadId, threadIds),
+			))
+			.groupBy(messages.threadId)
+		: [];
+	const threadCounts = new Map(
+		threadCountRows.flatMap((row) => row.threadId ? [[row.threadId, row.count] as const] : []),
+	);
 	const enrichedRows = await enrichMessagesWithContacts(env, user.id, rows);
+	const messagesWithThreadCounts = enrichedRows.map((message) => ({
+		...message,
+		threadCount: message.threadId ? Math.max(1, threadCounts.get(message.threadId) ?? 1) : 1,
+	}));
 
-	return apiSuccess({ messages: enrichedRows, total: totalRow?.total ?? 0, limit, offset });
+	return apiSuccess({ messages: messagesWithThreadCounts, total: totalRow?.total ?? 0, limit, offset });
 });
