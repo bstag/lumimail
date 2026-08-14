@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDbMock, type DbMock } from "../../helpers/db";
-import { messages } from "@/db/schema";
+import { messages, pushNotificationEvents } from "@/db/schema";
 
 const h = vi.hoisted(() => ({ db: null as unknown }));
 vi.mock("@/db", () => ({ getDb: () => h.db }));
@@ -72,6 +72,7 @@ function makeEnv(bucketGet: unknown): CloudflareEnv {
 			put: vi.fn(async () => undefined),
 			delete: vi.fn(async () => undefined),
 		},
+		PUSH_QUEUE: { send: vi.fn(async () => undefined) },
 	} as unknown as CloudflareEnv;
 }
 
@@ -190,7 +191,7 @@ describe("processInboundMessage", () => {
 			source: "inbound",
 		});
 
-		expect(mock.inserts).toHaveLength(2); // messages, messageBodies
+		expect(mock.inserts).toHaveLength(3); // messages, messageBodies, push outbox
 		expect(mock.inserts[0].values).toMatchObject({
 			id: "msg_id",
 			userId: "u1",
@@ -215,6 +216,16 @@ describe("processInboundMessage", () => {
 			textBody: "text body",
 			htmlBody: "<p>html</p>",
 			rawR2Key: "inbound/k.eml",
+		});
+		expect(mock.inserts[2]).toEqual({
+			table: pushNotificationEvents,
+			values: expect.objectContaining({
+				id: "pue_id", organizationId: "org_1", mailboxId: "mb_1", messageId: "msg_id",
+				status: "pending", attempts: 0,
+			}),
+		});
+		expect(env.PUSH_QUEUE.send).toHaveBeenCalledWith({
+			kind: "push-expand", version: 1, eventId: "pue_id",
 		});
 
 		expect(dispatchWebhooks).toHaveBeenCalledWith(env, "u1", "message.inbound", {
@@ -334,7 +345,7 @@ describe("processInboundMessage", () => {
 			bytes.buffer,
 			{ httpMetadata: { contentType: "application/octet-stream" } },
 		);
-		expect(mock.inserts).toHaveLength(3);
+		expect(mock.inserts).toHaveLength(4);
 		expect(mock.inserts[0].values).toMatchObject({
 			attachmentStatus: "stored",
 			attachmentError: null,
@@ -371,11 +382,38 @@ describe("processInboundMessage", () => {
 		await processInboundMessage(env, payload);
 
 		expect(env.BUCKET.put).not.toHaveBeenCalled();
-		expect(mock.inserts).toHaveLength(2);
+		expect(mock.inserts).toHaveLength(3);
 		expect(mock.inserts[0].values).toMatchObject({
 			attachmentStatus: "omitted",
 			attachmentError: INBOUND_ATTACHMENT_OMISSION_MESSAGE,
 		});
+	});
+
+	it("commits mail and its outbox event even when the push queue wakeup fails", async () => {
+		resolveInboundTargets.mockResolvedValue(storeDecisions);
+		const env = makeEnv(makeR2());
+		vi.mocked(env.PUSH_QUEUE.send).mockRejectedValueOnce(new Error("push queue unavailable"));
+		mock.queueSelect([]).queueSelect([{ enabled: false }]);
+
+		await expect(processInboundMessage(env, payload)).resolves.toBeUndefined();
+
+		expect(mock.db.batch).toHaveBeenCalledOnce();
+		expect(mock.inserts).toContainEqual(expect.objectContaining({ table: pushNotificationEvents }));
+		expect(warnSpy).toHaveBeenCalledWith("Push event enqueue deferred", { eventId: "pue_id" });
+		expect(dispatchWebhooks).toHaveBeenCalledOnce();
+	});
+
+	it("stores legacy organization-less mail without creating or waking a push event", async () => {
+		resolveInboundTargets.mockResolvedValue([{
+			action: "store", mailbox: { ...mailbox, organizationId: null },
+		}] as RoutingDecision[]);
+		const env = makeEnv(makeR2());
+		mock.queueSelect([]).queueSelect([{ enabled: false }]);
+
+		await expect(processInboundMessage(env, payload)).resolves.toBeUndefined();
+
+		expect(mock.inserts).not.toContainEqual(expect.objectContaining({ table: pushNotificationEvents }));
+		expect(env.PUSH_QUEUE.send).not.toHaveBeenCalled();
 	});
 
 	it("removes written objects and rethrows when the D1 batch fails", async () => {
@@ -861,9 +899,11 @@ describe("processInboundMessage multiple mailbox targets", () => {
 			.mockImplementationOnce(() => "msg_1")
 			.mockImplementationOnce(() => "att_1")
 			.mockImplementationOnce(() => "body_1")
+			.mockImplementationOnce(() => "pue_1")
 			.mockImplementationOnce(() => "msg_2")
 			.mockImplementationOnce(() => "att_2")
-			.mockImplementationOnce(() => "body_2");
+			.mockImplementationOnce(() => "body_2")
+			.mockImplementationOnce(() => "pue_2");
 		mock
 			.queueSelect([])
 			.queueSelect([{ enabled: false }])

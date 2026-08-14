@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
 	sqliteTable,
 	text,
@@ -504,6 +505,89 @@ export const oauthRefreshTokenUses = sqliteTable(
 	(t) => [index("oauth_refresh_token_uses_expiry_idx").on(t.expiresAt)],
 );
 
+export const pushDevices = sqliteTable(
+	"push_devices",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+		organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		approvingSessionId: text("approving_session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		endpoint: text("endpoint").notNull(),
+		endpointHash: text("endpoint_hash").notNull(),
+		p256dh: text("p256dh").notNull(),
+		auth: text("auth").notNull(),
+		status: text("status", { enum: ["active", "revoked", "expired"] }).notNull().default("active"),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		lastDeliveredAt: integer("last_delivered_at", { mode: "timestamp" }),
+		revokedAt: integer("revoked_at", { mode: "timestamp" }),
+		expiredAt: integer("expired_at", { mode: "timestamp" }),
+	},
+	(t) => [
+		uniqueIndex("push_devices_endpoint_hash_idx").on(t.endpointHash).where(sql`${t.status} = 'active'`),
+		uniqueIndex("push_devices_active_session_idx").on(t.approvingSessionId).where(sql`${t.status} = 'active'`),
+		index("push_devices_user_org_status_idx").on(t.userId, t.organizationId, t.status),
+		index("push_devices_cleanup_idx").on(t.status, t.revokedAt, t.expiredAt),
+	],
+);
+
+export const pushDeviceMailboxes = sqliteTable(
+	"push_device_mailboxes",
+	{
+		deviceId: text("device_id").notNull().references(() => pushDevices.id, { onDelete: "cascade" }),
+		mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [
+		uniqueIndex("push_device_mailboxes_pair_idx").on(t.deviceId, t.mailboxId),
+		index("push_device_mailboxes_mailbox_idx").on(t.mailboxId, t.deviceId),
+	],
+);
+
+export const pushNotificationEvents = sqliteTable(
+	"push_notification_events",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+		messageId: text("message_id").notNull().references(() => messages.id, { onDelete: "cascade" }),
+		status: text("status", { enum: ["pending", "expanding", "complete", "failed"] }).notNull().default("pending"),
+		expansionCursor: text("expansion_cursor"),
+		attempts: integer("attempts").notNull().default(0),
+		nextAttemptAt: integer("next_attempt_at", { mode: "timestamp" }).notNull(),
+		leaseUntil: integer("lease_until", { mode: "timestamp" }),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		completedAt: integer("completed_at", { mode: "timestamp" }),
+	},
+	(t) => [
+		uniqueIndex("push_notification_events_message_idx").on(t.messageId),
+		index("push_notification_events_due_idx").on(t.status, t.nextAttemptAt),
+	],
+);
+
+export const pushDeliveries = sqliteTable(
+	"push_deliveries",
+	{
+		id: text("id").primaryKey(),
+		eventId: text("event_id").notNull().references(() => pushNotificationEvents.id, { onDelete: "cascade" }),
+		deviceId: text("device_id").notNull().references(() => pushDevices.id, { onDelete: "cascade" }),
+		status: text("status", { enum: ["pending", "delivering", "delivered", "skipped", "failed"] }).notNull().default("pending"),
+		attempts: integer("attempts").notNull().default(0),
+		nextAttemptAt: integer("next_attempt_at", { mode: "timestamp" }).notNull(),
+		leaseUntil: integer("lease_until", { mode: "timestamp" }),
+		providerOutcome: text("provider_outcome"),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		deliveredAt: integer("delivered_at", { mode: "timestamp" }),
+		terminalAt: integer("terminal_at", { mode: "timestamp" }),
+	},
+	(t) => [
+		uniqueIndex("push_deliveries_event_device_idx").on(t.eventId, t.deviceId),
+		index("push_deliveries_due_idx").on(t.status, t.nextAttemptAt),
+		index("push_deliveries_cleanup_idx").on(t.status, t.terminalAt),
+	],
+);
+
 export const securityAuditEvents = sqliteTable(
 	"security_audit_events",
 	{
@@ -513,8 +597,11 @@ export const securityAuditEvents = sqliteTable(
 		action: text("action", { enum: [
 			"session.revoke", "session.revoke_others", "mailbox.grant_bulk",
 			"mcp.authorize", "mcp.revoke", "mcp.mutate",
+			"push.register", "push.rename", "push.preferences", "push.revoke",
 		] }).notNull(),
-		resourceType: text("resource_type", { enum: ["session", "mailbox_membership", "mcp_connection"] }).notNull(),
+		resourceType: text("resource_type", { enum: [
+			"session", "mailbox_membership", "mcp_connection", "push_device",
+		] }).notNull(),
 		resourceId: text("resource_id"),
 		affectedCount: integer("affected_count").notNull(),
 		requestId: text("request_id").notNull(),
@@ -669,6 +756,7 @@ export type Alias = typeof aliases.$inferSelect;
 export type Label = typeof labels.$inferSelect;
 export type Attachment = typeof attachments.$inferSelect;
 export type McpConnection = typeof mcpConnections.$inferSelect;
+export type PushDevice = typeof pushDevices.$inferSelect;
 
 export const schema = {
 	organizations,
@@ -699,6 +787,10 @@ export const schema = {
 	mcpConnections,
 	outboundIdempotency,
 	oauthRefreshTokenUses,
+	pushDevices,
+	pushDeviceMailboxes,
+	pushNotificationEvents,
+	pushDeliveries,
 	labels,
 	messageLabels,
 	attachments,

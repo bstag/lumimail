@@ -12,6 +12,81 @@ import {
 // as-is pending a product decision on one canonical local-part rule.
 const registrationUsername = z.string().min(1).max(64).regex(/^[a-zA-Z0-9._%+-]+$/);
 
+export const pushDeviceNameSchema = z.string().trim().min(1).max(64);
+
+const PUSH_ENDPOINT_HOSTS = new Set([
+	"fcm.googleapis.com",
+	"push.services.mozilla.com",
+	"updates.push.services.mozilla.com",
+	"web.push.apple.com",
+]);
+
+function isRecognizedPushEndpoint(value: string): boolean {
+	try {
+		const url = new URL(value);
+		return value.length <= 2048
+			&& url.protocol === "https:"
+			&& (url.port === "" || url.port === "443")
+			&& url.username === ""
+			&& url.password === ""
+			&& url.hash === ""
+			&& (PUSH_ENDPOINT_HOSTS.has(url.hostname)
+				|| /^[a-z0-9-]+\.notify\.windows\.com$/i.test(url.hostname));
+	} catch {
+		return false;
+	}
+}
+
+function hasDecodedBase64UrlLength(value: string, expectedBytes: number): boolean {
+	if (!/^[A-Za-z0-9_-]+$/.test(value)) return false;
+	try {
+		const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+		const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+		return atob(padded).length === expectedBytes;
+	} catch {
+		return false;
+	}
+}
+
+const pushP256dhSchema = z.string().max(128).refine(
+	(value) => hasDecodedBase64UrlLength(value, 65),
+	"p256dh must be a 65-byte URL-safe base64 P-256 public key",
+);
+export const pushVapidPublicKeySchema = pushP256dhSchema;
+const pushAuthSchema = z.string().max(64).refine(
+	(value) => hasDecodedBase64UrlLength(value, 16),
+	"auth must be a 16-byte URL-safe base64 secret",
+);
+
+export const pushSubscriptionSchema = z.object({
+	endpoint: z.string().refine(isRecognizedPushEndpoint, "Unrecognized Web Push endpoint"),
+	keys: z.object({
+		p256dh: pushP256dhSchema,
+		auth: pushAuthSchema,
+	}).strict(),
+}).strict();
+
+export const pushDeviceCreateSchema = z.object({
+	name: pushDeviceNameSchema,
+	subscription: pushSubscriptionSchema,
+}).strict();
+
+export const pushDeviceRenameSchema = z.object({
+	name: pushDeviceNameSchema,
+}).strict();
+
+export const pushDevicePreferencesSchema = z.object({
+	mailboxIds: z.array(z.string().trim().min(1).max(100)).max(50),
+}).strict().superRefine((value, ctx) => {
+	if (new Set(value.mailboxIds).size !== value.mailboxIds.length) {
+		ctx.addIssue({
+			code: "custom",
+			path: ["mailboxIds"],
+			message: "Mailbox IDs must be unique",
+		});
+	}
+});
+
 export const sendEmailSchema = z.object({
 	from: z.string().min(3),
 	to: z.string().min(3),

@@ -31,7 +31,7 @@ test("member settings nav exposes only account destinations", async ({ page }) =
 
 	const nav = page.getByRole("navigation", { name: "Settings" });
 	await expect(nav.getByRole("link", { name: "Personal" })).toHaveAttribute("aria-current", "page");
-	await expect(nav.getByRole("link")).toHaveCount(3);
+	await expect(nav.getByRole("link")).toHaveCount(4);
 	await expect(nav.getByText("Organization")).toHaveCount(0);
 	await expect(nav.getByRole("link", { name: "Members" })).toHaveCount(0);
 	await expect(page.getByLabel("Recovery email")).toHaveValue("member-recovery@example.net");
@@ -42,7 +42,7 @@ test("owner settings nav lists the complete lifecycle in one shell", async ({ pa
 	await page.goto("/settings");
 
 	const nav = page.getByRole("navigation", { name: "Settings" });
-	await expect(nav.getByRole("link")).toHaveCount(13);
+	await expect(nav.getByRole("link")).toHaveCount(14);
 	await expect(nav.getByText("Account")).toBeVisible();
 	await expect(nav.getByText("Organization")).toBeVisible();
 	await expect(nav.getByText("Platform")).toBeVisible();

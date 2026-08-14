@@ -14,6 +14,8 @@ import {
 	isInboundQueueMessage,
 	isOutboundDeadLetterQueue,
 	isOutboundQueueMessage,
+	isPushDeadLetterQueue,
+	isPushQueueMessage,
 } from "./worker-utils";
 import { runQueueHealthCheck } from "./src/lib/queue-health";
 import { purgeExpiredRateLimits } from "./src/lib/rate-limit";
@@ -34,6 +36,8 @@ import {
 import { enforceMcpClientRegistrationPolicy } from "./src/lib/mcp/registration-policy";
 import { handleMcpAuthorizationRequest } from "./worker-mcp-authorization";
 import { handleMcpOAuthTokenRequest, purgeMcpRefreshTokenUses } from "./worker-mcp-refresh";
+import { processPushQueueMessage, reconcilePushNotifications } from "./src/lib/push/queue";
+import { purgePushNotificationState } from "./src/lib/push/retention";
 
 type McpWorkerEnv = McpEnv & { OAUTH_KV: KVNamespace; OAUTH_PROVIDER: OAuthHelpers };
 
@@ -154,6 +158,19 @@ export default {
 					} else {
 						msg.ack();
 					}
+				} else if (isPushQueueMessage(msg.body)) {
+					if (isPushDeadLetterQueue(batch.queue)) {
+						// D1 remains authoritative. The scheduled reconciler will wake any
+						// still-pending row without replaying a malformed DLQ payload.
+						msg.ack();
+						continue;
+					}
+					const result = await processPushQueueMessage(env, msg.body);
+					if (result.action === "retry") {
+						msg.retry({ delaySeconds: result.delaySeconds });
+					} else {
+						msg.ack();
+					}
 				} else {
 					console.error("Queue payload rejected", {
 						queue: batch.queue,
@@ -183,6 +200,13 @@ export default {
 		// own failures, so it cannot block the sweep below.
 		await purgeExpiredRateLimits(env);
 		await purgeMcpRefreshTokenUses(env);
+
+		try {
+			await reconcilePushNotifications(env);
+			await purgePushNotificationState(env);
+		} catch {
+			console.warn("Push reconciliation failed");
+		}
 
 		try {
 			await createOAuthProvider(env as McpWorkerEnv).purgeExpiredData(env as McpWorkerEnv, {

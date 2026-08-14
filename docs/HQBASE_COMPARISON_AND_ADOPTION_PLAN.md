@@ -137,7 +137,7 @@ implementation of recovery, access control, or deployment logic.
 | 2. Operator lifecycle | Deployments are diagnosable, attributable, reproducible, and reversible | F80, F81 | Layer 1 manifests and recovery evidence | Post-MVP hardening |
 | 3. Administrative product surface | Owners can understand health, access, sessions, audit, and recovery from one UI | F82, F83, F85 | Layers 1–2 read models and existing authorization | Post-MVP; unified shell shipped |
 | 4. Integration surface | AI clients receive narrowly consented mailbox access through OAuth/MCP | F87 | Stable audit, session, capability, and durable-send contracts | Shipped; staging action proof passes 11/11, production read-only proof passes 9/9, and Settings revocation is verified |
-| 5. Mail-client experience | Desktop split view and private push notifications improve daily use | F86, F88 | Stable message/query state plus security-center device controls | Post-MVP; split view shipped |
+| 5. Mail-client experience | Desktop split view and private push notifications improve daily use | F86, F88 | Stable message/query state plus security-center device controls | Post-MVP; split view shipped, private push in staging validation |
 
 ### Promotion rules between layers
 
@@ -527,8 +527,10 @@ mailbox-scoped API, and repeated send requests cannot bypass durable idempotency
 
 ### Layer 5 — mail-client UX and notifications
 
-F86 desktop split view is shipped. Create `F88-push-notifications.md` before implementing push;
-F85 is already assigned to the unified Settings shell.
+F86 desktop split view is shipped. F88's privacy, authorization, durable-outbox, service-worker, and
+Settings UI contract is implemented, passes the complete local gates, and is deployed to isolated
+staging queues and VAPID credentials. Real browser delivery/click/revocation evidence must pass before
+production promotion. F85 is already assigned to the unified Settings shell.
 
 Split view:
 

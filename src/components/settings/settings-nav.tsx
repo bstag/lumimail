@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import {
 	Activity,
 	AtSign,
+	Bell,
 	Building2,
 	Gauge,
 	GitBranch,
@@ -29,6 +30,7 @@ import {
 const itemIcons = {
 	personal: UserRound,
 	mailbox: Mail,
+	notifications: Bell,
 	integrations: KeyRound,
 	overview: Building2,
 	members: Users,

@@ -12,6 +12,7 @@ describe("settings nav sections", () => {
 		expect(sections[0].items.map((item) => item.id)).toEqual([
 			"personal",
 			"mailbox",
+			"notifications",
 			"integrations",
 		]);
 	});
@@ -52,6 +53,7 @@ describe("settings nav sections", () => {
 		expect(hrefs).toEqual([
 			"/settings#personal",
 			"/settings#mailbox",
+			"/settings/notifications",
 			"/settings/api-keys",
 			"/admin",
 			"/members",
@@ -80,6 +82,7 @@ describe("active settings nav item", () => {
 		expect(getActiveSettingsNavItem("/settings", "")).toBe("personal");
 		expect(getActiveSettingsNavItem("/settings/api-keys", "")).toBe("integrations");
 		expect(getActiveSettingsNavItem("/settings/mcp", "")).toBe("integrations");
+		expect(getActiveSettingsNavItem("/settings/notifications", "")).toBe("notifications");
 	});
 
 	it("selects organization items including nested detail routes", () => {
@@ -113,6 +116,7 @@ describe("settings path detection", () => {
 			"/settings",
 			"/settings/api-keys",
 			"/settings/mcp",
+			"/settings/notifications",
 			"/admin",
 			"/members",
 			"/mailboxes",

@@ -24,6 +24,9 @@
 	// credential belongs here. Set these as secrets instead:
 	//   wrangler secret put CF_TOKEN          // Cloudflare API token
 	//   wrangler secret put RESEND_API_KEY    // only when MAIL_PROVIDER=resend
+	//   wrangler secret put VAPID_PUBLIC_KEY  // environment-specific Web Push key
+	//   wrangler secret put VAPID_PRIVATE_KEY // environment-specific Web Push key
+	//   wrangler secret put VAPID_SUBJECT     // mailto: or HTTPS operator contact
 	"vars": {
 		"CF_ACCOUNT_ID": "cf-account-id",
 		// Name of the Worker that Email Routing rules target. Must match "name"
@@ -98,6 +101,14 @@
 				"binding": "OUTBOUND_DLQ_QUEUE",
 				"queue": "lumimail-outbound-dlq",
 			},
+			{
+				"binding": "PUSH_QUEUE",
+				"queue": "lumimail-push",
+			},
+			{
+				"binding": "PUSH_DLQ_QUEUE",
+				"queue": "lumimail-push-dlq",
+			},
 		],
 		"consumers": [
 			{
@@ -115,6 +126,17 @@
 				"queue": "lumimail-outbound-dlq",
 				"max_batch_size": 5,
 				"max_retries": 3,
+			},
+			{
+				"queue": "lumimail-push",
+				"max_batch_size": 10,
+				"max_retries": 3,
+				"dead_letter_queue": "lumimail-push-dlq",
+			},
+			{
+				"queue": "lumimail-push-dlq",
+				"max_batch_size": 10,
+				"max_retries": 1,
 			},
 		],
 	},
@@ -170,7 +192,9 @@
 				"producers": [
 					{ "binding": "INBOUND_QUEUE", "queue": "lumimail-inbound-staging" },
 					{ "binding": "OUTBOUND_QUEUE", "queue": "lumimail-outbound-staging" },
-					{ "binding": "OUTBOUND_DLQ_QUEUE", "queue": "lumimail-outbound-dlq-staging" }
+					{ "binding": "OUTBOUND_DLQ_QUEUE", "queue": "lumimail-outbound-dlq-staging" },
+					{ "binding": "PUSH_QUEUE", "queue": "lumimail-push-staging" },
+					{ "binding": "PUSH_DLQ_QUEUE", "queue": "lumimail-push-dlq-staging" }
 				],
 				"consumers": [
 					{ "queue": "lumimail-inbound-staging", "max_batch_size": 5, "max_retries": 3 },
@@ -180,7 +204,9 @@
 						"max_retries": 3,
 						"dead_letter_queue": "lumimail-outbound-dlq-staging"
 					},
-					{ "queue": "lumimail-outbound-dlq-staging", "max_batch_size": 5, "max_retries": 3 }
+					{ "queue": "lumimail-outbound-dlq-staging", "max_batch_size": 5, "max_retries": 3 },
+					{ "queue": "lumimail-push-staging", "max_batch_size": 10, "max_retries": 3, "dead_letter_queue": "lumimail-push-dlq-staging" },
+					{ "queue": "lumimail-push-dlq-staging", "max_batch_size": 10, "max_retries": 1 }
 				]
 			}
 		}

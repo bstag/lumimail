@@ -53,6 +53,19 @@ describe("security-event cursor", () => {
 });
 
 describe("buildSecurityAuditHistory", () => {
+	it("includes content-free push device lifecycle events", () => {
+		const history = buildSecurityAuditHistory("org_1", 20, [{
+			...event("aud_push"),
+			action: "push.revoke",
+			resourceType: "push_device",
+			resourceId: "pud_1",
+		}]);
+		expect(history.events[0]).toMatchObject({
+			action: "push.revoke", resourceType: "push_device", resourceId: "pud_1",
+		});
+		expect(JSON.stringify(history)).not.toMatch(/endpoint|p256dh|auth|device name/i);
+	});
+
 	it("returns a bounded content-free page and a cursor when an older row exists", () => {
 		const history = buildSecurityAuditHistory("org_1", 2, [event("aud_c"), event("aud_b"), event("aud_a", "org_1", older)]);
 		expect(history.events).toEqual([

@@ -15,8 +15,9 @@ type SecurityAuditHistoryRow = {
 	organizationId: string;
 	actorUserId: string;
 	action: "session.revoke" | "session.revoke_others" | "mailbox.grant_bulk" |
-		"mcp.authorize" | "mcp.revoke" | "mcp.mutate";
-	resourceType: "session" | "mailbox_membership" | "mcp_connection";
+		"mcp.authorize" | "mcp.revoke" | "mcp.mutate" |
+		"push.register" | "push.rename" | "push.preferences" | "push.revoke";
+	resourceType: "session" | "mailbox_membership" | "mcp_connection" | "push_device";
 	resourceId: string | null;
 	affectedCount: number;
 	requestId: string;

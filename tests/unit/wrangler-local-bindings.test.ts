@@ -93,6 +93,8 @@ function expectBindingContract(env: WranglerEnv) {
 		"INBOUND_QUEUE",
 		"OUTBOUND_DLQ_QUEUE",
 		"OUTBOUND_QUEUE",
+		"PUSH_DLQ_QUEUE",
+		"PUSH_QUEUE",
 	]);
 
 	const producedQueues = producers.map((producer) => producer.queue).sort();
@@ -103,10 +105,10 @@ function expectBindingContract(env: WranglerEnv) {
 	const deadLetterQueues = consumers
 		.map((consumer) => consumer.dead_letter_queue)
 		.filter((queue): queue is string => queue !== undefined);
-	// The outbound consumer routes failures to the DLQ, and that DLQ is itself
-	// a consumed queue (the recovery path reads it).
-	expect(deadLetterQueues).toHaveLength(1);
-	expect(consumedQueues).toContain(deadLetterQueues[0]);
+	// Outbound and push consumers route failures to isolated DLQs, and each DLQ
+	// is itself consumed by its recovery path.
+	expect(deadLetterQueues).toHaveLength(2);
+	for (const queue of deadLetterQueues) expect(consumedQueues).toContain(queue);
 }
 
 describe("Wrangler local binding contract", () => {
