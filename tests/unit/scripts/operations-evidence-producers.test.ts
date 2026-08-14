@@ -9,7 +9,10 @@ const tokenEnvironment = { ...process.env, LUMIMAIL_SESSION_TOKEN: "session-secr
 function smokeFetch(failedPath?: string) {
 	return vi.fn(async (input: Parameters<typeof fetch>[0]) => {
 		const path = new URL(String(input)).pathname;
-		const anonymous = new Set(["/api/auth/me", "/api/mailboxes", "/api/admin/mailboxes"]);
+		const anonymous = new Set([
+			"/api/auth/me", "/api/mailboxes", "/api/admin/mailboxes",
+			"/api/push/config", "/api/push/devices",
+		]);
 		const expected = anonymous.has(path) ? 401 : 200;
 		return new Response(null, { status: path === failedPath ? 500 : expected });
 	}) as unknown as typeof fetch;
@@ -25,7 +28,7 @@ describe("smoke evidence adapter", () => {
 		expect(publishEvidence).not.toHaveBeenCalled();
 	});
 
-	it("derives a passing six-check result and publishes only in recording mode", async () => {
+	it("derives a passing eight-check result and publishes only in recording mode", async () => {
 		const publishEvidence = vi.fn(async (input: unknown) => {
 			void input;
 			return { recorded: true as const, duplicate: false };
@@ -36,7 +39,7 @@ describe("smoke evidence adapter", () => {
 		})).resolves.toBe(0);
 		expect(publishEvidence).toHaveBeenCalledWith({
 			origin: "https://mail.example.com", sessionToken: "session-secret",
-			evidence: { category: "smoke", outcome: "passed", passedChecks: 6, totalChecks: 6,
+			evidence: { category: "smoke", outcome: "passed", passedChecks: 8, totalChecks: 8,
 				observedAt: "2026-08-12T20:00:00.000Z" },
 		});
 	});
@@ -63,7 +66,7 @@ describe("smoke evidence adapter", () => {
 			stdout: vi.fn(), stderr: vi.fn(), now,
 		})).resolves.toBe(1);
 		expect(publishEvidence).toHaveBeenCalledWith(expect.objectContaining({ evidence: {
-			category: "smoke", outcome: "failed", passedChecks: 5, totalChecks: 6,
+			category: "smoke", outcome: "failed", passedChecks: 7, totalChecks: 8,
 			observedAt: "2026-08-12T20:00:00.000Z",
 		} }));
 	});

@@ -21,6 +21,8 @@ const CHECKS = [
 	{ path: "/api/auth/me", expect: 401, reason: "session API refuses anonymous callers" },
 	{ path: "/api/mailboxes", expect: 401, reason: "mailbox API refuses anonymous callers" },
 	{ path: "/api/admin/mailboxes", expect: 401, reason: "admin API refuses anonymous callers" },
+	{ path: "/api/push/config", expect: 401, reason: "push config refuses anonymous callers" },
+	{ path: "/api/push/devices", expect: 401, reason: "push devices refuse anonymous callers" },
 ];
 
 async function check(baseUrl, { path, expect: expected, reason }, fetchImpl) {

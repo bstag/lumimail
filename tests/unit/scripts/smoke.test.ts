@@ -12,7 +12,10 @@ afterEach(async () => {
 });
 
 async function startSmokeTarget(overrides: Record<string, number> = {}) {
-	const anonymous = new Set(["/api/auth/me", "/api/mailboxes", "/api/admin/mailboxes"]);
+	const anonymous = new Set([
+		"/api/auth/me", "/api/mailboxes", "/api/admin/mailboxes",
+		"/api/push/config", "/api/push/devices",
+	]);
 	const server = createServer((request, response) => {
 		const path = request.url ?? "/";
 		response.statusCode = overrides[path] ?? (anonymous.has(path) ? 401 : 200);
@@ -33,7 +36,9 @@ describe("deployment smoke command", () => {
 	it("exits successfully when every public and anonymous boundary matches", async () => {
 		const result = await runSmoke(await startSmokeTarget());
 
-		expect(result.stdout).toContain("6/6 passed");
+		expect(result.stdout).toContain("8/8 passed");
+		expect(result.stdout).toContain("/api/push/config");
+		expect(result.stdout).toContain("/api/push/devices");
 	});
 
 	it("exits non-zero and names a failed boundary", async () => {

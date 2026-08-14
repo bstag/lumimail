@@ -246,7 +246,8 @@ evidence, then production migration/bindings/deploy/smoke and one controlled opt
   cache artifact. Production and staging Wrangler dry runs accepted the isolated push bindings.
 - Staging queues `lumimail-push-staging` and `lumimail-push-dlq-staging`, a staging-only VAPID pair,
   migration 0036, and Worker version `94bfec94-98c0-4e22-93ca-301030bdeab3` are deployed. Public
-  staging smoke passed 6/6. Authenticated real-browser/provider evidence remains pending.
+  staging smoke passed 8/8 after adding the two F88 anonymous API boundaries. Authenticated real-
+  browser/provider evidence remains pending.
 
 ## 13. Open Questions / Decisions
 
@@ -325,3 +326,22 @@ Impact:
 Tests:
 - Full 100% logic coverage, browser E2E, migrated local D1, migration parity, Worker build, both
   environment dry runs, and staging public smoke pass. Real staging browser/provider proof remains.
+
+### 2026-08-14 — Extend the repeatable deployment smoke contract
+
+Type: Change
+
+Summary:
+- Require `/api/push/config` and `/api/push/devices` to return `401` to anonymous callers in every
+  post-deployment smoke run and operational-evidence recording.
+
+Reason:
+- F88's new authenticated configuration and credential-management surfaces should be checked after
+  every staging and production deployment, not only during one-off manual validation.
+
+Impact:
+- The public smoke gate grows from six to eight checks. No authenticated data is read or mutated.
+
+Tests:
+- Update smoke command and evidence-adapter tests to prove both new anonymous boundaries and the new
+  8/8 evidence count before changing the smoke implementation.
