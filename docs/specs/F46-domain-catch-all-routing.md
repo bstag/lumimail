@@ -1,7 +1,7 @@
 # F46 — Domain Catch-All Routing
 
 > Status: In Progress
-> Owner area: `src/lib/email/routing.ts`, `src/lib/cloudflare-api.ts`, `src/app/api/routing-rules/`, `src/app/(admin)/routing/`
+> Owner area: `src/lib/email/routing.ts`, `src/lib/cloudflare-api.ts`, `src/app/api/routing-rules/`, `src/app/(settings)/(org)/routing/`
 
 ## 1. Problem & User Job
 

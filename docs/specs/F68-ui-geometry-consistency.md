@@ -1,7 +1,7 @@
 # F68 — UI Geometry Consistency
 
 > Status: `Shipped`
-> Owner area: `src/components/ui/*`, `src/app/globals.css`, `src/app/(admin)/**`, `src/app/(dashboard)/**`
+> Owner area: `src/components/ui/*`, `src/app/globals.css`, `src/app/(settings)/(org)/**`, `src/app/(dashboard)/**`
 
 ## 1. Problem & User Job
 

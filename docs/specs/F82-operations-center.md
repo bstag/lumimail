@@ -1,7 +1,7 @@
 # F82 — Read-only Operations Center
 
 > Status: In Progress — content-free evidence-history slice deployed and boundary-verified
-> Owner area: `src/lib/operations.ts`, `src/app/api/admin/operations/`, `src/app/(admin)/operations/`
+> Owner area: `src/lib/operations.ts`, `src/app/api/admin/operations/`, `src/app/(settings)/(org)/operations/`
 
 ## 1. Problem & User Job
 

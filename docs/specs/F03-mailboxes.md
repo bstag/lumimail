@@ -1,7 +1,7 @@
 # F03 — Mailboxes
 
 > Status: Shipped
-> Owner area: `src/app/api/mailboxes/*`, `src/app/(admin)/mailboxes/`, `src/components/mailbox-selector.tsx`
+> Owner area: `src/app/api/mailboxes/*`, `src/app/(settings)/(org)/mailboxes/`, `src/components/mailbox-selector.tsx`
 
 ## 1. Problem & User Job
 

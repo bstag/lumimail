@@ -90,7 +90,8 @@ Source of truth for behavior. Each follows
        [`F83-access-and-security-center`](./specs/F83-access-and-security-center.md),
         [`F84-production-performance-evidence`](./specs/F84-production-performance-evidence.md),
         [`F85-unified-settings-shell`](./specs/F85-unified-settings-shell.md),
-        [`F86-desktop-split-view`](./specs/F86-desktop-split-view.md).
+        [`F86-desktop-split-view`](./specs/F86-desktop-split-view.md),
+        [`F87-mcp-oauth`](./specs/F87-mcp-oauth.md).
 
 ## Implementation notes (`implementation/`)
 

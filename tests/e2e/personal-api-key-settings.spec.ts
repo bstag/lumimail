@@ -55,5 +55,6 @@ test("restricted member can manage personal keys without organization administra
 	await page.getByLabel("Name").fill("Thunderbird");
 	await page.getByRole("button", { name: "Create key" }).click();
 	await expect(page.getByText("one_time_member_key")).toBeVisible();
-	await expect(page.getByRole("link", { name: /Admin settings/i })).toHaveCount(0);
+	await expect(page.getByRole("navigation", { name: "Settings" })
+		.getByRole("link", { name: "Members" })).toHaveCount(0);
 });

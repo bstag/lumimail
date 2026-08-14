@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { HelpCircle, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, Settings, X } from "lucide-react";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { ComposeProvider } from "@/components/compose/compose-context";
 import { FloatingComposer } from "@/components/compose/floating-composer";
@@ -105,9 +105,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 									<ThemeToggle />
 									<Link
 										href="/settings"
+										aria-label="Settings"
 										className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-muted hover:bg-surface-subtle"
 									>
-										<HelpCircle className="h-5 w-5" />
+										<Settings className="h-5 w-5" />
 									</Link>
 									<MailboxSelector />
 								</header>

@@ -1,10 +1,12 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb, type AppDatabase } from "@/db";
 import {
 	attachments,
 	messageBodies,
 	messages,
+	outboundIdempotency,
 	outboundJobs,
+	securityAuditEvents,
 } from "@/db/schema";
 import { newId } from "@/lib/ids";
 import { buildSnippet } from "@/lib/email/parse";
@@ -32,6 +34,7 @@ import type {
 	OutboundAttachmentSnapshot,
 	OutboundDeliverySnapshot,
 } from "@/lib/email/outbound/snapshot";
+import { resolveExistingIdempotency } from "@/lib/mcp/idempotency";
 
 export type SendEmailInput = {
 	userId: string;
@@ -49,6 +52,17 @@ export type SendEmailInput = {
 	 * consumer applies the fixed AUTO_REPLY_HEADERS constant from code.
 	 */
 	autoReply?: boolean;
+	idempotency?: {
+		principalType: "mcp";
+		principalId: string;
+		key: string;
+		requestHash: string;
+		audit?: {
+			organizationId: string;
+			actorUserId: string;
+			requestId: string;
+		};
+	};
 };
 
 export class ReplySourceNotAllowedError extends Error {
@@ -129,12 +143,34 @@ export async function failJobQueueUnavailable(
 export async function sendEmail(
 	env: CloudflareEnv,
 	input: SendEmailInput,
-): Promise<{ messageId: string; status: "queued" }> {
+): Promise<{ messageId: string; status: "queued" | "sent" | "failed"; replayed?: true }> {
 	const db = getDb(env);
 	const authorization = await resolveSenderAuthorization(env, input.userId, input.from, input.mailboxId);
 	if (!authorization) {
 		throw new SenderNotAllowedError(input.from);
 	}
+	async function readExistingIdempotency() {
+		if (!input.idempotency) return null;
+		const [existing] = await db
+			.select({
+				requestHash: outboundIdempotency.requestHash,
+				messageId: outboundIdempotency.messageId,
+				status: messages.status,
+			})
+			.from(outboundIdempotency)
+			.innerJoin(messages, eq(messages.id, outboundIdempotency.messageId))
+			.where(and(
+				eq(outboundIdempotency.principalType, input.idempotency.principalType),
+				eq(outboundIdempotency.principalId, input.idempotency.principalId),
+				eq(outboundIdempotency.idempotencyKey, input.idempotency.key),
+			))
+			.limit(1);
+		if (!existing) return null;
+		const status = existing.status === "sent" || existing.status === "failed" ? existing.status : "queued";
+		return resolveExistingIdempotency({ ...existing, status }, input.idempotency.requestHash);
+	}
+	const replay = await readExistingIdempotency();
+	if (replay) return replay;
 
 	const replySource = await resolveReplySource(env, input, authorization);
 	const fromAddr = resolveFromAddress(input.from, authorization);
@@ -221,6 +257,30 @@ export async function sendEmail(
 			contentId: attachment.contentId ?? null,
 		})))
 		: null;
+	const idempotencyInsert = input.idempotency
+		? db.insert(outboundIdempotency).values({
+			id: newId("idem"),
+			principalType: input.idempotency.principalType,
+			principalId: input.idempotency.principalId,
+			idempotencyKey: input.idempotency.key,
+			requestHash: input.idempotency.requestHash,
+			messageId,
+			jobId,
+		})
+		: null;
+	const mutationAuditInsert = input.idempotency?.audit
+		? db.insert(securityAuditEvents).values({
+			id: newId("aud"),
+			organizationId: input.idempotency.audit.organizationId,
+			actorUserId: input.idempotency.audit.actorUserId,
+			action: "mcp.mutate",
+			resourceType: "mcp_connection",
+			resourceId: input.idempotency.principalId,
+			affectedCount: 1,
+			requestId: input.idempotency.audit.requestId,
+			outcome: "succeeded",
+		})
+		: null;
 
 	const writtenKeys: string[] = [];
 	try {
@@ -237,9 +297,13 @@ export async function sendEmail(
 			bodyInsert,
 			jobInsert,
 			...(attachmentInsert ? [attachmentInsert] : []),
+			...(idempotencyInsert ? [idempotencyInsert] : []),
+			...(mutationAuditInsert ? [mutationAuditInsert] : []),
 		]);
 	} catch (error) {
 		await cleanupAttachmentObjects(env, writtenKeys);
+		const winner = await readExistingIdempotency();
+		if (winner) return winner;
 		throw error;
 	}
 

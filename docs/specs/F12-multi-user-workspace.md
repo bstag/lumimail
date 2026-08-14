@@ -1,7 +1,7 @@
 # F12 — Multi-User Workspace (Organizations, Invites, Roles)
 
 > Status: Partially Shipped
-> Owner area: `src/app/api/org/*`, `src/lib/auth/org-guard.ts`, `src/app/(admin)/members/`, `src/db/schema/`
+> Owner area: `src/app/api/org/*`, `src/lib/auth/org-guard.ts`, `src/app/(settings)/(org)/members/`, `src/db/schema/`
 
 Organization membership and invitations do not define mailbox-content access. The least-privilege shared-mailbox follow-on is specified separately in [F47](./F47-mailbox-access-control.md), and identity-bound invitation acceptance is specified in [F49](./F49-identity-bound-organization-invitations.md). Where this historical specification describes organization-wide mailbox visibility, personal message ownership, invited usernames, or automatic invited-user mailboxes, F47/F49 control the desired behavior.
 
@@ -123,7 +123,7 @@ When `inviteToken` is provided and valid:
 
 ## 6. UI/UX
 
-### Members page — `src/app/(admin)/members/page.tsx`
+### Members page — `src/app/(settings)/(org)/members/page.tsx`
 
 - List of current members: name, email, role badge, joined date
 - "Invite member" button opens dialog

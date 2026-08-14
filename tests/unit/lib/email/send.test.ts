@@ -235,6 +235,59 @@ describe("sendEmail producer", () => {
 		expect(body.htmlBody).not.toContain("<script");
 	});
 
+	it("returns an existing MCP acceptance without persisting or enqueueing again", async () => {
+		queueAuthorization("org_1");
+		mock.queueSelect([{ requestHash: "hash_1", messageId: "msg_existing", status: "sent" }]);
+		await expect(sendEmail(env, {
+			userId: "u1", from: "a@example.com", to: "b@x.com", subject: "Hi",
+			idempotency: { principalType: "mcp", principalId: "mcp_1", key: "request_0123456789", requestHash: "hash_1" },
+		})).resolves.toEqual({ messageId: "msg_existing", status: "sent", replayed: true });
+		expect(mock.inserts).toHaveLength(0);
+		expect(queueSend).not.toHaveBeenCalled();
+	});
+
+	it("rejects reuse of an MCP idempotency key for changed input", async () => {
+		queueAuthorization("org_1");
+		mock.queueSelect([{ requestHash: "hash_old", messageId: "msg_existing", status: "queued" }]);
+		await expect(sendEmail(env, {
+			userId: "u1", from: "a@example.com", to: "b@x.com", subject: "Changed",
+			idempotency: { principalType: "mcp", principalId: "mcp_1", key: "request_0123456789", requestHash: "hash_new" },
+		})).rejects.toMatchObject({ name: "IdempotencyConflictError" });
+		expect(queueSend).not.toHaveBeenCalled();
+	});
+
+	it("batches MCP idempotency with message, body, and job persistence", async () => {
+		queueAuthorization("org_1");
+		mock.queueSelect([]);
+		await sendEmail(env, {
+			userId: "u1", from: "a@example.com", to: "b@x.com", subject: "Hi",
+			idempotency: {
+				principalType: "mcp", principalId: "mcp_1", key: "request_0123456789", requestHash: "hash_1",
+				audit: { organizationId: "org_1", actorUserId: "u1", requestId: "req_mcp" },
+			},
+		});
+		expect(mock.inserts).toHaveLength(5);
+		expect(mock.inserts[3].values).toMatchObject({
+			principalType: "mcp", principalId: "mcp_1", idempotencyKey: "request_0123456789",
+			requestHash: "hash_1", messageId: "msg_id", jobId: "job_id",
+		});
+		expect(mock.inserts[4].values).toMatchObject({
+			action: "mcp.mutate", resourceType: "mcp_connection", resourceId: "mcp_1", requestId: "req_mcp",
+		});
+		expect(mock.db.batch).toHaveBeenCalledWith(expect.arrayContaining([expect.anything()]));
+	});
+
+	it("turns a concurrent unique-key race into the winning acceptance", async () => {
+		queueAuthorization("org_1");
+		mock.queueSelect([]).queueSelect([{ requestHash: "hash_1", messageId: "msg_winner", status: "queued" }]);
+		mock.db.batch.mockRejectedValueOnce(new Error("UNIQUE constraint failed"));
+		await expect(sendEmail(env, {
+			userId: "u1", from: "a@example.com", to: "b@x.com", subject: "Hi",
+			idempotency: { principalType: "mcp", principalId: "mcp_1", key: "request_0123456789", requestHash: "hash_1" },
+		})).resolves.toEqual({ messageId: "msg_winner", status: "queued", replayed: true });
+		expect(queueSend).not.toHaveBeenCalled();
+	});
+
 	it("traces a persisted inbound RFC id through reply, queue, provider, and delivery state", async () => {
 		queueAuthorization("org_1");
 		const inboundRfcId = "<trace-inbound@example.com>";

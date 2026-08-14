@@ -11,6 +11,7 @@ import { useMessageCounts } from "@/hooks/use-message-counts";
 import { authFetch, clearClientSessionToken } from "@/lib/auth/client";
 import { isOrganizationAdminRole } from "@/lib/auth/roles";
 import { isAllScopeAvailable } from "@/components/mailbox-scope-utils";
+import { isSettingsPath } from "@/components/settings/settings-nav-utils";
 import { cn } from "@/lib/utils";
 
 export function MailboxSelector() {
@@ -43,13 +44,7 @@ export function MailboxSelector() {
 	const selectedEmail = allMailboxes || !selectedMailbox
 		? t("allDomains")
 		: `${selectedMailbox.localPart}@${selectedMailbox.hostname}`;
-	const adminActive =
-		pathname === "/admin" ||
-		pathname.startsWith("/mailboxes") ||
-		pathname.startsWith("/domains") ||
-		pathname.startsWith("/routing") ||
-		pathname.startsWith("/api-keys") ||
-		pathname.startsWith("/webhooks");
+	const settingsActive = isSettingsPath(pathname);
 
 	async function logout() {
 		await authFetch("/api/auth/logout", { method: "POST", redirectOnUnauthorized: false });
@@ -94,7 +89,7 @@ export function MailboxSelector() {
 							}}
 							className={cn(
 								"flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-subtle",
-								!adminActive && allMailboxes && "bg-accent-muted",
+								!settingsActive && allMailboxes && "bg-accent-muted",
 							)}
 						>
 							<div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-muted text-accent">
@@ -111,13 +106,13 @@ export function MailboxSelector() {
 									{allUnread > 99 ? t("countOverflow") : allUnread}
 								</span>
 							)}
-							{!adminActive && allMailboxes && <Check className="h-4 w-4 text-accent" />}
+							{!settingsActive && allMailboxes && <Check className="h-4 w-4 text-accent" />}
 						</button>
 					)}
 					{mailboxes.map((mb) => {
 						const email = `${mb.localPart}@${mb.hostname}`;
 						const name = mb.displayName ?? mb.localPart;
-						const active = !adminActive && !allMailboxes && selectedMailbox?.id === mb.id;
+						const active = !settingsActive && !allMailboxes && selectedMailbox?.id === mb.id;
 						const mailboxCount = counts.mailboxes.find((count) => count.mailboxId === mb.id);
 						const unread = mailboxCount?.unread ?? 0;
 						const inbox = mailboxCount?.inbox ?? 0;
@@ -164,25 +159,27 @@ export function MailboxSelector() {
 						);
 					})}
 					<div className="mt-2 border-t divide-y divide-border border-border pt-2">
-						{canAdministerOrganization && (
-							<Link
-								href="/admin"
-								onClick={() => setOpen(false)}
-								className={cn(
-									"flex items-center gap-3 px-4 py-3 text-sm font-medium text-ink-muted hover:bg-surface-subtle",
-									adminActive && "bg-accent-muted",
-								)}
-							>
-								<div className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-subtle text-ink-muted">
-									<Settings className="h-4 w-4" />
-								</div>
-								<div>
-									<p className="text-sm font-medium text-ink">{t("adminSettings")}</p>
-									<p className="text-xs text-ink-muted">{t("adminSettingsDesc")}</p>
-								</div>
-								{adminActive && <Check className="ml-auto h-4 w-4 text-accent" />}
-							</Link>
-						)}
+						<Link
+							href="/settings"
+							onClick={() => setOpen(false)}
+							className={cn(
+								"flex items-center gap-3 px-4 py-3 text-sm font-medium text-ink-muted hover:bg-surface-subtle",
+								settingsActive && "bg-accent-muted",
+							)}
+						>
+							<div className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-subtle text-ink-muted">
+								<Settings className="h-4 w-4" />
+							</div>
+							<div>
+								<p className="text-sm font-medium text-ink">{t("settings")}</p>
+								<p className="text-xs text-ink-muted">
+									{canAdministerOrganization
+										? "Account and organization settings"
+										: "Profile, mailbox, and integrations"}
+								</p>
+							</div>
+							{settingsActive && <Check className="ml-auto h-4 w-4 text-accent" />}
+						</Link>
 						<button
 							type="button"
 							onClick={logout}

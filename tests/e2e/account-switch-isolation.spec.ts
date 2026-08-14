@@ -109,7 +109,7 @@ test("clears account-scoped mailbox and message caches across logout and login",
 	const accountAButton = page.getByRole("button", { name: /Alpha Mailbox/i });
 	await expectReactHydrated(accountAButton);
 	await accountAButton.click();
-	await expect(page.getByRole("link", { name: /Admin settings/i })).toBeVisible();
+	await expect(page.getByRole("link", { name: /Account and organization settings/i })).toBeVisible();
 	await page.getByRole("button", { name: /Log out/i }).click();
 	await expect(page).toHaveURL(/\/login$/);
 
@@ -127,5 +127,5 @@ test("clears account-scoped mailbox and message caches across logout and login",
 
 	const accountBButton = page.getByRole("button", { name: /Bravo Mailbox/i });
 	await accountBButton.click();
-	await expect(page.getByRole("link", { name: /Admin settings/i })).toHaveCount(0);
+	await expect(page.getByRole("link", { name: /Account and organization settings/i })).toHaveCount(0);
 });

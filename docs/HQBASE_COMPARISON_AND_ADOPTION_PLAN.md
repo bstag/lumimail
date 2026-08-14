@@ -136,7 +136,7 @@ implementation of recovery, access control, or deployment logic.
 | 1. Recovery foundation | A complete production-shaped backup can be restored and verified in isolated remote resources | F79 | Existing F78 local-equivalence helpers and F63 retention rules | Required to close the recovery gate |
 | 2. Operator lifecycle | Deployments are diagnosable, attributable, reproducible, and reversible | F80, F81 | Layer 1 manifests and recovery evidence | Post-MVP hardening |
 | 3. Administrative product surface | Owners can understand health, access, sessions, audit, and recovery from one UI | F82, F83, F85 | Layers 1–2 read models and existing authorization | Post-MVP; unified shell shipped |
-| 4. Integration surface | AI clients receive narrowly consented mailbox access through OAuth/MCP | F87 | Stable audit, session, capability, and durable-send contracts | Post-MVP; planned |
+| 4. Integration surface | AI clients receive narrowly consented mailbox access through OAuth/MCP | F87 | Stable audit, session, capability, and durable-send contracts | Post-MVP; implemented locally, managed OAuth evidence pending |
 | 5. Mail-client experience | Desktop split view and private push notifications improve daily use | F86, F88 | Stable message/query state plus security-center device controls | Post-MVP; split view shipped |
 
 ### Promotion rules between layers
@@ -498,6 +498,14 @@ whether recovery has been proven without opening Cloudflare or reading logs.
 ### Layer 4 — MCP as a separately consented API surface
 
 Create `F87-mcp-oauth.md`. F84 is already assigned to production performance evidence.
+
+Progress 2026-08-14: the complete read/action tool set, OAuth consent and connection UI, dynamic
+session/organization/mailbox authorization, content-free audit, DCR/approval abuse bounds, and
+atomic durable-send idempotency are implemented. `npm run verify` passes at 100% configured
+coverage, all 98 mocked Chromium and 53 migrated-local-D1 scenarios pass, the local migration
+applies, and the OpenNext/Worker dry-run bundle succeeds. Promotion remains blocked on authenticated creation of separate production
+and staging `OAUTH_KV` namespaces, followed by real PKCE, refresh rotation, revocation, and repeated
+send evidence in staging.
 
 Deliverables:
 

@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowRight, Mail } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { submitLogin } from "./utils";
+import { resolveLoginRedirect, submitLogin } from "./utils";
 
 export function LoginClient() {
   const t = useTranslations("auth");
@@ -28,7 +28,7 @@ export function LoginClient() {
       setError(data.error ?? t("loginFailed"));
       return;
     }
-    router.push(data.redirect ?? "/inbox");
+    router.push(resolveLoginRedirect(data.redirect, globalThis.location.search));
   }
 
   return (

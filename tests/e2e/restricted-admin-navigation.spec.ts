@@ -37,7 +37,8 @@ test("hides organization administration and redirects direct member visits", asy
 
 	await page.goto("/inbox");
 	await page.getByRole("button", { name: "Support support@example.com" }).click();
-	await expect(page.getByRole("link", { name: /Admin settings/i })).toHaveCount(0);
+	await expect(page.getByRole("link", { name: /Profile, mailbox, and integrations/i })).toBeVisible();
+	await expect(page.getByRole("link", { name: /organization settings/i })).toHaveCount(0);
 
 	for (const path of [
 		"/admin",
@@ -91,7 +92,7 @@ test("retains organization administration for an owner", async ({ page }) => {
 
 	await page.goto("/inbox");
 	await page.getByRole("button", { name: "Support support@example.com" }).click();
-	await expect(page.getByRole("link", { name: /Admin settings/i })).toBeVisible();
+	await expect(page.getByRole("link", { name: /Account and organization settings/i })).toBeVisible();
 
 	await page.goto("/mailboxes");
 	await expect(page.getByRole("button", { name: "New mailbox" })).toBeVisible();

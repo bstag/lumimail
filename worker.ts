@@ -1,5 +1,6 @@
 // @ts-ignore OpenNext generates this module during build.
 import { default as nextHandler } from "./.open-next/worker.js";
+import { OAuthProvider, type OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import {
 	processInboundMessage,
 	storeRawToR2,
@@ -24,9 +25,51 @@ import {
 	forwardInbound,
 	shouldRejectUndeliverable,
 } from "./src/lib/email/forwarding";
+import { mcpApiHandler, type McpEnv } from "./src/lib/mcp/server";
+import {
+	MCP_ACTION_SCOPE,
+	MCP_READ_SCOPE,
+	canonicalMcpResource,
+} from "./src/lib/mcp/security";
+import { enforceMcpClientRegistrationPolicy } from "./src/lib/mcp/registration-policy";
+
+type McpWorkerEnv = McpEnv & { OAUTH_KV: KVNamespace; OAUTH_PROVIDER: OAuthHelpers };
+
+function createOAuthProvider(env: McpWorkerEnv) {
+	const publicAppUrl = env.PUBLIC_APP_URL;
+	if (!publicAppUrl) throw new Error("PUBLIC_APP_URL is required for OAuth");
+	const resource = canonicalMcpResource(publicAppUrl);
+	return new OAuthProvider<McpWorkerEnv>({
+		apiRoute: "/mcp",
+		apiHandler: mcpApiHandler,
+		defaultHandler: nextHandler,
+		authorizeEndpoint: "/oauth/authorize",
+		tokenEndpoint: "/oauth/token",
+		clientRegistrationEndpoint: "/oauth/register",
+		clientIdMetadataDocumentEnabled: true,
+		scopesSupported: [MCP_READ_SCOPE, MCP_ACTION_SCOPE],
+		resourceMetadata: {
+			resource,
+			authorization_servers: [new URL(publicAppUrl).origin],
+			scopes_supported: [MCP_READ_SCOPE, MCP_ACTION_SCOPE],
+			bearer_methods_supported: ["header"],
+			resource_name: "Lumimail",
+		},
+		accessTokenTTL: 60 * 60,
+		refreshTokenTTL: 30 * 24 * 60 * 60,
+		clientRegistrationTTL: 30 * 24 * 60 * 60,
+		clientRegistrationCallback: (options) => enforceMcpClientRegistrationPolicy(env, options),
+		allowImplicitFlow: false,
+		allowPlainPKCE: false,
+		allowTokenExchangeGrant: false,
+		resourceMatchOriginOnly: false,
+	});
+}
 
 export default {
-	fetch: nextHandler.fetch,
+	fetch(request: Request, env: CloudflareEnv, ctx: ExecutionContext) {
+		return createOAuthProvider(env as McpWorkerEnv).fetch(request, env as McpWorkerEnv, ctx);
+	},
 
 	async email(message: ForwardableEmailMessage, env: CloudflareEnv, ctx: ExecutionContext) {
 		// Forwarding must happen here: `message.forward()` exists only on the live
@@ -116,6 +159,14 @@ export default {
 		// only keeps the table from growing without bound (F74). It swallows its
 		// own failures, so it cannot block the sweep below.
 		await purgeExpiredRateLimits(env);
+
+		try {
+			await createOAuthProvider(env as McpWorkerEnv).purgeExpiredData(env as McpWorkerEnv, {
+				batchSize: 100,
+			});
+		} catch {
+			console.warn("OAuth storage purge failed");
+		}
 
 		// Ships disabled. The existing production backlog would otherwise be removed
 		// on the first run, before an operator has seen the report (F63).

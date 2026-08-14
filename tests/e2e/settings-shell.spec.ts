@@ -25,28 +25,41 @@ async function mockSettingsSession(page: Page, role: "owner" | "member") {
 	);
 }
 
-test("member settings shell exposes only personal lifecycle destinations", async ({ page }) => {
+test("member settings nav exposes only account destinations", async ({ page }) => {
 	await mockSettingsSession(page, "member");
 	await page.goto("/settings");
 
-	const categories = page.getByRole("navigation", { name: "Settings categories" });
-	await expect(categories.getByRole("link", { name: /^Personal/ })).toHaveAttribute("aria-current", "page");
-	await expect(categories.getByRole("link")).toHaveCount(3);
-	await expect(categories.getByRole("link", { name: /^Organization/ })).toHaveCount(0);
-	await expect(categories.getByRole("link", { name: /^Security/ })).toHaveCount(0);
+	const nav = page.getByRole("navigation", { name: "Settings" });
+	await expect(nav.getByRole("link", { name: "Personal" })).toHaveAttribute("aria-current", "page");
+	await expect(nav.getByRole("link")).toHaveCount(3);
+	await expect(nav.getByText("Organization")).toHaveCount(0);
+	await expect(nav.getByRole("link", { name: "Members" })).toHaveCount(0);
 	await expect(page.getByLabel("Recovery email")).toHaveValue("member-recovery@example.net");
 });
 
-test("owner settings shell links the complete administrative lifecycle", async ({ page }) => {
+test("owner settings nav lists the complete lifecycle in one shell", async ({ page }) => {
 	await mockSettingsSession(page, "owner");
 	await page.goto("/settings");
 
-	const categories = page.getByRole("navigation", { name: "Settings categories" });
-	await expect(categories.getByRole("link")).toHaveCount(7);
-	await expect(categories.getByRole("link", { name: /^Organization/ })).toHaveAttribute("href", "/admin");
-	await expect(categories.getByRole("link", { name: /^Security/ })).toHaveAttribute("href", "/members#security");
-	await expect(categories.getByRole("link", { name: /^Operations/ })).toHaveAttribute("href", "/operations");
-	await expect(categories.getByRole("link", { name: /^Updates/ })).toHaveAttribute("href", "/operations#release");
+	const nav = page.getByRole("navigation", { name: "Settings" });
+	await expect(nav.getByRole("link")).toHaveCount(13);
+	await expect(nav.getByText("Account")).toBeVisible();
+	await expect(nav.getByText("Organization")).toBeVisible();
+	await expect(nav.getByText("Platform")).toBeVisible();
+	await expect(nav.getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/admin");
+	await expect(nav.getByRole("link", { name: "Members" })).toHaveAttribute("href", "/members");
+	await expect(nav.getByRole("link", { name: "Operations" })).toHaveAttribute("href", "/operations");
+	await expect(nav.getByRole("link", { name: "Queue health" })).toHaveAttribute("href", "/queue-health");
+});
+
+test("organization pages render inside the same settings shell", async ({ page }) => {
+	await mockSettingsSession(page, "owner");
+	await page.goto("/admin");
+
+	const nav = page.getByRole("navigation", { name: "Settings" });
+	await expect(nav.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+	await expect(page.getByRole("heading", { name: "Organization" })).toBeVisible();
+	await expect(page.getByRole("link", { name: /Domains/ }).first()).toBeVisible();
 });
 
 test("personal API keys retain the settings shell", async ({ page }) => {
@@ -57,18 +70,21 @@ test("personal API keys retain the settings shell", async ({ page }) => {
 	await page.goto("/settings/api-keys");
 
 	await expect(page.getByRole("heading", { name: "API Keys" })).toBeVisible();
-	await expect(page.getByRole("navigation", { name: "Settings categories" })
-		.getByRole("link", { name: /^Integrations/ })).toHaveAttribute("aria-current", "page");
+	await expect(page.getByRole("navigation", { name: "Settings" })
+		.getByRole("link", { name: "Integrations" })).toHaveAttribute("aria-current", "page");
 });
 
-test("settings category rail remains horizontally usable at 390px", async ({ page }) => {
+test("settings shell remains usable at 390px behind the drawer", async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await mockSettingsSession(page, "owner");
 	await page.goto("/settings");
 
-	const categories = page.getByRole("navigation", { name: "Settings categories" });
-	await expect(categories).toBeVisible();
-	await expect(categories.getByRole("link", { name: /^Personal/ })).toBeVisible();
 	await expect(page.getByRole("heading", { name: "Personal", exact: true })).toBeVisible();
 	await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
+
+	await page.getByRole("button", { name: "Open navigation" }).click();
+	const nav = page.getByRole("navigation", { name: "Settings" });
+	await expect(nav.getByRole("link", { name: "Members" })).toBeVisible();
+	await nav.getByRole("link", { name: "Mailbox", exact: true }).click();
+	await expect(page).toHaveURL(/\/settings#mailbox$/);
 });

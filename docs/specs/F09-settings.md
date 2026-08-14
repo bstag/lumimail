@@ -1,7 +1,7 @@
 # F09 — Settings & Profile
 
 > Status: Shipped
-> Owner area: `src/app/api/settings/`, `src/app/(dashboard)/settings/`
+> Owner area: `src/app/api/settings/`, `src/app/(settings)/settings/`
 
 ## 1. Problem & User Job
 

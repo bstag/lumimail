@@ -454,14 +454,56 @@ export const sessions = sqliteTable(
 	],
 );
 
+export const mcpConnections = sqliteTable(
+	"mcp_connections",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+		organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		approvingSessionId: text("approving_session_id").notNull(),
+		clientId: text("client_id").notNull(),
+		clientName: text("client_name").notNull(),
+		profile: text("profile", { enum: ["read", "actions"] }).notNull(),
+		scopes: text("scopes").notNull(),
+		status: text("status", { enum: ["pending", "active", "revoked"] }).notNull(),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
+		revokedAt: integer("revoked_at", { mode: "timestamp" }),
+	},
+	(t) => [
+		index("mcp_connections_user_status_idx").on(t.userId, t.status),
+		index("mcp_connections_session_idx").on(t.approvingSessionId),
+	],
+);
+
+export const outboundIdempotency = sqliteTable(
+	"outbound_idempotency",
+	{
+		id: text("id").primaryKey(),
+		principalType: text("principal_type", { enum: ["mcp"] }).notNull(),
+		principalId: text("principal_id").notNull().references(() => mcpConnections.id, { onDelete: "cascade" }),
+		idempotencyKey: text("idempotency_key").notNull(),
+		requestHash: text("request_hash").notNull(),
+		messageId: text("message_id").notNull().references(() => messages.id, { onDelete: "cascade" }),
+		jobId: text("job_id").notNull().references(() => outboundJobs.id, { onDelete: "cascade" }),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [uniqueIndex("outbound_idempotency_principal_key_idx").on(
+		t.principalType, t.principalId, t.idempotencyKey,
+	)],
+);
+
 export const securityAuditEvents = sqliteTable(
 	"security_audit_events",
 	{
 		id: text("id").primaryKey(),
 		organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
 		actorUserId: text("actor_user_id").notNull(),
-		action: text("action", { enum: ["session.revoke", "session.revoke_others", "mailbox.grant_bulk"] }).notNull(),
-		resourceType: text("resource_type", { enum: ["session", "mailbox_membership"] }).notNull(),
+		action: text("action", { enum: [
+			"session.revoke", "session.revoke_others", "mailbox.grant_bulk",
+			"mcp.authorize", "mcp.revoke", "mcp.mutate",
+		] }).notNull(),
+		resourceType: text("resource_type", { enum: ["session", "mailbox_membership", "mcp_connection"] }).notNull(),
 		resourceId: text("resource_id"),
 		affectedCount: integer("affected_count").notNull(),
 		requestId: text("request_id").notNull(),
@@ -615,6 +657,7 @@ export type OrgInvite = typeof orgInvites.$inferSelect;
 export type Alias = typeof aliases.$inferSelect;
 export type Label = typeof labels.$inferSelect;
 export type Attachment = typeof attachments.$inferSelect;
+export type McpConnection = typeof mcpConnections.$inferSelect;
 
 export const schema = {
 	organizations,
@@ -642,6 +685,8 @@ export const schema = {
 	sessions,
 	securityAuditEvents,
 	operationalEvidence,
+	mcpConnections,
+	outboundIdempotency,
 	labels,
 	messageLabels,
 	attachments,

@@ -44,7 +44,7 @@ export default defineConfig({
 				// Type-only module (no runtime statements).
 				"src/lib/email/providers/types.ts",
 				// Pure re-export barrel (no own executable statements to cover).
-				"src/app/(admin)/api-keys/utils.ts",
+				"src/app/(settings)/(org)/api-keys/utils.ts",
 			],
 			thresholds: {
 				lines: 100,

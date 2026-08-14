@@ -52,7 +52,7 @@ npm run e2e       # for user-visible changes
 |---------|----------|
 | API route handlers | `src/app/api/**/route.ts` |
 | Dashboard (mailbox-scoped) | `src/app/(dashboard)/` |
-| Admin (account-scoped) | `src/app/(admin)/` |
+| Admin (account-scoped) | `src/app/(settings)/(org)/` |
 | DB schema | `src/db/schema/index.ts` |
 | Zod validators | `src/lib/validators.ts` |
 | IDs (nanoid, prefixed) | `src/lib/ids.ts` |
