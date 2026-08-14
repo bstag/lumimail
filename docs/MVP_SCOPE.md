@@ -55,7 +55,7 @@ gates later in this document must also pass.
 | F16 | Email aliases | Shipped | [F60](specs/F60-internal-alias-and-group-provisioning.md) | `/aliases`, `/api/aliases*`, Cloudflare Email Routing | Internal mailbox aliases now provision exact Worker rules and support same-organization cross-domain targets. Migration `0016` is deployed and controlled delivery is verified. External forwarding is now real and tracked separately as F62. |
 | F17 | Attachment storage, download, and metadata in R2 | Shipped | [F55](specs/F55-outbound-attachment-delivery.md), [F57](specs/F57-inbound-attachment-ingestion.md) | `/api/attachments*`, `/api/messages/[id]/attachments`, inbound/outbound queues | Outbound delivery and inbound exact-byte extraction, storage, listing, preview, and download are production-verified. |
 | F18 | Conversation/thread view | Shipped | [F58](specs/F58-rfc-aware-conversation-grouping.md), [F59](specs/F59-html-preserving-replies.md) | `/inbox/[id]`, `/api/messages/thread/[threadId]`, compose/drafts/send queues | RFC grouping and server-derived HTML-preserving replies are deployed and production-verified with a controlled three-message chain. Rich-text authoring and style/color support remain separate future work. |
-| F19 | Message search | Shipped | Missing | `/api/messages?q=` | Multiple-domain performance remains unmeasured. |
+| F19 | Message search | Shipped | Missing | `/api/messages?q=` | The production search plan uses the intended index and is included in the managed-D1 performance pass. |
 | F20 | Auto-captured contacts | Shipped | Missing | inbound/outbound hooks | — |
 | F21 | Password reset | Shipped | [F43](specs/F43-password-recovery.md) | `/forgot-password`, `/reset-password`, `/api/auth/forgot-password`, `/api/auth/reset-password` | Non-enumerating recovery, one-time token claiming, recovery-email delivery, session revocation, and production login verified. |
 | F22 | Contacts UI | Shipped | Missing | `/contacts`, `/api/contacts` | — |
@@ -80,7 +80,7 @@ gates later in this document must also pass.
 | F81 | Signed releases and deliberate promotion | In Progress | [F81](specs/F81-signed-releases.md) | release manifest/signature tooling and CI | Offline trust chain passes provenance 18, archives 11, bundles 5, checkout derivation 11, preparation 5, signing 4, and pinned verification 5 contracts. Protected publication, production key authority, disposable upgrade, and deliberate promotion remain. Post-MVP hardening. |
 | F82 | Read-only Operations Center | In Progress | [F82](specs/F82-operations-center.md) | `/operations`, `/api/admin/operations`, `/api/admin/operations/evidence*` | The deployed overview and organization-scoped ledger are verified. Explicit authenticated adapters derive public-smoke and received mail-flow results, while signed-release recording requires pinned verification; none accepts arbitrary category/count/outcome input. Complete recovery, live Cron evidence, and independent delivery attestation remain later slices. |
 | F83 | Access and security center | Shipped | [F83](specs/F83-access-and-security-center.md) | `/members`, `/api/admin/access-overview`, `/api/admin/sessions*`, `/api/admin/security-events`, `/api/admin/mailbox-grants`, `/api/org/invites/*`, `/api/auth/reconfirm` | The access matrix separates organization role from explicit mailbox capabilities. Owner-only sessions, password-confirmed revocation, content-free security history, audited additive bulk grants, automatic invitation email, rotated-link resend with durable cooldown, expiry, provider-acceptance state, and retained acceptance history are production-proven. |
-| F84 | Production performance evidence | In Progress | [F84](specs/F84-production-performance-evidence.md) | `scripts/performance-evidence.mjs`, `scripts/performance-d1.mjs`, production HTTP/D1/Queues | Fixed content-free HTTP and managed-D1 commands pass 30 focused tests. Production D1 ran eight read-only statements in 2.485 ms with intended hot indexes and zero writes; six authenticated HTTP paths pass their fixed p95 targets (358–718 ms). Only the separately approved Queue batch remains. |
+| F84 | Production performance evidence | Shipped | [F84](specs/F84-production-performance-evidence.md) | `scripts/performance-evidence.mjs`, `scripts/performance-d1.mjs`, production HTTP/D1/Queues | Fixed content-free HTTP and managed-D1 commands pass 30 focused tests. Production D1 ran eight read-only statements in 2.485 ms with intended hot indexes and zero writes; six authenticated HTTP paths pass fixed p95 targets (358–718 ms); an approved five-message Queue batch reached five unique `sent` states in 95.947 seconds and drained with no backlog, stale jobs, or dead letters. |
 
 Implementation notes for shipped features live in `docs/implementation/`, but those
 notes are not substitutes for feature specifications and executable tests.
@@ -119,7 +119,6 @@ the exact deployed artifact and therefore still require the operator.
 | Priority | Required outcome | Why it blocks the MVP | Tracking |
 |----------|------------------|-----------------------|----------|
 | P1 | Host and validate the IMAP/SMTP bridge | Local protocol and API contracts pass; a trusted-TLS production host and controlled client isolation/send pass remain. | [R-23](REMEDIATION_PLAN.md#phase-3--multi-user-authorization) |
-| P2 | Record production-shape latency and Queue throughput | Indexed query plans and bounded local behavior are proven, but local SQLite and simulated queues cannot establish managed-service latency or throughput. | [R-17](REMEDIATION_PLAN.md#phase-5--operational-hardening) |
 
 ## Production-readiness gates
 
@@ -136,7 +135,7 @@ All of these must be checked before a general production launch:
 - [x] Password recovery works end to end in production without exposing reset tokens.
 - [ ] Backup, restore, retention, cleanup, and rollback procedures have been exercised.
 - [x] Logs, webhooks, and third-party providers have a documented data-egress inventory with no unexpected message or credential export.
-- [ ] Multiple-domain load and D1 query plans meet documented performance targets.
+- [x] Multiple-domain load and D1 query plans meet documented performance targets.
 - [x] `npm run verify`, the required E2E suite, deployment smoke tests, and traced mail-flow tests pass.
 
 ### Gate reconciliation 2026-07-24
@@ -159,9 +158,9 @@ The final gate covers four separate things and is checked only when all four hol
 
 | Clause | Status |
 |--------|--------|
-| `npm run verify` | Passing 2026-08-11 — 1,764 application tests at 100% configured coverage plus 21 bridge tests; lint has zero errors. |
+| `npm run verify` | Passing 2026-08-13 — 2,117 application tests across 243 files at 100% configured coverage plus 21 bridge tests; lint has zero errors. |
 | Required E2E suite | Passing 2026-08-11 — all 71 mocked Chromium scenarios and all 52 migrated-local-D1 scenarios pass. F73 provides bounded cross-platform server teardown and keeps both suites off remote resources. |
-| Deployment smoke tests | Passed 2026-08-11 against `https://mail.henriksen.dev`: landing, login, and manifest returned `200`; anonymous session, mailbox, and admin-mailbox APIs returned `401`. The command is regression-tested for success and fail-closed exit behavior. Re-run after each deployment. |
+| Deployment smoke tests | Passed 2026-08-13 against `https://mail.henriksen.dev`: landing, login, and manifest returned `200`; anonymous session, mailbox, and admin-mailbox APIs returned `401`. The Queue proof's first post-batch attempt had one transport-level `/` fetch miss (5/6), and the immediate clean retry passed 6/6. The command is regression-tested for success and fail-closed exit behavior. Re-run after each deployment. |
 | Traced mail-flow tests | Passed in production 2026-08-11. The stored Gmail RFC ID matched the reply's `in_reply_to`, `references_header`, and immutable queue headers; inbound and outbound rows shared one thread; message/job were `sent` after one attempt with no error; Cloudflare returned a provider RFC Message-ID; the operator confirmed exactly one reply arrived externally. |
 
 All four clauses pass. The deployment smoke and controlled mail trace both ran

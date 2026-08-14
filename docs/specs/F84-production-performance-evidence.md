@@ -1,6 +1,6 @@
 # F84 — Production Performance Evidence
 
-> Status: In Progress — production HTTP and managed-D1 pass; controlled Queue batch remains
+> Status: Shipped — production HTTP, managed-D1, and controlled Queue evidence pass
 > Owner area: `scripts/performance-evidence.mjs`, production D1/HTTP/Queue evidence, `docs/OPERATIONS.md`
 
 ## 1. Problem & User Job
@@ -76,7 +76,7 @@ In scope:
 
 - Content-free, bounded HTTP latency measurement.
 - Read-only managed-D1 aggregate and plan evidence.
-- A documented contract for the later controlled Queue batch.
+- A controlled, explicitly authorized five-message Queue batch.
 
 Out of scope:
 
@@ -119,7 +119,8 @@ Out of scope:
   process cannot inherit its cookie. Record the transport explicitly. Navigation timing is
   conservative because it includes browser/control overhead; the token-based CLI remains the
   repeatable operator command. — 2026-08-13
-- Open: the operator must approve the Queue batch recipient and timing before real mail is sent.
+- Decision: the operator approved exactly five controlled messages from an owned Lumimail mailbox
+  to `blackstag@protonmail.com`; no broader load or recipient scope was inferred. — 2026-08-13
 
 ## 10. Bug / Change Log
 
@@ -149,3 +150,12 @@ Type: Operational evidence
   domains 322/358 ms, routing 331/369 ms, queue health 331/385 ms, and R2 retention 632/718 ms.
   Every response matched its authenticated success shape. These conservative timings include browser
   control/navigation overhead; no response body, identifier, address, or cookie entered the report.
+- Controlled Queue batch `20260813-2138` began at `2026-08-14T02:35:58.995Z`. Exactly five
+  uniquely numbered messages were accepted through the production compose UI. At
+  `2026-08-14T02:37:34.942Z`, 95.947 seconds after first acceptance, the authenticated message API
+  reported exactly five matching rows, all `sent`, with five distinct message IDs and five distinct
+  provider IDs. No retry or extra submission was made.
+- The one-minute health snapshot at `2026-08-14T02:37:59Z` reported inbound, outbound, and outbound
+  DLQ healthy with zero backlog messages/bytes and zero stale jobs. The first post-batch smoke attempt
+  had an isolated transport-level fetch failure for `/` while 5/6 checks passed; an immediate clean
+  retry passed all 6/6 checks. The Queue target therefore passes without hiding the transient sample.

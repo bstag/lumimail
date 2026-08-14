@@ -287,7 +287,7 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
     validation. The owner page showed all three queues healthy, and **Check now**
     advanced every timestamp with zero backlog, dead letters, and stale jobs.
 
-- [ ] **R-17 Run a multiple-domain performance and isolation pass.** Spec: [F66](./specs/F66-query-performance-and-indexes.md).
+- [x] **R-17 Run a multiple-domain performance and isolation pass.** Spec: [F66](./specs/F66-query-performance-and-indexes.md).
   - Seed realistic domains, users, mailboxes, aliases, rules, and messages.
   - Measure bounded pagination, search, routing lookup, mailbox loading, DNS status loading, queue throughput, and D1 query plans.
   - Verify indexes serve organization/domain/mailbox filters and remove N+1 request/query patterns.
@@ -305,9 +305,13 @@ Work from top to bottom unless a newly discovered security or data-loss issue ta
     warmup plus 15 serial reads across each fixed path. All targets passed: session p95 387 ms,
     mailboxes 528 ms, domains 358 ms, routing 369 ms, queue health 385 ms, and R2 retention 718 ms.
     Navigation includes browser-control overhead, making these conservative end-to-end readings.
-  - Remaining: run the separately approved five-message Queue batch. Historical job timestamps are
-    not substituted for throughput because operator/recovery activity can change `updated_at` long
-    after Queue processing.
+  - Production Queue evidence 2026-08-13: the operator approved exactly five controlled messages to
+    one controlled external recipient. Batch `20260813-2138` produced exactly five matching message
+    rows, all `sent`, with five distinct message IDs and five distinct provider IDs. Terminal state
+    was observed 95.947 seconds after first acceptance, inside the 120-second target. The next
+    one-minute snapshot showed all three queues healthy with zero backlog bytes/messages, zero stale
+    jobs, and zero outbound dead letters. An isolated `/` transport miss made the first smoke attempt
+    5/6; the immediate retry passed 6/6.
 
 - [ ] **R-18 Complete a production readiness exercise.** Depends on all earlier critical items.
   - Test inbound exact address and catch-all for at least `lucidkith.com` and `henriksen.dev`.
