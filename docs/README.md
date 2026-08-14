@@ -88,7 +88,9 @@ Source of truth for behavior. Each follows
       [`F81-signed-releases`](./specs/F81-signed-releases.md),
        [`F82-operations-center`](./specs/F82-operations-center.md),
        [`F83-access-and-security-center`](./specs/F83-access-and-security-center.md),
-       [`F84-production-performance-evidence`](./specs/F84-production-performance-evidence.md).
+        [`F84-production-performance-evidence`](./specs/F84-production-performance-evidence.md),
+        [`F85-unified-settings-shell`](./specs/F85-unified-settings-shell.md),
+        [`F86-desktop-split-view`](./specs/F86-desktop-split-view.md).
 
 ## Implementation notes (`implementation/`)
 

@@ -3,14 +3,24 @@ import { KeyRound } from "lucide-react";
 import { CurrentMailboxForm } from "@/components/settings/current-mailbox-form";
 import { VacationResponderForm } from "@/components/settings/vacation-responder-form";
 import { ChangePasswordForm } from "@/components/settings/change-password-form";
+import { PersonalSettings } from "@/components/settings/personal-settings";
+import { SettingsShell } from "@/components/settings/settings-shell";
 import { Button } from "@/components/ui/button";
 
 export default function SettingsPage() {
 	return (
-		<div className="max-w-2xl space-y-6 px-4 py-6 sm:px-12 sm:py-8">
-			<CurrentMailboxForm />
-			<VacationResponderForm />
-			<ChangePasswordForm />
+		<SettingsShell>
+			<div className="max-w-2xl space-y-6">
+			<section id="personal" className="scroll-mt-6 space-y-4 rounded-lg border border-border bg-surface-raised p-5">
+				<h2 className="text-lg font-semibold text-ink">Personal</h2>
+				<PersonalSettings />
+				<ChangePasswordForm />
+			</section>
+			<section id="mailbox" className="scroll-mt-6 space-y-4 rounded-lg border border-border bg-surface-raised p-5">
+				<h2 className="text-lg font-semibold text-ink">Mailbox</h2>
+				<CurrentMailboxForm />
+				<VacationResponderForm />
+			</section>
 			<section className="space-y-3 rounded-lg border border-border bg-surface-raised p-5">
 				<div className="flex items-center gap-2">
 					<KeyRound className="h-5 w-5 text-ink-muted" />
@@ -24,6 +34,7 @@ export default function SettingsPage() {
 					<Link href="/settings/api-keys">Manage API keys</Link>
 				</Button>
 			</section>
-		</div>
+			</div>
+		</SettingsShell>
 	);
 }

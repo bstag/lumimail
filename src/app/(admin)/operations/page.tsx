@@ -147,7 +147,7 @@ function OperationsContent() {
 						</Card>
 					</div>
 
-					<Card>
+					<Card id="release" className="scroll-mt-6">
 						<CardHeader className="flex-row items-center justify-between gap-3">
 							<div className="flex items-center gap-3"><ClipboardCheck className="h-5 w-5 text-accent" /><CardTitle>Operational evidence</CardTitle></div>
 							<StatusBadge status={data.evidence.status} />

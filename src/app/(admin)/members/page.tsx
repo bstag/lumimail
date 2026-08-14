@@ -421,13 +421,15 @@ export default function MembersPage() {
         <p className="text-sm text-ink-muted">Loading security history…</p>
       )}
       {isOwner && securityHistoryQuery.data && (
-        <SecurityHistoryCard
+		<div id="security" className="scroll-mt-6">
+		<SecurityHistoryCard
           history={securityHistoryQuery.data.pages}
           members={members}
           hasNextPage={securityHistoryQuery.hasNextPage}
           loadingMore={securityHistoryQuery.isFetchingNextPage}
           onLoadMore={() => { void securityHistoryQuery.fetchNextPage(); }}
-        />
+		/>
+		</div>
       )}
 
       {invites.length > 0 && (
