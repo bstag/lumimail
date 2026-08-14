@@ -114,10 +114,13 @@ envelopes. MCP tool failures expose bounded, non-sensitive messages and never ra
 
 The implementation now exposes the specified OAuth/MCP, consent, connection-management, read,
 draft, state, and durable send surfaces. Personal API keys remain independent. Separate production
-and staging `OAUTH_KV` namespaces exist. The isolated staging Worker passes all 11 managed action
+and staging `OAUTH_KV` namespaces exist. Production Worker version
+`4a51bbec-cf6e-4f7a-8731-e3d9ae250fe6` is deployed with migrations `0034` and `0035`; public smoke
+passes 6/6, both OAuth metadata documents return 200, the unauthenticated MCP challenge returns
+401, and dynamic registration returns 201. The isolated staging Worker passes all 11 managed action
 evidence checks, including real S256 PKCE, explicit consent, exact-resource refusal, bounded tools,
 idempotent durable send, atomic refresh rotation/replay rejection, and revocation. Production
-promotion and production smoke remain before this feature can move from In Progress to Shipped.
+managed authenticated evidence remains before this feature can move from In Progress to Shipped.
 
 ## 9. Error States
 
@@ -242,15 +245,16 @@ Reason:
   acceptance of the immediately previous refresh token.
 
 Impact:
-- An isolated staging deployment now passes 11/11 managed action checks. A replayed refresh token is
-  rejected, while a wrong-resource attempt cannot consume a valid token. Production promotion is
-  still pending.
+- An isolated staging deployment passes 11/11 managed action checks. A replayed refresh token is
+  rejected, while a wrong-resource attempt cannot consume a valid token. Production Worker version
+  `4a51bbec-cf6e-4f7a-8731-e3d9ae250fe6` is deployed; authenticated production evidence remains.
 
 Tests:
 - `npm run verify`: 2,220 application tests at 100% statements, branches, functions, and lines;
   21 bridge tests.
 - `npm run e2e`: 98 Chromium scenarios.
 - Managed staging action evidence: 11/11 checks pass.
+- Production public smoke: 6/6; OAuth metadata 200/200, MCP challenge 401, DCR 201.
 
 ### 2026-08-14 — Implement and locally verify the OAuth/MCP surface
 
