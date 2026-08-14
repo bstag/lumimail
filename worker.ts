@@ -32,8 +32,18 @@ import {
 	canonicalMcpResource,
 } from "./src/lib/mcp/security";
 import { enforceMcpClientRegistrationPolicy } from "./src/lib/mcp/registration-policy";
+import { handleMcpAuthorizationRequest } from "./worker-mcp-authorization";
 
 type McpWorkerEnv = McpEnv & { OAUTH_KV: KVNamespace; OAUTH_PROVIDER: OAuthHelpers };
+
+const oauthAwareNextHandler = {
+	fetch(request: Request, env: McpWorkerEnv, ctx: ExecutionContext) {
+		if (new URL(request.url).pathname === "/api/mcp/authorization") {
+			return handleMcpAuthorizationRequest(request, env);
+		}
+		return nextHandler.fetch(request, env, ctx);
+	},
+};
 
 function createOAuthProvider(env: McpWorkerEnv) {
 	const publicAppUrl = env.PUBLIC_APP_URL;
@@ -42,7 +52,7 @@ function createOAuthProvider(env: McpWorkerEnv) {
 	return new OAuthProvider<McpWorkerEnv>({
 		apiRoute: "/mcp",
 		apiHandler: mcpApiHandler,
-		defaultHandler: nextHandler,
+		defaultHandler: oauthAwareNextHandler,
 		authorizeEndpoint: "/oauth/authorize",
 		tokenEndpoint: "/oauth/token",
 		clientRegistrationEndpoint: "/oauth/register",

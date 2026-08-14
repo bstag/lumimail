@@ -75,7 +75,7 @@ Migration: `0033_add_mcp_connections_and_idempotency.sql`.
 | GET | `/oauth/authorize` | browser session | Parse and validate authorization request, then show consent | 401, OAuth errors |
 | POST | `/oauth/authorize` | recent exact session + CSRF-safe same-origin form | Approve the displayed read or action profile and create the connection | 400, 401, 403, OAuth errors |
 | POST | `/oauth/token` | protocol client | Code exchange or refresh; PKCE S256 and exact resource | OAuth errors |
-| POST | `/oauth/revoke` | protocol client | Provider revocation | OAuth errors |
+| POST | `/oauth/token` | protocol client | Provider-advertised token revocation | OAuth errors |
 | POST | `/mcp` | OAuth access token | JSON-RPC MCP transport | 401, 403, protocol/tool errors |
 | GET | `/api/mcp/connections` | session | Current user's secret-free connections | 401 |
 | DELETE | `/api/mcp/connections/:id` | recent exact session | Revoke own provider grant and mark connection revoked | 401, 403, 404, 409/503 |
@@ -174,6 +174,23 @@ evidence is still pending and this feature remains In Progress.
 | E2E | read-default consent, action consent, deny, recent-auth flow, connection list/revoke, responsive and keyboard behavior |
 | Cloudflare staging | real PKCE client flow, discovery, refresh rotation, token/grant revocation, MCP initialize/tool call, repeated send proof |
 
+### Managed evidence command
+
+`npm run mcp:evidence -- <https-origin> <read|actions>` is the fixed staging/production verifier.
+It accepts a freshly reconfirmed `ep_session` only through `LUMIMAIL_SESSION_TOKEN`; action-profile
+evidence additionally requires `LUMIMAIL_MCP_FROM` and `LUMIMAIL_MCP_TO`. It must never print or
+persist the session, authorization code, PKCE verifier, access/refresh token, recipient, subject,
+body, or provider response.
+
+The command validates discovery and the unauthenticated challenge, rejects missing/plain PKCE and
+an unregistered redirect, dynamically registers a public loopback client, completes a real S256
+code flow through Lumimail's recent-session approval route, initializes MCP, and checks the exact
+tool set for the consent profile. It then proves action-to-read refresh downscoping, refresh-token
+rotation with the provider's one-generation retry grace and second-replay rejection, wrong-resource
+refusal, and grant revocation. In action mode it submits
+the same controlled send twice with one random idempotency key, requires the same acceptance with a
+replay marker, and polls the one message to `sent` or a bounded terminal failure.
+
 Required gates: focused red tests before implementation, `npm run verify`, `npm run e2e`, migrated
 local-D1 E2E, Worker build/type generation, then disposable/staging OAuth evidence before production.
 
@@ -194,6 +211,14 @@ local-D1 E2E, Worker build/type generation, then disposable/staging OAuth eviden
 - Decision: pin `agents@0.20.1`, `@modelcontextprotocol/server@2.0.0`, and
   `@cloudflare/workers-oauth-provider@0.10.3` exactly. Agents declares the MCP server as an exact
   peer, and protocol/security changes must arrive through intentional upgrades. — 2026-08-14
+- Staging evidence found that a reconstructed authorization `Request` loses its query when passed
+  back across the OpenNext route boundary. The Worker therefore owns `/api/mcp/authorization`
+  through its OAuth-aware default handler, preserving the existing JSON/browser contract while
+  provider parsing and completion remain in the native Worker realm. — 2026-08-14
+- Staging evidence also proved that provider `0.10.3` rotates refresh tokens but repeatedly accepts
+  the immediately previous token, allowing that replay branch to remain alive. Production promotion
+  is blocked until Lumimail adds atomic one-use refresh-token replay protection ahead of the provider
+  endpoint and proves rejection without consuming wrong-resource attempts. — 2026-08-14
 
 ## 14. Bug / Change Log
 

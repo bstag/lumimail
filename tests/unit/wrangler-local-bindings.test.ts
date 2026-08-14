@@ -60,7 +60,9 @@ function hasRemoteTrue(node: unknown): boolean {
 }
 
 type WranglerEnv = {
+	routes?: unknown[];
 	send_email?: Array<{ name?: string }>;
+	kv_namespaces?: Array<{ binding?: string }>;
 	d1_databases?: Array<{ binding?: string }>;
 	r2_buckets?: Array<{ binding?: string }>;
 	queues?: {
@@ -83,6 +85,7 @@ function readJsonc(file: string): WranglerEnv {
 function expectBindingContract(env: WranglerEnv) {
 	expect(env.send_email?.map((binding) => binding.name)).toContain("EMAIL");
 	expect(env.d1_databases?.map((db) => db.binding)).toContain("DB");
+	expect(env.kv_namespaces?.map((namespace) => namespace.binding)).toContain("OAUTH_KV");
 	expect(env.r2_buckets?.map((bucket) => bucket.binding)).toContain("BUCKET");
 
 	const producers = env.queues?.producers ?? [];
@@ -120,6 +123,7 @@ describe("Wrangler local binding contract", () => {
 		// rather than merging them.
 		for (const envConfig of Object.values(config.env ?? {})) {
 			expectBindingContract(envConfig);
+			expect(envConfig.routes).toEqual([]);
 		}
 	});
 
@@ -130,6 +134,7 @@ describe("Wrangler local binding contract", () => {
 		expect(hasRemoteTrue(exampleConfig)).toBe(false);
 		for (const envConfig of Object.values(exampleConfig.env ?? {})) {
 			expectBindingContract(envConfig);
+			expect(envConfig.routes).toEqual([]);
 		}
 	});
 

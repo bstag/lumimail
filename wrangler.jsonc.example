@@ -71,6 +71,12 @@
 			"migrations_dir": "drizzle/migrations",
 		},
 	],
+	"kv_namespaces": [
+		{
+			"binding": "OAUTH_KV",
+			"id": "your-production-oauth-kv-id",
+		},
+	],
 	"r2_buckets": [
 		{
 			"binding": "BUCKET",
@@ -125,12 +131,14 @@
 	"env": {
 		"staging": {
 			"name": "lumimail-staging",
+			// Never inherit or reassign the production custom domain.
+			"routes": [],
 			"vars": {
 				"CF_ACCOUNT_ID": "caddde404ba5d0324c315dc5cf143696",
 				"CF_EMAIL_WORKER_NAME": "lumimail-staging",
 				"MAIL_PROVIDER": "cloudflare",
 				// Replace with the deployed workers.dev origin after first deploy.
-				"PUBLIC_APP_URL": "https://lumimail-staging.workers.dev",
+				"PUBLIC_APP_URL": "https://lumimail-staging.your-workers-subdomain.workers.dev",
 				"PASSWORD_RESET_FROM": "noreply@STAGING_DOMAIN"
 				// R2_SWEEP_ENABLED deliberately unset, as in production: never enable
 				// a destructive sweep before its report has been read.
@@ -150,6 +158,12 @@
 					"database_id": "STAGING_D1_ID",
 					"migrations_dir": "drizzle/migrations"
 				}
+			],
+			"kv_namespaces": [
+				{
+					"binding": "OAUTH_KV",
+					"id": "your-staging-oauth-kv-id",
+				},
 			],
 			"r2_buckets": [{ "binding": "BUCKET", "bucket_name": "lumimail-raw-staging" }],
 			"queues": {

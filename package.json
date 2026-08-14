@@ -24,6 +24,7 @@
     "release:verify": "node scripts/release-verify.mjs",
     "release:verify:record": "node scripts/release-evidence.mjs",
     "mail-flow:record": "node scripts/mail-flow-evidence.mjs",
+    "mcp:evidence": "node scripts/mcp-evidence.mjs",
     "recovery:recapture": "node scripts/recovery-recapture.mjs",
     "recovery:retention": "node scripts/recovery-retention.mjs",
     "performance:measure": "node scripts/performance-evidence.mjs",
