@@ -222,18 +222,13 @@ export async function proveMcpIntegration({ origin, profile, sessionToken, from,
 		grant_type: "refresh_token", refresh_token: exchanged.body.refresh_token,
 		client_id: registration.client_id, scope: "mail.read", resource,
 	});
-	if (replay.response.status !== 200 || !replay.body.refresh_token) fail();
-	const replayAgain = await tokenRequest(fetchImpl, serverMetadata.token_endpoint, {
-		grant_type: "refresh_token", refresh_token: exchanged.body.refresh_token,
-		client_id: registration.client_id, scope: "mail.read", resource,
-	});
-	if (replayAgain.response.status < 400) fail();
+	if (replay.response.status < 400) fail();
 	const downscoped = await initializeAndList(fetchImpl, resource, refreshed.body.access_token);
 	if (JSON.stringify(downscoped.names) !== JSON.stringify(READ_TOOLS.toSorted())) fail();
 
 	const revoked = await fetchImpl(serverMetadata.revocation_endpoint, {
 		method: "POST", redirect: "manual", headers: { "content-type": "application/x-www-form-urlencoded" },
-		body: new URLSearchParams({ token: replay.body.refresh_token, token_type_hint: "refresh_token", client_id: registration.client_id }),
+		body: new URLSearchParams({ token: refreshed.body.refresh_token, token_type_hint: "refresh_token", client_id: registration.client_id }),
 	});
 	if (revoked.status !== 200) fail();
 	await expectStatus(fetchImpl, resource, {
@@ -241,7 +236,7 @@ export async function proveMcpIntegration({ origin, profile, sessionToken, from,
 		body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
 	}, 401);
 
-	return { outcome: "passed", checks: ["discovery", "challenge", "registration", "pkce", "consent", "token", "tools", ...(profile === "actions" ? ["idempotent-send"] : []), "wrong-resource", "refresh-rotation-grace", "revocation"] };
+	return { outcome: "passed", checks: ["discovery", "challenge", "registration", "pkce", "consent", "token", "tools", ...(profile === "actions" ? ["idempotent-send"] : []), "wrong-resource", "refresh-rotation", "revocation"] };
 }
 
 export async function runMcpEvidenceCommand(args, {

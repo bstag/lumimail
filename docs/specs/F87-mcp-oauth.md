@@ -60,10 +60,13 @@ in the dedicated `OAUTH_KV` binding owned by `@cloudflare/workers-oauth-provider
 |---|---|---|
 | `mcp_connections` | id, user/org/session/client identity, profile, scopes, timestamps, revoked state | Secret-free user-facing connection inventory; its opaque ID is copied into provider grant metadata/properties so a listed grant can be correlated without storing its credential or provider grant ID. |
 | `outbound_idempotency` | principal type/id, key, request hash, message/job identity, timestamps | Unique `(principal_type, principal_id, key)`; inserted in the same D1 batch as the durable outbound message and job. |
+| `oauth_refresh_token_uses` | token digest, opaque claim ID, used/expiry timestamps | Atomic one-use claim ahead of provider refresh exchange; never stores a refresh token. Failed provider exchanges release only their own claim. |
 | `security_audit_events` | new MCP authorize/revoke/tool-mutation actions and connection resource | Content-free metadata only; no client-provided names, mail fields, query text, or identifiers from message content. |
 | Existing mailbox/message/draft/attachment tables | existing columns only | Read and mutation services retain authoritative mailbox predicates. |
 
-Migration: `0033_add_mcp_connections_and_idempotency.sql`.
+Migrations: `0033_add_mcp_connections_and_idempotency.sql`,
+`0034_add_oauth_refresh_replay_protection.sql`, and
+`0035_normalize_oauth_refresh_replay_timestamps.sql`.
 
 ## 5. Protocol and API Contract
 
@@ -109,11 +112,12 @@ envelopes. MCP tool failures expose bounded, non-sensitive messages and never ra
 
 ## 8. Current Behavior
 
-The local implementation now exposes the specified OAuth/MCP, consent, connection-management,
-read, draft, state, and durable send surfaces. Personal API keys remain independent. The production
-and staging Workers have not been promoted because their separate `OAUTH_KV` namespaces could not
-be created while Wrangler authentication was unavailable; consequently managed OAuth protocol
-evidence is still pending and this feature remains In Progress.
+The implementation now exposes the specified OAuth/MCP, consent, connection-management, read,
+draft, state, and durable send surfaces. Personal API keys remain independent. Separate production
+and staging `OAUTH_KV` namespaces exist. The isolated staging Worker passes all 11 managed action
+evidence checks, including real S256 PKCE, explicit consent, exact-resource refusal, bounded tools,
+idempotent durable send, atomic refresh rotation/replay rejection, and revocation. Production
+promotion and production smoke remain before this feature can move from In Progress to Shipped.
 
 ## 9. Error States
 
@@ -168,6 +172,7 @@ evidence is still pending and this feature remains In Progress.
 |---|---|
 | Unit | scope/profile rules, resource matching, consent-state binding, registration/approval abuse limits, bounded revocation, tool input/output bounds, content-free audit values, idempotency hashing/conflicts |
 | Route/worker | metadata, PKCE/redirect failure, anonymous and stale/revoked session denial, approval/revocation ownership, wrong audience/resource, insufficient scope |
+| Refresh replay | first valid refresh atomically claims only a SHA-256 digest; simultaneous/repeated use fails; wrong-resource and other failed provider exchanges release their exact claim; expired digests purge safely |
 | Tool integration | current mailbox capability checks; foreign org/message/attachment refusal; role downgrade; read vs action tools |
 | Outbound integration | concurrent same-key sends persist/enqueue once; changed-input conflict; queue compensation; reply/forward authorization |
 | Migration/local D1 | fresh/upgrade parity, indexes/constraints, real cross-tenant and idempotency behavior |
@@ -185,9 +190,9 @@ body, or provider response.
 The command validates discovery and the unauthenticated challenge, rejects missing/plain PKCE and
 an unregistered redirect, dynamically registers a public loopback client, completes a real S256
 code flow through Lumimail's recent-session approval route, initializes MCP, and checks the exact
-tool set for the consent profile. It then proves action-to-read refresh downscoping, refresh-token
-rotation with the provider's one-generation retry grace and second-replay rejection, wrong-resource
-refusal, and grant revocation. In action mode it submits
+tool set for the consent profile. It then proves action-to-read refresh downscoping, atomic
+refresh-token rotation/replay rejection, wrong-resource refusal without claim consumption, and grant
+revocation. In action mode it submits
 the same controlled send twice with one random idempotency key, requires the same acceptance with a
 replay marker, and polls the one message to `sent` or a bounded terminal failure.
 
@@ -216,11 +221,36 @@ local-D1 E2E, Worker build/type generation, then disposable/staging OAuth eviden
   through its OAuth-aware default handler, preserving the existing JSON/browser contract while
   provider parsing and completion remain in the native Worker realm. — 2026-08-14
 - Staging evidence also proved that provider `0.10.3` rotates refresh tokens but repeatedly accepts
-  the immediately previous token, allowing that replay branch to remain alive. Production promotion
-  is blocked until Lumimail adds atomic one-use refresh-token replay protection ahead of the provider
-  endpoint and proves rejection without consuming wrong-resource attempts. — 2026-08-14
+  the immediately previous token. Lumimail now atomically claims a SHA-256 digest in D1 before a
+  refresh exchange, releases the exact claim after provider rejection, bypasses claims for an exact
+  wrong-resource refusal, and purges expired claims. The isolated staging action flow proves the
+  repaired behavior with all 11 checks passing. — 2026-08-14
 
 ## 14. Bug / Change Log
+
+### 2026-08-14 — Prove staging and reject refresh-token replay atomically
+
+Type: Security Fix / Verification
+
+Summary:
+- Move the authorization provider boundary into the native Worker request path so OpenNext cannot
+  strip OAuth query parameters, and add a D1-backed one-use refresh-token digest claim ahead of the
+  provider exchange.
+
+Reason:
+- Managed staging evidence exposed both an OpenNext request-boundary incompatibility and provider
+  acceptance of the immediately previous refresh token.
+
+Impact:
+- An isolated staging deployment now passes 11/11 managed action checks. A replayed refresh token is
+  rejected, while a wrong-resource attempt cannot consume a valid token. Production promotion is
+  still pending.
+
+Tests:
+- `npm run verify`: 2,220 application tests at 100% statements, branches, functions, and lines;
+  21 bridge tests.
+- `npm run e2e`: 98 Chromium scenarios.
+- Managed staging action evidence: 11/11 checks pass.
 
 ### 2026-08-14 — Implement and locally verify the OAuth/MCP surface
 

@@ -33,6 +33,7 @@ import {
 } from "./src/lib/mcp/security";
 import { enforceMcpClientRegistrationPolicy } from "./src/lib/mcp/registration-policy";
 import { handleMcpAuthorizationRequest } from "./worker-mcp-authorization";
+import { handleMcpOAuthTokenRequest, purgeMcpRefreshTokenUses } from "./worker-mcp-refresh";
 
 type McpWorkerEnv = McpEnv & { OAUTH_KV: KVNamespace; OAUTH_PROVIDER: OAuthHelpers };
 
@@ -78,7 +79,19 @@ function createOAuthProvider(env: McpWorkerEnv) {
 
 export default {
 	fetch(request: Request, env: CloudflareEnv, ctx: ExecutionContext) {
-		return createOAuthProvider(env as McpWorkerEnv).fetch(request, env as McpWorkerEnv, ctx);
+		const mcpEnv = env as McpWorkerEnv;
+		const publicAppUrl = env.PUBLIC_APP_URL;
+		if (!publicAppUrl) throw new Error("PUBLIC_APP_URL is required for OAuth");
+		const provider = createOAuthProvider(mcpEnv);
+		if (request.method === "POST" && new URL(request.url).pathname === "/oauth/token") {
+			return handleMcpOAuthTokenRequest(
+				request,
+				env,
+				canonicalMcpResource(publicAppUrl),
+				(input) => provider.fetch(input, mcpEnv, ctx),
+			);
+		}
+		return provider.fetch(request, mcpEnv, ctx);
 	},
 
 	async email(message: ForwardableEmailMessage, env: CloudflareEnv, ctx: ExecutionContext) {
@@ -169,6 +182,7 @@ export default {
 		// only keeps the table from growing without bound (F74). It swallows its
 		// own failures, so it cannot block the sweep below.
 		await purgeExpiredRateLimits(env);
+		await purgeMcpRefreshTokenUses(env);
 
 		try {
 			await createOAuthProvider(env as McpWorkerEnv).purgeExpiredData(env as McpWorkerEnv, {

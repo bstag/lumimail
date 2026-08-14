@@ -493,6 +493,17 @@ export const outboundIdempotency = sqliteTable(
 	)],
 );
 
+export const oauthRefreshTokenUses = sqliteTable(
+	"oauth_refresh_token_uses",
+	{
+		tokenHash: text("token_hash").primaryKey(),
+		claimId: text("claim_id").notNull(),
+		usedAt: integer("used_at", { mode: "timestamp" }).notNull(),
+		expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+	},
+	(t) => [index("oauth_refresh_token_uses_expiry_idx").on(t.expiresAt)],
+);
+
 export const securityAuditEvents = sqliteTable(
 	"security_audit_events",
 	{
@@ -687,6 +698,7 @@ export const schema = {
 	operationalEvidence,
 	mcpConnections,
 	outboundIdempotency,
+	oauthRefreshTokenUses,
 	labels,
 	messageLabels,
 	attachments,
