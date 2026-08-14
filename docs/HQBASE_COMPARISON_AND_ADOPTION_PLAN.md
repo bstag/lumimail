@@ -136,7 +136,7 @@ implementation of recovery, access control, or deployment logic.
 | 1. Recovery foundation | A complete production-shaped backup can be restored and verified in isolated remote resources | F79 | Existing F78 local-equivalence helpers and F63 retention rules | Required to close the recovery gate |
 | 2. Operator lifecycle | Deployments are diagnosable, attributable, reproducible, and reversible | F80, F81 | Layer 1 manifests and recovery evidence | Post-MVP hardening |
 | 3. Administrative product surface | Owners can understand health, access, sessions, audit, and recovery from one UI | F82, F83, F85 | Layers 1–2 read models and existing authorization | Post-MVP; unified shell shipped |
-| 4. Integration surface | AI clients receive narrowly consented mailbox access through OAuth/MCP | F87 | Stable audit, session, capability, and durable-send contracts | Deployed; isolated staging action proof passes 11/11, authenticated production evidence pending |
+| 4. Integration surface | AI clients receive narrowly consented mailbox access through OAuth/MCP | F87 | Stable audit, session, capability, and durable-send contracts | Shipped; staging action proof passes 11/11, production read-only proof passes 9/9, and Settings revocation is verified |
 | 5. Mail-client experience | Desktop split view and private push notifications improve daily use | F86, F88 | Stable message/query state plus security-center device controls | Post-MVP; split view shipped |
 
 ### Promotion rules between layers

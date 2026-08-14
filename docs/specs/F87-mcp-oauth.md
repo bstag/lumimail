@@ -1,6 +1,6 @@
 # F87 — OAuth-Protected MCP Integration
 
-> Status: In Progress
+> Status: Shipped
 > Owner area: `worker.ts`, `src/lib/mcp/`, OAuth routes, `/settings/mcp`
 
 ## 1. Problem & User Job
@@ -120,7 +120,8 @@ passes 6/6, both OAuth metadata documents return 200, the unauthenticated MCP ch
 401, and dynamic registration returns 201. The isolated staging Worker passes all 11 managed action
 evidence checks, including real S256 PKCE, explicit consent, exact-resource refusal, bounded tools,
 idempotent durable send, atomic refresh rotation/replay rejection, and revocation. Production
-managed authenticated evidence remains before this feature can move from In Progress to Shipped.
+authenticated read-only evidence passes 9/9 through a browser-assisted PKCE flow, and the temporary
+connection was revoked from Settings and verified as revoked. The feature is Shipped.
 
 ## 9. Error States
 
@@ -247,7 +248,8 @@ Reason:
 Impact:
 - An isolated staging deployment passes 11/11 managed action checks. A replayed refresh token is
   rejected, while a wrong-resource attempt cannot consume a valid token. Production Worker version
-  `4a51bbec-cf6e-4f7a-8731-e3d9ae250fe6` is deployed; authenticated production evidence remains.
+  `4a51bbec-cf6e-4f7a-8731-e3d9ae250fe6` is deployed. Production browser-assisted read-only evidence
+  passes 9/9, and the temporary connection is verified revoked in Settings.
 
 Tests:
 - `npm run verify`: 2,220 application tests at 100% statements, branches, functions, and lines;
@@ -256,6 +258,8 @@ Tests:
 - `npm run e2e:local`: 53 migrated-D1 browser scenarios after migrations `0034` and `0035`.
 - Managed staging action evidence: 11/11 checks pass.
 - Production public smoke: 6/6; OAuth metadata 200/200, MCP challenge 401, DCR 201.
+- Production browser-assisted read-only evidence: 9/9 checks pass, followed by verified Settings
+  revocation of the temporary client.
 
 ### 2026-08-14 — Implement and locally verify the OAuth/MCP surface
 
