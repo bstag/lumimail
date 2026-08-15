@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, PanelBottom, PanelRight, Star } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,15 @@ import { MOBILE_QUERY, useMediaQuery } from "@/hooks/use-media-query";
 import { canMailboxSend } from "@/components/mailbox-provider-utils";
 import { MessageDetailView } from "./message-detail-view";
 import { ResizableMailPanels } from "./resizable-mail-panels";
-import { getConversationInitial, parseSelectedMessageId } from "./desktop-split-utils";
+import {
+	getConversationInitial,
+	isSelectableMessageId,
+	parseSelectedMessageId,
+	parseSplitOrientation,
+	type SplitOrientation,
+} from "./desktop-split-utils";
+
+const SPLIT_ORIENTATION_KEY = "lumimail:conversation-split-orientation";
 
 const pageSize = 25;
 
@@ -277,6 +285,20 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 	// One media-query listener for the whole list rather than one per row.
 	const compact = useMediaQuery(MOBILE_QUERY);
 	const splitDesktop = useMediaQuery("(min-width: 1200px)");
+	const [splitOrientation, setSplitOrientation] = useState<SplitOrientation>("right");
+
+	// Read after mount so the server render and first client render agree.
+	useEffect(() => {
+		setSplitOrientation(parseSplitOrientation(globalThis.localStorage.getItem(SPLIT_ORIENTATION_KEY)));
+	}, []);
+
+	function toggleSplitOrientation() {
+		setSplitOrientation((current) => {
+			const next = current === "right" ? "bottom" : "right";
+			globalThis.localStorage.setItem(SPLIT_ORIENTATION_KEY, next);
+			return next;
+		});
+	}
 	const selectedMessageId = splitDesktop ? parseSelectedMessageId(new URLSearchParams(searchParams.toString())) : null;
 	const [restoreFocusId, setRestoreFocusId] = useState<string | null>(null);
 	// Every row formats against the same instant, so a list cannot show two
@@ -310,7 +332,11 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 	}, [restoreFocusId, selectedMessageId]);
 
 	function desktopMessageHref(messageId: string) {
-		if (!splitDesktop) return `${config.hrefPrefix}/${messageId}`;
+		// An id the panel's parser would reject must fall back to the full page —
+		// linking to `?message=` it will ignore turns the row into a dead click.
+		if (!splitDesktop || !isSelectableMessageId(messageId)) {
+			return `${config.hrefPrefix}/${messageId}`;
+		}
 		const next = new URLSearchParams(searchParams.toString());
 		next.set("message", messageId);
 		return `${pathname}?${next.toString()}`;
@@ -434,6 +460,26 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 				</div>
 				{selectedIds.length === 0 && (
 					<div className="flex items-center gap-2 text-ink-muted">
+						{splitDesktop && selectedMessageId && (
+							<Tooltip
+								label={splitOrientation === "right"
+									? "Move conversation panel below the list"
+									: "Move conversation panel beside the list"}
+							>
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={toggleSplitOrientation}
+									aria-label={splitOrientation === "right"
+										? "Move conversation panel below the list"
+										: "Move conversation panel beside the list"}
+								>
+									{splitOrientation === "right"
+										? <PanelBottom className="h-4 w-4" />
+										: <PanelRight className="h-4 w-4" />}
+								</Button>
+							</Tooltip>
+						)}
 						<span className="text-xs text-ink-muted whitespace-nowrap">
 							{t("pageRange", { start: pageRange.start, end: pageRange.end, total: pageRange.total })}
 						</span>
@@ -494,6 +540,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 	return (
 		<ResizableMailPanels
 			list={list}
+			orientation={splitOrientation}
 			detail={<MessageDetailView messageId={selectedMessageId} presentation="panel" onClose={closeConversation} />}
 		/>
 	);

@@ -1,16 +1,28 @@
 import { describe, expect, it } from "vitest";
 import {
+	clampConversationPanelHeight,
 	clampConversationPanelWidth,
 	getConversationInitial,
+	isSelectableMessageId,
 	parseSelectedMessageId,
+	parseSplitOrientation,
 } from "@/components/messages/desktop-split-utils";
 
 describe("desktop split view utilities", () => {
-	it("accepts one bounded Lumimail message id", () => {
+	it("accepts one bounded prefixed message id, including seeded ids", () => {
 		expect(parseSelectedMessageId(new URLSearchParams("message=msg_abc-123"))).toBe("msg_abc-123");
+		expect(parseSelectedMessageId(new URLSearchParams("message=e2e_msg_alpha_0"))).toBe("e2e_msg_alpha_0");
 		expect(parseSelectedMessageId(new URLSearchParams("message=msg_one&message=msg_two"))).toBeNull();
 		expect(parseSelectedMessageId(new URLSearchParams("message=outside"))).toBeNull();
+		expect(parseSelectedMessageId(new URLSearchParams(`message=msg_${"x".repeat(80)}`))).toBeNull();
 		expect(parseSelectedMessageId(new URLSearchParams())).toBeNull();
+	});
+
+	it("agrees with the row href generator about selectable ids", () => {
+		expect(isSelectableMessageId("msg_abc-123")).toBe(true);
+		expect(isSelectableMessageId("e2e_msg_alpha_0")).toBe(true);
+		expect(isSelectableMessageId("outside")).toBe(false);
+		expect(isSelectableMessageId("")).toBe(false);
 	});
 
 	it("clamps stored panel widths while preserving room for the list", () => {
@@ -22,6 +34,24 @@ describe("desktop split view utilities", () => {
 		expect(clampConversationPanelWidth("900", 1024)).toBe(664);
 		expect(clampConversationPanelWidth("900", 600)).toBe(360);
 		expect(clampConversationPanelWidth("not-a-number", 1024)).toBe(560);
+	});
+
+	it("clamps stored panel heights while preserving room for the list", () => {
+		expect(clampConversationPanelHeight(null, 900)).toBe(420);
+		expect(clampConversationPanelHeight(455.6, 900)).toBe(456);
+		expect(clampConversationPanelHeight("500", 900)).toBe(500);
+		expect(clampConversationPanelHeight("100", 900)).toBe(240);
+		expect(clampConversationPanelHeight("900", 900)).toBe(660);
+		expect(clampConversationPanelHeight("900", 2000)).toBe(720);
+		expect(clampConversationPanelHeight("600", 400)).toBe(240);
+		expect(clampConversationPanelHeight("not-a-number", 900)).toBe(420);
+	});
+
+	it("fails closed to the right-hand orientation", () => {
+		expect(parseSplitOrientation("bottom")).toBe("bottom");
+		expect(parseSplitOrientation("right")).toBe("right");
+		expect(parseSplitOrientation("sideways")).toBe("right");
+		expect(parseSplitOrientation(null)).toBe("right");
 	});
 
 	it("derives a stable avatar initial from a name or address", () => {
