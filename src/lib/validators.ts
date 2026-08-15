@@ -12,6 +12,20 @@ import {
 // as-is pending a product decision on one canonical local-part rule.
 const registrationUsername = z.string().min(1).max(64).regex(/^[a-zA-Z0-9._%+-]+$/);
 
+export const externalAccountConnectSchema = z.object({
+	provider: z.enum(["google", "microsoft"]),
+	mailboxId: z.string().trim().min(1).max(100),
+	importMode: z.enum(["from_now", "recent_30_days"]),
+	retainOriginal: z.boolean(),
+}).strict();
+
+export const externalAccountUpdateSchema = z.object({
+	status: z.enum(["active", "paused"]).optional(),
+	retainOriginal: z.literal(true).optional(),
+}).strict().refine((value) => value.status !== undefined || value.retainOriginal === true, {
+	message: "At least one external account change is required",
+});
+
 export const pushDeviceNameSchema = z.string().trim().min(1).max(64);
 
 const PUSH_ENDPOINT_HOSTS = new Set([
