@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+	clampConversationPanelHeight,
 	clampConversationPanelWidth,
 	getConversationInitial,
 	parseSelectedMessageId,
+	parseSplitOrientation,
 } from "@/components/messages/desktop-split-utils";
 
 describe("desktop split view utilities", () => {
@@ -22,6 +24,24 @@ describe("desktop split view utilities", () => {
 		expect(clampConversationPanelWidth("900", 1024)).toBe(664);
 		expect(clampConversationPanelWidth("900", 600)).toBe(360);
 		expect(clampConversationPanelWidth("not-a-number", 1024)).toBe(560);
+	});
+
+	it("clamps stored panel heights while preserving room for the list", () => {
+		expect(clampConversationPanelHeight(null, 900)).toBe(420);
+		expect(clampConversationPanelHeight(455.6, 900)).toBe(456);
+		expect(clampConversationPanelHeight("500", 900)).toBe(500);
+		expect(clampConversationPanelHeight("100", 900)).toBe(240);
+		expect(clampConversationPanelHeight("900", 900)).toBe(660);
+		expect(clampConversationPanelHeight("900", 2000)).toBe(720);
+		expect(clampConversationPanelHeight("600", 400)).toBe(240);
+		expect(clampConversationPanelHeight("not-a-number", 900)).toBe(420);
+	});
+
+	it("fails closed to the right-hand orientation", () => {
+		expect(parseSplitOrientation("bottom")).toBe("bottom");
+		expect(parseSplitOrientation("right")).toBe("right");
+		expect(parseSplitOrientation("sideways")).toBe("right");
+		expect(parseSplitOrientation(null)).toBe("right");
 	});
 
 	it("derives a stable avatar initial from a name or address", () => {

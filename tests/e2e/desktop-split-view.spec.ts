@@ -95,6 +95,31 @@ test("back, forward, and keyboard resizing retain bounded panel state", async ({
 	await expect(page.getByTestId("desktop-mail-split")).toBeVisible();
 });
 
+test("the conversation panel can move below the list and back, persisting the choice", async ({ page }) => {
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await mockSplitInbox(page);
+	await page.goto("/inbox?message=msg_split");
+
+	const split = page.getByTestId("desktop-mail-split");
+	await expect(split).toHaveAttribute("data-orientation", "right");
+
+	await page.getByRole("button", { name: "Move conversation panel below the list" }).click();
+	await expect(split).toHaveAttribute("data-orientation", "bottom");
+	const separator = page.getByRole("separator", { name: "Resize conversation panel" });
+	await expect(separator).toHaveAttribute("aria-orientation", "horizontal");
+	const before = Number(await separator.getAttribute("aria-valuenow"));
+	await separator.press("ArrowUp");
+	await expect(separator).toHaveAttribute("aria-valuenow", String(before + 24));
+	await expect.poll(() => page.evaluate(() => localStorage.getItem("lumimail:conversation-split-orientation"))).toBe("bottom");
+
+	await page.reload();
+	await expect(page.getByTestId("desktop-mail-split")).toHaveAttribute("data-orientation", "bottom");
+
+	await page.getByRole("button", { name: "Move conversation panel beside the list" }).click();
+	await expect(page.getByTestId("desktop-mail-split")).toHaveAttribute("data-orientation", "right");
+	await expect(page.getByRole("separator", { name: "Resize conversation panel" })).toHaveAttribute("aria-orientation", "vertical");
+});
+
 test("mobile rows retain the full-page detail route", async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await mockSplitInbox(page);

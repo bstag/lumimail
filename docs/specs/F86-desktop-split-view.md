@@ -18,6 +18,10 @@ thread count. The current mobile/full-page experience is stable and must remain 
 - At mobile widths, rows continue to navigate to the existing full-page detail route.
 - Desktop list/detail widths are resizable within bounded minimums and saved locally. The separator
   is keyboard operable and exposes separator/value semantics.
+- The conversation panel position is a per-device preference: beside the list (right, default) or
+  below it. A toggle in the list toolbar, available while a conversation is open, switches the
+  orientation immediately and persists it locally. Both orientations keep bounded resizing with the
+  matching separator orientation and keyboard axis, and each remembers its own size.
 - Closing the panel removes only the message query parameter and restores focus to the selected row.
 - Only the selected message loads detail/body/thread data. List rendering never fetches every body.
 - Rows add a deterministic avatar/initial and a thread count. The list API computes counts in one
@@ -63,6 +67,18 @@ changing thread grouping, or push notifications.
 - Decision: no body prefetch. Only route code and bounded list metadata may prefetch. — 2026-08-13
 
 ## 7. Bug / Change Log
+
+### 2026-08-14 — Reading-pane position option
+
+Type: Feature
+
+- Add a per-device split orientation preference (`right` | `bottom`) with a toolbar toggle shown
+  while a conversation is open. Unknown stored values fail closed to `right`.
+- The bottom orientation resizes by height with `aria-orientation="horizontal"`, ArrowUp/ArrowDown
+  keyboard steps, and its own bounded persisted size; the right orientation is unchanged.
+- Verified: typecheck and lint clean, 2,332 unit tests pass with the 100% coverage gate, all 100
+  mocked Chromium scenarios pass (including the new orientation toggle/persistence scenario), and
+  both orientations were exercised live against a local server.
 
 ### 2026-08-13 — Specify optional desktop split view
 
