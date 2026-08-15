@@ -1,7 +1,7 @@
 # F69 — Navigation Ergonomics
 
 > Status: `Shipped`
-> Owner area: `src/app/(dashboard)/layout.tsx`, `src/app/(admin)/layout.tsx`, `src/components/*nav*`
+> Owner area: `src/app/(dashboard)/layout.tsx`, `src/app/(settings)/(org)/layout.tsx`, `src/components/*nav*`
 
 ## 1. Problem & User Job
 
@@ -99,7 +99,7 @@ expanded.
 | Collapse state, persistence, grid geometry | `src/components/nav-sidebar-utils.ts` |
 | Tab selection from capability-filtered links | `src/components/mobile-tab-bar-utils.ts` |
 | Breakpoint as a mount decision | `src/hooks/use-media-query.ts` |
-| Rail rendering | `NavItem`, `DashboardNav`, `AdminNav` (`collapsed` prop) |
+| Rail rendering | `NavItem`, `DashboardNav`, `SettingsNav` (`collapsed` prop) |
 | Bar | `src/components/mobile-tab-bar.tsx` |
 | Shared link source | `useMailNavLinks()` in `dashboard-nav.tsx` |
 

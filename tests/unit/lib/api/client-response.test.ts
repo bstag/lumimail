@@ -188,6 +188,16 @@ describe("apiJson", () => {
 		});
 	});
 
+	it("serializes PUT replacement bodies", async () => {
+		authFetchMock.mockResolvedValue(jsonResponse({ success: true, data: { mailboxIds: [] } }));
+		await apiJson.put("/api/push/devices/pud_1/preferences", { mailboxIds: [] });
+		expect(authFetchMock).toHaveBeenCalledWith("/api/push/devices/pud_1/preferences", {
+			method: "PUT",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ mailboxIds: [] }),
+		});
+	});
+
 	it("performs DELETE requests and supports an optional body", async () => {
 		authFetchMock.mockResolvedValue(jsonResponse({ ok: true }));
 		await expect(apiJson.delete("/api/items/item_1")).resolves.toEqual({ ok: true });

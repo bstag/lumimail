@@ -1,7 +1,7 @@
 # F45 — Cloudflare Sending-Domain Readiness
 
 > Status: Shipped
-> Owner area: `src/lib/domains/`, `src/lib/cloudflare-api.ts`, `src/app/api/domains/`, `src/app/(admin)/domains/`
+> Owner area: `src/lib/domains/`, `src/lib/cloudflare-api.ts`, `src/app/api/domains/`, `src/app/(settings)/(org)/domains/`
 
 ## 1. Problem & User Job
 

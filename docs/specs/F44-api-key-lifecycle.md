@@ -1,7 +1,7 @@
 # F44 — API-Key Revocation and Lifecycle Controls
 
 > Status: Shipped
-> Owner area: `src/app/api/api-keys/`, `src/app/(admin)/api-keys/`, `src/lib/api/auth.ts`, `src/db/schema/`
+> Owner area: `src/app/api/api-keys/`, `src/app/(settings)/(org)/api-keys/`, `src/lib/api/auth.ts`, `src/db/schema/`
 
 ## 1. Problem & User Job
 
@@ -72,7 +72,7 @@ The raw full key is returned only from successful POST and is never returned by 
 | Migration | `tests/unit/db/migrations.test.ts` | Fresh D1 contains `api_keys.revoked_at` through the comprehensive schema contract. |
 | API | `tests/unit/app/api/api-keys/[id]/route.test.ts` | Authentication, owner success, unknown/other-user/already-revoked not-found behavior. |
 | Auth | `tests/unit/lib/api/auth.test.ts` | Revoked candidates are excluded and a revoke during verification makes the final claim fail. |
-| UI utility | `tests/unit/app/(admin)/api-keys/` | Lifecycle formatting and revoke request contract. |
+| UI utility | `tests/unit/app/(settings)/(org)/api-keys/` | Lifecycle formatting and revoke request contract. |
 | E2E | `tests/e2e/api-key-lifecycle.spec.ts` | One-time secret dialog, lifecycle metadata, confirmation, successful revoke, and error state. |
 
 ## 8. Previous Behavior

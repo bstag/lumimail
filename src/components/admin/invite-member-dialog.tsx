@@ -29,6 +29,7 @@ export function InviteMemberDialog({ open, onOpenChange, onInviteCreated }: Prop
   const [error, setError] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [deliveryStatus, setDeliveryStatus] = useState<"not_sent" | "sending" | "sent" | "failed" | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,7 +42,7 @@ export function InviteMemberDialog({ open, onOpenChange, onInviteCreated }: Prop
     });
     const json = (await res.json()) as {
       success: boolean;
-      data?: { invite: { token: string } };
+      data?: { invite: { token: string; deliveryStatus: "not_sent" | "sending" | "sent" | "failed" } };
       error?: { message: string };
     };
     setLoading(false);
@@ -51,6 +52,7 @@ export function InviteMemberDialog({ open, onOpenChange, onInviteCreated }: Prop
     }
     const link = `${window.location.origin}/register?token=${json.data!.invite.token}`;
     setInviteLink(link);
+    setDeliveryStatus(json.data!.invite.deliveryStatus);
     onInviteCreated();
   }
 
@@ -67,6 +69,7 @@ export function InviteMemberDialog({ open, onOpenChange, onInviteCreated }: Prop
     setError(null);
     setInviteLink(null);
     setCopied(false);
+    setDeliveryStatus(null);
     onOpenChange(false);
   }
 
@@ -78,6 +81,9 @@ export function InviteMemberDialog({ open, onOpenChange, onInviteCreated }: Prop
         </DialogHeader>
         {inviteLink ? (
           <div className="space-y-4">
+            <p className={`rounded-md px-3 py-2 text-sm font-medium ${deliveryStatus === "sent" ? "bg-success-muted text-success" : "bg-warning-muted text-warning"}`}>
+              {deliveryStatus === "sent" ? "Invitation sent" : deliveryStatus === "failed" ? "Email delivery failed — share the link below" : "Delivery is unconfirmed — share the link below"}
+            </p>
             <p className="text-sm text-ink-muted">
               {t("inviteShareLink", { email, role })}
             </p>
@@ -126,7 +132,7 @@ export function InviteMemberDialog({ open, onOpenChange, onInviteCreated }: Prop
               </p>
             )}
             <Button type="submit" className="w-full" disabled={loading || !email.trim()}>
-              {loading ? t("creating") : t("createInviteLink")}
+              {loading ? "Sending…" : "Send invitation"}
             </Button>
           </form>
         )}

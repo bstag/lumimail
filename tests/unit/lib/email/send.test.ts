@@ -235,6 +235,128 @@ describe("sendEmail producer", () => {
 		expect(body.htmlBody).not.toContain("<script");
 	});
 
+	it("returns an existing MCP acceptance without persisting or enqueueing again", async () => {
+		queueAuthorization("org_1");
+		mock.queueSelect([{ requestHash: "hash_1", messageId: "msg_existing", status: "sent" }]);
+		await expect(sendEmail(env, {
+			userId: "u1", from: "a@example.com", to: "b@x.com", subject: "Hi",
+			idempotency: { principalType: "mcp", principalId: "mcp_1", key: "request_0123456789", requestHash: "hash_1" },
+		})).resolves.toEqual({ messageId: "msg_existing", status: "sent", replayed: true });
+		expect(mock.inserts).toHaveLength(0);
+		expect(queueSend).not.toHaveBeenCalled();
+	});
+
+	it("rejects reuse of an MCP idempotency key for changed input", async () => {
+		queueAuthorization("org_1");
+		mock.queueSelect([{ requestHash: "hash_old", messageId: "msg_existing", status: "queued" }]);
+		await expect(sendEmail(env, {
+			userId: "u1", from: "a@example.com", to: "b@x.com", subject: "Changed",
+			idempotency: { principalType: "mcp", principalId: "mcp_1", key: "request_0123456789", requestHash: "hash_new" },
+		})).rejects.toMatchObject({ name: "IdempotencyConflictError" });
+		expect(queueSend).not.toHaveBeenCalled();
+	});
+
+	it("batches MCP idempotency with message, body, and job persistence", async () => {
+		queueAuthorization("org_1");
+		mock.queueSelect([]);
+		await sendEmail(env, {
+			userId: "u1", from: "a@example.com", to: "b@x.com", subject: "Hi",
+			idempotency: {
+				principalType: "mcp", principalId: "mcp_1", key: "request_0123456789", requestHash: "hash_1",
+				audit: { organizationId: "org_1", actorUserId: "u1", requestId: "req_mcp" },
+			},
+		});
+		expect(mock.inserts).toHaveLength(5);
+		expect(mock.inserts[3].values).toMatchObject({
+			principalType: "mcp", principalId: "mcp_1", idempotencyKey: "request_0123456789",
+			requestHash: "hash_1", messageId: "msg_id", jobId: "job_id",
+		});
+		expect(mock.inserts[4].values).toMatchObject({
+			action: "mcp.mutate", resourceType: "mcp_connection", resourceId: "mcp_1", requestId: "req_mcp",
+		});
+		expect(mock.db.batch).toHaveBeenCalledWith(expect.arrayContaining([expect.anything()]));
+	});
+
+	it("turns a concurrent unique-key race into the winning acceptance", async () => {
+		queueAuthorization("org_1");
+		mock.queueSelect([]).queueSelect([{ requestHash: "hash_1", messageId: "msg_winner", status: "queued" }]);
+		mock.db.batch.mockRejectedValueOnce(new Error("UNIQUE constraint failed"));
+		await expect(sendEmail(env, {
+			userId: "u1", from: "a@example.com", to: "b@x.com", subject: "Hi",
+			idempotency: { principalType: "mcp", principalId: "mcp_1", key: "request_0123456789", requestHash: "hash_1" },
+		})).resolves.toEqual({ messageId: "msg_winner", status: "queued", replayed: true });
+		expect(queueSend).not.toHaveBeenCalled();
+	});
+
+	it("traces a persisted inbound RFC id through reply, queue, provider, and delivery state", async () => {
+		queueAuthorization("org_1");
+		const inboundRfcId = "<trace-inbound@example.com>";
+		mock.queueSelect([{
+			id: "msg_inbound",
+			threadId: "thr_trace",
+			rfcMessageId: inboundRfcId,
+			providerMessageId: inboundRfcId,
+			referencesHeader: null,
+			fromAddr: "Sender <sender@example.com>",
+			textBody: "Inbound body",
+			htmlBody: "<p>Inbound body</p>",
+		}]);
+
+		const accepted = await sendEmail(env, {
+			userId: "u1",
+			from: "a@example.com",
+			to: "sender@example.com",
+			subject: "Re: traced message",
+			replyToMessageId: "msg_inbound",
+			text: "Reply body",
+		});
+
+		const persistedMessage = mock.inserts[0].values as Record<string, unknown>;
+		const persistedJob = mock.inserts[2].values as { id: string; payload: string };
+		expect(accepted.messageId).toBe("msg_id");
+		expect(persistedMessage).toMatchObject({
+			id: "msg_id",
+			threadId: "thr_trace",
+			replySourceMessageId: "msg_inbound",
+			inReplyTo: inboundRfcId,
+		});
+		expect(queueSend).toHaveBeenCalledWith({ kind: "outbound", jobId: persistedJob.id });
+		expect(JSON.parse(persistedJob.payload).headers).toEqual({
+			"In-Reply-To": inboundRfcId,
+			References: inboundRfcId,
+		});
+
+		mock.queueSelect([{
+			id: persistedJob.id,
+			userId: "u1",
+			messageId: accepted.messageId,
+			status: "processing",
+			deliveryToken: "delivery_trace",
+			payload: persistedJob.payload,
+		}]);
+		providerSend.mockResolvedValue({ providerMessageId: "<trace-outbound@example.com>" });
+
+		expect(
+			await processOutboundQueue(
+				env,
+				{ kind: "outbound", jobId: persistedJob.id },
+				"delivery_trace",
+			),
+		).toEqual({ action: "ack" });
+		expect(providerSend).toHaveBeenCalledWith(expect.objectContaining({
+			headers: { "In-Reply-To": inboundRfcId, References: inboundRfcId },
+		}));
+		expect(mock.updates.at(-1)?.set).toMatchObject({
+			status: "sent",
+			providerMessageId: "<trace-outbound@example.com>",
+		});
+		expect(dispatch).toHaveBeenCalledWith(env, "u1", "message.outbound", {
+			messageId: accepted.messageId,
+			providerMessageId: "<trace-outbound@example.com>",
+			to: "sender@example.com",
+		});
+	});
+
 	it("rejects a reply source outside the selected accessible mailbox", async () => {
 		queueAuthorization("org_1");
 		mock.queueSelect([]);

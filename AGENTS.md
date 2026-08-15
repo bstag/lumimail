@@ -52,7 +52,7 @@ npm run e2e       # for user-visible changes
 |---------|----------|
 | API route handlers | `src/app/api/**/route.ts` |
 | Dashboard (mailbox-scoped) | `src/app/(dashboard)/` |
-| Admin (account-scoped) | `src/app/(admin)/` |
+| Admin (account-scoped) | `src/app/(settings)/(org)/` |
 | DB schema | `src/db/schema/index.ts` |
 | Zod validators | `src/lib/validators.ts` |
 | IDs (nanoid, prefixed) | `src/lib/ids.ts` |
@@ -75,3 +75,13 @@ Key conventions: DB via `getDb(env)`, IDs via `newId(prefix)`, auth via `require
 - **Contribution mechanics (commits, PRs, CLA):** [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 - **Security invariants:** [`SECURITY.md`](./SECURITY.md) — cross-tenant isolation is the strongest one.
 - **Specs & registry:** [`docs/specs/`](./docs/specs/) and [`docs/MVP_SCOPE.md`](./docs/MVP_SCOPE.md).
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

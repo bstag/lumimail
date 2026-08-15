@@ -52,7 +52,7 @@ they don't repeat it.
   (parse with Zod from `src/lib/validators.ts`, `getDb(env)`, session check via
   `src/lib/auth/`).
 - **Pages:** dashboard (mailbox-scoped) pages go in `src/app/(dashboard)/`, admin
-  (account-scoped) pages in `src/app/(admin)/`.
+  (account-scoped) pages in `src/app/(settings)/(org)/`.
 - **IDs:** `newId(prefix)` from `src/lib/ids.ts`.
 - **Schema changes:** add a Drizzle migration in `drizzle/migrations/` via
   `npm run db:generate`, then `npm run db:migrate:local`.

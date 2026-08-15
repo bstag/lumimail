@@ -72,7 +72,7 @@ Every API route follows this shape. The **cross-tenant filter is mandatory** on 
 |-------|------|-------|
 | HTTP routes | `src/app/api/**/route.ts` | One file per endpoint; `[id]` for params |
 | Dashboard UI (mailbox-scoped) | `src/app/(dashboard)/` | + `src/components/` |
-| Admin UI (account-scoped) | `src/app/(admin)/` | org/domain/member management |
+| Admin UI (account-scoped) | `src/app/(settings)/(org)/` | org/domain/member management |
 | Auth | `src/lib/auth/` | `cookies.ts` (`requireUser`), `session.ts`, `password.ts`, `org-guard.ts`, `client.ts` (`authFetch`) |
 | Email engine | `src/lib/email/` | `inbound.ts`, `send.ts`, `routing.ts`, `parse.ts`, `alias-targets.ts`, `webhooks.ts` |
 | Cloudflare API | `src/lib/cloudflare-api.ts` | domain provisioning (DNS, routing, sending) |

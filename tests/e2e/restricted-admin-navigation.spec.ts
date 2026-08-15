@@ -37,7 +37,8 @@ test("hides organization administration and redirects direct member visits", asy
 
 	await page.goto("/inbox");
 	await page.getByRole("button", { name: "Support support@example.com" }).click();
-	await expect(page.getByRole("link", { name: /Admin settings/i })).toHaveCount(0);
+	await expect(page.getByRole("link", { name: /Profile, mailbox, and integrations/i })).toBeVisible();
+	await expect(page.getByRole("link", { name: /organization settings/i })).toHaveCount(0);
 
 	for (const path of [
 		"/admin",
@@ -49,6 +50,7 @@ test("hides organization administration and redirects direct member visits", asy
 		"/routing",
 		"/webhooks",
 		"/queue-health",
+		"/operations",
 	]) {
 		await page.goto(path);
 		await expect(page).toHaveURL(/\/inbox$/);
@@ -61,6 +63,13 @@ test("keeps deployment queue health owner-only for an organization admin", async
 	await page.goto("/queue-health");
 	await expect(page).toHaveURL(/\/inbox$/);
 	await expect(page.getByRole("heading", { name: "Queue health" })).toHaveCount(0);
+});
+
+test("keeps the operations center owner-only for an organization admin", async ({ page }) => {
+	await mockShell(page, "admin");
+	await page.goto("/operations");
+	await expect(page).toHaveURL(/\/inbox$/);
+	await expect(page.getByRole("heading", { name: "Operations" })).toHaveCount(0);
 });
 
 test("retains organization administration for an owner", async ({ page }) => {
@@ -83,7 +92,7 @@ test("retains organization administration for an owner", async ({ page }) => {
 
 	await page.goto("/inbox");
 	await page.getByRole("button", { name: "Support support@example.com" }).click();
-	await expect(page.getByRole("link", { name: /Admin settings/i })).toBeVisible();
+	await expect(page.getByRole("link", { name: /Account and organization settings/i })).toBeVisible();
 
 	await page.goto("/mailboxes");
 	await expect(page.getByRole("button", { name: "New mailbox" })).toBeVisible();

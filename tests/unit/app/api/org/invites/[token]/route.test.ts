@@ -6,7 +6,7 @@ vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
 vi.mock("@/lib/auth/invitation", () => ({ hashInvitationToken: m.hashInvitationToken }));
 
-import { GET } from "@/app/api/org/invites/[token]/route";
+import { GET } from "@/app/api/org/invites/[identifier]/route";
 
 let mock: DbMock;
 
@@ -16,7 +16,7 @@ beforeEach(() => {
 	m.hashInvitationToken.mockReset().mockResolvedValue("hashed_tok");
 });
 
-const params = (token = "tok") => ({ params: Promise.resolve({ token }) });
+const params = (identifier = "tok") => ({ params: Promise.resolve({ identifier }) });
 const req = () => new Request("https://x.test/api/org/invites/tok");
 
 describe("GET /api/org/invites/[token]", () => {
@@ -26,6 +26,13 @@ describe("GET /api/org/invites/[token]", () => {
 		expect(res.status).toBe(404);
 		expect((await res.json()) as any).toMatchObject({ error: { message: "Invite not found" } });
 		expect(m.hashInvitationToken).toHaveBeenCalledWith("tok");
+	});
+
+	it("returns 404 for an accepted invitation retained for admin history", async () => {
+		mock.queueSelect([]);
+		const res = await GET(req(), params("accepted"));
+		expect(res.status).toBe(404);
+		expect(m.hashInvitationToken).toHaveBeenCalledWith("accepted");
 	});
 
 	it("returns 410 when the invite has expired", async () => {

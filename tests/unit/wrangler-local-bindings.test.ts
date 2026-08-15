@@ -60,7 +60,9 @@ function hasRemoteTrue(node: unknown): boolean {
 }
 
 type WranglerEnv = {
+	routes?: unknown[];
 	send_email?: Array<{ name?: string }>;
+	kv_namespaces?: Array<{ binding?: string }>;
 	d1_databases?: Array<{ binding?: string }>;
 	r2_buckets?: Array<{ binding?: string }>;
 	queues?: {
@@ -83,6 +85,7 @@ function readJsonc(file: string): WranglerEnv {
 function expectBindingContract(env: WranglerEnv) {
 	expect(env.send_email?.map((binding) => binding.name)).toContain("EMAIL");
 	expect(env.d1_databases?.map((db) => db.binding)).toContain("DB");
+	expect(env.kv_namespaces?.map((namespace) => namespace.binding)).toContain("OAUTH_KV");
 	expect(env.r2_buckets?.map((bucket) => bucket.binding)).toContain("BUCKET");
 
 	const producers = env.queues?.producers ?? [];
@@ -90,6 +93,8 @@ function expectBindingContract(env: WranglerEnv) {
 		"INBOUND_QUEUE",
 		"OUTBOUND_DLQ_QUEUE",
 		"OUTBOUND_QUEUE",
+		"PUSH_DLQ_QUEUE",
+		"PUSH_QUEUE",
 	]);
 
 	const producedQueues = producers.map((producer) => producer.queue).sort();
@@ -100,10 +105,10 @@ function expectBindingContract(env: WranglerEnv) {
 	const deadLetterQueues = consumers
 		.map((consumer) => consumer.dead_letter_queue)
 		.filter((queue): queue is string => queue !== undefined);
-	// The outbound consumer routes failures to the DLQ, and that DLQ is itself
-	// a consumed queue (the recovery path reads it).
-	expect(deadLetterQueues).toHaveLength(1);
-	expect(consumedQueues).toContain(deadLetterQueues[0]);
+	// Outbound and push consumers route failures to isolated DLQs, and each DLQ
+	// is itself consumed by its recovery path.
+	expect(deadLetterQueues).toHaveLength(2);
+	for (const queue of deadLetterQueues) expect(consumedQueues).toContain(queue);
 }
 
 describe("Wrangler local binding contract", () => {
@@ -120,6 +125,7 @@ describe("Wrangler local binding contract", () => {
 		// rather than merging them.
 		for (const envConfig of Object.values(config.env ?? {})) {
 			expectBindingContract(envConfig);
+			expect(envConfig.routes).toEqual([]);
 		}
 	});
 
@@ -130,6 +136,7 @@ describe("Wrangler local binding contract", () => {
 		expect(hasRemoteTrue(exampleConfig)).toBe(false);
 		for (const envConfig of Object.values(exampleConfig.env ?? {})) {
 			expectBindingContract(envConfig);
+			expect(envConfig.routes).toEqual([]);
 		}
 	});
 
@@ -148,5 +155,25 @@ describe("Wrangler local binding contract", () => {
 		expect(serverSetup).toContain('npm_lifecycle_event === "e2e:local"');
 		expect(serverSetup).toContain('"taskkill"');
 		expect(nextConfig).toContain('process.env.LUMIMAIL_CLOUDFLARE_DEV !== "false"');
+	});
+
+	it("migrates the persisted local D1 database before seeding real-backend E2E fixtures", () => {
+		const packageJson = JSON.parse(
+			readFileSync(resolve(process.cwd(), "package.json"), "utf8"),
+		) as { scripts?: Record<string, string> };
+		const command = packageJson.scripts?.["e2e:local"] ?? "";
+
+		const migrateIndex = command.indexOf("npm run db:migrate:local");
+		const seedIndex = command.indexOf("node scripts/seed-e2e.mjs");
+		expect(migrateIndex).toBeGreaterThanOrEqual(0);
+		expect(seedIndex).toBeGreaterThan(migrateIndex);
+	});
+
+	it("exposes the repeatable deployment smoke gate as an npm command", () => {
+		const packageJson = JSON.parse(
+			readFileSync(resolve(process.cwd(), "package.json"), "utf8"),
+		) as { scripts?: Record<string, string> };
+
+		expect(packageJson.scripts?.smoke).toBe("node scripts/smoke.mjs");
 	});
 });

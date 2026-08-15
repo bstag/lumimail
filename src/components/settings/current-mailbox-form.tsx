@@ -17,7 +17,7 @@ import { getMailboxAddress, updateCurrentMailboxName } from "./utils";
  * wrap itself in `max-w-2xl p-8` inside the page's own `max-w-2xl`, which inset the
  * card 32px on each side and left it 64px narrower than the three cards below it.
  */
-export function CurrentMailboxForm() {
+export function CurrentMailboxForm({ embedded = false }: { embedded?: boolean } = {}) {
 	const t = useTranslations("settings");
 	const { selectedMailbox, setSelectedMailbox, isLoading } = useSelectedMailbox();
 	const [displayName, setDisplayName] = useState("");
@@ -80,10 +80,12 @@ export function CurrentMailboxForm() {
 
 	return (
 		<div className="space-y-6">
-			<div>
-				<h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
-				<p className="mt-1 text-sm text-ink-muted">{address}</p>
-			</div>
+			{!embedded && (
+				<div>
+					<h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
+					<p className="mt-1 text-sm text-ink-muted">{address}</p>
+				</div>
+			)}
 
 			<Card>
 				<CardHeader>

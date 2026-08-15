@@ -5,7 +5,7 @@ vi.mock("@/lib/auth/client", () => ({
 	persistAuthSession: (...a: unknown[]) => persistAuthSession(...a),
 }));
 
-import { submitLogin } from "@/app/login/utils";
+import { resolveLoginRedirect, submitLogin } from "@/app/login/utils";
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -49,5 +49,16 @@ describe("submitLogin", () => {
 
 		expect(result.ok).toBe(false);
 		expect(result.data).toEqual({ error: "bad" });
+	});
+});
+
+describe("resolveLoginRedirect", () => {
+	it("preserves an OAuth continuation only as a local absolute path", () => {
+		expect(resolveLoginRedirect("/inbox", `?redirect=${encodeURIComponent("/oauth/authorize?client_id=a")}`))
+			.toBe("/oauth/authorize?client_id=a");
+		for (const unsafe of ["https://evil.example", "//evil.example", "/\\evil.example"]) {
+			expect(resolveLoginRedirect("/inbox", `?redirect=${encodeURIComponent(unsafe)}`)).toBe("/inbox");
+		}
+		expect(resolveLoginRedirect(undefined, "")).toBe("/inbox");
 	});
 });

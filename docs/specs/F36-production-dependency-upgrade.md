@@ -47,16 +47,17 @@
 
 ## Final behavior
 
-- Next.js and `eslint-config-next` are pinned at `16.2.11`.
+- Next.js and `eslint-config-next` are pinned at `16.3.0`.
 - `@opennextjs/cloudflare` resolves to `1.20.2` with `@opennextjs/aws` `4.1.0`.
 - DOMPurify is pinned at the patched `3.4.12` release.
-- Wrangler is updated to `4.113.0` and Cloudflare Workers types to `5.20260722.1`.
+- Wrangler is pinned at the smallest patched stable release, `4.114.0`; its Miniflare dependency is constrained to patched Undici `7.29.0` through npm overrides.
 - Safe transitive audit fixes were applied without `--force`.
-- The production audit still reports eight transitive findings in Next.js-bundled PostCSS and Sharp/libvips. npm proposes an invalid forced downgrade to Next.js 9, so these remain documented pending an upstream compatible release.
+- Next.js 16.3.0 supplies patched PostCSS and Sharp versions, and compatible brace-expansion patch releases are locked transitively.
+- As of 2026-08-06, both the complete root audit and `npm audit --omit=dev` report zero known vulnerabilities.
 
 ## Verification
 
-- `npm run verify`: passed (105 files, 843 tests, 100% configured coverage; existing lint warnings only).
-- `npx opennextjs-cloudflare build`: passed on Next.js `16.2.11` and OpenNext `1.20.2`.
-- `npx wrangler deploy --dry-run`: passed; all production bindings were resolved.
-- `npm audit --omit=dev`: eight remaining transitive findings (three moderate, five high), with no safe non-forced resolution currently offered.
+- `npm run verify`: passed on the final graph (193 application files, 1,759 tests, 100% configured coverage; 21 bridge tests; existing lint warnings only).
+- `npx opennextjs-cloudflare build`: passed on Next.js `16.3.0` and OpenNext `1.20.2`.
+- `npx wrangler deploy --dry-run`: passed on Wrangler `4.114.0`; all production bindings were resolved.
+- `npm audit`, `npm audit --omit=dev`, and the bridge production audit: zero known vulnerabilities on 2026-08-06.

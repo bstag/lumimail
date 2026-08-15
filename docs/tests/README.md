@@ -101,18 +101,21 @@ on real authorization. Run it with:
 npm run e2e:local
 ```
 
-That seeds `scripts/seed-e2e.mjs` first. The fixture's shape is deliberate:
+That applies every local D1 migration before seeding `scripts/seed-e2e.mjs`. The
+fixture's shape is deliberate:
 
 | Mailbox | Owner | Member | Viewer |
 |---------|-------|--------|--------|
 | `alpha` | manager | — | — |
 | `shared` | manager | responder | viewer |
+| `team` | manager | responder | — |
 | `private` | manager | **no row** | — |
 
-`private` makes "cannot reach a mailbox they were not granted" testable; the viewer
-on `shared` makes "can read it but still cannot send from it" testable. Neither
-question can be asked without the corresponding fixture, so do not simplify them
-away.
+`shared` plus `team` proves unscoped aggregation returns more than one permitted
+mailbox; `alpha` plus `private` prove it excludes more than one forbidden mailbox.
+The viewer on `shared` makes "can read it but still cannot send from it" testable.
+Owner and member labels deliberately overlap a readable message so label ownership
+is tested independently of mailbox access. Do not simplify these rows away.
 
 Sessions are established once per role by `auth.setup.ts` and reused while they
 still resolve. Logging in per test tripped the five-attempt-per-minute limiter,

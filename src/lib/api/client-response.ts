@@ -111,6 +111,7 @@ async function requestJson<T>(method: string, url: string, body?: unknown): Prom
 export const apiJson = {
 	get: <T>(url: string): Promise<T> => requestJson<T>("GET", url),
 	post: <T>(url: string, body?: unknown): Promise<T> => requestJson<T>("POST", url, body),
+	put: <T>(url: string, body?: unknown): Promise<T> => requestJson<T>("PUT", url, body),
 	patch: <T>(url: string, body?: unknown): Promise<T> => requestJson<T>("PATCH", url, body),
 	delete: <T>(url: string, body?: unknown): Promise<T> => requestJson<T>("DELETE", url, body),
 };

@@ -75,6 +75,7 @@
 - HTTP 401, 403, and 404 results do not reveal another user's mailbox or message.
 - Untrusted email header values cannot insert additional MIME or IMAP response lines.
 - The TCP service does not provide an open SMTP relay.
+- IMAP retains at most 64 KiB for one command, closes sessions idle for five minutes, and admits at most 100 concurrent sessions per bridge process.
 
 ## 4. Edge cases and error states
 
@@ -88,6 +89,7 @@
 - A failed UID allocation must fail the message write rather than create bridge-invisible mail.
 - IMAP `EXAMINE` is read-only and rejects state changes.
 - Disconnects and partial SMTP uploads release session state and do not send.
+- An overlong IMAP command receives `BYE` and the socket is destroyed; an idle session is closed, and a connection over the process cap is refused.
 - Certificate/key mismatch, unreadable files, or only one configured TLS path prevents production startup.
 
 ## 5. Test plan
@@ -183,3 +185,9 @@ Impact:
 - The executable fresh-D1 migration contract passed with migration `0011`.
 - Docker image construction was not verified because Docker is not installed in the current workspace.
 - Production D1 migration, Worker deployment, bridge hosting, TLS, and controlled Thunderbird validation remain pending. F52 and R-23 must not be marked shipped until those steps pass.
+
+### 2026-08-06 — Bound unauthenticated IMAP resources (F77)
+
+- Replaced the unbounded string accumulator with byte-oriented CRLF parsing capped at 64 KiB per command.
+- Added a five-minute socket idle timeout and a process-local 100-session admission cap with close-based capacity release.
+- Added protocol regressions for fragmented, complete multibyte, exact-limit, timeout, refusal, and capacity-release behavior.

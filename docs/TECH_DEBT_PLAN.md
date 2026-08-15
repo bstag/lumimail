@@ -45,7 +45,7 @@ schema/tests/config) performed 2026-07-30. This plan supersedes nothing —
   the `authorize()` site citing F52 so the pattern is not re-flagged as a
   privilege escalation. No behavior change.
 - [x] **T-02 Declining a routing-rule delete must not report success.**
-  `src/app/(admin)/routing/page.tsx:87` calls `confirm()` inside `mutationFn`;
+  `src/app/(settings)/(org)/routing/page.tsx:87` calls `confirm()` inside `mutationFn`;
   Cancel resolves as success and invalidates queries. Move confirmation before
   `mutate()` (interim), replaced by `ConfirmDialog` in T-21. Effort S.
 - [x] **T-03 Fix the `["domains"]` query-key collision.** `domains/page.tsx`

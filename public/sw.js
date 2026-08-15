@@ -89,6 +89,76 @@ self.addEventListener("fetch", (event) => {
 	}
 });
 
+const PUSH_DELIVERY_ID = /^pudl_[A-Za-z0-9_-]{21}$/;
+
+self.addEventListener("push", (event) => {
+	if (!event.data) return;
+
+	let payload;
+	try {
+		payload = event.data.json();
+	} catch {
+		return;
+	}
+
+	if (!isPushPayload(payload)) return;
+	const { notificationId } = payload;
+	event.waitUntil(self.registration.showNotification("New mail", {
+		body: "Open Lumimail to view it.",
+		icon: "/icon-192.png",
+		badge: "/icon-96.png",
+		tag: notificationId,
+		data: { path: `/notifications/${notificationId}` },
+	}));
+});
+
+self.addEventListener("notificationclick", (event) => {
+	event.notification.close();
+	const path = event.notification.data?.path;
+	if (typeof path !== "string" || !isNotificationPath(path)) return;
+
+	const target = new URL(path, self.location.origin).href;
+	event.waitUntil(focusOrOpenNotification(target));
+});
+
+self.addEventListener("pushsubscriptionchange", (event) => {
+	// Never silently create a replacement subscription: that would restore a
+	// device's delivery capability without a fresh user gesture or preferences.
+	event.waitUntil(self.registration.showNotification("Notifications paused", {
+		body: "Open Lumimail to enable notifications again.",
+		icon: "/icon-192.png",
+		badge: "/icon-96.png",
+		tag: "lumimail-push-subscription-change",
+		data: { path: "/settings/notifications" },
+	}));
+});
+
+function isPushPayload(payload) {
+	if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
+	const keys = Object.keys(payload);
+	return keys.length === 1
+		&& keys[0] === "notificationId"
+		&& typeof payload.notificationId === "string"
+		&& PUSH_DELIVERY_ID.test(payload.notificationId);
+}
+
+function isNotificationPath(path) {
+	if (path === "/settings/notifications") return true;
+	const prefix = "/notifications/";
+	return path.startsWith(prefix) && PUSH_DELIVERY_ID.test(path.slice(prefix.length));
+}
+
+async function focusOrOpenNotification(target) {
+	const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+	const existing = windows.find((client) => new URL(client.url).origin === self.location.origin);
+	if (existing) {
+		if (typeof existing.navigate === "function") await existing.navigate(target);
+		await existing.focus();
+		return;
+	}
+	await self.clients.openWindow(target);
+}
+
 function isNavigationRequest(request) {
 	return request.mode === "navigate" || request.destination === "document";
 }

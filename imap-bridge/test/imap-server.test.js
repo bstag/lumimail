@@ -5,13 +5,23 @@ const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
 const test = require("node:test");
 
-const { ImapSession, CAPABILITIES, matchesNumberSet } = require("../src/imap-server");
+const {
+	ImapSession,
+	CAPABILITIES,
+	MAX_IMAP_COMMAND_BYTES,
+	IMAP_IDLE_TIMEOUT_MS,
+	createImapConnectionListener,
+	matchesNumberSet,
+} = require("../src/imap-server");
 
 class FakeSocket extends EventEmitter {
 	constructor() {
 		super();
 		this.output = "";
 		this.ended = false;
+		this.destroyed = false;
+		this.timeout = null;
+		this.timeoutHandler = null;
 	}
 
 	write(value) {
@@ -22,6 +32,15 @@ class FakeSocket extends EventEmitter {
 	end() {
 		this.ended = true;
 	}
+
+	destroy() {
+		this.destroyed = true;
+	}
+
+	setTimeout(timeout, handler) {
+		this.timeout = timeout;
+		this.timeoutHandler = handler;
+	}
 }
 
 test("capabilities are truthful and omit unimplemented transport/auth extensions", () => {
@@ -30,6 +49,63 @@ test("capabilities are truthful and omit unimplemented transport/auth extensions
 	for (const unsupported of ["STARTTLS", "IDLE", "ENABLE", "AUTH=PLAIN", "AUTH=LOGIN", "LITERAL+"]) {
 		assert.doesNotMatch(CAPABILITIES, new RegExp(unsupported.replace("+", "\\+")));
 	}
+});
+
+test("an overlong fragmented IMAP command is rejected before the retained buffer exceeds its bound", () => {
+	const socket = new FakeSocket();
+	const session = new ImapSession(socket, {});
+	socket.emit("data", Buffer.alloc(MAX_IMAP_COMMAND_BYTES, "a"));
+	assert.equal(session.buffer.length, MAX_IMAP_COMMAND_BYTES);
+	assert.equal(socket.destroyed, false);
+
+	socket.emit("data", Buffer.from("b"));
+
+	assert.equal(socket.destroyed, true);
+	assert.match(socket.output, /\* BYE IMAP command too long/);
+	assert.ok(session.buffer.length <= MAX_IMAP_COMMAND_BYTES);
+});
+
+test("IMAP command limits count UTF-8 bytes and reject a complete oversized line", () => {
+	const socket = new FakeSocket();
+	new ImapSession(socket, {});
+	socket.emit("data", Buffer.from(`A1 NOOP ${"☃".repeat(MAX_IMAP_COMMAND_BYTES)}\r\n`, "utf8"));
+	assert.equal(socket.destroyed, true);
+	assert.match(socket.output, /\* BYE IMAP command too long/);
+});
+
+test("an exact-limit IMAP command is accepted", () => {
+	const socket = new FakeSocket();
+	const prefix = "A1 ";
+	new ImapSession(socket, {});
+	socket.emit("data", Buffer.from(`${prefix}${"X".repeat(MAX_IMAP_COMMAND_BYTES - prefix.length)}\r\n`));
+	assert.equal(socket.destroyed, false);
+});
+
+test("idle IMAP sessions use the bounded timeout and are closed", () => {
+	const socket = new FakeSocket();
+	new ImapSession(socket, {});
+	assert.equal(socket.timeout, IMAP_IDLE_TIMEOUT_MS);
+
+	socket.timeoutHandler();
+
+	assert.equal(socket.destroyed, true);
+	assert.match(socket.output, /\* BYE IMAP session timed out/);
+});
+
+test("the connection listener enforces its cap and releases capacity on close", () => {
+	const listener = createImapConnectionListener({}, 1);
+	const first = new FakeSocket();
+	const refused = new FakeSocket();
+	listener(first);
+	listener(refused);
+	assert.equal(refused.destroyed, true);
+	assert.match(refused.output, /\* BYE Too many IMAP connections/);
+
+	first.emit("close");
+	const replacement = new FakeSocket();
+	listener(replacement);
+	assert.equal(replacement.destroyed, false);
+	assert.match(replacement.output, /\* OK Lumimail IMAP bridge ready/);
 });
 
 test("UID command dispatches UID FETCH and preserves persisted UIDs", async () => {

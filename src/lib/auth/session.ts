@@ -40,6 +40,7 @@ export async function createSession(env: CloudflareEnv, userId: string): Promise
 	const tokenLookup = await lookupSessionToken(token);
 	const expiresAt = new Date();
 	expiresAt.setDate(expiresAt.getDate() + SESSION_DAYS);
+	const authenticatedAt = new Date();
 
 	await db.insert(sessions).values({
 		id: newId(),
@@ -47,6 +48,7 @@ export async function createSession(env: CloudflareEnv, userId: string): Promise
 		tokenLookup,
 		tokenHash,
 		expiresAt,
+		authenticatedAt,
 		organizationId: user?.organizationId ?? null,
 	});
 

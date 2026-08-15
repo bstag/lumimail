@@ -4,6 +4,7 @@ import {
 	attachments,
 	messageBodies,
 	messages,
+	pushNotificationEvents,
 } from "@/db/schema";
 import { newId } from "@/lib/ids";
 import { buildSnippet, parseRawMime, type ParsedEmail } from "@/lib/email/parse";
@@ -89,6 +90,7 @@ async function deliverToMailbox(
 	mailbox: ResolvedMailbox,
 ): Promise<void> {
 	const messageId = newId("msg");
+	const now = new Date();
 	const snippet = buildSnippet(parsed.text, parsed.html);
 	const prepared = prepareInboundAttachments(parsed.attachments);
 	const mailboxAddress = `${mailbox.localPart}@${mailbox.hostname}`;
@@ -187,6 +189,19 @@ async function deliverToMailbox(
 			})),
 		)
 		: null;
+	const pushEventId = mailbox.organizationId ? newId("pue") : null;
+	const pushEventInsert = pushEventId && mailbox.organizationId
+		? db.insert(pushNotificationEvents).values({
+			id: pushEventId,
+			organizationId: mailbox.organizationId,
+			mailboxId: mailbox.mailboxId,
+			messageId,
+			status: "pending",
+			attempts: 0,
+			nextAttemptAt: now,
+			createdAt: now,
+		})
+		: null;
 
 	const attemptedKeys: string[] = [];
 	try {
@@ -200,6 +215,7 @@ async function deliverToMailbox(
 			messageInsert,
 			bodyInsert,
 			...(attachmentInsert ? [attachmentInsert] : []),
+			...(pushEventInsert ? [pushEventInsert] : []),
 		]);
 	} catch (error) {
 		await cleanupAttachmentObjects(env, attemptedKeys);
@@ -207,6 +223,16 @@ async function deliverToMailbox(
 	}
 
 	await applyMessageFilters(db, mailbox.userId, messageId, fromAddr, toAddr, parsed.subject ?? undefined);
+
+	if (pushEventId) {
+		try {
+			await env.PUSH_QUEUE.send({ kind: "push-expand", version: 1, eventId: pushEventId });
+		} catch {
+			// The D1 event is the durable source of truth. Scheduled reconciliation
+			// will wake it later; never rethrow into inbound mail processing.
+			console.warn("Push event enqueue deferred", { eventId: pushEventId });
+		}
+	}
 
 	await dispatchWebhooks(env, mailbox.userId, "message.inbound", {
 		messageId,

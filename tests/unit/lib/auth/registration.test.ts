@@ -48,6 +48,10 @@ const invite = {
 	token: "hashed-token",
 	expiresAt: new Date(Date.now() + 60_000),
 	createdAt: new Date(Date.now() - 60_000),
+	deliveryStatus: "sent",
+	lastDeliveryAttemptAt: new Date(Date.now() - 60_000),
+	lastDeliveredAt: new Date(Date.now() - 60_000),
+	acceptedAt: null,
 };
 
 describe("registerFromInvite", () => {
@@ -76,6 +80,8 @@ describe("registerFromInvite", () => {
 		mock.queueSelect([invite]).queueSelect([]).queueSelect([invite]); // claim won
 		expect(await registerFromInvite(env, inviteInput)).toEqual({ ok: true, userId: "usr_1" });
 		expect(mock.db.batch).toHaveBeenCalledTimes(1);
+		expect(mock.deletes).toHaveLength(0);
+		expect(mock.updates[0].set).toMatchObject({ acceptedAt: expect.any(Date) });
 		expect(mock.inserts[0].values).toMatchObject({
 			id: "usr_1",
 			email: "teammate@external.test",
@@ -90,22 +96,12 @@ describe("registerFromInvite", () => {
 		});
 	});
 
-	it("restores the claimed invite when the account batch fails", async () => {
+	it("restores claimability when the account batch fails", async () => {
 		mock.queueSelect([invite]).queueSelect([]).queueSelect([invite]);
 		mock.db.batch.mockRejectedValueOnce(new Error("D1 unavailable"));
 		expect(await registerFromInvite(env, inviteInput)).toEqual({ ok: false, error: "unavailable" });
-		// Compensation re-inserts the exact claimed row, tolerating a concurrent
-		// successful claim via onConflictDoNothing.
-		const restored = mock.inserts.at(-1)!.values as Record<string, unknown>;
-		expect(restored).toMatchObject({
-			id: "inv_1",
-			organizationId: "org_inv",
-			email: invite.email,
-			role: "member",
-			token: "hashed-token",
-			expiresAt: invite.expiresAt,
-			createdAt: invite.createdAt,
-		});
+		expect(mock.updates.at(-1)?.set).toEqual({ acceptedAt: null });
+		expect(mock.inserts).toHaveLength(2);
 	});
 });
 

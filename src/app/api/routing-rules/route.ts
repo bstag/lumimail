@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { routingRules } from "@/db/schema";
-import { withUser } from "@/lib/api/handler";
+import { withOrgAdmin } from "@/lib/api/handler";
 import { newId } from "@/lib/ids";
 import { routingRuleSchema } from "@/lib/validators";
 import { normalizeRoutingPattern } from "@/lib/email/routing-pattern";
@@ -14,15 +14,13 @@ import {
 	syncCatchAllTransition,
 } from "@/lib/email/routing-rules-service";
 
-export const GET = withUser(async ({ env, user }) => {
-	if (!user.organizationId) return apiError("No organization", 400);
+export const GET = withOrgAdmin(async ({ env, user }) => {
 	const db = getDb(env);
 	const rows = await db.select().from(routingRules).where(eq(routingRules.organizationId, user.organizationId));
 	return apiSuccess({ rules: rows });
 });
 
-export const POST = withUser(async ({ request, env, user }) => {
-	if (!user.organizationId) return apiError("No organization", 400);
+export const POST = withOrgAdmin(async ({ request, env, user }) => {
 	const parsed = routingRuleSchema.safeParse(await request.json());
 	if (!parsed.success) {
 		return apiError(firstZodMessage(parsed.error), 400);
@@ -83,7 +81,7 @@ export const POST = withUser(async ({ request, env, user }) => {
 	await db.insert(routingRules).values({
 		id,
 		userId: user.id,
-		organizationId: user.organizationId!,
+		organizationId: user.organizationId,
 		domainId: parsed.data.domainId,
 		pattern: normalized.pattern,
 		action: parsed.data.action,

@@ -1,6 +1,6 @@
 # F05 — Compose, Send & Drafts
 
-> Status: Shipped locally — expanded formatting and CID images await production delivery verification
+> Status: Shipped — formatted production delivery operator-confirmed
 > Owner area: `src/components/compose/`, `src/app/api/send/`, `src/app/api/drafts/`, `src/app/api/v1/send/`
 
 ## 1. Problem & User Job
@@ -301,9 +301,14 @@ Implemented:
   exit cleanly because the existing Wrangler remote proxy requires
   `CLOUDFLARE_API_TOKEN`; that infrastructure issue is tracked separately.
 
-Remaining production evidence:
-- Deploy and confirm that representative email clients receive and render both
-  the formatted HTML body and its meaningful plain-text alternative.
+Production evidence reconciliation 2026-08-11:
+- The operator confirmed formatted HTML delivery/rendering in production. This
+  complements the earlier production evidence for safe HTML receipt, formatted
+  replies, drafts, attachments, and queued/sent/failed delivery state.
+- The plain-text alternative does not depend on recipient-client behavior: the
+  server deterministically derives it from the same sanitized HTML before the
+  immutable provider snapshot is created, and the normalization/provider tests
+  assert both representations. The combined evidence closes the F05 gate.
 
 ### 2026-07-28 — Reconcile the prior plain-text authoring contract
 

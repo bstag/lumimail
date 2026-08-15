@@ -1,7 +1,7 @@
 # F02 — Domain Management
 
 > Status: Shipped locally — production deployment verification pending
-> Owner area: `src/app/api/domains/*`, `src/lib/domains/`, `src/app/(admin)/domains/`
+> Owner area: `src/app/api/domains/*`, `src/lib/domains/`, `src/app/(settings)/(org)/domains/`
 
 ## 1. Problem & User Job
 

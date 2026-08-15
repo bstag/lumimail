@@ -1,7 +1,7 @@
 # F06 — API Keys
 
 > Status: Shipped
-> Owner area: `src/app/api/api-keys/`, `src/app/api/v1/`, `src/app/(admin)/api-keys/`, `src/lib/api/auth.ts`
+> Owner area: `src/app/api/api-keys/`, `src/app/api/v1/`, `src/app/(settings)/(org)/api-keys/`, `src/lib/api/auth.ts`
 
 ## 1. Problem & User Job
 

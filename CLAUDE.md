@@ -10,7 +10,7 @@ There is no separate backend/frontend split — everything lives in `src/`.
 |---------|----------|
 | API route handlers | `src/app/api/**/route.ts` |
 | Dashboard pages (mailbox-scoped) | `src/app/(dashboard)/` |
-| Admin pages (account-scoped) | `src/app/(admin)/` |
+| Admin pages (account-scoped) | `src/app/(settings)/(org)/` |
 | DB schema | `src/db/schema/index.ts` |
 | Zod validators | `src/lib/validators.ts` |
 | IDs | `src/lib/ids.ts` (nanoid, prefixed) |

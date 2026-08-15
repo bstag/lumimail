@@ -93,6 +93,22 @@ test.describe("a member cannot reach a mailbox they were not granted", () => {
 		expect(allowed.body).toContain(SHARED.mailboxId);
 	});
 
+	test("does not include an unauthorized mailbox in thread counts", async ({ page }) => {
+		await page.goto("/inbox");
+
+		const response = await api(page, `/api/messages?mailboxId=${SHARED.mailboxId}`);
+		expect(response.status).toBe(200);
+		const messages = JSON.parse(response.body).data.messages as Array<{
+			threadId: string | null;
+			threadCount: number;
+		}>;
+		const sharedThread = messages.filter((message) => message.threadId === SHARED.threadId);
+
+		expect(sharedThread).toHaveLength(3);
+		expect(sharedThread.every((message) => message.threadCount === 3)).toBe(true);
+		expect(response.body).not.toContain("private cross-thread subject");
+	});
+
 	test("cannot read it as a mailbox record", async ({ page }) => {
 		await page.goto("/inbox");
 
@@ -151,5 +167,35 @@ test.describe("a member cannot reach a mailbox they were not granted", () => {
 
 		// F51: the client hides the entry point, but the server is the control.
 		expect((await api(page, "/api/admin/mailboxes")).status).toBe(403);
+	});
+
+	test("cannot read or mutate routing administration through the API", async ({ page }) => {
+		await page.goto("/inbox");
+
+		expect((await api(page, "/api/routing-rules")).status).toBe(403);
+		expect((await api(page, "/api/routing-rules", {
+			method: "POST",
+			body: {},
+		})).status).toBe(403);
+		expect((await api(page, "/api/routing-rules/e2e_rule", { method: "GET" })).status).toBe(403);
+		expect((await api(page, "/api/routing-rules/e2e_rule", {
+			method: "PATCH",
+			body: {},
+		})).status).toBe(403);
+		expect((await api(page, "/api/routing-rules/e2e_rule", { method: "DELETE" })).status).toBe(403);
+	});
+
+	test("cannot read or mutate domain administration through the API", async ({ page }) => {
+		await page.goto("/inbox");
+
+		expect((await api(page, "/api/domains")).status).toBe(403);
+		expect((await api(page, "/api/domains", { method: "POST", body: {} })).status).toBe(403);
+		expect((await api(page, "/api/domains/e2e_dom")).status).toBe(403);
+		expect((await api(page, "/api/domains/e2e_dom/dns")).status).toBe(403);
+		expect((await api(page, "/api/domains/e2e_dom/sending", {
+			method: "POST",
+			body: {},
+		})).status).toBe(403);
+		expect((await api(page, "/api/domains/e2e_dom", { method: "DELETE" })).status).toBe(403);
 	});
 });

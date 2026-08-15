@@ -80,7 +80,19 @@ Source of truth for behavior. Each follows
    [`F73-hermetic-playwright-cloudflare-bindings`](./specs/F73-hermetic-playwright-cloudflare-bindings.md),
    [`F74-authentication-and-registration-hardening`](./specs/F74-authentication-and-registration-hardening.md),
    [`F75-nested-label-folders`](./specs/F75-nested-label-folders.md),
-   [`F76-all-mailboxes-scope`](./specs/F76-all-mailboxes-scope.md).
+    [`F76-all-mailboxes-scope`](./specs/F76-all-mailboxes-scope.md),
+     [`F77-security-hardening-routing-dependencies-imap`](./specs/F77-security-hardening-routing-dependencies-imap.md),
+     [`F78-local-equivalence-mvp-readiness`](./specs/F78-local-equivalence-mvp-readiness.md),
+     [`F79-remote-recovery-rehearsal`](./specs/F79-remote-recovery-rehearsal.md),
+     [`F80-operator-lifecycle`](./specs/F80-operator-lifecycle.md),
+      [`F81-signed-releases`](./specs/F81-signed-releases.md),
+       [`F82-operations-center`](./specs/F82-operations-center.md),
+       [`F83-access-and-security-center`](./specs/F83-access-and-security-center.md),
+        [`F84-production-performance-evidence`](./specs/F84-production-performance-evidence.md),
+        [`F85-unified-settings-shell`](./specs/F85-unified-settings-shell.md),
+        [`F86-desktop-split-view`](./specs/F86-desktop-split-view.md),
+         [`F87-mcp-oauth`](./specs/F87-mcp-oauth.md),
+         [`F88-push-notifications`](./specs/F88-push-notifications.md).
 
 ## Implementation notes (`implementation/`)
 

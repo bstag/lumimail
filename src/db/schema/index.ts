@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
 	sqliteTable,
 	text,
@@ -34,15 +35,23 @@ export const organizationMembers = sqliteTable(
 	(t) => [uniqueIndex("org_members_user_org_idx").on(t.userId, t.organizationId)],
 );
 
-export const orgInvites = sqliteTable("org_invites", {
-	id: text("id").primaryKey(),
-	organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-	email: text("email").notNull(),
-	role: text("role", { enum: ORG_INVITE_ROLES }).notNull().default("member"),
-	token: text("token").notNull().unique(),
-	expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
-	createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-});
+export const orgInvites = sqliteTable(
+	"org_invites",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		email: text("email").notNull(),
+		role: text("role", { enum: ORG_INVITE_ROLES }).notNull().default("member"),
+		token: text("token").notNull().unique(),
+		expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		deliveryStatus: text("delivery_status", { enum: ["not_sent", "sending", "sent", "failed"] }).notNull().default("not_sent"),
+		lastDeliveryAttemptAt: integer("last_delivery_attempt_at", { mode: "timestamp" }),
+		lastDeliveredAt: integer("last_delivered_at", { mode: "timestamp" }),
+		acceptedAt: integer("accepted_at", { mode: "timestamp" }),
+	},
+	(t) => [index("org_invites_org_created_idx").on(t.organizationId, t.createdAt)],
+);
 
 export const users = sqliteTable("users", {
 	id: text("id").primaryKey(),
@@ -435,6 +444,7 @@ export const sessions = sqliteTable(
 		tokenLookup: text("token_lookup").notNull(),
 		tokenHash: text("token_hash").notNull().unique(),
 		expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+		authenticatedAt: integer("authenticated_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.notNull()
 			.$defaultFn(() => new Date()),
@@ -442,6 +452,184 @@ export const sessions = sqliteTable(
 	(t) => [
 		uniqueIndex("sessions_token_lookup_idx").on(t.tokenLookup),
 		index("sessions_user_idx").on(t.userId),
+	],
+);
+
+export const mcpConnections = sqliteTable(
+	"mcp_connections",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+		organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		approvingSessionId: text("approving_session_id").notNull(),
+		clientId: text("client_id").notNull(),
+		clientName: text("client_name").notNull(),
+		profile: text("profile", { enum: ["read", "actions"] }).notNull(),
+		scopes: text("scopes").notNull(),
+		status: text("status", { enum: ["pending", "active", "revoked"] }).notNull(),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
+		revokedAt: integer("revoked_at", { mode: "timestamp" }),
+	},
+	(t) => [
+		index("mcp_connections_user_status_idx").on(t.userId, t.status),
+		index("mcp_connections_session_idx").on(t.approvingSessionId),
+	],
+);
+
+export const outboundIdempotency = sqliteTable(
+	"outbound_idempotency",
+	{
+		id: text("id").primaryKey(),
+		principalType: text("principal_type", { enum: ["mcp"] }).notNull(),
+		principalId: text("principal_id").notNull().references(() => mcpConnections.id, { onDelete: "cascade" }),
+		idempotencyKey: text("idempotency_key").notNull(),
+		requestHash: text("request_hash").notNull(),
+		messageId: text("message_id").notNull().references(() => messages.id, { onDelete: "cascade" }),
+		jobId: text("job_id").notNull().references(() => outboundJobs.id, { onDelete: "cascade" }),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [uniqueIndex("outbound_idempotency_principal_key_idx").on(
+		t.principalType, t.principalId, t.idempotencyKey,
+	)],
+);
+
+export const oauthRefreshTokenUses = sqliteTable(
+	"oauth_refresh_token_uses",
+	{
+		tokenHash: text("token_hash").primaryKey(),
+		claimId: text("claim_id").notNull(),
+		usedAt: integer("used_at", { mode: "timestamp" }).notNull(),
+		expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+	},
+	(t) => [index("oauth_refresh_token_uses_expiry_idx").on(t.expiresAt)],
+);
+
+export const pushDevices = sqliteTable(
+	"push_devices",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+		organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		approvingSessionId: text("approving_session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		endpoint: text("endpoint").notNull(),
+		endpointHash: text("endpoint_hash").notNull(),
+		p256dh: text("p256dh").notNull(),
+		auth: text("auth").notNull(),
+		status: text("status", { enum: ["active", "revoked", "expired"] }).notNull().default("active"),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		lastDeliveredAt: integer("last_delivered_at", { mode: "timestamp" }),
+		revokedAt: integer("revoked_at", { mode: "timestamp" }),
+		expiredAt: integer("expired_at", { mode: "timestamp" }),
+	},
+	(t) => [
+		uniqueIndex("push_devices_endpoint_hash_idx").on(t.endpointHash).where(sql`${t.status} = 'active'`),
+		uniqueIndex("push_devices_active_session_idx").on(t.approvingSessionId).where(sql`${t.status} = 'active'`),
+		index("push_devices_user_org_status_idx").on(t.userId, t.organizationId, t.status),
+		index("push_devices_cleanup_idx").on(t.status, t.revokedAt, t.expiredAt),
+	],
+);
+
+export const pushDeviceMailboxes = sqliteTable(
+	"push_device_mailboxes",
+	{
+		deviceId: text("device_id").notNull().references(() => pushDevices.id, { onDelete: "cascade" }),
+		mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [
+		uniqueIndex("push_device_mailboxes_pair_idx").on(t.deviceId, t.mailboxId),
+		index("push_device_mailboxes_mailbox_idx").on(t.mailboxId, t.deviceId),
+	],
+);
+
+export const pushNotificationEvents = sqliteTable(
+	"push_notification_events",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+		messageId: text("message_id").notNull().references(() => messages.id, { onDelete: "cascade" }),
+		status: text("status", { enum: ["pending", "expanding", "complete", "failed"] }).notNull().default("pending"),
+		expansionCursor: text("expansion_cursor"),
+		attempts: integer("attempts").notNull().default(0),
+		nextAttemptAt: integer("next_attempt_at", { mode: "timestamp" }).notNull(),
+		leaseUntil: integer("lease_until", { mode: "timestamp" }),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		completedAt: integer("completed_at", { mode: "timestamp" }),
+	},
+	(t) => [
+		uniqueIndex("push_notification_events_message_idx").on(t.messageId),
+		index("push_notification_events_due_idx").on(t.status, t.nextAttemptAt),
+	],
+);
+
+export const pushDeliveries = sqliteTable(
+	"push_deliveries",
+	{
+		id: text("id").primaryKey(),
+		eventId: text("event_id").notNull().references(() => pushNotificationEvents.id, { onDelete: "cascade" }),
+		deviceId: text("device_id").notNull().references(() => pushDevices.id, { onDelete: "cascade" }),
+		status: text("status", { enum: ["pending", "delivering", "delivered", "skipped", "failed"] }).notNull().default("pending"),
+		attempts: integer("attempts").notNull().default(0),
+		nextAttemptAt: integer("next_attempt_at", { mode: "timestamp" }).notNull(),
+		leaseUntil: integer("lease_until", { mode: "timestamp" }),
+		providerOutcome: text("provider_outcome"),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		deliveredAt: integer("delivered_at", { mode: "timestamp" }),
+		terminalAt: integer("terminal_at", { mode: "timestamp" }),
+	},
+	(t) => [
+		uniqueIndex("push_deliveries_event_device_idx").on(t.eventId, t.deviceId),
+		index("push_deliveries_due_idx").on(t.status, t.nextAttemptAt),
+		index("push_deliveries_cleanup_idx").on(t.status, t.terminalAt),
+	],
+);
+
+export const securityAuditEvents = sqliteTable(
+	"security_audit_events",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		actorUserId: text("actor_user_id").notNull(),
+		action: text("action", { enum: [
+			"session.revoke", "session.revoke_others", "mailbox.grant_bulk",
+			"mcp.authorize", "mcp.revoke", "mcp.mutate",
+			"push.register", "push.rename", "push.preferences", "push.revoke",
+		] }).notNull(),
+		resourceType: text("resource_type", { enum: [
+			"session", "mailbox_membership", "mcp_connection", "push_device",
+		] }).notNull(),
+		resourceId: text("resource_id"),
+		affectedCount: integer("affected_count").notNull(),
+		requestId: text("request_id").notNull(),
+		outcome: text("outcome", { enum: ["succeeded"] }).notNull(),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [
+		index("security_audit_events_org_created_idx").on(t.organizationId, t.createdAt),
+		uniqueIndex("security_audit_events_request_idx").on(t.requestId),
+	],
+);
+
+export const operationalEvidence = sqliteTable(
+	"operational_evidence",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		actorUserId: text("actor_user_id").notNull(),
+		category: text("category", { enum: ["recovery", "release", "smoke", "mail_flow"] }).notNull(),
+		outcome: text("outcome", { enum: ["passed", "failed"] }).notNull(),
+		passedChecks: integer("passed_checks").notNull(),
+		totalChecks: integer("total_checks").notNull(),
+		observedAt: integer("observed_at", { mode: "timestamp" }).notNull(),
+		recordedAt: integer("recorded_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [
+		uniqueIndex("operational_evidence_org_category_observed_idx").on(t.organizationId, t.category, t.observedAt),
+		index("operational_evidence_org_recorded_idx").on(t.organizationId, t.recordedAt),
 	],
 );
 
@@ -567,6 +755,8 @@ export type OrgInvite = typeof orgInvites.$inferSelect;
 export type Alias = typeof aliases.$inferSelect;
 export type Label = typeof labels.$inferSelect;
 export type Attachment = typeof attachments.$inferSelect;
+export type McpConnection = typeof mcpConnections.$inferSelect;
+export type PushDevice = typeof pushDevices.$inferSelect;
 
 export const schema = {
 	organizations,
@@ -592,6 +782,15 @@ export const schema = {
 	webhooks,
 	webhookDeliveries,
 	sessions,
+	securityAuditEvents,
+	operationalEvidence,
+	mcpConnections,
+	outboundIdempotency,
+	oauthRefreshTokenUses,
+	pushDevices,
+	pushDeviceMailboxes,
+	pushNotificationEvents,
+	pushDeliveries,
 	labels,
 	messageLabels,
 	attachments,

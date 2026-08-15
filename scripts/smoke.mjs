@@ -1,22 +1,19 @@
 /**
  * Post-deployment smoke checks.
  *
- * These were previously typed by hand after each deploy and pasted into the
- * remediation log, which made them an operator habit rather than a test — nothing
- * recorded which checks ran, and nothing failed if one was skipped.
- *
- * Deliberately shallow. It answers "did this deployment come up, and is it refusing
- * anonymous access", not "does the product work" — that is what the E2E suites are
- * for. Everything here is unauthenticated, so it is safe to point at production.
- *
  * Usage:
  *   node scripts/smoke.mjs https://mail.example.com
+ *   node scripts/smoke.mjs https://mail.example.com --record-evidence
  *   node scripts/smoke.mjs                     # defaults to PUBLIC_APP_URL
  */
 
-const TIMEOUT_MS = 15_000;
+import { pathToFileURL } from "node:url";
 
-/** Each check is a path, the status it must return, and why that matters. */
+import { publishOperationalEvidence } from "./operations-evidence.mjs";
+
+const TIMEOUT_MS = 15_000;
+const PUBLISH_FAILURE = "Operational evidence could not be recorded.";
+
 const CHECKS = [
 	{ path: "/", expect: 200, reason: "landing page renders" },
 	{ path: "/login", expect: 200, reason: "sign-in is reachable" },
@@ -24,14 +21,16 @@ const CHECKS = [
 	{ path: "/api/auth/me", expect: 401, reason: "session API refuses anonymous callers" },
 	{ path: "/api/mailboxes", expect: 401, reason: "mailbox API refuses anonymous callers" },
 	{ path: "/api/admin/mailboxes", expect: 401, reason: "admin API refuses anonymous callers" },
+	{ path: "/api/push/config", expect: 401, reason: "push config refuses anonymous callers" },
+	{ path: "/api/push/devices", expect: 401, reason: "push devices refuse anonymous callers" },
 ];
 
-async function check(baseUrl, { path, expect: expected, reason }) {
-	const url = new URL(path, baseUrl).toString();
+async function check(baseUrl, { path, expect: expected, reason }, fetchImpl) {
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 	try {
-		const response = await fetch(url, { signal: controller.signal, redirect: "manual" });
+		const url = new URL(path, baseUrl).toString();
+		const response = await fetchImpl(url, { signal: controller.signal, redirect: "manual" });
 		return { path, reason, expected, actual: response.status, ok: response.status === expected };
 	} catch (error) {
 		return { path, reason, expected, actual: String(error).split("\n")[0], ok: false };
@@ -40,22 +39,54 @@ async function check(baseUrl, { path, expect: expected, reason }) {
 	}
 }
 
-const baseUrl = process.argv[2] ?? process.env.PUBLIC_APP_URL;
-if (!baseUrl) {
-	console.error("Usage: node scripts/smoke.mjs <base-url>   (or set PUBLIC_APP_URL)");
-	process.exit(2);
+export async function runSmokeCommand(args, {
+	stdout = console.log,
+	stderr = console.error,
+	fetchImpl = fetch,
+	publishEvidence = publishOperationalEvidence,
+	environment = process.env,
+	now = () => new Date(),
+} = {}) {
+	const recordFlags = args.filter((value) => value === "--record-evidence");
+	const recordEvidence = recordFlags.length === 1;
+	const positional = args.filter((value) => value !== "--record-evidence");
+	const baseUrl = positional[0] ?? environment.PUBLIC_APP_URL;
+	if (!baseUrl || positional.length > 1 || recordFlags.length > 1) {
+		stderr("Usage: node scripts/smoke.mjs <base-url> [--record-evidence]   (or set PUBLIC_APP_URL)");
+		return 2;
+	}
+
+	const results = [];
+	for (const item of CHECKS) results.push(await check(baseUrl, item, fetchImpl));
+	for (const result of results) {
+		const mark = result.ok ? "PASS" : "FAIL";
+		stdout(`${mark}  ${String(result.actual).padEnd(6)} ${result.path.padEnd(26)} ${result.reason}`);
+	}
+	const passedChecks = results.filter((result) => result.ok).length;
+	stdout(`\n${passedChecks}/${results.length} passed against ${baseUrl}`);
+
+	if (recordEvidence) {
+		try {
+			await publishEvidence({
+				origin: baseUrl,
+				sessionToken: environment.LUMIMAIL_SESSION_TOKEN,
+				evidence: {
+					category: "smoke",
+					outcome: passedChecks === results.length ? "passed" : "failed",
+					passedChecks,
+					totalChecks: results.length,
+					observedAt: now().toISOString(),
+				},
+			});
+		} catch {
+			stderr(PUBLISH_FAILURE);
+			return 1;
+		}
+	}
+
+	return passedChecks === results.length ? 0 : 1;
 }
 
-const results = [];
-for (const item of CHECKS) results.push(await check(baseUrl, item));
-
-for (const result of results) {
-	const mark = result.ok ? "PASS" : "FAIL";
-	console.log(`${mark}  ${String(result.actual).padEnd(6)} ${result.path.padEnd(26)} ${result.reason}`);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+	process.exitCode = await runSmokeCommand(process.argv.slice(2));
 }
-
-const failed = results.filter((result) => !result.ok);
-console.log(`\n${results.length - failed.length}/${results.length} passed against ${baseUrl}`);
-
-// A non-zero exit is the point: this is meant to gate a deployment, not inform one.
-process.exit(failed.length === 0 ? 0 : 1);

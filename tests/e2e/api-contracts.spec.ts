@@ -148,8 +148,8 @@ test.describe("canonical API client contracts", () => {
 		await page.getByLabel("Alias type").selectOption("group");
 		await page.getByLabel("Local part").fill("team");
 		await page.getByLabel("Domain").selectOption("dom_1");
-		await page.getByLabel("owner@example.com").check();
-		await page.getByLabel("support@other.test").check();
+		await page.getByRole("checkbox", { name: "owner@example.com", exact: true }).check();
+		await page.getByRole("checkbox", { name: "support@other.test", exact: true }).check();
 		await page.getByRole("button", { name: "Create group" }).click();
 
 		await expect.poll(() => createPayload).not.toBeNull();

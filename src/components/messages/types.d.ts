@@ -32,6 +32,10 @@ export type MessageListRowProps = {
 	compact?: boolean;
 	/** Pre-formatted row timestamp; the parent formats all rows against one instant. */
 	timestamp?: string;
+	/** Opens the selected message in the desktop panel while retaining the full-page mobile href. */
+	href?: string;
+	/** Visual/current-row state for the open desktop conversation. */
+	active?: boolean;
 };
 
 export type BulkMessageToolbarProps = {

@@ -16,3 +16,11 @@ export async function submitLogin(form: FormData): Promise<{ ok: boolean; data: 
 		data: (await persistAuthSession(res)) as LoginResult,
 	};
 }
+
+export function resolveLoginRedirect(defaultRedirect: string | undefined, search: string): string {
+	const requested = new URLSearchParams(search).get("redirect");
+	if (requested?.startsWith("/") && !requested.startsWith("//") && !requested.includes("\\")) {
+		return requested;
+	}
+	return defaultRedirect ?? "/inbox";
+}

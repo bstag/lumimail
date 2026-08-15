@@ -13,7 +13,9 @@ let database: DatabaseSync;
 
 function findSqliteDatabase(directory: string): string {
 	for (const entry of readdirSync(directory, { recursive: true, withFileTypes: true })) {
-		if (entry.isFile() && entry.name.endsWith(".sqlite")) {
+		// Current Wrangler releases add cache and Durable Object metadata databases beside
+		// the D1 payload. Only the hashed, non-metadata file contains application rows.
+		if (entry.isFile() && entry.name.endsWith(".sqlite") && entry.name !== "metadata.sqlite") {
 			return resolve(entry.parentPath, entry.name);
 		}
 	}

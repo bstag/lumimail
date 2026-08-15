@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { routingRules } from "@/db/schema";
-import { withUser } from "@/lib/api/handler";
+import { withOrgAdmin } from "@/lib/api/handler";
 import { routingRuleSchema, routingRuleUpdateSchema } from "@/lib/validators";
 import { normalizeRoutingPattern } from "@/lib/email/routing-pattern";
 import { apiError, apiSuccess, firstZodMessage, parseJsonBody } from "@/lib/api/response";
@@ -13,9 +13,8 @@ import {
   syncCatchAllTransition,
 } from "@/lib/email/routing-rules-service";
 
-export const GET = withUser<{ id: string }>(async ({ env, user, params }) => {
+export const GET = withOrgAdmin<{ id: string }>(async ({ env, user, params }) => {
   const { id } = params;
-  if (!user.organizationId) return apiError("No organization", 400);
 
   const db = getDb(env);
   const [rule] = await db
@@ -28,9 +27,8 @@ export const GET = withUser<{ id: string }>(async ({ env, user, params }) => {
   return apiSuccess({ rule });
 });
 
-export const PATCH = withUser<{ id: string }>(async ({ request, env, user, params }) => {
+export const PATCH = withOrgAdmin<{ id: string }>(async ({ request, env, user, params }) => {
   const { id } = params;
-  if (!user.organizationId) return apiError("No organization", 400);
 
   const db = getDb(env);
   const [rule] = await db
@@ -119,9 +117,8 @@ export const PATCH = withUser<{ id: string }>(async ({ request, env, user, param
   return apiSuccess({ rule: updated });
 });
 
-export const DELETE = withUser<{ id: string }>(async ({ env, user, params }) => {
+export const DELETE = withOrgAdmin<{ id: string }>(async ({ env, user, params }) => {
   const { id } = params;
-  if (!user.organizationId) return apiError("No organization", 400);
 
   const db = getDb(env);
   const [rule] = await db

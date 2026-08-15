@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
 	addDomainSchema,
+	bulkMailboxGrantSchema,
 	createAliasSchema,
 	firstRunRegisterSchema,
 	loginSchema,
 	mailboxSchema,
+	pushDeviceNameSchema,
+	pushDeviceCreateSchema,
+	pushDevicePreferencesSchema,
+	pushDeviceRenameSchema,
+	pushSubscriptionSchema,
 	routingRuleSchema,
 	routingRuleUpdateSchema,
 	sendEmailSchema,
@@ -12,6 +18,81 @@ import {
 	updateAliasGroupSchema,
 	webhookSchema,
 } from "@/lib/validators";
+
+const validPushSubscription = {
+	endpoint: "https://fcm.googleapis.com/fcm/send/example-token",
+	keys: {
+		p256dh: `B${"A".repeat(86)}`,
+		auth: "A".repeat(22),
+	},
+};
+
+describe("push notification validators", () => {
+	it("accepts a bounded device name and normalizes surrounding whitespace", () => {
+		expect(pushDeviceNameSchema.parse("  Jason's laptop  ")).toBe("Jason's laptop");
+		expect(pushDeviceNameSchema.safeParse(" ").success).toBe(false);
+		expect(pushDeviceNameSchema.safeParse("a".repeat(65)).success).toBe(false);
+	});
+
+	it("accepts only recognized HTTPS push endpoints and exact browser key sizes", () => {
+		expect(pushSubscriptionSchema.parse(validPushSubscription)).toEqual(validPushSubscription);
+		for (const endpoint of [
+			"not a URL",
+			"http://fcm.googleapis.com/fcm/send/token",
+			"https://fcm.googleapis.com:8443/fcm/send/token",
+			"https://user:password@fcm.googleapis.com/fcm/send/token",
+			"https://127.0.0.1/push/token",
+			"https://example.com/push/token",
+		]) {
+			expect(pushSubscriptionSchema.safeParse({ ...validPushSubscription, endpoint }).success).toBe(false);
+		}
+		expect(pushSubscriptionSchema.safeParse({
+			...validPushSubscription,
+			keys: { ...validPushSubscription.keys, p256dh: "short" },
+		}).success).toBe(false);
+		expect(pushSubscriptionSchema.safeParse({
+			...validPushSubscription,
+			keys: { ...validPushSubscription.keys, auth: "short" },
+		}).success).toBe(false);
+		expect(pushSubscriptionSchema.safeParse({
+			...validPushSubscription,
+			keys: { ...validPushSubscription.keys, auth: "***" },
+		}).success).toBe(false);
+	});
+
+	it("requires a unique bounded replacement list of mailbox IDs", () => {
+		expect(pushDevicePreferencesSchema.parse({ mailboxIds: [] })).toEqual({ mailboxIds: [] });
+		expect(pushDevicePreferencesSchema.safeParse({ mailboxIds: ["mbx_1", "mbx_1"] }).success).toBe(false);
+		expect(pushDevicePreferencesSchema.safeParse({
+			mailboxIds: Array.from({ length: 51 }, (_, index) => `mbx_${index}`),
+		}).success).toBe(false);
+	});
+
+	it("keeps create and rename bodies strict", () => {
+		expect(pushDeviceCreateSchema.parse({
+			name: " Laptop ",
+			subscription: validPushSubscription,
+		})).toEqual({ name: "Laptop", subscription: validPushSubscription });
+		expect(pushDeviceCreateSchema.safeParse({
+			name: "Laptop", subscription: validPushSubscription, mailboxIds: ["mbx_1"],
+		}).success).toBe(false);
+		expect(pushDeviceRenameSchema.parse({ name: " Phone " })).toEqual({ name: "Phone" });
+		expect(pushDeviceRenameSchema.safeParse({ name: "Phone", endpoint: "secret" }).success).toBe(false);
+	});
+});
+
+describe("bulkMailboxGrantSchema", () => {
+	it("accepts 1–25 unique mailbox IDs and a mailbox role", () => {
+		const valid = { targetUserId: "usr_1", mailboxIds: ["mbx_1", "mbx_2"], role: "manager" };
+		expect(bulkMailboxGrantSchema.safeParse(valid).success).toBe(true);
+		expect(bulkMailboxGrantSchema.safeParse({ ...valid, mailboxIds: [] }).success).toBe(false);
+		expect(bulkMailboxGrantSchema.safeParse({ ...valid, mailboxIds: ["mbx_1", "mbx_1"] }).success).toBe(false);
+		expect(bulkMailboxGrantSchema.safeParse({
+			...valid, mailboxIds: Array.from({ length: 26 }, (_, index) => `mbx_${index}`),
+		}).success).toBe(false);
+		expect(bulkMailboxGrantSchema.safeParse({ ...valid, role: "owner" }).success).toBe(false);
+	});
+});
 
 describe("createAliasSchema", () => {
 	it("normalizes a mailbox alias and rejects external/provider fields", () => {

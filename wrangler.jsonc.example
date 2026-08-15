@@ -24,6 +24,9 @@
 	// credential belongs here. Set these as secrets instead:
 	//   wrangler secret put CF_TOKEN          // Cloudflare API token
 	//   wrangler secret put RESEND_API_KEY    // only when MAIL_PROVIDER=resend
+	//   wrangler secret put VAPID_PUBLIC_KEY  // environment-specific Web Push key
+	//   wrangler secret put VAPID_PRIVATE_KEY // environment-specific Web Push key
+	//   wrangler secret put VAPID_SUBJECT     // mailto: or HTTPS operator contact
 	"vars": {
 		"CF_ACCOUNT_ID": "cf-account-id",
 		// Name of the Worker that Email Routing rules target. Must match "name"
@@ -71,6 +74,12 @@
 			"migrations_dir": "drizzle/migrations",
 		},
 	],
+	"kv_namespaces": [
+		{
+			"binding": "OAUTH_KV",
+			"id": "your-production-oauth-kv-id",
+		},
+	],
 	"r2_buckets": [
 		{
 			"binding": "BUCKET",
@@ -92,6 +101,14 @@
 				"binding": "OUTBOUND_DLQ_QUEUE",
 				"queue": "lumimail-outbound-dlq",
 			},
+			{
+				"binding": "PUSH_QUEUE",
+				"queue": "lumimail-push",
+			},
+			{
+				"binding": "PUSH_DLQ_QUEUE",
+				"queue": "lumimail-push-dlq",
+			},
 		],
 		"consumers": [
 			{
@@ -110,6 +127,17 @@
 				"max_batch_size": 5,
 				"max_retries": 3,
 			},
+			{
+				"queue": "lumimail-push",
+				"max_batch_size": 10,
+				"max_retries": 3,
+				"dead_letter_queue": "lumimail-push-dlq",
+			},
+			{
+				"queue": "lumimail-push-dlq",
+				"max_batch_size": 10,
+				"max_retries": 1,
+			},
 		],
 	},
 	// Staging (F67). Deploy with: wrangler deploy --env staging
@@ -125,12 +153,14 @@
 	"env": {
 		"staging": {
 			"name": "lumimail-staging",
+			// Never inherit or reassign the production custom domain.
+			"routes": [],
 			"vars": {
 				"CF_ACCOUNT_ID": "caddde404ba5d0324c315dc5cf143696",
 				"CF_EMAIL_WORKER_NAME": "lumimail-staging",
 				"MAIL_PROVIDER": "cloudflare",
 				// Replace with the deployed workers.dev origin after first deploy.
-				"PUBLIC_APP_URL": "https://lumimail-staging.workers.dev",
+				"PUBLIC_APP_URL": "https://lumimail-staging.your-workers-subdomain.workers.dev",
 				"PASSWORD_RESET_FROM": "noreply@STAGING_DOMAIN"
 				// R2_SWEEP_ENABLED deliberately unset, as in production: never enable
 				// a destructive sweep before its report has been read.
@@ -151,12 +181,20 @@
 					"migrations_dir": "drizzle/migrations"
 				}
 			],
+			"kv_namespaces": [
+				{
+					"binding": "OAUTH_KV",
+					"id": "your-staging-oauth-kv-id",
+				},
+			],
 			"r2_buckets": [{ "binding": "BUCKET", "bucket_name": "lumimail-raw-staging" }],
 			"queues": {
 				"producers": [
 					{ "binding": "INBOUND_QUEUE", "queue": "lumimail-inbound-staging" },
 					{ "binding": "OUTBOUND_QUEUE", "queue": "lumimail-outbound-staging" },
-					{ "binding": "OUTBOUND_DLQ_QUEUE", "queue": "lumimail-outbound-dlq-staging" }
+					{ "binding": "OUTBOUND_DLQ_QUEUE", "queue": "lumimail-outbound-dlq-staging" },
+					{ "binding": "PUSH_QUEUE", "queue": "lumimail-push-staging" },
+					{ "binding": "PUSH_DLQ_QUEUE", "queue": "lumimail-push-dlq-staging" }
 				],
 				"consumers": [
 					{ "queue": "lumimail-inbound-staging", "max_batch_size": 5, "max_retries": 3 },
@@ -166,7 +204,9 @@
 						"max_retries": 3,
 						"dead_letter_queue": "lumimail-outbound-dlq-staging"
 					},
-					{ "queue": "lumimail-outbound-dlq-staging", "max_batch_size": 5, "max_retries": 3 }
+					{ "queue": "lumimail-outbound-dlq-staging", "max_batch_size": 5, "max_retries": 3 },
+					{ "queue": "lumimail-push-staging", "max_batch_size": 10, "max_retries": 3, "dead_letter_queue": "lumimail-push-dlq-staging" },
+					{ "queue": "lumimail-push-dlq-staging", "max_batch_size": 10, "max_retries": 1 }
 				]
 			}
 		}

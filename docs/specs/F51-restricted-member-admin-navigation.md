@@ -16,7 +16,7 @@
 - `/api/auth/me` exposes the authenticated user's organization role.
 - Owner and admin users retain the existing organization administration navigation and routes.
 - Member users do not see **Admin settings** or any organization administration navigation.
-- Direct navigation by a member to an `(admin)` route redirects to `/inbox` before rendering administrative controls.
+- Direct navigation by a member to an administrative route redirects to `/inbox` before rendering administrative controls.
 - API authorization remains authoritative and continues returning `403` for forbidden administration requests.
 
 ## 3. Security invariants
@@ -88,7 +88,7 @@ Impact:
 - Added the current organization role to `/api/auth/me` without changing the existing identity or mailbox-state fields.
 - Authenticated layouts now provide the current session to descendant navigation.
 - The mailbox selector renders **Admin settings** only for an owner or admin and fails closed when role data is missing or malformed.
-- The entire `(admin)` layout requires an owner/admin role and redirects a member to `/inbox` before admin navigation, queries, or controls render.
+- The `(settings)/(org)` layout requires an owner/admin role and redirects a member to `/inbox` before admin navigation, queries, or controls render.
 - Existing server-side `guardOrgAdmin` checks were left unchanged.
 - Added unit coverage for accepted/rejected organization roles and the session response contract.
 - Added browser coverage for all eight administration entry routes, member navigation visibility, retained owner access, and an owner-to-member account switch without a hard refresh.

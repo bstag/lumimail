@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextResponse } from "next/server";
 import { createDbMock, type DbMock } from "../../../../helpers/db";
 
 const m = vi.hoisted(() => ({
@@ -20,9 +19,9 @@ vi.mock("@/lib/cloudflare-api", async (importOriginal) => ({
 import { GET, PATCH, DELETE } from "@/app/api/routing-rules/[id]/route";
 
 let mock: DbMock;
-const unauth = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 const params = (id = "rule_1") => ({ params: Promise.resolve({ id }) });
-const authedOrg = { id: "u1", organizationId: "org1" };
+const authedOrg = { id: "u1", organizationId: "org1", role: "admin" };
+const member = { id: "u2", organizationId: "org1", role: "member" };
 
 beforeEach(() => {
 	mock = createDbMock();
@@ -46,11 +45,18 @@ describe("GET /api/routing-rules/[id]", () => {
 		expect(res.status).toBe(401);
 	});
 
-	it("returns 400 when user has no organization", async () => {
+	it("returns 403 for a restricted member before querying", async () => {
+		m.getCurrentUser.mockResolvedValue(member);
+		const res = await GET(req(), params());
+		expect(res.status).toBe(403);
+		expect(mock.db.select).not.toHaveBeenCalled();
+	});
+
+	it("returns 401 when user has no organization", async () => {
 		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: null });
 		const res = await GET(req(), params());
-		expect(res.status).toBe(400);
-		expect((await res.json()) as any).toEqual({ success: false, error: { message: "No organization" } });
+		expect(res.status).toBe(401);
+		expect((await res.json()) as any).toEqual({ success: false, error: { message: "Unauthorized" } });
 	});
 
 	it("returns 404 when rule not found / cross-tenant", async () => {
@@ -77,10 +83,19 @@ describe("PATCH /api/routing-rules/[id]", () => {
 		expect(res.status).toBe(401);
 	});
 
-	it("returns 400 when user has no organization", async () => {
+	it("returns 403 for a restricted member before DB or provider work", async () => {
+		m.getCurrentUser.mockResolvedValue(member);
+		const res = await PATCH(req({ priority: 9 }), params());
+		expect(res.status).toBe(403);
+		expect(mock.updates).toHaveLength(0);
+		expect(m.ensureCatchAll).not.toHaveBeenCalled();
+		expect(m.disableCatchAll).not.toHaveBeenCalled();
+	});
+
+	it("returns 401 when user has no organization", async () => {
 		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: null });
 		const res = await PATCH(req({ action: "store" }), params());
-		expect(res.status).toBe(400);
+		expect(res.status).toBe(401);
 	});
 
 	it("returns 404 when rule not found / cross-tenant", async () => {
@@ -247,10 +262,18 @@ describe("DELETE /api/routing-rules/[id]", () => {
 		expect(res.status).toBe(401);
 	});
 
-	it("returns 400 when user has no organization", async () => {
+	it("returns 403 for a restricted member before DB or provider work", async () => {
+		m.getCurrentUser.mockResolvedValue(member);
+		const res = await DELETE(req(), params());
+		expect(res.status).toBe(403);
+		expect(mock.deletes).toHaveLength(0);
+		expect(m.disableCatchAll).not.toHaveBeenCalled();
+	});
+
+	it("returns 401 when user has no organization", async () => {
 		m.getCurrentUser.mockResolvedValue({ id: "u1", organizationId: null });
 		const res = await DELETE(req(), params());
-		expect(res.status).toBe(400);
+		expect(res.status).toBe(401);
 	});
 
 	it("returns 404 when rule not found / cross-tenant", async () => {

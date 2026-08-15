@@ -1,5 +1,6 @@
 // @ts-ignore OpenNext generates this module during build.
 import { default as nextHandler } from "./.open-next/worker.js";
+import { OAuthProvider, type OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import {
 	processInboundMessage,
 	storeRawToR2,
@@ -13,6 +14,8 @@ import {
 	isInboundQueueMessage,
 	isOutboundDeadLetterQueue,
 	isOutboundQueueMessage,
+	isPushDeadLetterQueue,
+	isPushQueueMessage,
 } from "./worker-utils";
 import { runQueueHealthCheck } from "./src/lib/queue-health";
 import { purgeExpiredRateLimits } from "./src/lib/rate-limit";
@@ -24,9 +27,76 @@ import {
 	forwardInbound,
 	shouldRejectUndeliverable,
 } from "./src/lib/email/forwarding";
+import { mcpApiHandler, type McpEnv } from "./src/lib/mcp/server";
+import {
+	MCP_ACTION_SCOPE,
+	MCP_READ_SCOPE,
+	canonicalMcpResource,
+} from "./src/lib/mcp/security";
+import { enforceMcpClientRegistrationPolicy } from "./src/lib/mcp/registration-policy";
+import { handleMcpAuthorizationRequest } from "./worker-mcp-authorization";
+import { handleMcpOAuthTokenRequest, purgeMcpRefreshTokenUses } from "./worker-mcp-refresh";
+import { processPushQueueMessage, reconcilePushNotifications } from "./src/lib/push/queue";
+import { purgePushNotificationState } from "./src/lib/push/retention";
+
+type McpWorkerEnv = McpEnv & { OAUTH_KV: KVNamespace; OAUTH_PROVIDER: OAuthHelpers };
+
+const oauthAwareNextHandler = {
+	fetch(request: Request, env: McpWorkerEnv, ctx: ExecutionContext) {
+		if (new URL(request.url).pathname === "/api/mcp/authorization") {
+			return handleMcpAuthorizationRequest(request, env);
+		}
+		return nextHandler.fetch(request, env, ctx);
+	},
+};
+
+function createOAuthProvider(env: McpWorkerEnv) {
+	const publicAppUrl = env.PUBLIC_APP_URL;
+	if (!publicAppUrl) throw new Error("PUBLIC_APP_URL is required for OAuth");
+	const resource = canonicalMcpResource(publicAppUrl);
+	return new OAuthProvider<McpWorkerEnv>({
+		apiRoute: "/mcp",
+		apiHandler: mcpApiHandler,
+		defaultHandler: oauthAwareNextHandler,
+		authorizeEndpoint: "/oauth/authorize",
+		tokenEndpoint: "/oauth/token",
+		clientRegistrationEndpoint: "/oauth/register",
+		clientIdMetadataDocumentEnabled: true,
+		scopesSupported: [MCP_READ_SCOPE, MCP_ACTION_SCOPE],
+		resourceMetadata: {
+			resource,
+			authorization_servers: [new URL(publicAppUrl).origin],
+			scopes_supported: [MCP_READ_SCOPE, MCP_ACTION_SCOPE],
+			bearer_methods_supported: ["header"],
+			resource_name: "Lumimail",
+		},
+		accessTokenTTL: 60 * 60,
+		refreshTokenTTL: 30 * 24 * 60 * 60,
+		clientRegistrationTTL: 30 * 24 * 60 * 60,
+		clientRegistrationCallback: (options) => enforceMcpClientRegistrationPolicy(env, options),
+		allowImplicitFlow: false,
+		allowPlainPKCE: false,
+		allowTokenExchangeGrant: false,
+		resourceMatchOriginOnly: false,
+	});
+}
 
 export default {
-	fetch: nextHandler.fetch,
+	fetch(request: Request, env: CloudflareEnv, ctx: ExecutionContext) {
+		const mcpEnv = env as McpWorkerEnv;
+		const publicAppUrl = env.PUBLIC_APP_URL;
+		if (!publicAppUrl) throw new Error("PUBLIC_APP_URL is required for OAuth");
+		const provider = createOAuthProvider(mcpEnv);
+		if (request.method === "POST" && new URL(request.url).pathname === "/oauth/token") {
+			return handleMcpOAuthTokenRequest(
+				request,
+				env,
+				canonicalMcpResource(publicAppUrl),
+				(input) => provider.fetch(input, mcpEnv, ctx),
+			);
+		}
+		return provider.fetch(request, mcpEnv, ctx);
+	},
 
 	async email(message: ForwardableEmailMessage, env: CloudflareEnv, ctx: ExecutionContext) {
 		// Forwarding must happen here: `message.forward()` exists only on the live
@@ -88,6 +158,19 @@ export default {
 					} else {
 						msg.ack();
 					}
+				} else if (isPushQueueMessage(msg.body)) {
+					if (isPushDeadLetterQueue(batch.queue)) {
+						// D1 remains authoritative. The scheduled reconciler will wake any
+						// still-pending row without replaying a malformed DLQ payload.
+						msg.ack();
+						continue;
+					}
+					const result = await processPushQueueMessage(env, msg.body);
+					if (result.action === "retry") {
+						msg.retry({ delaySeconds: result.delaySeconds });
+					} else {
+						msg.ack();
+					}
 				} else {
 					console.error("Queue payload rejected", {
 						queue: batch.queue,
@@ -116,6 +199,22 @@ export default {
 		// only keeps the table from growing without bound (F74). It swallows its
 		// own failures, so it cannot block the sweep below.
 		await purgeExpiredRateLimits(env);
+		await purgeMcpRefreshTokenUses(env);
+
+		try {
+			await reconcilePushNotifications(env);
+			await purgePushNotificationState(env);
+		} catch {
+			console.warn("Push reconciliation failed");
+		}
+
+		try {
+			await createOAuthProvider(env as McpWorkerEnv).purgeExpiredData(env as McpWorkerEnv, {
+				batchSize: 100,
+			});
+		} catch {
+			console.warn("OAuth storage purge failed");
+		}
 
 		// Ships disabled. The existing production backlog would otherwise be removed
 		// on the first run, before an operator has seen the report (F63).
