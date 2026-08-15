@@ -1,6 +1,6 @@
 # F88 — Privacy-Preserving Push Notifications
 
-> Status: Staging Validation
+> Status: Shipped
 > Owner area: `public/sw.js`, `src/lib/push/`, `/api/push/*`, `/settings/notifications`, `worker.ts`
 
 ## 1. Problem & User Job
@@ -168,10 +168,14 @@ Lumimail now implements the F88 contract: the root service worker handles only o
 IDs and fixed copy; signed-in users explicitly enroll, name, configure, and recently-auth revoke their
 own devices from `/settings/notifications`; and D1 outbox/delivery rows isolate inbound persistence
 from bounded provider work. Delivery and click resolution recheck the exact session, organization,
-device, preference, mailbox membership, and message state. Isolated staging queues, VAPID secrets,
-migration 0036, and the Worker deployment are live. Real staging subscribed-browser delivery,
-authorized click, access-revoked click denial, and post-revocation non-delivery remain the promotion
-gate before production resources, migration, secrets, and deployment are created.
+device, preference, mailbox membership, and message state. Isolated staging and production queues,
+environment-specific VAPID secrets, migration 0036, and both Worker deployments are live. A real
+Chrome subscription on staging proved zero-default mailbox selection, explicit opt-in, first-attempt
+provider acceptance, authorized click
+resolution, access-revoked click denial, recent-auth device revocation, and zero post-revocation
+deliveries. A separate real production subscription then proved a genuine outbound-to-inbound mail
+flow, generic first-attempt provider delivery, authorized resolution, recent-auth revocation, and a
+second genuine inbound event with zero deliveries after revocation.
 
 ## 10. Error States
 
@@ -246,8 +250,29 @@ evidence, then production migration/bindings/deploy/smoke and one controlled opt
   cache artifact. Production and staging Wrangler dry runs accepted the isolated push bindings.
 - Staging queues `lumimail-push-staging` and `lumimail-push-dlq-staging`, a staging-only VAPID pair,
   migration 0036, and Worker version `94bfec94-98c0-4e22-93ca-301030bdeab3` are deployed. Public
-  staging smoke passed 8/8 after adding the two F88 anonymous API boundaries. Authenticated real-
-  browser/provider evidence remains pending.
+  staging smoke passed 8/8 after adding the two F88 anonymous API boundaries.
+- A real Chrome subscription named `Staging Chrome proof` enrolled with zero mailbox preferences,
+  then explicitly enabled only the synthetic `mcp-proof@staging.invalid` mailbox. One controlled
+  unread staging event completed with one delivery, one provider attempt, `accepted` outcome, and a
+  visible last-delivered timestamp. Its opaque resolver opened the exact authorized inbox route;
+  removing the synthetic mailbox membership made the same resolver return the indistinguishable
+  `Not found` response, after which the exact membership was restored.
+- Recent-auth revocation changed the device to `revoked` and unsubscribed the browser. A second
+  controlled unread event completed with zero delivery rows. Because the isolated staging hostname
+  is deliberately non-routable (`staging.invalid`), these two events were inserted at the durable
+  message/outbox boundary; the real inbound atomic handoff remains covered by migrated-D1 tests and
+  was subsequently exercised end-to-end by the controlled production proof.
+- Production queues `lumimail-push-prod` and `lumimail-push-dlq-prod`, a production-only VAPID pair,
+  and migration 0036 were created before deploying Worker version
+  `b4012d96-17fc-494d-9691-2a8460d53f91`. The expanded production smoke passed 8/8.
+- A real production Chrome subscription named `Production Chrome proof` enrolled with zero mailbox
+  preferences and explicitly enabled only `admin@henriksen.dev`. A controlled message from
+  `admin@lucidkith.com` reached outbound `sent`, real inbound `received`, event `complete`, and one
+  provider-accepted delivery on its first attempt. The opaque resolver opened the exact received
+  inbox message and the Settings UI showed the same last-delivered time.
+- The operator recently-auth revoked and unsubscribed the production device. A second controlled
+  message followed the same real outbound and inbound path, its notification event completed, and it
+  created zero delivery rows.
 
 ## 13. Open Questions / Decisions
 
@@ -345,3 +370,53 @@ Impact:
 Tests:
 - Update smoke command and evidence-adapter tests to prove both new anonymous boundaries and the new
   8/8 evidence count before changing the smoke implementation.
+
+### 2026-08-14 — Complete real staging browser/provider validation
+
+Type: Evidence / Security Validation
+
+Summary:
+- Enrolled a real Chrome device with no default mailbox preferences, explicitly opted into the sole
+  synthetic mailbox, and observed one first-attempt provider-accepted delivery.
+- Proved the opaque resolver opens an authorized message, returns `Not found` after mailbox access is
+  removed, and works again only after the exact membership is restored.
+- Recently-auth revoked and unsubscribed the device, then proved a later event completes without
+  creating any delivery row.
+
+Reason:
+- Production promotion requires evidence from a real browser and push provider, not only mocked UI
+  and local queue tests.
+
+Impact:
+- Staging provider, authorization, and revocation gates pass. Production remains unchanged.
+
+Tests:
+- Real Chrome permission/subscription, explicit mailbox preference, provider acceptance, resolver
+  authorization and denial, recent-auth revoke, browser unsubscribe, and post-revoke zero-delivery
+  evidence pass against the deployed staging Worker.
+
+### 2026-08-14 — Promote and validate private push in production
+
+Type: Deployment / Evidence / Security Validation
+
+Summary:
+- Created isolated production push and dead-letter queues, generated a production-only VAPID pair,
+  applied migration 0036, deployed the verified Worker, and passed the expanded 8/8 public smoke.
+- Enrolled a real production Chrome device with zero defaults, enabled one mailbox, and delivered a
+  controlled message through the genuine outbound, provider, inbound, outbox, push-provider, and
+  authenticated resolver path.
+- Recently-auth revoked and unsubscribed the device, then delivered a second genuine message and
+  proved its event completed with zero push deliveries.
+
+Reason:
+- Close the final managed-environment gates without inferring production correctness from local or
+  staging evidence alone.
+
+Impact:
+- F88 is shipped. Production users may explicitly enroll supported browsers; no user or mailbox is
+  opted in automatically.
+
+Tests:
+- Full verification and 100% gated coverage pass; production build/deploy and 8/8 smoke pass; real
+  production opt-in, mail flow, provider acceptance, resolver, recent-auth revoke, unsubscribe, and
+  post-revoke non-delivery pass.
