@@ -9,10 +9,13 @@
 
 import { pathToFileURL } from "node:url";
 
-import { publishOperationalEvidence } from "./operations-evidence.mjs";
+import {
+	observationTimestamp,
+	publishFailureMessage,
+	publishOperationalEvidence,
+} from "./operations-evidence.mjs";
 
 const TIMEOUT_MS = 15_000;
-const PUBLISH_FAILURE = "Operational evidence could not be recorded.";
 
 const CHECKS = [
 	{ path: "/", expect: 200, reason: "landing page renders" },
@@ -75,11 +78,11 @@ export async function runSmokeCommand(args, {
 					outcome: passedChecks === results.length ? "passed" : "failed",
 					passedChecks,
 					totalChecks: results.length,
-					observedAt: now().toISOString(),
+					observedAt: observationTimestamp(now()),
 				},
 			});
-		} catch {
-			stderr(PUBLISH_FAILURE);
+		} catch (error) {
+			stderr(publishFailureMessage(error));
 			return 1;
 		}
 	}

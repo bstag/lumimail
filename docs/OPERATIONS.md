@@ -19,18 +19,112 @@ npm run doctor
 With authorized read-only Cloudflare credentials, add provider inventory and public smoke:
 
 ```bash
-npm run doctor -- --remote https://mail.example.com
-npm run doctor -- --remote https://mail.example.com --json
+node scripts/doctor.mjs --remote https://mail.example.com
 ```
 
-Remote mode reads deployment/version metadata, critical binding shapes, D1/R2/Queue identity,
-pending migrations, secret names (never values), Email Routing/Sending readiness, and six public
-HTTP contracts. It does not deploy, apply migrations, execute SQL, read R2 objects, send mail, or
-change provider configuration. Any failed or malformed required check exits non-zero.
+```bash
+node scripts/doctor.mjs --remote https://mail.example.com --json
+```
 
-Wrangler 4.114 has no read-only live Cron Trigger inventory. Doctor proves the exact source Cron and
-the active version's `scheduled` handler, then retains a warning until the provider schedule is
-observed separately. Do not reinterpret that warning as a passing provider-side schedule check.
+Call the script directly. `npm run doctor -- --remote <origin>` can lose the flag to npm or
+PowerShell argument handling; a bare origin still selects remote mode, but the direct form is not
+subject to either. Every run names its mode on the first output line — if it says `local`, no
+provider or public check executed and the result is not remote evidence.
+
+Remote mode reads deployment/version metadata, critical binding shapes, D1/R2/Queue identity,
+pending migrations, secret names (never values), Email Routing/Sending readiness, the live Cron
+schedule, and every public HTTP contract. It does not deploy, apply migrations, execute SQL, read R2
+objects, send mail, or change provider configuration. Any failed or malformed required check exits
+non-zero.
+
+Wrangler 4.114 still has no read-only live Cron Trigger inventory — `wrangler triggers` can only
+deploy — so the doctor reads the schedule directly from the Cloudflare REST API instead. **No extra
+credential is required.** It reuses your existing `wrangler login` session by reading the access
+token from the Wrangler auth profile, exactly as Wrangler does for its own calls. The token is used
+as a request header only: it is never printed, logged, or placed in the report. An authenticated
+`wrangler whoami` runs first so a token that expired since the last run is refreshed before it is
+read. The account identity comes from committed configuration.
+
+`CLOUDFLARE_API_TOKEN` still takes precedence when set, matching Wrangler's own order — but setting
+it changes the identity of **every** Wrangler call in the run, not just the schedule read. A token
+narrower than your login fails the provider checks as a group (`remote.deployment`, `remote.d1`,
+`remote.r2`, `remote.queues`, `remote.secrets`, `remote.email-routing`) while public smoke keeps
+passing. If you see that pattern, run `npx wrangler whoami` to see which identity is active; the
+simplest fix is to unset the token and let the login session serve the whole run. A token used for
+the whole run needs read access to Account Settings, Workers Scripts, D1, Workers R2 Storage,
+Queues, and zone-level Email Routing.
+
+When `remote.cron` fails it names one fixed reason: an unproven active Worker version, a
+configuration that does not define exactly one schedule, no usable session or token, a provider
+rejection, an unreadable inventory, or a real schedule mismatch. An unproven version means the group
+failure above — fix the credential first, because the schedule read is never attempted in that state.
+
+The smoke gate requires every check in the current public contract to pass. It is not pinned to a
+historical count, so extending the contract does not silently leave the gate asserting a stale one.
+
+## Signed releases
+
+Releases are signed for this deployment only. There is no third-party consumer, so signing authority
+is one operator key held offline; CI verifies but never signs.
+
+### One-time key setup
+
+```bash
+npm run release:keygen -- bstag-2026 "F:/lumimail-keys/release-signing.pem" release.trust.json
+```
+
+The command refuses to write a private key anywhere inside the repository working tree, refuses to
+overwrite an existing key, and refuses a duplicate key ID. It writes the private key with owner-only
+permissions, merges only the public key into the committed trust store, and prints just the key ID
+and public-key fingerprint. Back up the private key: it cannot be recovered from the trust store, and
+losing it means issuing a new key ID.
+
+Commit `release.trust.json`. Never commit the private key; `*.pem` is already ignored, but the key
+belongs outside the repository regardless.
+
+Rotation adds a key ID and keeps the previous public key so older releases still verify. Revocation
+is removing a key from the committed store.
+
+### Releasing
+
+```bash
+npm run release:prepare -- .open-next <notes-file> <bundle-directory>
+```
+
+```bash
+Get-Content "F:/lumimail-keys/release-signing.pem" -Raw | npm run release:sign -- <bundle-directory> bstag-2026 <signature-path>
+```
+
+The private key is accepted on standard input only, never as an argument, so it cannot appear in a
+process list or shell history.
+
+```bash
+npm run release:verify -- <bundle-directory> <signature-path> release.trust.json <version> <schema>
+```
+
+### Promoting a verified release
+
+```bash
+npm run release:promote -- <bundle-directory> <signature-path> release.trust.json .open-next <version> <schema>
+```
+
+Promotion refuses unless, in order: pinned-trust verification passes; the checkout is clean and its
+HEAD equals the commit in the signed manifest; and a deterministic re-archive of `.open-next`
+reproduces the exact size and SHA-256 in the signed manifest. Only then does it upload the version
+with no traffic, smoke that version at its own preview origin, and promote it as a separate step.
+
+The middle two checks are what make the signature mean anything. Without them you would have signed
+one tarball and deployed a different build.
+
+Any failure leaves production on its current version. A failure after upload leaves an unpromoted
+version in place, which is an accepted outcome: inspect or discard it, no rollback required. The
+command runs no migration and no data operation — apply migrations separately and keep them
+forward-compatible with the currently active version.
+
+Version preview URLs must be enabled for the Worker, or promotion cannot smoke the uploaded version
+and will refuse.
+
+Record the verified release afterwards with `npm run release:verify:record` as described below.
 
 ## Record verified operational evidence
 
@@ -47,8 +141,8 @@ $evidenceSecret = Read-Host "Paste the fresh ep_session value" -AsSecureString
 $env:LUMIMAIL_SESSION_TOKEN = [System.Net.NetworkCredential]::new("", $evidenceSecret).Password
 ```
 
-Record the fixed six-check public smoke result. The script derives passed/total and records a failed
-result when any boundary fails; it cannot be told to claim a passing count:
+Record the complete public smoke result. The script derives passed/total from the checks it actually
+ran and records a failed result when any boundary fails; it cannot be told to claim a passing count:
 
 ```powershell
 npm run smoke:record -- https://mail.example.com
@@ -62,7 +156,17 @@ npm run release:verify:record -- <bundle-directory> <signature-json> <trust-json
 ```
 
 A stale/invalid session, non-owner session, non-HTTPS origin, verification failure, or ingestion
-failure exits non-zero with bounded output. The scripts never print the token or server response.
+failure exits non-zero and names one fixed reason: no usable token in `LUMIMAIL_SESSION_TOKEN`, a
+non-exact origin, a result outside the accepted shape, an invalid session, non-owner access, recent
+authentication required, invalid evidence, or an existing conflicting result. Anything else stays
+generic. The scripts never print the token or server response.
+
+The most common failure is simply an unset token in the current shell. Check it without revealing
+the value:
+
+```powershell
+[bool]$env:LUMIMAIL_SESSION_TOKEN
+```
 Remove the runtime credential immediately afterward and clear any clipboard copy:
 
 ```powershell
@@ -70,8 +174,26 @@ Remove-Item Env:LUMIMAIL_SESSION_TOKEN
 Set-Clipboard -Value $null
 ```
 
-Recovery is not recordable by these commands. Its current workflow does not yet produce one complete
-end-to-end result, so partial steps must remain `Not recorded`.
+### Record a verified recovery archive
+
+Recovery evidence records one derived claim: a named backup archive is complete and intact at the
+moment it was verified. Point the command at a recovery archive directory containing `manifest.json`:
+
+```powershell
+npm run recovery:record -- <backup-directory> https://mail.example.com
+```
+
+The command re-reads the manifest, re-hashes the D1 export, and re-hashes every referenced R2 object
+against its recorded size and SHA-256. `totalChecks` is the number of artifacts actually verified —
+one export plus each manifest object — and a file reported for both a size and a checksum problem
+counts once. A complete archive records `passed`; a missing or altered artifact records a truthful
+failed count and exits non-zero, because an unusable backup is exactly what the Operations page must
+surface. An unreadable, malformed, or foreign manifest records nothing at all. Archive paths, object
+keys, and hashes never leave the workstation.
+
+This does not claim that a restore rehearsal, Worker rollback, isolation check, or cleanup step
+passed. Those remain F79 operator evidence until they emit machine-readable reports, and the
+Operations card means archive integrity only.
 
 ### Record a received mail-flow proof
 

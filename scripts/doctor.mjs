@@ -1,7 +1,19 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { resolve } from "node:path";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+
+import { SMOKE_CHECK_COUNT } from "./operations-evidence.mjs";
+
+// The deployed queue contract, matching tests/unit/wrangler-local-bindings.test.ts.
+export const REQUIRED_QUEUE_BINDINGS = [
+	"INBOUND_QUEUE",
+	"OUTBOUND_DLQ_QUEUE",
+	"OUTBOUND_QUEUE",
+	"PUSH_DLQ_QUEUE",
+	"PUSH_QUEUE",
+];
 
 function deepFreeze(value) {
 	if (value && typeof value === "object" && !Object.isFrozen(value)) {
@@ -18,10 +30,6 @@ function check(id, passed, summary, observed) {
 		summary,
 		...(observed === undefined ? {} : { observed }),
 	};
-}
-
-function warning(id, summary) {
-	return { id, status: "warn", summary };
 }
 
 function summarize(checks, mode) {
@@ -121,17 +129,21 @@ export function buildLocalDoctorReport({
 		"Exactly one production R2 binding is configured",
 		Array.isArray(config?.r2_buckets) ? config.r2_buckets.length : 0,
 	));
-	const expectedQueues = ["INBOUND_QUEUE", "OUTBOUND_DLQ_QUEUE", "OUTBOUND_QUEUE"];
-	const producersPass = exactNames(config?.queues?.producers, "binding", expectedQueues);
-	const producerQueueNames = new Set((config?.queues?.producers ?? []).map((entry) => entry?.queue));
+	const producers = config?.queues?.producers;
+	const producersPass = exactNames(producers, "binding", REQUIRED_QUEUE_BINDINGS);
+	const producerQueueNames = new Set((producers ?? []).map((entry) => entry?.queue));
 	const consumerQueueNames = new Set((config?.queues?.consumers ?? []).map((entry) => entry?.queue));
-	const consumersPass = producerQueueNames.size === 3 && consumerQueueNames.size === 3 &&
+	// Every produced queue must be uniquely named and consumed. The counts follow the
+	// required binding list rather than a literal, so adding a queue pair to the
+	// contract cannot leave this gate asserting an outdated size.
+	const consumersPass = Array.isArray(producers) && producerQueueNames.size === producers.length &&
+		consumerQueueNames.size === producerQueueNames.size &&
 		[...producerQueueNames].every((name) => consumerQueueNames.has(name));
 	checks.push(check(
 		"bindings.queues",
 		producersPass && consumersPass,
-		"Inbound, outbound, and DLQ producer/consumer bindings are complete",
-		Array.isArray(config?.queues?.producers) ? config.queues.producers.length : 0,
+		"Mail, push, and dead-letter producer/consumer bindings are complete",
+		Array.isArray(producers) ? producers.length : 0,
 	));
 	checks.push(check(
 		"bindings.cron",
@@ -235,13 +247,40 @@ function bindingMatches(bindings, expected) {
 	));
 }
 
-export function runRemoteDoctor({ localReport, config, origin, runWrangler, runSmoke }) {
+// Fixed classes only. An operator needs to tell an absent credential from a real
+// schedule mismatch, but provider text must never become an egress path.
+const CRON_FAILURE_REASONS = {
+	dependency: "the active Worker version could not be proven",
+	config: "configuration does not define exactly one schedule",
+	credential: "no usable Wrangler session or API token for the schedule read",
+	provider: "provider rejected the schedule read",
+	unreadable: "schedule inventory was unreadable",
+	mismatch: "live schedule does not match configuration",
+};
+
+function classifyLiveSchedule(response, expected) {
+	if (response === null || response === undefined) return "credential";
+	if (typeof response !== "object") return "unreadable";
+	if (response.success !== true || !Array.isArray(response.errors) || response.errors.length > 0) return "provider";
+	// Cloudflare returns the list under `result.schedules`; tolerate a bare
+	// `result` array so an API shape change reports a mismatch, not a false pass.
+	const schedules = Array.isArray(response.result) ? response.result : response.result?.schedules;
+	if (!Array.isArray(schedules)) return "unreadable";
+	const observed = schedules.map((entry) => entry?.cron);
+	if (observed.some((cron) => typeof cron !== "string")) return "unreadable";
+	if (observed.length !== expected.length ||
+		JSON.stringify([...observed].sort()) !== JSON.stringify([...expected].sort())) return "mismatch";
+	return null;
+}
+
+export function runRemoteDoctor({ localReport, config, origin, runWrangler, runSmoke, readSchedules }) {
 	const checks = (localReport?.checks ?? []).map((entry) => ({ ...entry }));
 	const parsedOrigin = remoteOrigin(origin, config);
 	const domain = parsedOrigin ? mailDomain(config, parsedOrigin) : null;
 	if (
 		localReport?.product !== "lumimail" || localReport?.mode !== "local" ||
-		!parsedOrigin || !domain || typeof runWrangler !== "function" || typeof runSmoke !== "function"
+		!parsedOrigin || !domain || typeof runWrangler !== "function" || typeof runSmoke !== "function" ||
+		typeof readSchedules !== "function"
 	) {
 		checks.push(check("remote.input", false, "Remote origin and production configuration are exact"));
 		return summarize(checks, "remote");
@@ -277,11 +316,30 @@ export function runRemoteDoctor({ localReport, config, origin, runWrangler, runS
 			version?.resources?.script_runtime?.compatibility_date === config.compatibility_date &&
 			bindingMatches(version?.resources?.bindings, expectedBindings);
 	});
-	checks.push(warning(
+	const expectedCrons = config?.triggers?.crons;
+	// A passing remote.version already proves the scheduled handler, so an unproven
+	// version must be reported as an unmet dependency rather than blamed on the
+	// schedule read or on a handler this check never actually observed.
+	const versionProven = checks.find((entry) => entry.id === "remote.version")?.status === "pass";
+	let cronReason = null;
+	if (!versionProven || !scheduledHandlerObserved) {
+		cronReason = "dependency";
+	} else if (!Array.isArray(expectedCrons) || expectedCrons.length !== 1) {
+		cronReason = "config";
+	} else {
+		try {
+			cronReason = classifyLiveSchedule(readSchedules(), expectedCrons);
+		} catch {
+			cronReason = "unreadable";
+		}
+	}
+	checks.push(check(
 		"remote.cron",
-		scheduledHandlerObserved && config?.triggers?.crons?.length === 1
-			? "Scheduled handler and source Cron exist; Wrangler has no read-only live-schedule inventory"
-			: "Live Cron schedule is not independently proven",
+		cronReason === null,
+		cronReason === null
+			? "The live Cron schedule matches configuration and the active version handles it"
+			: `Live Cron schedule is not proven: ${CRON_FAILURE_REASONS[cronReason]}`,
+		cronReason === null ? 1 : 0,
 	));
 
 	addRemoteCheck(checks, "remote.d1", "The configured production D1 database exists", () => {
@@ -332,15 +390,35 @@ export function runRemoteDoctor({ localReport, config, origin, runWrangler, runS
 			/Enabled:\s*true/i.test(settings);
 	});
 
-	addRemoteCheck(checks, "remote.smoke", "All six public smoke checks pass", () => {
+	addRemoteCheck(checks, "remote.smoke", "Every public smoke check in the complete contract passes", () => {
 		const result = runSmoke(origin);
-		return { passed: result?.passed === 6 && result?.total === 6, count: result?.passed };
+		return {
+			passed: result?.total === SMOKE_CHECK_COUNT && result?.passed === SMOKE_CHECK_COUNT,
+			count: result?.passed,
+		};
 	}, (result) => result?.count ?? 0);
 
 	return summarize(checks, "remote");
 }
 
+// `npm run doctor -- --remote <origin>` can lose the flag to npm or PowerShell argument
+// handling, which previously ran the local report and looked like a successful remote
+// run. A bare HTTPS origin therefore also selects remote mode, and an explicit flag with
+// no usable origin stays in remote mode so the run fails rather than quietly downgrading.
+export function parseDoctorArgs(argv) {
+	const args = (Array.isArray(argv) ? argv : []).filter((value) => typeof value === "string");
+	const json = args.includes("--json");
+	const flagIndex = args.indexOf("--remote");
+	if (flagIndex >= 0) {
+		const next = args[flagIndex + 1];
+		return { remote: true, origin: next && !next.startsWith("--") ? next : undefined, json };
+	}
+	const positional = args.find((value) => value.startsWith("https://"));
+	return { remote: positional !== undefined, origin: positional, json };
+}
+
 function printHuman(report) {
+	console.log(`Mode: ${report.mode}${report.mode === "local" ? " (configuration only; no provider or public checks ran)" : ""}\n`);
 	for (const entry of report.checks) {
 		console.log(`${entry.status.toUpperCase().padEnd(4)}  ${entry.id.padEnd(24)} ${entry.summary}`);
 	}
@@ -361,8 +439,84 @@ function smoke(origin) {
 		stdio: ["ignore", "pipe", "pipe"],
 	}));
 	const match = /(?:^|\n)(\d+)\/(\d+) passed against /m.exec(output);
-	if (!match) return { passed: 0, total: 6 };
+	if (!match) return { passed: 0, total: 0 };
 	return { passed: Number(match[1]), total: Number(match[2]) };
+}
+
+const ACCOUNT_ID_PATTERN = /^[a-f0-9]{32}$/i;
+
+/**
+ * Extracts the access token from a Wrangler auth profile. Returns null when the
+ * profile has no token or is provably expired, so a stale session is reported as
+ * an absent credential rather than as a provider rejection. The value is only ever
+ * used as a request header; it is never logged, printed, or placed in the report.
+ */
+export function parseWranglerSession(text, now) {
+	const source = typeof text === "string" ? text : "";
+	const token = /^\s*oauth_token\s*=\s*"([^"]+)"/m.exec(source)?.[1];
+	if (!token) return null;
+	const expiresAt = Date.parse(/^\s*expiration_time\s*=\s*"([^"]*)"/m.exec(source)?.[1] ?? "");
+	return Number.isFinite(expiresAt) && expiresAt <= now ? null : token;
+}
+
+function wranglerProfilePaths() {
+	const directories = [];
+	if (process.env.XDG_CONFIG_HOME) directories.push(join(process.env.XDG_CONFIG_HOME, ".wrangler"));
+	if (process.platform === "win32" && process.env.APPDATA) {
+		directories.push(join(process.env.APPDATA, "xdg.config", ".wrangler"));
+	}
+	directories.push(join(homedir(), ".config", ".wrangler"), join(homedir(), ".wrangler"));
+	return directories.map((directory) => join(directory, "config", "default.toml"));
+}
+
+/**
+ * Prefers an explicit API token, matching Wrangler's own precedence, and otherwise
+ * reuses the interactive Wrangler session. Requiring a separate token for this one
+ * read would also displace the operator's login for every other provider check.
+ */
+function operatorCredential(warmSession) {
+	if (process.env.CLOUDFLARE_API_TOKEN) return process.env.CLOUDFLARE_API_TOKEN;
+	// One authenticated Wrangler call first, so an access token that expired since
+	// the last run is refreshed on disk before it is read.
+	try {
+		warmSession();
+	} catch {
+		// An unauthenticated CLI simply yields no stored session below.
+	}
+	for (const path of wranglerProfilePaths()) {
+		try {
+			const session = parseWranglerSession(readFileSync(path, "utf8"), Date.now());
+			if (session) return session;
+		} catch {
+			continue;
+		}
+	}
+	return null;
+}
+
+// Wrangler 4.114 can only mutate triggers, so the live schedule inventory is read
+// straight from the provider. The account and script identity come from committed
+// configuration; only the credential comes from the environment.
+async function fetchLiveSchedules(config, warmSession) {
+	const accountId = process.env.CLOUDFLARE_ACCOUNT_ID ?? config?.vars?.CF_ACCOUNT_ID;
+	const token = operatorCredential(warmSession);
+	// `null` is the credential-absent signal. Anything past this point had a
+	// credential, so a rejection or transport failure must not read as one.
+	if (!ACCOUNT_ID_PATTERN.test(String(accountId)) || !token || typeof config?.name !== "string") return null;
+	const providerFailure = { success: false, errors: [{}] };
+	try {
+		const response = await fetch(
+			`https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/${encodeURIComponent(config.name)}/schedules`,
+			{
+				headers: { accept: "application/json", authorization: `Bearer ${token}` },
+				redirect: "error",
+			},
+		);
+		if (!response.ok) return providerFailure;
+		return await response.json();
+	} catch {
+		return providerFailure;
+	}
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -381,17 +535,23 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
 				"recovery.manifest": existsSync("scripts/recovery-manifest.mjs"),
 			},
 		});
-		const remoteIndex = process.argv.indexOf("--remote");
-		const finalReport = remoteIndex >= 0
+		const { remote, origin: requestedOrigin, json } = parseDoctorArgs(process.argv.slice(2));
+		// Read the live schedule only once the requested origin already matches the
+		// configured production origin, so an unintended origin still reaches no provider.
+		const liveSchedules = requestedOrigin && requestedOrigin === config?.vars?.PUBLIC_APP_URL
+			? await fetchLiveSchedules(config, () => wrangler(["whoami"]))
+			: null;
+		const finalReport = remote
 			? runRemoteDoctor({
 				localReport: report,
 				config,
-				origin: process.argv[remoteIndex + 1],
+				origin: requestedOrigin,
 				runWrangler: wrangler,
 				runSmoke: smoke,
+				readSchedules: () => liveSchedules,
 			})
 			: report;
-		if (process.argv.includes("--json")) console.log(JSON.stringify(finalReport, null, 2));
+		if (json) console.log(JSON.stringify(finalReport, null, 2));
 		else printHuman(finalReport);
 		if (!finalReport.ready) process.exitCode = 1;
 	} catch {

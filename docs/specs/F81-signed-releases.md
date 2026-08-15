@@ -1,6 +1,6 @@
 # F81 — Signed Releases and Deliberate Promotion
 
-> Status: In Progress — complete offline trust chain; protected publication CI next
+> Status: In Progress — offline trust chain, operator key custody, and verified promotion complete; awaiting first signed release
 > Owner area: `scripts/release-manifest.mjs`, `.github/workflows/`, `docs/OPERATIONS.md`
 
 ## 1. Problem & User Job
@@ -56,6 +56,32 @@ wrong-product, or schema-incompatible artifact before any upload or promotion.
   sibling, reparse the written manifest, re-read the archive, and require its exact size/SHA-256
   before atomically renaming the directory. The unsigned bundle is not releasable until a detached
   trusted signature is added and verified.
+
+**Layer 2.9 operator key custody contract:**
+
+- Signing authority is a single operator key held offline, not a CI secret or managed service.
+  Releases are built for this deployment only, so there is no third-party consumer, no publication
+  channel, and no key-distribution problem to solve. CI verifies; it never signs.
+- `release:keygen` generates one Ed25519 pair, writes the private key with owner-only permissions to
+  an explicit path, and refuses to overwrite an existing file or to write anywhere inside the
+  repository working tree.
+- It merges only the public key into the committed trust store, refusing a duplicate key ID, a
+  malformed store, and a store already at the 32-key bound. Output names the key ID and public-key
+  fingerprint only; private-key material is never printed, logged, or returned.
+- Rotation adds a key ID and retains prior public keys so previously signed releases still verify.
+  Revocation is removal from the committed store; no external publication is required.
+
+**Layer 2.10 verified promotion contract:**
+
+- A signature that does not gate promotion proves an artifact that was never deployed. Promotion
+  therefore refuses unless, in order: pinned-trust verification passes; the checkout is clean and its
+  HEAD equals the signed manifest commit; and a deterministic re-archive of the build tree reproduces
+  the exact size and SHA-256 recorded in the signed manifest.
+- Only then may the version be uploaded without traffic, smoked at its own version-specific origin,
+  and promoted as a separate deliberate step. A failure at any stage leaves production traffic
+  unchanged; an uploaded but unpromoted version is an accepted outcome.
+- The command performs no migration, no data mutation, and no rollback. It reports version identity,
+  schema identity, digest status, and smoke counts only.
 
 **Layer 2.5 clean-checkout metadata contract:**
 
@@ -202,10 +228,17 @@ Lumimail users, admins, API keys, and Worker runtime bindings have no signing or
   — 2026-08-12
 - Decision: schema compatibility is an explicit inclusive range, not inferred from migration names
   at deploy time. — 2026-08-12
-- Open question: GitHub Release, R2, or another operator-controlled immutable store for public/self-
-  hosted release distribution.
-- Open question: managed signing service versus protected CI secret, rotation period, and revocation
-  publication. These security/authority choices block live signing but not the pure format core.
+- Decision: releases are built for this deployment only, with no third-party self-hosters. There is
+  therefore no public distribution channel to choose and no external revocation to publish; signed
+  bundles live in operator-controlled storage alongside recovery archives. — 2026-08-15
+- Decision: signing authority is one offline operator key rather than a managed service or protected
+  CI secret. A CI secret would let anything able to trigger CI sign a release, which defeats the
+  purpose at this scale. CI verifies; it never signs. — 2026-08-15
+- Decision: rotation adds a key ID to the committed trust store and retains prior public keys so
+  older releases still verify. Revocation is a commit. — 2026-08-15
+- Open question: whether the exit gate still requires a disposable-resource upgrade rehearsal. The
+  recommendation is to drop it for a single-operator deployment with a proven Worker rollback drill
+  and record that reason. Not yet applied.
 
 ## 13. Bug / Change Log
 
@@ -455,3 +488,58 @@ Notes:
 
 - The trust-store format is implemented, but no production key is pinned until signer ownership and
   rotation/revocation policy are approved.
+
+### 2026-08-15 — Resolve key custody and gate promotion on the signature
+
+Type: Feature
+
+Summary:
+
+- Record the operator decision that releases are built for this deployment only. That removes the
+  publication channel, key-distribution, managed-signing, and third-party revocation questions
+  outright: signing authority is one offline operator key, and CI verifies but never signs.
+- Add `release:keygen`, which generates one Ed25519 pair, writes the private key with owner-only
+  permissions to an explicit path outside the repository, merges only the public key into the
+  committed trust store, and prints only the key ID and public-key fingerprint.
+- Add `release:promote`, which refuses to promote unless pinned-trust verification passes, the
+  checkout is clean and at the signed manifest commit, and a deterministic re-archive of the build
+  tree reproduces the exact signed size and SHA-256. Only then does it upload without traffic, smoke
+  the uploaded version at its own preview origin, and promote as a separate step.
+
+Reason:
+
+- The offline trust chain was complete but inert: nothing consumed a signature, so a signed bundle
+  proved an artifact that was never deployed. The checkout and digest bindings are what connect
+  "what was signed" to "what is about to receive traffic".
+- Key custody was the last blocking decision, and the single-operator answer makes the simplest
+  option the correct one rather than a compromise.
+
+Impact:
+
+- No application, schema, or authorization change. Promotion runs no migration and no data command.
+  Any failure leaves production on its current version; an uploaded but unpromoted version is an
+  accepted outcome requiring no rollback.
+- `wrangler versions upload` has no JSON output, so version identity is parsed from its exact
+  labelled lines and refuses ambiguity. Version preview URLs must be enabled or promotion refuses,
+  because an unsmoked version must not be promoted.
+
+Tests:
+
+- Twenty keygen contracts: owner-only private key, public-only publication, rotation retaining prior
+  keys, refusal of overwrite, duplicate ID, in-repository paths, five malformed key IDs, four
+  malformed stores left untouched, the 32-key bound, and content-free CLI failures.
+- Fifteen promotion contracts: full ordered success, refusal before provider access for an
+  unverified signature, dirty or mismatched checkout, changed digest or size, a verification report
+  missing the compared fields, six malformed upload outputs, an unpromoted version after failed
+  smoke, and a no-migration/no-data command assertion.
+- `npm run verify` passes: typecheck, lint with 0 errors and 43 pre-existing warnings, 277 test
+  files with 2,438 application tests at 100% statement/branch/function/line coverage, and 21 IMAP
+  bridge tests.
+
+Notes:
+
+- No key exists yet. The operator generates one, commits `release.trust.json`, and backs up the
+  private key before the first signed release.
+- Open decision: whether the exit gate still requires a disposable-resource upgrade rehearsal. For a
+  single-operator deployment with a proven Worker rollback drill (F79 L1.6), the recommendation is to
+  drop it and record the reason rather than build rehearsal tooling for one run. Not applied.

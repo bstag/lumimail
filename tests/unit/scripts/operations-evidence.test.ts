@@ -3,13 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	OperationalEvidencePublishError,
 	publishOperationalEvidence,
+	SMOKE_CHECK_COUNT,
 } from "../../../scripts/operations-evidence.mjs";
 
 const evidence = {
 	category: "smoke",
 	outcome: "passed",
-	passedChecks: 6,
-	totalChecks: 6,
+	passedChecks: SMOKE_CHECK_COUNT,
+	totalChecks: SMOKE_CHECK_COUNT,
 	observedAt: "2026-08-12T20:00:00.000Z",
 };
 
@@ -82,10 +83,27 @@ describe("operational evidence publisher", () => {
 		expect(fetchImpl).not.toHaveBeenCalled();
 	});
 
+	it("accepts a byte-derived recovery archive result of any verified artifact count", async () => {
+		const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+			success: true,
+			data: { recorded: true, duplicate: false },
+		}), { status: 201 }));
+
+		await expect(publishOperationalEvidence({
+			origin: "https://mail.example.com",
+			sessionToken: "session-secret",
+			evidence: { ...evidence, category: "recovery", passedChecks: 16, totalChecks: 16 },
+			fetchImpl,
+		})).resolves.toEqual({ recorded: true, duplicate: false });
+	});
+
 	it.each([
-		{ ...evidence, category: "recovery" },
+		{ ...evidence, category: "mail_flow" },
+		{ ...evidence, category: "recovery", passedChecks: 1001, totalChecks: 1001 },
+		{ ...evidence, category: "recovery", totalChecks: 0, passedChecks: 0 },
+		{ ...evidence, passedChecks: 6, totalChecks: 6 },
 		{ ...evidence, outcome: "failed" },
-		{ ...evidence, passedChecks: 7 },
+		{ ...evidence, passedChecks: SMOKE_CHECK_COUNT - 1 },
 		{ ...evidence, totalChecks: 0 },
 		{ ...evidence, observedAt: "not-a-date" },
 		{ ...evidence, extra: "private" },
@@ -95,6 +113,53 @@ describe("operational evidence publisher", () => {
 			origin: "https://mail.example.com", sessionToken: "session-secret",
 			evidence: invalidEvidence, fetchImpl,
 		})).rejects.toBeInstanceOf(OperationalEvidencePublishError);
+		expect(fetchImpl).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		[401, "Unauthorized", "Recording evidence requires a valid owner session."],
+		[403, "Forbidden", "Organization owner access is required."],
+		[403, "Recent authentication required", "Recent owner authentication is required; sign in again."],
+		[400, "Invalid evidence", "The server rejected the derived evidence as invalid."],
+		[409, "Evidence already exists with a different result",
+			"Evidence already exists for that observation time with a different result."],
+		[500, "Evidence could not be recorded", "The server could not record the evidence."],
+	])("classifies an exact %s envelope as a fixed operator message", async (status, message, expected) => {
+		const fetchImpl = vi.fn(async () => new Response(
+			JSON.stringify({ success: false, error: { message } }), { status },
+		));
+
+		await expect(publishOperationalEvidence({
+			origin: "https://mail.example.com", sessionToken: "session-secret", evidence, fetchImpl,
+		})).rejects.toThrow(expected);
+	});
+
+	it.each([
+		["an unmapped status", 418, { success: false, error: { message: "Unauthorized" } }],
+		["unmapped server text", 403, { success: false, error: { message: "leaked internal PRIVATE detail" } }],
+		["an unexpected envelope", 403, { success: false, error: { message: "Forbidden" }, extra: "PRIVATE" }],
+		["a success flag that is not false", 403, { success: true, error: { message: "Forbidden" } }],
+	])("keeps %s generic so server text is never an egress path", async (_label, status, body) => {
+		const fetchImpl = vi.fn(async () => new Response(JSON.stringify(body), { status }));
+
+		await expect(publishOperationalEvidence({
+			origin: "https://mail.example.com", sessionToken: "session-secret", evidence, fetchImpl,
+		})).rejects.toThrow("Operational evidence could not be recorded.");
+	});
+
+	it.each([
+		["an absent token", { sessionToken: undefined }, "No usable owner session token in LUMIMAIL_SESSION_TOKEN."],
+		["a non-exact origin", { origin: "https://mail.example.com/path" },
+			"The target must be an exact HTTPS origin with no path, query, or credentials."],
+		["an unaccepted result shape", { evidence: { ...evidence, category: "mail_flow" } },
+			"The derived result did not match the accepted evidence shape."],
+	])("names %s before any request is made", async (_label, override, expected) => {
+		const fetchImpl = vi.fn();
+
+		await expect(publishOperationalEvidence({
+			origin: "https://mail.example.com", sessionToken: "session-secret", evidence, fetchImpl,
+			...override,
+		})).rejects.toThrow(expected);
 		expect(fetchImpl).not.toHaveBeenCalled();
 	});
 

@@ -105,7 +105,8 @@ state, and retention integrity without opening Cloudflare, exposing secrets, or 
   bounded success envelope returned by the ingestion route. Network, authorization, response, and
   caught errors collapse to `Operational evidence could not be recorded.` without echoing response
   bodies, request bodies, credentials, or private verification details.
-- Public smoke derives `passedChecks`, `totalChecks`, and outcome from the fixed six HTTP checks.
+- Public smoke derives `passedChecks`, `totalChecks`, and outcome from the complete fixed set of
+  public HTTP checks, whose expected total is owned by the publisher's validation boundary.
   Recording mode can persist a real passing or failing smoke result, but cannot turn a failed check
   into a passing claim. If publication fails, the command exits non-zero; otherwise it preserves the
   underlying smoke result exit code.
@@ -170,6 +171,46 @@ state, and retention integrity without opening Cloudflare, exposing secrets, or 
 - Classification changes diagnostics only. It does not retry, reconfirm, modify proof data, weaken
   validation, or turn any failure into success.
 
+### Seventh-slice recovery archive evidence contract
+
+- The `recovery` category records exactly one derived claim: a named recovery archive is complete and
+  intact at the moment the operator verified it. It does not claim that a restore rehearsal, Worker
+  rollback, isolation check, or cleanup step passed. Those remain F79 operator evidence until they
+  emit machine-readable reports, and the card's meaning is stated in those terms.
+- Evidence is derived only from bytes. The producer re-runs the existing offline archive verification,
+  which re-reads the manifest, re-hashes the D1 export, and re-hashes every referenced R2 object
+  against its recorded size and SHA-256. No operator flag can supply a category, outcome, count, or
+  timestamp, and no separate report file is trusted as an assertion.
+- `totalChecks` is the number of artifacts actually verified: one D1 export plus each manifest object.
+  `passedChecks` subtracts the distinct failing artifacts, so two problems reported for one file
+  count once. A verified archive publishes `passed`; any problem publishes a truthful `failed` count
+  and exits non-zero, because an incomplete backup is exactly what the card must surface.
+- An unreadable, malformed, or foreign manifest publishes nothing. There is no artifact count to
+  derive from, and inventing one would assert a backup that was never proven.
+- An archive whose artifact count falls outside the ledger's accepted bounds publishes nothing rather
+  than truncating or rescaling a count into range.
+- The producer reuses the shared publisher: exact HTTPS origin, runtime-only `LUMIMAIL_SESSION_TOKEN`
+  bearer credential, and strict `lumimail-operations-evidence-v1` body. Archive paths, object keys,
+  hashes, and caught errors never reach output.
+
+### Eighth-slice bounded publisher failure contract
+
+- The shared publisher classifies its own failures, extending the sixth slice's mail-flow rule to
+  every evidence producer. Local guards name an absent session token, a non-exact origin, and a
+  result outside the accepted shape; each is detected before any request.
+- Response classes require an exact status paired with the exact Lumimail error envelope: `401`
+  invalid session, `403` non-owner, `403` recent authentication required, `400` invalid evidence,
+  `409` immutable-history conflict, and `500` service failure. Any other status, unmapped server
+  text, unexpected envelope, transport error, or caught exception collapses to the existing generic
+  message, so server text never becomes an egress path.
+- Smoke, signed-release, and recovery producers all print the classified message. An error that did
+  not come from the publisher stays generic.
+- All three producers stamp their observation five seconds behind the local command clock, using the
+  same shared offset and rationale the mail-flow producer already applies. The ledger rejects any
+  observation later than the edge clock, so a workstation running even fractionally ahead would have
+  every result refused as invalid. The offset remains a truthful lower bound on when the producer
+  observed the result.
+
 ## 5. Error and Privacy States
 
 | Condition | Result |
@@ -213,9 +254,11 @@ The first two slices do not persist evidence. The third slice adds only a server
 content-free result ledger and read model; it does not upload or parse source artifacts. The fourth
 slice binds public smoke and successful signed-release verification to that ledger without accepting
 operator-authored results. The fifth slice adds a received-artifact-backed traced-mail-flow producer
-with tenant-scoped server derivation. Complete recovery, live Cron inventory, independent delivery
-attestation, and additional integrity observations remain later work. All other mutations remain separate,
-recently authenticated, confirmed, audited, and explicitly specified.
+with tenant-scoped server derivation. The seventh slice adds byte-derived recovery archive evidence.
+Live Cron inventory is now proven by the F80 remote doctor rather than this page. Restore-rehearsal
+attestation, independent delivery attestation, and additional integrity observations remain later
+work. All other mutations remain separate, recently authenticated, confirmed, audited, and explicitly
+specified.
 
 ## 8. Decisions
 
@@ -248,6 +291,15 @@ recently authenticated, confirmed, audited, and explicitly specified.
   Provider acceptance alone is not external arrival; an operator checkbox is not derived proof. — 2026-08-13
 - Decision: expose only an allowlist of exact status/envelope failure classes in operator output.
   This keeps failures actionable without making arbitrary server or provider text an egress path. — 2026-08-13
+- Decision: scope the `recovery` category to archive completeness and integrity rather than to the
+  full F79 rehearsal. Re-hashing every artifact is a byte-derived proof the producer can actually
+  make; a restore rehearsal currently leaves no machine-readable report, and recording an operator
+  claim would reintroduce exactly the derived-proof violation the fourth slice refused. — 2026-08-15
+- Decision: derive `totalChecks` from the manifest's own artifact inventory instead of a fixed count.
+  Recovery archives legitimately differ in object count between deployments and over time, and a
+  fixed total would either reject real archives or misreport what was verified. — 2026-08-15
+- Decision: publish a truthful failed recovery result rather than suppressing it. A backup that no
+  longer verifies is the single most important thing the card can show an owner. — 2026-08-15
 
 ## 9. Bug / Change Log
 
@@ -553,3 +605,90 @@ Tests:
   with 2,069 application tests at 100% coverage, and 21 IMAP bridge tests.
 - `npm run e2e` is not required because this changes only local operator CLI diagnostics and no
   browser-visible behavior.
+
+### 2026-08-15 — Record byte-derived recovery archive evidence
+
+Type: Feature + Bug
+
+Summary:
+
+- Add `npm run recovery:record`, a named producer that re-runs the existing offline archive
+  verification and publishes the derived `recovery` result through the shared evidence publisher.
+- Derive `totalChecks` from the manifest inventory (one D1 export plus each object) and subtract
+  distinct failing artifacts, so two problems reported for one file count once.
+- Extend the publisher's validation boundary to accept `recovery` with a derived total, keep
+  `mail_flow` refused on that route because it has its own server-derived endpoint, and add the
+  ledger's upper artifact bound.
+- Fix the publisher's smoke rule, which still required exactly six checks after F88 extended the
+  public contract to eight and therefore rejected every real `npm run smoke:record` result. The
+  expected total is now one boundary-owned constant shared with the F80 doctor.
+
+Reason:
+
+- The Recovery card has rendered `Not recorded` since the first slice because no producer could make
+  a derived claim. Archive verification is a real byte-derived proof that the producer can make
+  today, unlike the rehearsal steps that leave no machine-readable report.
+
+Impact:
+
+- No schema, route, authorization, or UI change. The `recovery` category and its card already
+  existed; only the producer was missing. Recording still requires a recently authenticated owner
+  session and remains an explicit operator action.
+
+Tests:
+
+- Focused producer contracts cover the passing derivation, per-artifact failure counting, the clamp
+  that keeps a derived failure below the verified total, four publish-nothing classes, four
+  argument refusals, and bounded publication failure.
+- Publisher contracts add an accepted recovery result, a refused `mail_flow` category, out-of-bound
+  and zero totals, and a refused stale six-check smoke total.
+- `npm run verify` passes: typecheck, lint with 0 errors and 43 pre-existing warnings, 275 test
+  files with 2,381 application tests at 100% statement/branch/function/line coverage, and 21 IMAP
+  bridge tests.
+- `npm run e2e` is not required: this adds an operator CLI and changes no browser-visible behavior.
+
+Notes:
+
+- The card cannot show a real value until an operator runs the command against a verified archive
+  with a fresh owner session. Restore-rehearsal attestation remains later work.
+
+### 2026-08-15 — Classify publication failures and stamp observations behind the local clock
+
+Type: Bug
+
+Summary:
+
+- Extend the shared operational-evidence publisher with the bounded failure classes the sixth slice
+  already defined for mail-flow: three local classes checked before any request, and six response
+  classes keyed on an exact status plus the exact Lumimail error envelope.
+- Print the classified message from the smoke, signed-release, and recovery producers. Anything the
+  publisher did not classify stays generic.
+- Stamp every producer's observation five seconds behind its local clock through one shared helper,
+  matching the offset the mail-flow producer already applied.
+
+Reason:
+
+- The first real `npm run recovery:record` run verified its archive and then failed publication with
+  only `Operational evidence could not be recorded.` The operator could not tell an absent session
+  token from a non-owner session, a stale recent-auth window, or a history conflict — the same
+  unactionable-gate problem the F80 Cron check hit, and already solved once for mail-flow.
+- The classified retry then exposed the second defect: the server refused the result as invalid
+  because the producer stamped its observation at the local clock, which the edge saw as the future.
+  The smoke, signed-release, and recovery producers had never inherited the mail-flow offset and
+  would all have failed the same way on any workstation running ahead of the edge.
+
+Impact:
+
+- No server, schema, authorization, or privacy-boundary change. Unmapped statuses, unmapped server
+  text, unexpected envelopes, and transport errors still collapse to the generic message.
+
+Tests:
+
+- Publisher contracts cover all six response classes, four cases that must stay generic, and three
+  local classes proven to reject before any request.
+- Producer contracts assert all three producers surface a classified message, keep an unclassified
+  failure generic without leaking the token, and publish an observation exactly the shared offset
+  behind the local clock.
+- `npm run verify` passes: typecheck, lint with 0 errors and 43 pre-existing warnings, 275 test
+  files with 2,403 application tests at 100% statement/branch/function/line coverage, and 21 IMAP
+  bridge tests.

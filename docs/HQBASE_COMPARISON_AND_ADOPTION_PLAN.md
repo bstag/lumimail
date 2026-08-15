@@ -368,6 +368,11 @@ for deployment/version bindings, D1/R2/Queues, pending migrations, required secr
 Routing/Sending, and public smoke. Wrangler exposes no read-only live Cron inventory, so the doctor
 proves source configuration plus the deployed `scheduled` handler and reports one explicit warning.
 
+F80 completed 2026-08-15: the Cron warning is replaced by a live schedule read from the Cloudflare
+REST API using the operator's existing Wrangler session, and the production run passes 26/26 with no
+warnings. Two gates that had silently gone stale against the deployed contract — a six-check smoke
+total and a three-queue binding list, both outdated by F88 — were corrected in the same pass.
+
 F81 progress 2026-08-12: the signed-release spec now fixes the strict manifest/signature formats,
 Ed25519 trust boundary, artifact and schema compatibility checks, immutable publication behavior,
 and upload-before-deliberate-promotion sequence. Signing authority and release storage remain explicit
@@ -590,7 +595,7 @@ change.
 ## Recommended order
 
 1. F79 remote recovery rehearsal — closes the remaining operational MVP gate.
-2. F80 operator doctor and lifecycle manifest — low-risk operational leverage.
+2. F80 operator doctor and lifecycle manifest — shipped.
 3. F81 signed release and disposable upgrade pipeline.
 4. F82 Operations center.
 5. F83 access, invitation, session, and audit UX.

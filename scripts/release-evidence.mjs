@@ -1,10 +1,13 @@
 import { pathToFileURL } from "node:url";
 
-import { publishOperationalEvidence } from "./operations-evidence.mjs";
+import {
+	observationTimestamp,
+	publishFailureMessage,
+	publishOperationalEvidence,
+} from "./operations-evidence.mjs";
 import { verifyPreparedRelease } from "./release-verify.mjs";
 
 const RELEASE_FAILURE = "Release verification failed. Release is not trusted.";
-const PUBLISH_FAILURE = "Operational evidence could not be recorded.";
 
 export async function runReleaseEvidenceCommand(args, {
 	stdout = console.log,
@@ -41,13 +44,13 @@ export async function runReleaseEvidenceCommand(args, {
 				outcome: "passed",
 				passedChecks: 1,
 				totalChecks: 1,
-				observedAt: now().toISOString(),
+				observedAt: observationTimestamp(now()),
 			},
 		});
 		stdout("Verified signed release; operational evidence recorded.");
 		return 0;
-	} catch {
-		stderr(PUBLISH_FAILURE);
+	} catch (error) {
+		stderr(publishFailureMessage(error));
 		return 1;
 	}
 }
