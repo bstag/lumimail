@@ -3,16 +3,26 @@ import {
 	clampConversationPanelHeight,
 	clampConversationPanelWidth,
 	getConversationInitial,
+	isSelectableMessageId,
 	parseSelectedMessageId,
 	parseSplitOrientation,
 } from "@/components/messages/desktop-split-utils";
 
 describe("desktop split view utilities", () => {
-	it("accepts one bounded Lumimail message id", () => {
+	it("accepts one bounded prefixed message id, including seeded ids", () => {
 		expect(parseSelectedMessageId(new URLSearchParams("message=msg_abc-123"))).toBe("msg_abc-123");
+		expect(parseSelectedMessageId(new URLSearchParams("message=e2e_msg_alpha_0"))).toBe("e2e_msg_alpha_0");
 		expect(parseSelectedMessageId(new URLSearchParams("message=msg_one&message=msg_two"))).toBeNull();
 		expect(parseSelectedMessageId(new URLSearchParams("message=outside"))).toBeNull();
+		expect(parseSelectedMessageId(new URLSearchParams(`message=msg_${"x".repeat(80)}`))).toBeNull();
 		expect(parseSelectedMessageId(new URLSearchParams())).toBeNull();
+	});
+
+	it("agrees with the row href generator about selectable ids", () => {
+		expect(isSelectableMessageId("msg_abc-123")).toBe(true);
+		expect(isSelectableMessageId("e2e_msg_alpha_0")).toBe(true);
+		expect(isSelectableMessageId("outside")).toBe(false);
+		expect(isSelectableMessageId("")).toBe(false);
 	});
 
 	it("clamps stored panel widths while preserving room for the list", () => {

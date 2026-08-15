@@ -36,6 +36,7 @@ import { MessageDetailView } from "./message-detail-view";
 import { ResizableMailPanels } from "./resizable-mail-panels";
 import {
 	getConversationInitial,
+	isSelectableMessageId,
 	parseSelectedMessageId,
 	parseSplitOrientation,
 	type SplitOrientation,
@@ -331,7 +332,11 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 	}, [restoreFocusId, selectedMessageId]);
 
 	function desktopMessageHref(messageId: string) {
-		if (!splitDesktop) return `${config.hrefPrefix}/${messageId}`;
+		// An id the panel's parser would reject must fall back to the full page —
+		// linking to `?message=` it will ignore turns the row into a dead click.
+		if (!splitDesktop || !isSelectableMessageId(messageId)) {
+			return `${config.hrefPrefix}/${messageId}`;
+		}
 		const next = new URLSearchParams(searchParams.toString());
 		next.set("message", messageId);
 		return `${pathname}?${next.toString()}`;

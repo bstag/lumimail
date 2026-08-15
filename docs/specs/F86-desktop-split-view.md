@@ -68,6 +68,16 @@ changing thread grouping, or push notifications.
 
 ## 7. Bug / Change Log
 
+### 2026-08-14 — Seeded ids open the split view
+
+Type: Bug
+
+- The `message` parameter validator accepted only `msg_`-prefixed ids while the row href generator
+  linked to any id, so on locally seeded databases (`e2e_msg_*`) every desktop row click updated the
+  URL and nothing rendered. The validator now accepts the general bounded `prefix_nanoid` shape, and
+  the href generator falls back to the full-page route for any id the validator would reject —
+  the two can no longer disagree. The server remains the authority on id validity and access.
+
 ### 2026-08-14 — Reading-pane position option
 
 Type: Feature
