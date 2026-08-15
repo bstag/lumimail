@@ -46,6 +46,8 @@ function expectBindingContract(env: WranglerEnv) {
 
 	const producers = env.queues?.producers ?? [];
 	expect(producers.map((producer) => producer.binding).sort()).toEqual([
+		"EXTERNAL_SYNC_DLQ_QUEUE",
+		"EXTERNAL_SYNC_QUEUE",
 		"INBOUND_QUEUE",
 		"OUTBOUND_DLQ_QUEUE",
 		"OUTBOUND_QUEUE",
@@ -61,9 +63,9 @@ function expectBindingContract(env: WranglerEnv) {
 	const deadLetterQueues = consumers
 		.map((consumer) => consumer.dead_letter_queue)
 		.filter((queue): queue is string => queue !== undefined);
-	// Outbound and push consumers route failures to isolated DLQs, and each DLQ
+	// Outbound, push, and external-sync consumers route failures to isolated DLQs, and each DLQ
 	// is itself consumed by its recovery path.
-	expect(deadLetterQueues).toHaveLength(2);
+	expect(deadLetterQueues).toHaveLength(3);
 	for (const queue of deadLetterQueues) expect(consumedQueues).toContain(queue);
 }
 

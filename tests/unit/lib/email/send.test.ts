@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDbMock, type DbMock } from "../../helpers/db";
 
-const h = vi.hoisted(() => ({ db: null as unknown }));
+const h = vi.hoisted(() => ({ db: null as unknown, externalAuth: vi.fn(), externalSend: vi.fn() }));
 vi.mock("@/db", () => ({ getDb: () => h.db }));
 
 vi.mock("@/lib/email/providers", () => ({ selectOutboundProvider: vi.fn() }));
@@ -9,6 +9,10 @@ vi.mock("@/lib/email/webhooks", () => ({ dispatchWebhooks: vi.fn() }));
 vi.mock("@/lib/contacts/service", () => ({ upsertContactFromAddress: vi.fn() }));
 vi.mock("@/lib/email/parse", () => ({ buildSnippet: vi.fn(() => "snippet") }));
 vi.mock("@/lib/ids", () => ({ newId: vi.fn((p?: string) => (p ? `${p}_id` : "raw_id")) }));
+vi.mock("@/lib/email/external/outbound", () => ({
+	resolveExternalSenderAuthorization: h.externalAuth,
+	sendExternalProviderMessage: h.externalSend,
+}));
 
 import {
 	processOutboundDeadLetter,
@@ -50,6 +54,8 @@ beforeEach(() => {
 	bucketPut.mockResolvedValue(undefined);
 	bucketDelete.mockResolvedValue(undefined);
 	selectProvider.mockReturnValue({ id: "test", send: providerSend } as unknown as ReturnType<typeof selectOutboundProvider>);
+	h.externalAuth.mockResolvedValue(null);
+	h.externalSend.mockResolvedValue({ providerMessageId: "external_1" });
 });
 
 const activeDomain = { id: "dom_1", hostname: "example.com", status: "active", zoneId: "zone_1" };
@@ -188,6 +194,22 @@ describe("sendEmail producer", () => {
 		expect(queueSend).toHaveBeenCalledWith({ kind: "outbound", jobId: "job_id" });
 		expect(providerSend).not.toHaveBeenCalled();
 		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it("derives an external sender from the active account and snapshots only its id", async () => {
+		h.externalAuth.mockResolvedValue({
+			mailboxId: "mb_1", organizationId: "org_1", localPart: "support", hostname: "example.com",
+			displayName: "Support", externalAddress: "person@gmail.com", externalAccountId: "exa_1",
+		});
+		await sendEmail(env, {
+			userId: "u1", externalAccountId: "exa_1", from: "person@gmail.com",
+			to: "b@x.com", subject: "External",
+		});
+		expect(h.externalAuth).toHaveBeenCalledWith(env, "u1", "exa_1", "person@gmail.com", undefined);
+		expect(JSON.parse((mock.inserts[2].values as any).payload)).toMatchObject({
+			from: "person@gmail.com", externalAccountId: "exa_1",
+		});
+		expect(JSON.stringify(mock.inserts.map((insert) => insert.values))).not.toContain("refresh");
 	});
 
 	it("derives authorized reply headers and inherits the source thread", async () => {
@@ -753,6 +775,24 @@ describe("processOutboundQueue consumer", () => {
 			providerMessageId: "provider_1",
 			to: "b@x.com",
 		});
+	});
+
+	it("routes an external snapshot through its provider account", async () => {
+		mock.queueSelect([{
+			...storedJob,
+			payload: JSON.stringify({
+				from: "person@gmail.com", to: "b@x.com", subject: "External", text: "Body",
+				externalAccountId: "exa_1",
+			}),
+		}]);
+		h.externalSend.mockResolvedValue({ providerMessageId: "gmail_remote" });
+		expect(await processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1"))
+			.toEqual({ action: "ack" });
+		expect(h.externalSend).toHaveBeenCalledWith(env, "u1", "exa_1", expect.objectContaining({
+			from: "person@gmail.com", to: "b@x.com", subject: "External",
+		}));
+		expect(providerSend).not.toHaveBeenCalled();
+		expect(mock.updates[2].set).toMatchObject({ status: "sent", providerMessageId: "gmail_remote" });
 	});
 
 	it("sends persisted RFC reply headers from the immutable snapshot", async () => {

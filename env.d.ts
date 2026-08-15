@@ -4,6 +4,8 @@ interface CloudflareEnv {
 	BUCKET: R2Bucket;
 	INBOUND_QUEUE: Queue<import("./src/lib/email/inbound").InboundQueueMessage>;
 	OUTBOUND_QUEUE: Queue<import("./src/lib/email/send").OutboundQueueMessage>;
+	EXTERNAL_SYNC_QUEUE: Queue<import("./src/lib/email/external/types").ExternalSyncQueueMessage>;
+	EXTERNAL_SYNC_DLQ_QUEUE: Queue;
 	ASSETS: Fetcher;
 	IMAGES: ImagesBinding;
 	WORKER_SELF_REFERENCE: Fetcher;
@@ -20,6 +22,12 @@ interface CloudflareEnv {
 	RESEND_BASE_URL?: string;
 	/** Canonical HTTPS origin used to create credential-bearing links. */
 	PUBLIC_APP_URL?: string;
+	/** JSON keyring used to encrypt external OAuth credentials and cursors. */
+	EXTERNAL_TOKEN_KEYS?: string;
+	GOOGLE_OAUTH_CLIENT_ID?: string;
+	GOOGLE_OAUTH_CLIENT_SECRET?: string;
+	MICROSOFT_OAUTH_CLIENT_ID?: string;
+	MICROSOFT_OAUTH_CLIENT_SECRET?: string;
 	/** Verified sender address used for password recovery messages. */
 	PASSWORD_RESET_FROM?: string;
 	/**

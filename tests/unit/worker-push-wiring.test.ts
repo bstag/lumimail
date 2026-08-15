@@ -30,3 +30,17 @@ describe("private push Worker wiring", () => {
 		expect(example).not.toMatch(/"vars"[\s\S]*"VAPID_PRIVATE_KEY"\s*:/);
 	});
 });
+
+describe("external sync Worker wiring", () => {
+	it("routes durable external sync jobs and schedules reconciliation", () => {
+		expect(worker).toMatch(/isExternalSyncQueueMessage/);
+		expect(worker).toMatch(/processExternalSyncQueue/);
+		expect(worker).toMatch(/reconcileExternalSyncJobs/);
+	});
+
+	it.each([config, example])("declares isolated external sync and dead-letter queues", (source) => {
+		expect(source).toContain('"binding": "EXTERNAL_SYNC_QUEUE"');
+		expect(source).toContain('"binding": "EXTERNAL_SYNC_DLQ_QUEUE"');
+		expect(source).toMatch(/dead_letter_queue"\s*:\s*"lumimail-external-sync-dlq/);
+	});
+});

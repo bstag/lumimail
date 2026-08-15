@@ -13,9 +13,10 @@ import {
 	canMailboxSend,
 	findSendCapableMailbox,
 } from "@/components/mailbox-provider-utils";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth/client";
 import { parseApiResponse } from "@/lib/api/client-response";
+import { apiJson } from "@/lib/api/client-response";
 import { invalidateMessageQueries } from "@/lib/query-keys";
 import { formatEmailAddress } from "@/lib/email/address";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,14 @@ type Toast = { type: "success" | "error"; message: string } | null;
 type MessageWithBodyResponse = {
 	message?: { fromAddr?: string; toAddr?: string; subject?: string | null };
 	body?: { textBody?: string | null; htmlBody?: string | null };
+};
+
+type ExternalSender = {
+	id: string;
+	mailboxId: string;
+	provider: "google" | "microsoft";
+	externalAddress: string;
+	status: string;
 };
 
 export function ComposeForm({
@@ -55,8 +64,16 @@ export function ComposeForm({
 	const [replyToMessageId, setReplyToMessageId] = useState<string | null>(null);
 	const [toast, setToast] = useState<Toast>(null);
 	const [loading, setLoading] = useState(false);
+	const [externalAccountId, setExternalAccountId] = useState("");
+	const externalAccounts = useQuery({
+		queryKey: ["external-accounts"],
+		queryFn: () => apiJson.get<{ accounts: ExternalSender[] }>("/api/external-accounts"),
+	});
+	const externalSenders = (externalAccounts.data?.accounts ?? []).filter((account) =>
+		account.status === "active" && account.mailboxId === selectedMailbox?.id);
+	const selectedExternalSender = externalSenders.find((account) => account.id === externalAccountId);
 
-	const fromAddr = useMemo(
+	const nativeFromAddr = useMemo(
 		() =>
 			selectedMailbox && canMailboxSend(selectedMailbox)
 				? formatEmailAddress(
@@ -66,6 +83,7 @@ export function ComposeForm({
 				: "",
 		[selectedMailbox],
 	);
+	const fromAddr = selectedExternalSender?.externalAddress ?? nativeFromAddr;
 
 	const {
 		attachedFiles,
@@ -80,7 +98,7 @@ export function ComposeForm({
 
 	const draft = useComposeDraft({
 		draftIdToLoad,
-		fromAddr,
+		fromAddr: selectedExternalSender ? "" : fromAddr,
 		mailboxId: selectedMailbox?.id,
 		fields: { to, subject, text, html, replyToMessageId },
 		onDraftLoaded: (loaded) => {
@@ -178,6 +196,7 @@ export function ComposeForm({
 				text,
 				html,
 				mailboxId: selectedMailbox?.id,
+				...(selectedExternalSender ? { externalAccountId: selectedExternalSender.id } : {}),
 				...(replyToMessageId ? { replyToMessageId } : {}),
 			},
 			attachedFiles
@@ -241,14 +260,16 @@ export function ComposeForm({
 				</div>
 				<div className="border-b border-border px-4 py-1">
 					<Label htmlFor={`${mode}-from`} className="sr-only">{t("from")}</Label>
-					<Input
+					<select
 						id={`${mode}-from`}
-						value={fromAddr}
-						placeholder={t("selectMailboxFirst")}
-						readOnly
+						value={selectedExternalSender ? selectedExternalSender.id : "native"}
+						onChange={(event) => setExternalAccountId(event.target.value === "native" ? "" : event.target.value)}
 						required
-						className="h-8 border-0 px-0 py-1 shadow-none focus-visible:ring-0"
-					/>
+						className="h-8 w-full border-0 bg-transparent px-0 py-1 text-sm outline-none"
+					>
+						<option value="native">{nativeFromAddr || t("selectMailboxFirst")}</option>
+						{externalSenders.map((account) => <option key={account.id} value={account.id}>{account.externalAddress} ({account.provider})</option>)}
+					</select>
 				</div>
 				<div className="border-b border-border px-4 py-1">
 					<Label htmlFor={`${mode}-to`} className="sr-only">{t("to")}</Label>

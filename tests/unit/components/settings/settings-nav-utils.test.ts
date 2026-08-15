@@ -13,6 +13,7 @@ describe("settings nav sections", () => {
 			"personal",
 			"mailbox",
 			"notifications",
+			"external-accounts",
 			"integrations",
 		]);
 	});
@@ -54,6 +55,7 @@ describe("settings nav sections", () => {
 			"/settings#personal",
 			"/settings#mailbox",
 			"/settings/notifications",
+			"/settings/external-accounts",
 			"/settings/api-keys",
 			"/admin",
 			"/members",
@@ -83,6 +85,7 @@ describe("active settings nav item", () => {
 		expect(getActiveSettingsNavItem("/settings/api-keys", "")).toBe("integrations");
 		expect(getActiveSettingsNavItem("/settings/mcp", "")).toBe("integrations");
 		expect(getActiveSettingsNavItem("/settings/notifications", "")).toBe("notifications");
+		expect(getActiveSettingsNavItem("/settings/external-accounts", "")).toBe("external-accounts");
 	});
 
 	it("selects organization items including nested detail routes", () => {
@@ -117,6 +120,7 @@ describe("settings path detection", () => {
 			"/settings/api-keys",
 			"/settings/mcp",
 			"/settings/notifications",
+			"/settings/external-accounts",
 			"/admin",
 			"/members",
 			"/mailboxes",

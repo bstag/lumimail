@@ -27,6 +27,11 @@
 	//   wrangler secret put VAPID_PUBLIC_KEY  // environment-specific Web Push key
 	//   wrangler secret put VAPID_PRIVATE_KEY // environment-specific Web Push key
 	//   wrangler secret put VAPID_SUBJECT     // mailto: or HTTPS operator contact
+	//   wrangler secret put EXTERNAL_TOKEN_KEYS       // versioned AES-GCM keyring JSON
+	//   wrangler secret put GOOGLE_OAUTH_CLIENT_ID
+	//   wrangler secret put GOOGLE_OAUTH_CLIENT_SECRET
+	//   wrangler secret put MICROSOFT_OAUTH_CLIENT_ID
+	//   wrangler secret put MICROSOFT_OAUTH_CLIENT_SECRET
 	"vars": {
 		"CF_ACCOUNT_ID": "cf-account-id",
 		// Name of the Worker that Email Routing rules target. Must match "name"
@@ -109,6 +114,14 @@
 				"binding": "PUSH_DLQ_QUEUE",
 				"queue": "lumimail-push-dlq",
 			},
+			{
+				"binding": "EXTERNAL_SYNC_QUEUE",
+				"queue": "lumimail-external-sync",
+			},
+			{
+				"binding": "EXTERNAL_SYNC_DLQ_QUEUE",
+				"queue": "lumimail-external-sync-dlq",
+			},
 		],
 		"consumers": [
 			{
@@ -136,6 +149,17 @@
 			{
 				"queue": "lumimail-push-dlq",
 				"max_batch_size": 10,
+				"max_retries": 1,
+			},
+			{
+				"queue": "lumimail-external-sync",
+				"max_batch_size": 5,
+				"max_retries": 3,
+				"dead_letter_queue": "lumimail-external-sync-dlq",
+			},
+			{
+				"queue": "lumimail-external-sync-dlq",
+				"max_batch_size": 5,
 				"max_retries": 1,
 			},
 		],
@@ -194,7 +218,9 @@
 					{ "binding": "OUTBOUND_QUEUE", "queue": "lumimail-outbound-staging" },
 					{ "binding": "OUTBOUND_DLQ_QUEUE", "queue": "lumimail-outbound-dlq-staging" },
 					{ "binding": "PUSH_QUEUE", "queue": "lumimail-push-staging" },
-					{ "binding": "PUSH_DLQ_QUEUE", "queue": "lumimail-push-dlq-staging" }
+					{ "binding": "PUSH_DLQ_QUEUE", "queue": "lumimail-push-dlq-staging" },
+					{ "binding": "EXTERNAL_SYNC_QUEUE", "queue": "lumimail-external-sync-staging" },
+					{ "binding": "EXTERNAL_SYNC_DLQ_QUEUE", "queue": "lumimail-external-sync-dlq-staging" }
 				],
 				"consumers": [
 					{ "queue": "lumimail-inbound-staging", "max_batch_size": 5, "max_retries": 3 },
@@ -206,7 +232,9 @@
 					},
 					{ "queue": "lumimail-outbound-dlq-staging", "max_batch_size": 5, "max_retries": 3 },
 					{ "queue": "lumimail-push-staging", "max_batch_size": 10, "max_retries": 3, "dead_letter_queue": "lumimail-push-dlq-staging" },
-					{ "queue": "lumimail-push-dlq-staging", "max_batch_size": 10, "max_retries": 1 }
+					{ "queue": "lumimail-push-dlq-staging", "max_batch_size": 10, "max_retries": 1 },
+					{ "queue": "lumimail-external-sync-staging", "max_batch_size": 5, "max_retries": 3, "dead_letter_queue": "lumimail-external-sync-dlq-staging" },
+					{ "queue": "lumimail-external-sync-dlq-staging", "max_batch_size": 5, "max_retries": 1 }
 				]
 			}
 		}

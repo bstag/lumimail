@@ -505,6 +505,141 @@ export const oauthRefreshTokenUses = sqliteTable(
 	(t) => [index("oauth_refresh_token_uses_expiry_idx").on(t.expiresAt)],
 );
 
+export const externalAccounts = sqliteTable(
+	"external_accounts",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+		ownerUserId: text("owner_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+		// Audit metadata, not lifecycle ownership: expiring/revoking the browser
+		// session must not cascade-delete an external mailbox connection or its maps.
+		approvingSessionId: text("approving_session_id").notNull(),
+		provider: text("provider", { enum: ["google", "microsoft"] }).notNull(),
+		externalAddress: text("external_address").notNull(),
+		tokenCiphertext: text("token_ciphertext").notNull(),
+		tokenIv: text("token_iv").notNull(),
+		tokenKeyId: text("token_key_id").notNull(),
+		status: text("status", { enum: [
+			"connecting", "initial_sync", "active", "paused", "reconnect_required",
+			"resync_required", "error", "disconnected",
+		] }).notNull(),
+		importMode: text("import_mode", { enum: ["from_now", "recent_30_days"] }).notNull(),
+		retainOriginal: integer("retain_original", { mode: "boolean" }).notNull().default(false),
+		lastSyncAt: integer("last_sync_at", { mode: "timestamp" }),
+		lastErrorCode: text("last_error_code"),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		revokedAt: integer("revoked_at", { mode: "timestamp" }),
+	},
+	(t) => [
+		uniqueIndex("external_accounts_mailbox_provider_address_idx").on(t.mailboxId, t.provider, t.externalAddress),
+		index("external_accounts_owner_org_status_idx").on(t.ownerUserId, t.organizationId, t.status),
+		index("external_accounts_due_sync_idx").on(t.status, t.lastSyncAt),
+	],
+);
+
+export const externalOauthStates = sqliteTable(
+	"external_oauth_states",
+	{
+		id: text("id").primaryKey(),
+		stateHash: text("state_hash").notNull(),
+		organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+		userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+		approvingSessionId: text("approving_session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
+		provider: text("provider", { enum: ["google", "microsoft"] }).notNull(),
+		reconnectAccountId: text("reconnect_account_id"),
+		importMode: text("import_mode", { enum: ["from_now", "recent_30_days"] }).notNull(),
+		retainOriginal: integer("retain_original", { mode: "boolean" }).notNull().default(false),
+		verifierCiphertext: text("verifier_ciphertext").notNull(),
+		verifierIv: text("verifier_iv").notNull(),
+		verifierKeyId: text("verifier_key_id").notNull(),
+		expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+		usedAt: integer("used_at", { mode: "timestamp" }),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [
+		uniqueIndex("external_oauth_states_hash_idx").on(t.stateHash),
+		index("external_oauth_states_expiry_idx").on(t.expiresAt, t.usedAt),
+		index("external_oauth_states_reconnect_idx").on(t.reconnectAccountId),
+	],
+);
+
+export const externalSyncCursors = sqliteTable(
+	"external_sync_cursors",
+	{
+		id: text("id").primaryKey(),
+		accountId: text("account_id").notNull().references(() => externalAccounts.id, { onDelete: "cascade" }),
+		remoteFolderKey: text("remote_folder_key").notNull(),
+		cursorType: text("cursor_type", { enum: ["gmail_history", "microsoft_delta"] }).notNull(),
+		cursorCiphertext: text("cursor_ciphertext").notNull(),
+		cursorIv: text("cursor_iv").notNull(),
+		cursorKeyId: text("cursor_key_id").notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [uniqueIndex("external_sync_cursors_account_folder_idx").on(t.accountId, t.remoteFolderKey)],
+);
+
+export const externalMessages = sqliteTable(
+	"external_messages",
+	{
+		id: text("id").primaryKey(),
+		accountId: text("account_id").notNull().references(() => externalAccounts.id, { onDelete: "cascade" }),
+		remoteMessageId: text("remote_message_id").notNull(),
+		remoteThreadId: text("remote_thread_id"),
+		remoteFolderKey: text("remote_folder_key").notNull(),
+		lumimailMessageId: text("lumimail_message_id").notNull().references(() => messages.id, { onDelete: "cascade" }),
+		remoteRevision: text("remote_revision"),
+		firstSeenAt: integer("first_seen_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		lastSeenAt: integer("last_seen_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		removedAt: integer("removed_at", { mode: "timestamp" }),
+	},
+	(t) => [
+		uniqueIndex("external_messages_account_remote_idx").on(t.accountId, t.remoteMessageId),
+		uniqueIndex("external_messages_account_lumimail_idx").on(t.accountId, t.lumimailMessageId),
+		index("external_messages_lumimail_idx").on(t.lumimailMessageId),
+	],
+);
+
+export const externalSyncJobs = sqliteTable(
+	"external_sync_jobs",
+	{
+		id: text("id").primaryKey(),
+		accountId: text("account_id").notNull().references(() => externalAccounts.id, { onDelete: "cascade" }),
+		kind: text("kind", { enum: ["initial", "incremental", "resync", "reconcile"] }).notNull(),
+		status: text("status", { enum: ["pending", "processing", "completed", "failed"] }).notNull(),
+		attempts: integer("attempts").notNull().default(0),
+		nextAttemptAt: integer("next_attempt_at", { mode: "timestamp" }).notNull(),
+		leaseUntil: integer("lease_until", { mode: "timestamp" }),
+		errorCode: text("error_code"),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		completedAt: integer("completed_at", { mode: "timestamp" }),
+	},
+	(t) => [
+		index("external_sync_jobs_due_idx").on(t.status, t.nextAttemptAt),
+		index("external_sync_jobs_account_status_idx").on(t.accountId, t.status),
+	],
+);
+
+export const externalOriginals = sqliteTable(
+	"external_originals",
+	{
+		id: text("id").primaryKey(),
+		accountId: text("account_id").notNull().references(() => externalAccounts.id, { onDelete: "cascade" }),
+		remoteMessageId: text("remote_message_id").notNull(),
+		lumimailMessageId: text("lumimail_message_id").notNull().references(() => messages.id, { onDelete: "cascade" }),
+		r2Key: text("r2_key").notNull(),
+		sha256: text("sha256").notNull(),
+		size: integer("size").notNull(),
+		retainedAt: integer("retained_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [
+		uniqueIndex("external_originals_account_remote_idx").on(t.accountId, t.remoteMessageId),
+		uniqueIndex("external_originals_message_idx").on(t.lumimailMessageId),
+	],
+);
+
 export const pushDevices = sqliteTable(
 	"push_devices",
 	{
@@ -757,6 +892,7 @@ export type Label = typeof labels.$inferSelect;
 export type Attachment = typeof attachments.$inferSelect;
 export type McpConnection = typeof mcpConnections.$inferSelect;
 export type PushDevice = typeof pushDevices.$inferSelect;
+export type ExternalAccount = typeof externalAccounts.$inferSelect;
 
 export const schema = {
 	organizations,
@@ -787,6 +923,12 @@ export const schema = {
 	mcpConnections,
 	outboundIdempotency,
 	oauthRefreshTokenUses,
+	externalAccounts,
+	externalOauthStates,
+	externalSyncCursors,
+	externalMessages,
+	externalSyncJobs,
+	externalOriginals,
 	pushDevices,
 	pushDeviceMailboxes,
 	pushNotificationEvents,

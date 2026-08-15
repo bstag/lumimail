@@ -3,6 +3,8 @@ import {
 	addDomainSchema,
 	bulkMailboxGrantSchema,
 	createAliasSchema,
+	externalAccountConnectSchema,
+	externalAccountUpdateSchema,
 	firstRunRegisterSchema,
 	loginSchema,
 	mailboxSchema,
@@ -18,6 +20,38 @@ import {
 	updateAliasGroupSchema,
 	webhookSchema,
 } from "@/lib/validators";
+
+describe("external account validators", () => {
+	it("accepts only the bounded OAuth MVP connection choices", () => {
+		expect(externalAccountConnectSchema.parse({
+			provider: "google",
+			mailboxId: " mbx_1 ",
+			importMode: "from_now",
+			retainOriginal: true,
+		})).toEqual({
+			provider: "google",
+			mailboxId: "mbx_1",
+			importMode: "from_now",
+			retainOriginal: true,
+		});
+		expect(externalAccountConnectSchema.safeParse({
+			provider: "imap", mailboxId: "mbx_1", importMode: "all", retainOriginal: false,
+		}).success).toBe(false);
+		expect(externalAccountConnectSchema.safeParse({
+			provider: "microsoft", mailboxId: "mbx_1", importMode: "recent_30_days",
+			retainOriginal: false, token: "browser-secret",
+		}).success).toBe(false);
+	});
+
+	it("allows only pause/resume and prospective retention updates", () => {
+		expect(externalAccountUpdateSchema.parse({ status: "paused" })).toEqual({ status: "paused" });
+		expect(externalAccountUpdateSchema.parse({ status: "active", retainOriginal: true }))
+			.toEqual({ status: "active", retainOriginal: true });
+		expect(externalAccountUpdateSchema.safeParse({ status: "disconnected" }).success).toBe(false);
+		expect(externalAccountUpdateSchema.safeParse({}).success).toBe(false);
+		expect(externalAccountUpdateSchema.safeParse({ retainOriginal: false }).success).toBe(false);
+	});
+});
 
 const validPushSubscription = {
 	endpoint: "https://fcm.googleapis.com/fcm/send/example-token",
@@ -178,6 +212,13 @@ describe("sendEmailSchema", () => {
 		expect(sendEmailSchema.safeParse({ ...base, subject: "" }).success).toBe(false);
 		expect(sendEmailSchema.safeParse({ ...base, subject: "x".repeat(501) }).success).toBe(false);
 		expect(sendEmailSchema.safeParse({ ...base, subject: "Hi" }).success).toBe(true);
+	});
+
+	it("accepts only a bounded external account selector", () => {
+		const base = { from: "a@b.co", to: "c@d.co", subject: "Hi" };
+		expect(sendEmailSchema.safeParse({ ...base, externalAccountId: "exa_1" }).success).toBe(true);
+		expect(sendEmailSchema.safeParse({ ...base, externalAccountId: "" }).success).toBe(false);
+		expect(sendEmailSchema.safeParse({ ...base, externalAccountId: "x".repeat(101) }).success).toBe(false);
 	});
 });
 
