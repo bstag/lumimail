@@ -20,6 +20,7 @@ export type SubmitMessageInput = {
 	text: string;
 	html?: string;
 	mailboxId?: string;
+	externalAccountId?: string;
 	replyToMessageId?: string;
 };
 

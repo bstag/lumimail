@@ -7,6 +7,7 @@ import dayjs from "dayjs";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { MarkAsRead } from "@/components/mark-read";
+import { Badge } from "@/components/ui/badge";
 import { MessageActions } from "@/components/message-actions/message-actions";
 import { AttachmentList } from "@/components/messages/attachment-list";
 import { MessageBody } from "@/components/messages/message-body";
@@ -19,6 +20,7 @@ import { getDisplayNameForAddress } from "@/lib/contacts/utils";
 import { getEmailAddress } from "@/lib/email/address";
 import { messageKeys } from "@/lib/query-keys";
 import type { Message } from "@/hooks/types";
+import { getExternalSourceLabel } from "./utils";
 import {
 	fetchMessageDetail,
 	getMessageBodyDisplay,
@@ -105,6 +107,15 @@ export function MessageDetailView({
 		queryFn: () => fetchMessageDetail(messageId),
 		retry: false,
 	});
+	const externalSourcesQuery = useQuery({
+		queryKey: ["external-accounts", "message-sources"],
+		queryFn: async () => {
+			const response = await authFetch("/api/external-accounts");
+			if (!response.ok) return [];
+			const payload = await parseApiResponse<{ accounts: Array<{ id: string; mailboxId: string; provider: "google" | "microsoft"; externalAddress: string }> }>(response);
+			return payload.accounts;
+		},
+	});
 	const data = detailQuery.data;
 	const threadId = data?.message?.threadId ?? null;
 	const threadQuery = useQuery({
@@ -149,6 +160,7 @@ export function MessageDetailView({
 	const { fromName, fromAddress, toName } = getMessageHeaderParties(message);
 	const bodyDisplay = getMessageBodyDisplay(body?.textBody, body?.htmlBody, message.snippet);
 	const canSend = canMailboxSend(mailboxes.find((mailbox) => mailbox.id === message.mailboxId));
+	const externalSourceLabel = getExternalSourceLabel(message, externalSourcesQuery.data ?? []);
 
 	return (
 		<div className="h-full overflow-y-auto overflow-x-hidden" data-testid={presentation === "panel" ? "conversation-panel-content" : undefined}>
@@ -182,7 +194,7 @@ export function MessageDetailView({
 				/>
 			</div>
 			<article className="px-6">
-				<h1 className="mb-4 text-2xl font-semibold text-ink">{message.subject ?? t("noSubject")}</h1>
+				<div className="mb-4 flex flex-wrap items-center gap-2"><h1 className="text-2xl font-semibold text-ink">{message.subject ?? t("noSubject")}</h1>{externalSourceLabel && <Badge variant="outline">{externalSourceLabel}</Badge>}</div>
 				{showThread ? (
 					<div className="mb-4 flex flex-col gap-2">
 						<p className="mb-1 text-xs text-ink-faint">{threadMessages.length} messages in thread</p>

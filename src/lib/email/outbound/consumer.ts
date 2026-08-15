@@ -18,6 +18,7 @@ import {
 	type OutboundAttachmentSnapshot,
 	type OutboundQueueMessage,
 } from "@/lib/email/outbound/snapshot";
+import { sendExternalProviderMessage } from "@/lib/email/external/outbound";
 
 export type OutboundQueueResult =
 	| { action: "ack" }
@@ -180,7 +181,7 @@ export async function processOutboundQueue(
 	}
 
 	try {
-		const response = await selectOutboundProvider(env).send({
+		const outboundMessage = {
 			from: snapshot.from,
 			to: snapshot.to,
 			subject: snapshot.subject,
@@ -195,7 +196,12 @@ export async function processOutboundQueue(
 				}
 				: {}),
 			...(loadedAttachments.length ? { attachments: loadedAttachments } : {}),
-		});
+		};
+		const response = snapshot.externalAccountId
+			? await sendExternalProviderMessage(
+				env, job.userId, snapshot.externalAccountId, outboundMessage,
+			)
+			: await selectOutboundProvider(env).send(outboundMessage);
 		await db.batch([
 			db
 				.update(outboundJobs)

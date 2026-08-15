@@ -213,6 +213,13 @@ describe("sendEmailSchema", () => {
 		expect(sendEmailSchema.safeParse({ ...base, subject: "x".repeat(501) }).success).toBe(false);
 		expect(sendEmailSchema.safeParse({ ...base, subject: "Hi" }).success).toBe(true);
 	});
+
+	it("accepts only a bounded external account selector", () => {
+		const base = { from: "a@b.co", to: "c@d.co", subject: "Hi" };
+		expect(sendEmailSchema.safeParse({ ...base, externalAccountId: "exa_1" }).success).toBe(true);
+		expect(sendEmailSchema.safeParse({ ...base, externalAccountId: "" }).success).toBe(false);
+		expect(sendEmailSchema.safeParse({ ...base, externalAccountId: "x".repeat(101) }).success).toBe(false);
+	});
 });
 
 describe("addDomainSchema", () => {

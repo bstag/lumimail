@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
 	returning: vi.fn(),
+	selected: vi.fn(),
 	insertValues: vi.fn((value: unknown) => value),
 	batch: vi.fn(),
 	access: vi.fn(),
@@ -14,6 +15,7 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock("@/db", () => ({ getDb: () => ({
 	update: () => ({ set: () => ({ where: () => ({ returning: h.returning }) }) }),
+	select: () => ({ from: () => ({ where: () => ({ limit: h.selected }) }) }),
 	insert: () => ({ values: h.insertValues }),
 	batch: h.batch,
 }) }));
@@ -71,6 +73,7 @@ beforeEach(() => {
 	h.identity.mockResolvedValue("user@example.com");
 	h.encrypt.mockResolvedValue({ keyId: "v1", iv: "token-iv", ciphertext: "token-cipher" });
 	h.batch.mockResolvedValue(undefined);
+	h.selected.mockResolvedValue([]);
 });
 
 describe("completeExternalOAuth", () => {
@@ -131,6 +134,26 @@ describe("completeExternalOAuth", () => {
 		h.batch.mockRejectedValue(new Error("UNIQUE constraint failed: external_accounts.mailbox_id, external_accounts.provider, external_accounts.external_address"));
 		expect(await completeExternalOAuth({ EXTERNAL_TOKEN_KEYS: "keys", EXTERNAL_SYNC_QUEUE: { send: vi.fn() } } as unknown as CloudflareEnv, input))
 			.toEqual({ status: "conflict" });
+	});
+
+	it("reconnects only the exact existing provider identity and preserves mappings", async () => {
+		h.returning.mockResolvedValue([{ ...stateRow, reconnectAccountId: "exa_existing" }]);
+		h.selected.mockResolvedValue([{
+			id: "exa_existing", organizationId: "org_1", mailboxId: "mbx_1", ownerUserId: "usr_1",
+			provider: "google", externalAddress: "user@example.com",
+		}]);
+		expect(await completeExternalOAuth({
+			EXTERNAL_TOKEN_KEYS: "keys", EXTERNAL_SYNC_QUEUE: { send: vi.fn() },
+		} as unknown as CloudflareEnv, input)).toEqual({
+			status: "created", accountId: "exa_existing", externalAddress: "user@example.com",
+		});
+		expect(h.encrypt).toHaveBeenCalledWith(
+			"refresh-secret", "external-account:exa_existing:org_1:mbx_1:usr_1:google", expect.anything(),
+		);
+		expect(h.batch).toHaveBeenCalledTimes(1);
+		h.selected.mockResolvedValue([]);
+		expect(await completeExternalOAuth({ EXTERNAL_TOKEN_KEYS: "keys" } as CloudflareEnv, input))
+			.toEqual({ status: "forbidden" });
 	});
 
 	it("propagates non-conflict persistence failures", async () => {

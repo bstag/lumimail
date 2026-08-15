@@ -1,7 +1,7 @@
 # F89 — External Mail Accounts and Unified Mailbox
 
-> Status: Draft
-> Owner area: proposed `src/app/(settings)/external-accounts/`,
+> Status: Implemented; controlled provider/deployment evidence pending
+> Owner area: `src/app/(settings)/settings/external-accounts/`,
 > `src/app/api/external-accounts/`, `src/lib/email/external/`, `worker.ts`
 
 ## 1. Problem & User Job
@@ -268,16 +268,22 @@ supply provider credentials or override the connected address.
 
 ## 8. Current Behavior
 
-- Native inbound mail arrives through Cloudflare Email Routing, is parsed through the
-  inbound queue, and is stored in D1/R2.
-- Successful native inbound processing deletes its raw MIME object under F63 after
-  normalized bodies and attachments are stored.
-- Outbound provider selection is deployment-global (`cloudflare` or `resend`) under
-  F33 rather than per mailbox or per external identity.
+- A manager can connect delegated Google or Microsoft identities from External
+  accounts settings after recent authentication and the mailbox-sharing disclosure.
+- OAuth uses PKCE, one-time session-bound state, live callback authorization, provider
+  identity lookup, encrypted refresh-token storage, and exact reconnect binding.
+- A dedicated queue and minute reconciliation trigger import bounded Google Gmail
+  history or Microsoft Inbox/Sent/Archive delta pages into the existing normalized
+  D1/R2 mail store. Provider removals preserve local content.
+- Compose can select an active accessible external identity. The durable outbound job
+  stores only the external account ID and derived sender; its consumer refreshes the
+  delegated token and sends through Gmail `messages.send` or Graph `sendMail`.
+- Exact original MIME retention is prospective, opt-in, checksummed, and independent
+  from provider deletion. It is explicitly not presented as a complete backup.
 - The separate F13/F52 bridge exposes Lumimail mail to IMAP/SMTP clients. It does not
   import mail from an external server.
-- There is no external-account, remote-message identity, cursor, or external sync-job
-  model today.
+- Generic IMAP/SMTP ingestion, full-history completeness, restore, provider push, and
+  two-way remote state mutation remain the staged expansion described above.
 
 ## 9. Error States
 
@@ -441,16 +447,20 @@ tests, UI, provider failure handling, and controlled evidence. They are not comm
 - Decision 2026-08-15: scheduled polling/reconciliation is authoritative in the MVP;
   provider push is a later latency optimization.
 
-### Open questions before implementation
+### Deferred decisions
 
-- Select exact Google and Microsoft delegated scopes after prototype calls prove the
-  least privilege that can fetch complete MIME, imported folder state, and send.
-- Decide whether a shared Lumimail mailbox may have more than one external sender, and
-  if so how compose defaults and member-specific token use are represented.
-- Decide the bounded synchronization interval and per-account/job page budgets using
-  current provider quotas and Cloudflare execution limits at implementation time.
-- Decide whether retained originals use the existing bucket prefix with a new retention
-  ledger or a separate bucket with independently auditable lifecycle controls.
+- Implemented scope decision: Google requests OpenID/email plus Gmail read-only and
+  send; Microsoft requests OpenID/email/offline access, User.Read, Mail.Read, and
+  Mail.Send. No message-mutation scope is requested.
+- Implemented multiplicity decision: a mailbox may expose multiple active external
+  senders, each bound to its consenting owner; compose defaults to the native identity
+  and requires explicit external selection.
+- Implemented execution decision: provider pages are capped at ten messages, queue
+  jobs lease one account, and minute reconciliation recovers committed work and polls
+  active accounts without depending on provider push.
+- Implemented retention decision: originals use a dedicated
+  `external-originals/<organization>/<account>/` prefix and D1 integrity ledger in the
+  existing bucket. A separate compliance/archive bucket remains Stage 3 scope.
 - Decide the product behavior when the consenting user leaves an organization but the
   organization wants to retain already imported mail. New provider access must stop;
   retained local data ownership and deletion require explicit policy.
@@ -472,6 +482,45 @@ tests, UI, provider failure handling, and controlled evidence. They are not comm
 - [F63 R2 retention](./F63-r2-retention-and-cleanup.md)
 
 ## 16. Bug / Change Log
+
+### 2026-08-15 — Implement OAuth aggregation MVP
+
+Type: Feature
+
+Summary:
+
+- Added Google and Microsoft delegated OAuth lifecycle, encrypted tokens and cursors,
+  bounded queue-driven import, idempotent external message mappings, provider-backed
+  durable sending, prospective retained originals, lifecycle APIs, settings UI,
+  compose sender selection, and external-source presentation.
+
+Reason:
+
+- Users need one Lumimail workspace for existing provider mail without granting
+  destructive remote mailbox permissions or treating retained copies as a verified
+  backup product.
+
+Impact:
+
+- Migrations `0037` and `0038`, an `EXTERNAL_SYNC_QUEUE` plus DLQ, five deployment
+  secrets, and Google/Microsoft OAuth application redirect configuration are required.
+  Existing native inbound/outbound and the client-facing IMAP/SMTP bridge remain
+  available and unchanged in purpose.
+
+Tests:
+
+- `npm run verify` passed: 294 application test files / 2,435 tests at 100% statement,
+  branch, function, and line coverage, plus 21 IMAP/SMTP bridge tests.
+- Focused Playwright external-account and settings-shell suite passed 6/6 at desktop
+  and 390 px coverage; all migrations through `0038` applied to a fresh local D1.
+
+Notes:
+
+- Controlled live Google/Microsoft tenant evidence, remote deployment, and restore
+  rehearsal were not performed. OpenNext compilation reached a successful Webpack
+  bundle but the repository-wide Next 16 route-wrapper type contract fails production
+  type generation for existing routes (`RouteContext | undefined`); deployment dry
+  run therefore remains pending and is not attributed to this feature as passed.
 
 ### 2026-08-15 — Define OAuth-first external mail roadmap
 
@@ -502,4 +551,3 @@ Notes:
 
 - Implementation must begin with this spec and update it as provider prototypes resolve
   the remaining scope, quota, storage, and deployment questions.
-

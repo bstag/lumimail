@@ -35,6 +35,10 @@ import type {
 	OutboundDeliverySnapshot,
 } from "@/lib/email/outbound/snapshot";
 import { resolveExistingIdempotency } from "@/lib/mcp/idempotency";
+import {
+	resolveExternalSenderAuthorization,
+	type ExternalSenderAuthorization,
+} from "@/lib/email/external/outbound";
 
 export type SendEmailInput = {
 	userId: string;
@@ -44,6 +48,7 @@ export type SendEmailInput = {
 	html?: string;
 	text?: string;
 	mailboxId?: string;
+	externalAccountId?: string;
 	attachments?: OutboundAttachmentInput[];
 	replyToMessageId?: string;
 	/**
@@ -145,7 +150,11 @@ export async function sendEmail(
 	input: SendEmailInput,
 ): Promise<{ messageId: string; status: "queued" | "sent" | "failed"; replayed?: true }> {
 	const db = getDb(env);
-	const authorization = await resolveSenderAuthorization(env, input.userId, input.from, input.mailboxId);
+	const authorization: SenderAuthorization | ExternalSenderAuthorization | null = input.externalAccountId
+		? await resolveExternalSenderAuthorization(
+			env, input.userId, input.externalAccountId, input.from, input.mailboxId,
+		)
+		: await resolveSenderAuthorization(env, input.userId, input.from, input.mailboxId);
 	if (!authorization) {
 		throw new SenderNotAllowedError(input.from);
 	}
@@ -173,7 +182,9 @@ export async function sendEmail(
 	if (replay) return replay;
 
 	const replySource = await resolveReplySource(env, input, authorization);
-	const fromAddr = resolveFromAddress(input.from, authorization);
+	const fromAddr = input.externalAccountId
+		? (authorization as ExternalSenderAuthorization).externalAddress
+		: resolveFromAddress(input.from, authorization as SenderAuthorization);
 	const authoredContent = normalizeAuthoredContent(input, { allowInlineImages: true });
 	const deliveryBodies = replySource
 		? buildReplyBodies(
@@ -213,6 +224,7 @@ export async function sendEmail(
 		...(attachmentSnapshots.length ? { attachments: attachmentSnapshots } : {}),
 		...(replySource?.threading.headers ? { headers: replySource.threading.headers } : {}),
 		...(input.autoReply ? { autoReply: true } : {}),
+		...(input.externalAccountId ? { externalAccountId: input.externalAccountId } : {}),
 	};
 	const messageInsert = db.insert(messages).values({
 		id: messageId,

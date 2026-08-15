@@ -7,6 +7,8 @@ import {
 	fetchExternalIdentity,
 	getExternalOAuthProvider,
 	normalizePublicAppOrigin,
+	refreshExternalAccessToken,
+	revokeExternalRefreshToken,
 } from "@/lib/email/external/oauth-provider";
 
 const env = {
@@ -160,5 +162,69 @@ describe("external OAuth provider HTTP exchange", () => {
 		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ emailAddress: "default@example.com" }));
 		expect(await fetchExternalIdentity("google", "token")).toBe("default@example.com");
 		fetchSpy.mockRestore();
+	});
+
+	it("refreshes delegated access and accepts provider refresh-token rotation", async () => {
+		const fetcher = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+			void input;
+			void init;
+			return Response.json({
+				access_token: "new-access",
+				refresh_token: "rotated-refresh",
+				expires_in: 3600,
+				scope: "Mail.Read Mail.Send",
+			});
+		});
+		expect(await refreshExternalAccessToken(env, "microsoft", "old-refresh", fetcher)).toEqual({
+			accessToken: "new-access",
+			refreshToken: "rotated-refresh",
+			expiresIn: 3600,
+			scope: "Mail.Read Mail.Send",
+		});
+		const [, options] = fetcher.mock.calls[0];
+		const body = new URLSearchParams(options?.body as string);
+		expect(body.get("grant_type")).toBe("refresh_token");
+		expect(body.get("refresh_token")).toBe("old-refresh");
+		expect(body.get("scope")).toContain("offline_access");
+	});
+
+	it("keeps the old refresh token when Google omits a replacement and classifies authorization loss", async () => {
+		expect(await refreshExternalAccessToken(env, "google", "refresh", async () => Response.json({
+			access_token: "new-access", expires_in: 1800,
+		}))).toMatchObject({ accessToken: "new-access", refreshToken: "refresh" });
+		await expect(refreshExternalAccessToken(env, "google", "refresh", async () =>
+			Response.json({ error: "invalid_grant", error_description: "secret detail" }, { status: 400 })))
+			.rejects.toMatchObject({ name: "ExternalOAuthRefreshError", code: "authorization_revoked", retryable: false });
+		await expect(refreshExternalAccessToken(env, "google", "refresh", async () =>
+			new Response("throttled", { status: 429 })))
+			.rejects.toMatchObject({ code: "provider_throttled", retryable: true });
+		await expect(refreshExternalAccessToken(env, "google", "refresh", async () =>
+			new Response("invalid", { status: 200 })))
+			.rejects.toMatchObject({ code: "invalid_token_response", retryable: false });
+		await expect(refreshExternalAccessToken(env, "google", "refresh", async () => Response.json({})))
+			.rejects.toMatchObject({ code: "invalid_token_response", retryable: false });
+		await expect(refreshExternalAccessToken(env, "google", "refresh", async () =>
+			Response.json({ error: "temporarily_unavailable" }, { status: 400 })))
+			.rejects.toMatchObject({ code: "provider_unavailable", retryable: false });
+		await expect(refreshExternalAccessToken(env, "google", "refresh", async () =>
+			new Response("down", { status: 503 })))
+			.rejects.toMatchObject({ code: "provider_unavailable", retryable: true });
+		expect((await refreshExternalAccessToken(env, "google", "refresh", async () => Response.json({
+			access_token: "new-access", expires_in: 1800, scope: "custom-scope",
+		}))).scope).toBe("custom-scope");
+	});
+
+	it("revokes Google tokens without pretending Microsoft has a delegated revoke endpoint", async () => {
+		const fetcher = vi.fn(async () => new Response(null, { status: 200 }));
+		await revokeExternalRefreshToken("google", "refresh-token", fetcher);
+		expect(fetcher).toHaveBeenCalledWith("https://oauth2.googleapis.com/revoke", expect.objectContaining({
+			method: "POST",
+			body: "token=refresh-token",
+		}));
+		fetcher.mockClear();
+		await revokeExternalRefreshToken("microsoft", "refresh-token", fetcher);
+		expect(fetcher).not.toHaveBeenCalled();
+		await expect(revokeExternalRefreshToken("google", "refresh-token", async () =>
+			new Response(null, { status: 503 }))).rejects.toThrow("External OAuth token revocation failed");
 	});
 });

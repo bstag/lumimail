@@ -38,6 +38,11 @@ import { handleMcpAuthorizationRequest } from "./worker-mcp-authorization";
 import { handleMcpOAuthTokenRequest, purgeMcpRefreshTokenUses } from "./worker-mcp-refresh";
 import { processPushQueueMessage, reconcilePushNotifications } from "./src/lib/push/queue";
 import { purgePushNotificationState } from "./src/lib/push/retention";
+import {
+	isExternalSyncQueueMessage,
+	processExternalSyncQueue,
+	reconcileExternalSyncJobs,
+} from "./src/lib/email/external/sync-queue";
 
 type McpWorkerEnv = McpEnv & { OAUTH_KV: KVNamespace; OAUTH_PROVIDER: OAuthHelpers };
 
@@ -171,6 +176,19 @@ export default {
 					} else {
 						msg.ack();
 					}
+				} else if (isExternalSyncQueueMessage(msg.body)) {
+					if (batch.queue.includes("external-sync-dlq")) {
+						// The durable D1 job remains authoritative and scheduled
+						// reconciliation can wake it after operator/provider recovery.
+						msg.ack();
+						continue;
+					}
+					const result = await processExternalSyncQueue(env, msg.body);
+					if (result.action === "retry") {
+						msg.retry({ delaySeconds: result.delaySeconds });
+					} else {
+						msg.ack();
+					}
 				} else {
 					console.error("Queue payload rejected", {
 						queue: batch.queue,
@@ -204,6 +222,7 @@ export default {
 		try {
 			await reconcilePushNotifications(env);
 			await purgePushNotificationState(env);
+			await reconcileExternalSyncJobs(env);
 		} catch {
 			console.warn("Push reconciliation failed");
 		}

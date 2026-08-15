@@ -28,6 +28,7 @@ export type BeginExternalOAuthInput = {
 	mailboxId: string;
 	importMode: ExternalImportMode;
 	retainOriginal: boolean;
+	reconnectAccountId?: string;
 };
 
 export type BeginExternalOAuthResult =
@@ -57,6 +58,7 @@ export async function beginExternalOAuth(
 		userId: input.userId,
 		approvingSessionId: input.sessionId,
 		provider: input.provider,
+		...(input.reconnectAccountId ? { reconnectAccountId: input.reconnectAccountId } : {}),
 		importMode: input.importMode,
 		retainOriginal: input.retainOriginal,
 		verifierCiphertext: sealedVerifier.ciphertext,
@@ -126,14 +128,37 @@ export async function completeExternalOAuth(
 		env, oauthState.provider, input.code, verifier,
 	);
 	const externalAddress = await fetchExternalIdentity(oauthState.provider, tokens.accessToken);
-	const accountId = newId("exa");
+	let accountId = newId("exa");
+	if (oauthState.reconnectAccountId) {
+		const [existing] = await db.select({ id: externalAccounts.id }).from(externalAccounts).where(and(
+			eq(externalAccounts.id, oauthState.reconnectAccountId),
+			eq(externalAccounts.organizationId, input.organizationId),
+			eq(externalAccounts.mailboxId, oauthState.mailboxId),
+			eq(externalAccounts.ownerUserId, input.userId),
+			eq(externalAccounts.provider, oauthState.provider),
+			eq(externalAccounts.externalAddress, externalAddress),
+		)).limit(1);
+		if (!existing) return { status: "forbidden" };
+		accountId = existing.id;
+	}
 	const jobId = newId("exj");
 	const sealedToken = await encryptExternalSecret(
 		tokens.refreshToken,
 		`external-account:${accountId}:${input.organizationId}:${oauthState.mailboxId}:${input.userId}:${oauthState.provider}`,
 		keyring,
 	);
-	const accountInsert = db.insert(externalAccounts).values({
+	const accountWrite = oauthState.reconnectAccountId
+		? db.update(externalAccounts).set({
+			approvingSessionId: input.sessionId,
+			tokenCiphertext: sealedToken.ciphertext,
+			tokenIv: sealedToken.iv,
+			tokenKeyId: sealedToken.keyId,
+			status: "initial_sync" as const,
+			lastErrorCode: null,
+			revokedAt: null,
+			updatedAt: now,
+		}).where(eq(externalAccounts.id, accountId))
+		: db.insert(externalAccounts).values({
 		id: accountId,
 		organizationId: input.organizationId,
 		mailboxId: oauthState.mailboxId,
@@ -149,7 +174,7 @@ export async function completeExternalOAuth(
 		retainOriginal: oauthState.retainOriginal,
 		createdAt: now,
 		updatedAt: now,
-	});
+		});
 	const jobInsert = db.insert(externalSyncJobs).values({
 		id: jobId,
 		accountId,
@@ -160,7 +185,7 @@ export async function completeExternalOAuth(
 		createdAt: now,
 	});
 	try {
-		await db.batch([accountInsert, jobInsert]);
+		await db.batch([accountWrite, jobInsert]);
 	} catch (error) {
 		if (isExistingConnectionConflict(error)) return { status: "conflict" };
 		throw error;

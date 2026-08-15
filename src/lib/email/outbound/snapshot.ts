@@ -32,6 +32,7 @@ export type OutboundDeliverySnapshot = {
 	attachments?: OutboundAttachmentSnapshot[];
 	headers?: NonNullable<ReplyThreading["headers"]>;
 	autoReply?: boolean;
+	externalAccountId?: string;
 };
 
 export type OutboundQueueMessage = {
@@ -52,7 +53,12 @@ export function parseDeliverySnapshot(payload: string): OutboundDeliverySnapshot
 			(value.text !== undefined && typeof value.text !== "string") ||
 			(value.headers !== undefined && !isThreadingHeaders(value.headers)) ||
 			(value.autoReply !== undefined && typeof value.autoReply !== "boolean") ||
-			(value.attachments !== undefined && !isAttachmentSnapshotArray(value.attachments))
+			(value.attachments !== undefined && !isAttachmentSnapshotArray(value.attachments)) ||
+			(value.externalAccountId !== undefined && (
+				typeof value.externalAccountId !== "string"
+				|| value.externalAccountId.length < 1
+				|| value.externalAccountId.length > 100
+			))
 		) {
 			return null;
 		}
@@ -64,6 +70,7 @@ export function parseDeliverySnapshot(payload: string): OutboundDeliverySnapshot
 			text: value.text as string | undefined,
 			headers: value.headers as NonNullable<ReplyThreading["headers"]> | undefined,
 			autoReply: value.autoReply as boolean | undefined,
+			externalAccountId: value.externalAccountId as string | undefined,
 			attachments: value.attachments as OutboundAttachmentSnapshot[] | undefined,
 		};
 	} catch {

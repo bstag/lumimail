@@ -16,10 +16,12 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useMessages } from "@/hooks/use-messages";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth/client";
+import { parseApiResponse } from "@/lib/api/client-response";
 import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
 import { BulkMessageToolbar } from "./bulk-message-toolbar";
 import type { MessageListRowProps, MessageFolderConfig } from "./types";
 import {
+	getExternalSourceLabel,
 	getPageRange,
 	getMessageBadge,
 	getMessageParty,
@@ -66,6 +68,7 @@ function MessageListRow({
 	timestamp,
 	href,
 	active = false,
+	externalSourceLabel,
 }: MessageListRowProps) {
 	const t = useTranslations("messages");
 	const { openDraftComposer } = useCompose();
@@ -150,6 +153,7 @@ function MessageListRow({
 	 */
 	const meta = (
 		<div className="flex shrink-0 items-center gap-2">
+			{externalSourceLabel && <Badge variant="outline">{externalSourceLabel}</Badge>}
 			{mailboxLabel && (
 				<Badge variant="outline" title={mailboxLabel}>
 					{mailboxLabel}
@@ -265,6 +269,15 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 	const [pendingBulkAction, setPendingBulkAction] = useState(false);
 	const [activeLabelId, setActiveLabelId] = useState<string | null>(null);
 	const { data: labels = [] } = useQuery({ queryKey: labelKeys.all, queryFn: fetchLabels });
+	const { data: externalSources = [] } = useQuery({
+		queryKey: ["external-accounts", "message-sources"],
+		queryFn: async () => {
+			const response = await authFetch("/api/external-accounts");
+			if (!response.ok) return [];
+			const payload = await parseApiResponse<{ accounts: Array<{ id: string; mailboxId: string; provider: "google" | "microsoft"; externalAddress: string }> }>(response);
+			return payload.accounts;
+		},
+	});
 	// A label view pins its label; the chip row is for narrowing a folder and has
 	// nothing left to narrow once the whole list is one label.
 	const pinnedLabelId = config.labelId ?? null;
@@ -520,6 +533,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 						onStarToggle={handleStarToggle}
 						canSend={selectedMailbox ? canMailboxSend(selectedMailbox) : false}
 						mailboxLabel={allMailboxes ? mailboxLabels.get(message.mailboxId ?? "") : undefined}
+						externalSourceLabel={getExternalSourceLabel(message, externalSources) ?? undefined}
 						compact={compact}
 						timestamp={formatMessageListTime(message.createdAt, renderedAt)}
 						href={desktopMessageHref(message.id)}

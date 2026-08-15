@@ -109,6 +109,7 @@ export const sendEmailSchema = z.object({
 	html: z.string().optional(),
 	text: z.string().optional(),
 	mailboxId: z.string().optional(),
+	externalAccountId: z.string().trim().min(1).max(100).optional(),
 });
 
 export const firstRunRegisterSchema = z.object({

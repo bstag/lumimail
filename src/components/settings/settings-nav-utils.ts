@@ -4,6 +4,7 @@ export type SettingsNavItemId =
 	| "personal"
 	| "mailbox"
 	| "notifications"
+	| "external-accounts"
 	| "integrations"
 	| "overview"
 	| "members"
@@ -37,6 +38,7 @@ const accountSection: SettingsNavSection = {
 		{ id: "personal", label: "Personal", href: "/settings#personal" },
 		{ id: "mailbox", label: "Mailbox", href: "/settings#mailbox" },
 		{ id: "notifications", label: "Notifications", href: "/settings/notifications" },
+		{ id: "external-accounts", label: "External accounts", href: "/settings/external-accounts" },
 		{ id: "integrations", label: "Integrations", href: "/settings/api-keys" },
 	],
 };
@@ -91,6 +93,7 @@ export function getActiveSettingsNavItem(
 	if (pathname === "/settings") return hash === "#mailbox" ? "mailbox" : "personal";
 	if (pathname === "/settings/api-keys" || pathname === "/settings/mcp") return "integrations";
 	if (pathname === "/settings/notifications") return "notifications";
+	if (pathname === "/settings/external-accounts") return "external-accounts";
 	if (pathname === "/admin") return "overview";
 	if (pathname === "/members") return "members";
 	if (pathname === "/mailboxes" || pathname.startsWith("/mailboxes/")) return "mailboxes";

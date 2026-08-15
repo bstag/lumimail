@@ -549,6 +549,7 @@ export const externalOauthStates = sqliteTable(
 		userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
 		approvingSessionId: text("approving_session_id").notNull().references(() => sessions.id, { onDelete: "cascade" }),
 		provider: text("provider", { enum: ["google", "microsoft"] }).notNull(),
+		reconnectAccountId: text("reconnect_account_id"),
 		importMode: text("import_mode", { enum: ["from_now", "recent_30_days"] }).notNull(),
 		retainOriginal: integer("retain_original", { mode: "boolean" }).notNull().default(false),
 		verifierCiphertext: text("verifier_ciphertext").notNull(),
@@ -561,6 +562,7 @@ export const externalOauthStates = sqliteTable(
 	(t) => [
 		uniqueIndex("external_oauth_states_hash_idx").on(t.stateHash),
 		index("external_oauth_states_expiry_idx").on(t.expiresAt, t.usedAt),
+		index("external_oauth_states_reconnect_idx").on(t.reconnectAccountId),
 	],
 );
 

@@ -86,4 +86,11 @@ describe("beginExternalOAuth", () => {
 			state: "state-secret", codeChallenge: "challenge",
 		});
 	});
+
+	it("binds a reconnect target into the one-time OAuth state", async () => {
+		await beginExternalOAuth({ EXTERNAL_TOKEN_KEYS: "keys" } as CloudflareEnv, {
+			...input, reconnectAccountId: "exa_existing",
+		});
+		expect(h.values).toHaveBeenCalledWith(expect.objectContaining({ reconnectAccountId: "exa_existing" }));
+	});
 });

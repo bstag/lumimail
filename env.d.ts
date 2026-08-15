@@ -5,6 +5,7 @@ interface CloudflareEnv {
 	INBOUND_QUEUE: Queue<import("./src/lib/email/inbound").InboundQueueMessage>;
 	OUTBOUND_QUEUE: Queue<import("./src/lib/email/send").OutboundQueueMessage>;
 	EXTERNAL_SYNC_QUEUE: Queue<import("./src/lib/email/external/types").ExternalSyncQueueMessage>;
+	EXTERNAL_SYNC_DLQ_QUEUE: Queue;
 	ASSETS: Fetcher;
 	IMAGES: ImagesBinding;
 	WORKER_SELF_REFERENCE: Fetcher;

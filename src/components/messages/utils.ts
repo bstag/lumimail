@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { Message } from "@/hooks/types";
 import { invalidateMessageQueries } from "@/lib/query-keys";
 import { authFetch } from "@/lib/auth/client";
-import { getEmailDisplayName } from "@/lib/email/address";
+import { getEmailAddress, getEmailDisplayName } from "@/lib/email/address";
 import type { MessageFolderConfig } from "./types";
 import type { PageRange } from "./types";
 
@@ -29,6 +29,27 @@ export function getMessageBadge(message: Message, folder: MessageFolderConfig["f
 	if (folder === "sent") return message.status;
 	if (folder === "trash" || folder === "spam") return message.status;
 	return message.direction;
+}
+
+export type ExternalSourceAccount = {
+	id: string;
+	mailboxId: string;
+	provider: "google" | "microsoft";
+	externalAddress: string;
+};
+
+export function getExternalSourceLabel(
+	message: Message,
+	accounts: readonly ExternalSourceAccount[],
+): string | null {
+	const from = getEmailAddress(message.fromAddr).toLowerCase();
+	const to = getEmailAddress(message.toAddr).toLowerCase();
+	const account = accounts.find((candidate) => candidate.mailboxId === message.mailboxId && (
+		candidate.externalAddress.toLowerCase() === from || candidate.externalAddress.toLowerCase() === to
+	));
+	return account
+		? `${account.provider === "google" ? "Google" : "Microsoft"} · ${account.externalAddress}`
+		: null;
 }
 
 export function getPageRange(offset: number, count: number, total: number): PageRange {

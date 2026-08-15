@@ -27,6 +27,24 @@ export type ExternalOAuthTokens = {
 	scope: string;
 };
 
+export type ExternalOAuthRefreshErrorCode =
+	| "authorization_revoked"
+	| "provider_throttled"
+	| "provider_unavailable"
+	| "invalid_token_response";
+
+export class ExternalOAuthRefreshError extends Error {
+	readonly code: ExternalOAuthRefreshErrorCode;
+	readonly retryable: boolean;
+
+	constructor(code: ExternalOAuthRefreshErrorCode, retryable: boolean) {
+		super("External OAuth token refresh failed");
+		this.name = "ExternalOAuthRefreshError";
+		this.code = code;
+		this.retryable = retryable;
+	}
+}
+
 function encodeBase64Url(value: Uint8Array): string {
 	let binary = "";
 	for (const byte of value) binary += String.fromCharCode(byte);
@@ -140,6 +158,13 @@ const tokenResponseSchema = z.object({
 	token_type: z.string().optional(),
 }).passthrough();
 
+const refreshTokenResponseSchema = z.object({
+	access_token: z.string().min(1).max(16_384),
+	refresh_token: z.string().min(1).max(16_384).optional(),
+	expires_in: z.number().int().positive().max(604_800),
+	scope: z.string().max(4096).optional(),
+}).passthrough();
+
 export async function exchangeExternalAuthorizationCode(
 	env: CloudflareEnv,
 	provider: ExternalProvider,
@@ -176,6 +201,70 @@ export async function exchangeExternalAuthorizationCode(
 		expiresIn: parsed.data.expires_in,
 		scope: parsed.data.scope ?? configuration.scopes.join(" "),
 	};
+}
+
+export async function refreshExternalAccessToken(
+	env: CloudflareEnv,
+	provider: ExternalProvider,
+	refreshToken: string,
+	fetcher: ExternalFetch = fetch,
+): Promise<ExternalOAuthTokens> {
+	const configuration = getExternalOAuthProvider(env, provider);
+	const body = new URLSearchParams({
+		client_id: configuration.clientId,
+		client_secret: configuration.clientSecret,
+		refresh_token: refreshToken,
+		grant_type: "refresh_token",
+		scope: configuration.scopes.join(" "),
+	});
+	const response = await fetcher(configuration.tokenEndpoint, {
+		method: "POST",
+		headers: { "content-type": "application/x-www-form-urlencoded" },
+		body: body.toString(),
+	});
+	if (!response.ok) {
+		let errorCode: unknown;
+		try {
+			errorCode = (await response.json() as { error?: unknown }).error;
+		} catch {
+			// Provider error bodies are intentionally discarded.
+		}
+		if (errorCode === "invalid_grant") {
+			throw new ExternalOAuthRefreshError("authorization_revoked", false);
+		}
+		if (response.status === 429) {
+			throw new ExternalOAuthRefreshError("provider_throttled", true);
+		}
+		throw new ExternalOAuthRefreshError("provider_unavailable", response.status >= 500);
+	}
+	let raw: unknown;
+	try {
+		raw = await response.json();
+	} catch {
+		throw new ExternalOAuthRefreshError("invalid_token_response", false);
+	}
+	const parsed = refreshTokenResponseSchema.safeParse(raw);
+	if (!parsed.success) throw new ExternalOAuthRefreshError("invalid_token_response", false);
+	return {
+		accessToken: parsed.data.access_token,
+		refreshToken: parsed.data.refresh_token ?? refreshToken,
+		expiresIn: parsed.data.expires_in,
+		scope: parsed.data.scope ?? configuration.scopes.join(" "),
+	};
+}
+
+export async function revokeExternalRefreshToken(
+	provider: ExternalProvider,
+	refreshToken: string,
+	fetcher: ExternalFetch = fetch,
+): Promise<void> {
+	if (provider === "microsoft") return;
+	const response = await fetcher("https://oauth2.googleapis.com/revoke", {
+		method: "POST",
+		headers: { "content-type": "application/x-www-form-urlencoded" },
+		body: new URLSearchParams({ token: refreshToken }).toString(),
+	});
+	if (!response.ok) throw new Error("External OAuth token revocation failed");
 }
 
 const providerAddress = z.string().trim().toLowerCase().email().max(320);
