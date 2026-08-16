@@ -61,3 +61,62 @@
 - `npx opennextjs-cloudflare build`: passed on Next.js `16.3.0` and OpenNext `1.20.2`.
 - `npx wrangler deploy --dry-run`: passed on Wrangler `4.114.0`; all production bindings were resolved.
 - `npm audit`, `npm audit --omit=dev`, and the bridge production audit: zero known vulnerabilities on 2026-08-06.
+
+## 2026-08-15 Node runtime floor correction
+
+### Current behavior
+
+- The root manifest declares Node `>=22`, while the locked Babel 8 build dependencies
+  require Node `^22.18.0 || >=24.11.0`.
+- Node 22.16 can install with engine warnings, and an interrupted npm repair can leave
+  `node_modules/.bin` incomplete, making the pinned Wrangler/OpenNext commands appear
+  missing.
+- The doctor and release-metadata checks compare only the Node major version, so they
+  cannot enforce a minor/patch runtime floor truthfully.
+
+### Desired behavior
+
+- Declare and consistently enforce Node `^22.18.0 || >=24.11.0` in the manifest,
+  lockfile, doctor, and release pipeline, while pinning the tested local/CI line to
+  Node `22.18.0`.
+- Compare complete major/minor/patch versions and fail closed for malformed versions or
+  Node 22.17 and earlier.
+- Keep the repository-pinned Wrangler and OpenNext executables; do not replace them
+  with floating global or unqualified `npx` installs.
+
+### Edge cases and error states
+
+- Node versions may include a leading `v` and prerelease/build suffixes; only the
+  numeric core participates in the minimum comparison.
+- A malformed engine string or runtime version fails readiness/release derivation.
+- Node 23 and Node 24.0 through 24.10 fail because the locked dependencies do not
+  support them; Node 24.11 and newer pass. The deploy environment should stay on the
+  tested Node 22 line until separately verified.
+
+### Test plan
+
+- Add unit coverage for exact-minimum, below-minimum, newer-major, and malformed Node
+  versions in doctor and release metadata.
+- Verify the manifest, lockfile, `.nvmrc`, and CI version remain aligned.
+- Run `npm run verify` under Node 22.18 or newer; do not claim the local gate passed
+  while the executing runtime remains Node 22.16.
+
+### Bug / Change Log entry draft
+
+- Raised the declared Node floor to 22.18.0, aligned CI/local version hints, and taught
+  operational release checks to enforce full semantic versions rather than only the
+  major number.
+
+### Final behavior and verification
+
+- `package.json` and the root lockfile package declare `^22.18.0 || >=24.11.0`;
+  `.nvmrc` and CI pin the tested runtime to Node 22.18.0.
+- Doctor and release metadata compare the complete numeric Node version. Release
+  metadata also normalizes an optional leading `v` before writing the manifest.
+- Focused runtime/release tests passed: 72 tests across three files.
+- `npm run verify` passed typecheck and lint (with existing warnings), then ran 2,554
+  tests. Two unrelated existing queue-contract tests failed because `wrangler.jsonc`
+  does not yet declare `EXTERNAL_SYNC_QUEUE` and `EXTERNAL_SYNC_DLQ_QUEUE`; 2,552 tests
+  passed. The IMAP bridge test step did not run after that failure.
+- The executing workstation remains on Node 22.16.0 and must be upgraded before the
+  deploy command is run under the newly declared supported runtime.

@@ -40,6 +40,8 @@ function config() {
 				{ binding: "OUTBOUND_DLQ_QUEUE", queue: "lumimail-outbound-dlq-prod" },
 				{ binding: "PUSH_QUEUE", queue: "lumimail-push-prod" },
 				{ binding: "PUSH_DLQ_QUEUE", queue: "lumimail-push-dlq-prod" },
+				{ binding: "EXTERNAL_SYNC_QUEUE", queue: "lumimail-external-sync-prod" },
+				{ binding: "EXTERNAL_SYNC_DLQ_QUEUE", queue: "lumimail-external-sync-dlq-prod" },
 			],
 			consumers: [
 				{ queue: "lumimail-inbound-prod" },
@@ -47,6 +49,8 @@ function config() {
 				{ queue: "lumimail-outbound-dlq-prod" },
 				{ queue: "lumimail-push-prod", dead_letter_queue: "lumimail-push-dlq-prod" },
 				{ queue: "lumimail-push-dlq-prod" },
+				{ queue: "lumimail-external-sync-prod", dead_letter_queue: "lumimail-external-sync-dlq-prod" },
+				{ queue: "lumimail-external-sync-dlq-prod" },
 			],
 		},
 	};
@@ -55,7 +59,7 @@ function config() {
 function inputs(overrides: Record<string, unknown> = {}) {
 	return {
 		nodeVersion: "22.18.0",
-		packageManifest: { name: "email-platform", engines: { node: ">=22" } },
+		packageManifest: { name: "email-platform", engines: { node: "^22.18.0 || >=24.11.0" } },
 		config: config(),
 		migrationNames: ["0000_init.sql", "0001_next.sql", "0002_more.sql"],
 		requiredPaths: {
@@ -134,6 +138,18 @@ describe("parseWranglerSession", () => {
 });
 
 describe("buildLocalDoctorReport", () => {
+	it("keeps repository Node runtime declarations aligned", () => {
+		const manifest = JSON.parse(readFileSync(resolve("package.json"), "utf8"));
+		const lock = JSON.parse(readFileSync(resolve("package-lock.json"), "utf8"));
+		const nvmVersion = readFileSync(resolve(".nvmrc"), "utf8").trim();
+		const workflow = readFileSync(resolve(".github/workflows/ci.yml"), "utf8");
+
+		expect(manifest.engines.node).toBe("^22.18.0 || >=24.11.0");
+		expect(lock.packages[""].engines.node).toBe("^22.18.0 || >=24.11.0");
+		expect(nvmVersion).toBe("22.18.0");
+		expect(workflow).toMatch(/node-version:\s*22\.18\.0/);
+	});
+
 	it("returns deterministic passing checks for the complete production shape", () => {
 		const report = buildLocalDoctorReport(inputs());
 		expect(report.product).toBe("lumimail");
@@ -146,7 +162,7 @@ describe("buildLocalDoctorReport", () => {
 		expect(report.checks).toEqual(expect.arrayContaining([
 			expect.objectContaining({ id: "runtime.node", status: "pass", observed: "22.18.0" }),
 			expect.objectContaining({ id: "migrations.sequence", status: "pass", observed: "0000..0002" }),
-			expect.objectContaining({ id: "bindings.queues", status: "pass", observed: 5 }),
+			expect.objectContaining({ id: "bindings.queues", status: "pass", observed: 7 }),
 		]));
 	});
 
@@ -171,6 +187,28 @@ describe("buildLocalDoctorReport", () => {
 	});
 
 	it.each([
+		["a lower minor", "22.17.9"],
+		["a lower major", "20.19.0"],
+		["an unsupported major", "23.0.0"],
+		["an early Node 24 release", "24.10.9"],
+		["a malformed runtime", "twenty-two"],
+	])("fails the runtime check for %s", (_label, nodeVersion) => {
+		const report = buildLocalDoctorReport(inputs({ nodeVersion }));
+		expect(report.checks).toContainEqual(expect.objectContaining({
+			id: "runtime.node", status: "fail", observed: nodeVersion,
+		}));
+	});
+
+	it("accepts the exact minimum and newer major runtimes", () => {
+		for (const nodeVersion of ["22.18.0", "v22.18.0", "22.99.0", "24.11.0", "25.0.0"]) {
+			const report = buildLocalDoctorReport(inputs({ nodeVersion }));
+			expect(report.checks).toContainEqual(expect.objectContaining({
+				id: "runtime.node", status: "pass", observed: nodeVersion,
+			}));
+		}
+	});
+
+	it.each([
 		["missing config", { config: undefined }],
 		["malformed engine", { packageManifest: { name: "email-platform", engines: { node: "latest" } } }],
 		["empty migrations", { migrationNames: [] }],
@@ -187,7 +225,7 @@ describe("buildLocalDoctorReport", () => {
 		const config = parseJsonc(readFileSync(resolve("wrangler.jsonc"), "utf8")) as Record<string, unknown>;
 		const packageManifest = JSON.parse(readFileSync(resolve("package.json"), "utf8"));
 		const report = buildLocalDoctorReport({
-			nodeVersion: process.versions.node,
+			nodeVersion: readFileSync(resolve(".nvmrc"), "utf8").trim(),
 			packageManifest,
 			config,
 			migrationNames: readdirSync(resolve("drizzle/migrations")).filter((name) => name.endsWith(".sql")),
@@ -234,6 +272,8 @@ function remoteRunner(overrides: Record<string, string | Error> = {}) {
 					{ name: "OUTBOUND_DLQ_QUEUE", type: "queue", queue_name: "lumimail-outbound-dlq-prod" },
 					{ name: "PUSH_QUEUE", type: "queue", queue_name: "lumimail-push-prod" },
 					{ name: "PUSH_DLQ_QUEUE", type: "queue", queue_name: "lumimail-push-dlq-prod" },
+					{ name: "EXTERNAL_SYNC_QUEUE", type: "queue", queue_name: "lumimail-external-sync-prod" },
+					{ name: "EXTERNAL_SYNC_DLQ_QUEUE", type: "queue", queue_name: "lumimail-external-sync-dlq-prod" },
 					{ name: "WORKER_SELF_REFERENCE", type: "service", service: "lumimail" },
 					{ name: "CF_TOKEN", type: "secret_text" },
 				],
@@ -248,6 +288,8 @@ function remoteRunner(overrides: Record<string, string | Error> = {}) {
 			"lumimail-outbound-dlq-prod 1 1",
 			"lumimail-push-prod 1 1",
 			"lumimail-push-dlq-prod 1 1",
+			"lumimail-external-sync-prod 1 1",
+			"lumimail-external-sync-dlq-prod 1 1",
 		].join("\n"),
 		"queues list --config wrangler.jsonc --page 2": "",
 		"secret list --config wrangler.jsonc --format json": JSON.stringify([{ name: "CF_TOKEN", type: "secret_text" }]),
@@ -302,7 +344,7 @@ describe("runRemoteDoctor", () => {
 		expect(report.checks).toEqual(expect.arrayContaining([
 			expect.objectContaining({ id: "remote.cron", status: "pass", observed: 1 }),
 			expect.objectContaining({ id: "remote.deployment", status: "pass", observed: 1 }),
-			expect.objectContaining({ id: "remote.queues", status: "pass", observed: 5 }),
+			expect.objectContaining({ id: "remote.queues", status: "pass", observed: 7 }),
 			expect.objectContaining({ id: "remote.secrets", status: "pass", observed: 1 }),
 			expect.objectContaining({ id: "remote.smoke", status: "pass", observed: SMOKE_CHECK_COUNT }),
 		]));

@@ -8,6 +8,8 @@ import { SMOKE_CHECK_COUNT } from "./operations-evidence.mjs";
 
 // The deployed queue contract, matching tests/unit/wrangler-local-bindings.test.ts.
 export const REQUIRED_QUEUE_BINDINGS = [
+	"EXTERNAL_SYNC_DLQ_QUEUE",
+	"EXTERNAL_SYNC_QUEUE",
 	"INBOUND_QUEUE",
 	"OUTBOUND_DLQ_QUEUE",
 	"OUTBOUND_QUEUE",
@@ -48,9 +50,27 @@ function summarize(checks, mode) {
 	});
 }
 
-function nodeRequirement(engine) {
-	const match = /^>=(\d+)$/.exec(engine ?? "");
-	return match ? Number(match[1]) : null;
+function parseNodeVersion(value) {
+	const match = /^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(value ?? "");
+	return match ? match.slice(1).map(Number) : null;
+}
+
+function compareNodeVersions(left, right) {
+	for (let index = 0; index < right.length; index += 1) {
+		if (left[index] !== right[index]) return left[index] > right[index] ? 1 : -1;
+	}
+	return 0;
+}
+
+function nodeEngineSatisfies(actual, engine) {
+	const match = /^\^(\d+\.\d+\.\d+) \|\| >=(\d+\.\d+\.\d+)$/.exec(engine ?? "");
+	if (!actual || !match) return false;
+	const supportedLine = parseNodeVersion(match[1]);
+	const futureMinimum = parseNodeVersion(match[2]);
+	return supportedLine !== null && futureMinimum !== null && (
+		(actual[0] === supportedLine[0] && compareNodeVersions(actual, supportedLine) >= 0) ||
+		compareNodeVersions(actual, futureMinimum) >= 0
+	);
 }
 
 function migrationSequence(names) {
@@ -91,11 +111,10 @@ export function buildLocalDoctorReport({
 	requiredPaths,
 }) {
 	const checks = [];
-	const requiredNode = nodeRequirement(packageManifest?.engines?.node);
-	const currentNode = /^(\d+)\./.exec(nodeVersion ?? "")?.[1];
+	const currentNode = parseNodeVersion(nodeVersion);
 	checks.push(check(
 		"runtime.node",
-		requiredNode !== null && currentNode !== undefined && Number(currentNode) >= requiredNode,
+		nodeEngineSatisfies(currentNode, packageManifest?.engines?.node),
 		"Node runtime satisfies package requirements",
 		typeof nodeVersion === "string" ? nodeVersion : "unknown",
 	));

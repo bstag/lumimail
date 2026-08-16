@@ -40,6 +40,29 @@ function deterministicBuiltAt(epoch) {
 	return date.toISOString();
 }
 
+function parseNodeVersion(value) {
+	const match = /^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(value ?? "");
+	return match ? match.slice(1).map(Number) : null;
+}
+
+function compareNodeVersions(left, right) {
+	for (let index = 0; index < right.length; index += 1) {
+		if (left[index] !== right[index]) return left[index] > right[index] ? 1 : -1;
+	}
+	return 0;
+}
+
+function nodeEngineSatisfies(actual, engine) {
+	const match = /^\^(\d+\.\d+\.\d+) \|\| >=(\d+\.\d+\.\d+)$/.exec(engine ?? "");
+	if (!actual || !match) return false;
+	const supportedLine = parseNodeVersion(match[1]);
+	const futureMinimum = parseNodeVersion(match[2]);
+	return supportedLine !== null && futureMinimum !== null && (
+		(actual[0] === supportedLine[0] && compareNodeVersions(actual, supportedLine) >= 0) ||
+		compareNodeVersions(actual, futureMinimum) >= 0
+	);
+}
+
 export function deriveReleaseMetadata({
 	runGit,
 	packageManifest,
@@ -61,16 +84,15 @@ export function deriveReleaseMetadata({
 			packageManifest?.name !== "email-platform" || rootLock?.name !== "email-platform" ||
 			packageManifest?.version !== rootLock?.version || packageLock?.lockfileVersion !== 3
 		) throw new ReleaseMetadataError();
-		const requiredNode = /^>=(\d+)$/.exec(packageManifest?.engines?.node ?? "")?.[1];
-		const actualNode = /^(\d+)\./.exec(nodeVersion ?? "")?.[1];
-		if (!requiredNode || !actualNode || Number(actualNode) < Number(requiredNode)) throw new ReleaseMetadataError();
+		const actualNode = parseNodeVersion(nodeVersion);
+		if (!nodeEngineSatisfies(actualNode, packageManifest?.engines?.node)) throw new ReleaseMetadataError();
 		const policy = exactSchemaPolicy(schemaPolicy);
 		const current = migrationHead(migrationNames);
 		if (Number(current) < Number(policy.minimum) || Number(current) > Number(policy.maximum)) {
 			throw new ReleaseMetadataError();
 		}
 		const runtime = {
-			node: nodeVersion,
+			node: actualNode.join("."),
 			next: packageLock?.packages?.["node_modules/next"]?.version,
 			openNext: packageLock?.packages?.["node_modules/@opennextjs/cloudflare"]?.version,
 			wrangler: packageLock?.packages?.["node_modules/wrangler"]?.version,

@@ -25,7 +25,7 @@ function fixture() {
 	writeFileSync(join(root, "package.json"), JSON.stringify({
 		name: "email-platform",
 		version: "1.2.3",
-		engines: { node: ">=22" },
+		engines: { node: "^22.18.0 || >=24.11.0" },
 	}));
 	writeFileSync(join(root, "package-lock.json"), JSON.stringify({
 		name: "email-platform",
@@ -79,7 +79,7 @@ describe("release preparation command", () => {
 			notesPath: "notes.json",
 			outputDirectory: "release-out",
 			runGit,
-			nodeVersion: "22.16.0",
+			nodeVersion: "22.18.0",
 			prepareBundle,
 		});
 
@@ -119,7 +119,7 @@ describe("release preparation command", () => {
 			notesPath: "notes.json",
 			outputDirectory: "release-out",
 			runGit,
-			nodeVersion: "22.16.0",
+			nodeVersion: "22.18.0",
 			prepareBundle,
 		})).toThrow(ReleaseCommandError);
 		expect(prepareBundle).not.toHaveBeenCalled();

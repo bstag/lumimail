@@ -483,6 +483,45 @@ tests, UI, provider failure handling, and controlled evidence. They are not comm
 
 ## 16. Bug / Change Log
 
+### 2026-08-15 — Repair external-sync deployment wiring
+
+Type: Deployment Fix
+
+Summary:
+
+- Add the external synchronization queue and dead-letter queue as producers and
+  consumers in every deployable Wrangler environment, and include them in the doctor
+  binding contract.
+
+Reason:
+
+- The OAuth aggregation implementation and example configuration declared the queue
+  contract, but the live production/staging configuration omitted it. Deployment
+  therefore succeeded without the bindings required to enqueue initial or incremental
+  synchronization work.
+
+Verification plan:
+
+- Run the focused Wrangler/Worker wiring tests and configuration doctor tests.
+- Deploy production only after both queue resources exist.
+- Re-read the active Worker version and queue inventory; require both bindings and one
+  producer/consumer on each production queue before provider testing.
+
+Result:
+
+- The production queues were created, full verification passed with 2,554 application
+  tests at 100% configured coverage plus 21 bridge tests, and Worker version
+  `86ed7b09-8396-47f7-b39f-bd013d905802` deployed successfully.
+- Live inventory reports one producer and one consumer for both
+  `lumimail-external-sync-prod` and `lumimail-external-sync-dlq-prod`; the active Worker
+  version exposes `EXTERNAL_SYNC_QUEUE` and `EXTERNAL_SYNC_DLQ_QUEUE` against those
+  exact resources.
+- The read-only production doctor passes 26/26, including seven unique live queues,
+  exact active-version bindings, no pending migrations, public smoke, schedule, D1,
+  R2, Email Routing, and Email Sending.
+- Provider OAuth/encryption secrets remain a separate operator configuration step; no
+  external account should be connected until those five secrets are present.
+
 ### 2026-08-15 — Implement OAuth aggregation MVP
 
 Type: Feature
