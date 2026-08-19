@@ -1,6 +1,6 @@
 # F81 — Signed Releases and Deliberate Promotion
 
-> Status: In Progress — first signed release verified; deliberate signed promotion pending
+> Status: In Progress — first signed release promoted; authenticated evidence recording pending
 > Owner area: `scripts/release-manifest.mjs`, `.github/workflows/`, `docs/OPERATIONS.md`
 
 ## 1. Problem & User Job
@@ -284,8 +284,16 @@ Result:
   signature `0.1.0-04415c1.signature.json`. Pinned verification passes for product Lumimail,
   version `0.1.0`, schema `0039`, signer `bstag-2026`, commit `04415c15`, and the exact
   8,500,815-byte artifact SHA-256.
-- The signed bundle was not uploaded or promoted. Production remains on the separately deployed
-  Worker version `12eeb49b-3ef5-4195-98a2-83abaa06d2a5` with migration `0039` already applied.
+- The promotion gate first produced unpromoted versions and correctly left traffic unchanged while
+  version preview URLs were disabled. `preview_urls: true` is now explicit in the operator config
+  and tracked example; the existing custom domain, Cron, and seven queue pairs were reconciled
+  without changing traffic.
+- Signed Worker version `27717f91-d867-4b28-8018-2a503d2fd0d4` passed 8/8 public checks at its
+  immutable preview URL before deliberate promotion. It now receives 100% of production traffic;
+  the post-promotion doctor passes 26/26 and production has no pending migrations.
+- Authenticated signed-release evidence was not written to the Operations ledger because no fresh
+  owner `LUMIMAIL_SESSION_TOKEN` was present. The signed bundle, detached signature, pinned trust,
+  provider deployment, and local documentation remain the durable evidence available now.
 
 ### 2026-08-12 — Define signed release provenance
 
