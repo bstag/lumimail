@@ -1,6 +1,6 @@
 # F81 — Signed Releases and Deliberate Promotion
 
-> Status: In Progress — offline trust chain, operator key custody, and verified promotion complete; awaiting first signed release
+> Status: In Progress — first signed release verified; deliberate signed promotion pending
 > Owner area: `scripts/release-manifest.mjs`, `.github/workflows/`, `docs/OPERATIONS.md`
 
 ## 1. Problem & User Job
@@ -274,7 +274,18 @@ Verification plan:
 
 Result:
 
-- Pending release preparation and verification.
+- Generated offline operator key `bstag-2026`; its private half is stored outside the repository at
+  `F:\lumimail-keys\release-signing.pem`, and only the public key is pinned in
+  `release.trust.json`. The displayed public-key fingerprint begins `4e0f47ce88614b50`.
+- Full verification passes with 300 application test files / 2,572 tests at 100% statement, branch,
+  function, and line coverage, plus 21 IMAP/SMTP bridge tests. The OpenNext production build also
+  completes from clean commit `04415c15590113b161e7cba7050a68cd8b808014`.
+- Prepared and signed release `0.1.0` at `F:\lumimail-releases\0.1.0-04415c1` with detached
+  signature `0.1.0-04415c1.signature.json`. Pinned verification passes for product Lumimail,
+  version `0.1.0`, schema `0039`, signer `bstag-2026`, commit `04415c15`, and the exact
+  8,500,815-byte artifact SHA-256.
+- The signed bundle was not uploaded or promoted. Production remains on the separately deployed
+  Worker version `12eeb49b-3ef5-4195-98a2-83abaa06d2a5` with migration `0039` already applied.
 
 ### 2026-08-12 — Define signed release provenance
 
