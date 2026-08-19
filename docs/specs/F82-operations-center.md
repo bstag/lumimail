@@ -692,3 +692,23 @@ Tests:
 - `npm run verify` passes: typecheck, lint with 0 errors and 43 pre-existing warnings, 275 test
   files with 2,403 application tests at 100% statement/branch/function/line coverage, and 21 IMAP
   bridge tests.
+
+### 2026-08-19 — Record current public-smoke evidence through Wrangler
+
+Type: Production Evidence
+
+Summary:
+
+- Run the complete eight-check public smoke contract against `https://mail.henriksen.dev` and
+  observe all expected public and anonymous-authentication boundaries passing.
+- Use explicitly authorized Wrangler D1 operator access to append the derived, tenant-scoped result
+  after confirming the production owner mapping is unambiguous.
+
+Result:
+
+- Production smoke passes 8/8. Evidence `ope_tBkMV09clCIz0SBeJ2Ei8` was inserted with category
+  `smoke`, outcome `passed`, checks `8/8`, and a five-second conservative observation timestamp,
+  then read back successfully from production D1.
+- This infrastructure-authorized write bypassed the recent-owner-session HTTP adapter; it did not
+  claim that an application session performed the recording. No account or message content was
+  queried or stored.
