@@ -1,6 +1,6 @@
 # F81 — Signed Releases and Deliberate Promotion
 
-> Status: In Progress — first signed release promoted; authenticated evidence recording pending
+> Status: Shipped — first signed release promoted and production evidence recorded
 > Owner area: `scripts/release-manifest.mjs`, `.github/workflows/`, `docs/OPERATIONS.md`
 
 ## 1. Problem & User Job
@@ -291,9 +291,12 @@ Result:
 - Signed Worker version `27717f91-d867-4b28-8018-2a503d2fd0d4` passed 8/8 public checks at its
   immutable preview URL before deliberate promotion. It now receives 100% of production traffic;
   the post-promotion doctor passes 26/26 and production has no pending migrations.
-- Authenticated signed-release evidence was not written to the Operations ledger because no fresh
-  owner `LUMIMAIL_SESSION_TOKEN` was present. The signed bundle, detached signature, pinned trust,
-  provider deployment, and local documentation remain the durable evidence available now.
+- After a fresh pinned verification of the bundle, the infrastructure operator used authenticated
+  Wrangler D1 access to append production evidence `ope_DvF4qhsCPHY_6KPYWiCtv` for the sole owner
+  organization: category `release`, outcome `passed`, and checks `1/1`, observed at the signed
+  promotion timestamp. The row was read back successfully. This was an explicitly authorized
+  operator write that bypassed the recent-owner-session HTTP adapter; it did not claim that an
+  application session performed the recording.
 
 ### 2026-08-12 — Define signed release provenance
 
