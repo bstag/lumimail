@@ -5,17 +5,17 @@ import { getMailboxAccess } from "@/lib/auth/mailbox-access";
 import { sha256Hex } from "@/lib/crypto-utils";
 import { newId } from "@/lib/ids";
 import {
-	buildExternalAuthorizationUrl,
 	createExternalOauthStateToken,
 	createPkcePair,
-	exchangeExternalAuthorizationCode,
-	fetchExternalIdentity,
 } from "./oauth-provider";
+import { getExternalProviderAdapter } from "./provider-adapter";
 import {
 	decryptExternalSecret,
 	encryptExternalSecret,
 	parseExternalSecretKeyring,
 } from "./secret-vault";
+import { sealExternalAccountCredential } from "./credentials";
+import { commitInitialExternalSyncJob } from "./sync-jobs";
 import type { ExternalImportMode, ExternalProvider } from "./types";
 
 const OAUTH_STATE_LIFETIME_MS = 10 * 60 * 1000;
@@ -70,7 +70,7 @@ export async function beginExternalOAuth(
 
 	return {
 		status: "created",
-		redirectTo: buildExternalAuthorizationUrl(env, input.provider, {
+		redirectTo: getExternalProviderAdapter(input.provider).buildAuthorizationUrl(env, {
 			state,
 			codeChallenge: pkce.challenge,
 		}),
@@ -124,10 +124,9 @@ export async function completeExternalOAuth(
 		iv: oauthState.verifierIv,
 		ciphertext: oauthState.verifierCiphertext,
 	}, `oauth-state:${oauthState.id}`, keyring);
-	const tokens = await exchangeExternalAuthorizationCode(
-		env, oauthState.provider, input.code, verifier,
-	);
-	const externalAddress = await fetchExternalIdentity(oauthState.provider, tokens.accessToken);
+	const adapter = getExternalProviderAdapter(oauthState.provider);
+	const tokens = await adapter.exchangeAuthorizationCode(env, input.code, verifier);
+	const externalAddress = await adapter.fetchIdentity(tokens.accessToken);
 	let accountId = newId("exa");
 	if (oauthState.reconnectAccountId) {
 		const [existing] = await db.select({ id: externalAccounts.id }).from(externalAccounts).where(and(
@@ -141,12 +140,13 @@ export async function completeExternalOAuth(
 		if (!existing) return { status: "forbidden" };
 		accountId = existing.id;
 	}
-	const jobId = newId("exj");
-	const sealedToken = await encryptExternalSecret(
-		tokens.refreshToken,
-		`external-account:${accountId}:${input.organizationId}:${oauthState.mailboxId}:${input.userId}:${oauthState.provider}`,
-		keyring,
-	);
+	const sealedToken = await sealExternalAccountCredential(env, {
+		id: accountId,
+		organizationId: input.organizationId,
+		mailboxId: oauthState.mailboxId,
+		ownerUserId: input.userId,
+		provider: oauthState.provider,
+	}, tokens.refreshToken);
 	const accountWrite = oauthState.reconnectAccountId
 		? db.update(externalAccounts).set({
 			approvingSessionId: input.sessionId,
@@ -175,25 +175,13 @@ export async function completeExternalOAuth(
 		createdAt: now,
 		updatedAt: now,
 		});
-	const jobInsert = db.insert(externalSyncJobs).values({
-		id: jobId,
-		accountId,
-		kind: "initial",
-		status: "pending",
-		attempts: 0,
-		nextAttemptAt: now,
-		createdAt: now,
-	});
 	try {
-		await db.batch([accountWrite, jobInsert]);
+		await commitInitialExternalSyncJob(env, accountId, now, async (job) => {
+			await db.batch([accountWrite, db.insert(externalSyncJobs).values(job)]);
+		});
 	} catch (error) {
 		if (isExistingConnectionConflict(error)) return { status: "conflict" };
 		throw error;
-	}
-	try {
-		await env.EXTERNAL_SYNC_QUEUE.send({ kind: "external-sync", version: 1, jobId });
-	} catch {
-		console.warn("External initial sync enqueue deferred", { jobId });
 	}
 	return { status: "created", accountId, externalAddress };
 }

@@ -41,8 +41,8 @@ import { purgePushNotificationState } from "./src/lib/push/retention";
 import {
 	isExternalSyncQueueMessage,
 	processExternalSyncQueue,
-	reconcileExternalSyncJobs,
 } from "./src/lib/email/external/sync-queue";
+import { reconcileExternalSyncJobs } from "./src/lib/email/external/sync-jobs";
 
 type McpWorkerEnv = McpEnv & { OAUTH_KV: KVNamespace; OAUTH_PROVIDER: OAuthHelpers };
 

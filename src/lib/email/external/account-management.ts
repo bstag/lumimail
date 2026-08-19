@@ -1,11 +1,11 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
-import { domains, externalAccounts, externalSyncJobs, mailboxes, users } from "@/db/schema";
+import { domains, externalAccounts, mailboxes, users } from "@/db/schema";
 import { getMailboxAccess, listAccessibleMailboxIds } from "@/lib/auth/mailbox-access";
-import { newId } from "@/lib/ids";
 import { beginExternalOAuth } from "./connections";
-import { revokeExternalRefreshToken } from "./oauth-provider";
-import { decryptExternalSecret, parseExternalSecretKeyring } from "./secret-vault";
+import { openExternalAccountCredential } from "./credentials";
+import { getExternalProviderAdapter } from "./provider-adapter";
+import { requestExternalSyncJob } from "./sync-jobs";
 
 type PublicExternalAccount = {
 	id: string;
@@ -138,31 +138,6 @@ async function findOwnedManagedAccount(
 	return access?.role === "manager" ? account : null;
 }
 
-async function enqueueSyncJob(
-	env: CloudflareEnv,
-	accountId: string,
-	kind: "incremental" | "resync",
-	now: Date,
-): Promise<string> {
-	const db = getDb(env);
-	const jobId = newId("exj");
-	await db.insert(externalSyncJobs).values({
-		id: jobId,
-		accountId,
-		kind,
-		status: "pending",
-		attempts: 0,
-		nextAttemptAt: now,
-		createdAt: now,
-	});
-	try {
-		await env.EXTERNAL_SYNC_QUEUE.send({ kind: "external-sync", version: 1, jobId });
-	} catch {
-		console.warn("External sync enqueue deferred", { jobId });
-	}
-	return jobId;
-}
-
 export async function updateExternalAccount(
 	env: CloudflareEnv,
 	userId: string,
@@ -186,7 +161,7 @@ export async function updateExternalAccount(
 		eq(externalAccounts.id, account.id),
 		eq(externalAccounts.ownerUserId, userId),
 	));
-	if (change.status === "active") await enqueueSyncJob(env, account.id, "incremental", now);
+	if (change.status === "active") await requestExternalSyncJob(env, account.id, "incremental", now);
 	return { status: "updated" };
 }
 
@@ -200,12 +175,7 @@ export async function disconnectExternalAccount(
 	const account = await findOwnedManagedAccount(env, userId, organizationId, accountId);
 	if (!account) return { status: "not-found" };
 	if (account.status === "disconnected") return { status: "conflict" };
-	const keyring = parseExternalSecretKeyring(env.EXTERNAL_TOKEN_KEYS);
-	const refreshToken = await decryptExternalSecret({
-		keyId: account.tokenKeyId,
-		iv: account.tokenIv,
-		ciphertext: account.tokenCiphertext,
-	}, `external-account:${account.id}:${organizationId}:${account.mailboxId}:${userId}:${account.provider}`, keyring);
+	const refreshToken = await openExternalAccountCredential(env, account);
 	await getDb(env).update(externalAccounts).set({
 		status: "disconnected",
 		tokenCiphertext: "",
@@ -216,7 +186,7 @@ export async function disconnectExternalAccount(
 		revokedAt: now,
 	}).where(and(eq(externalAccounts.id, account.id), eq(externalAccounts.ownerUserId, userId)));
 	try {
-		await revokeExternalRefreshToken(account.provider, refreshToken);
+		await getExternalProviderAdapter(account.provider).revokeRefreshToken(refreshToken);
 	} catch {
 		console.warn("External provider revocation attempt failed", { accountId: account.id });
 	}
@@ -239,13 +209,9 @@ export async function requestExternalAccountSync(
 		if (access?.role !== "manager") return { status: "not-found" };
 	}
 	if (!["active", "resync_required", "error"].includes(account.status)) return { status: "conflict" };
-	const [existing] = await getDb(env).select({ id: externalSyncJobs.id }).from(externalSyncJobs).where(and(
-		eq(externalSyncJobs.accountId, account.id),
-		inArray(externalSyncJobs.status, ["pending", "processing"]),
-	)).limit(1);
-	if (existing) return { status: "accepted", jobId: existing.id };
 	const kind = account.status === "active" ? "incremental" : "resync";
-	return { status: "accepted", jobId: await enqueueSyncJob(env, account.id, kind, now) };
+	const job = await requestExternalSyncJob(env, account.id, kind, now);
+	return { status: "accepted", jobId: job.jobId };
 }
 
 export async function beginExternalAccountReconnect(

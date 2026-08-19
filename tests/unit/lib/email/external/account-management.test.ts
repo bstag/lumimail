@@ -9,7 +9,7 @@ const h = vi.hoisted(() => ({
 	decrypt: vi.fn(),
 	revoke: vi.fn(),
 	begin: vi.fn(),
-	newId: vi.fn((prefix: string) => `${prefix}_1`),
+	sync: vi.fn(),
 }));
 vi.mock("@/db", () => ({ getDb: () => h.db }));
 vi.mock("@/lib/auth/mailbox-access", () => ({
@@ -22,7 +22,7 @@ vi.mock("@/lib/email/external/secret-vault", () => ({
 }));
 vi.mock("@/lib/email/external/oauth-provider", () => ({ revokeExternalRefreshToken: h.revoke }));
 vi.mock("@/lib/email/external/connections", () => ({ beginExternalOAuth: h.begin }));
-vi.mock("@/lib/ids", () => ({ newId: h.newId }));
+vi.mock("@/lib/email/external/sync-jobs", () => ({ requestExternalSyncJob: h.sync }));
 
 import {
 	beginExternalAccountReconnect,
@@ -54,6 +54,7 @@ describe("external account management", () => {
 		h.decrypt.mockResolvedValue("refresh-secret");
 		h.revoke.mockResolvedValue(undefined);
 		h.begin.mockResolvedValue({ status: "created", redirectTo: "https://provider.example" });
+		h.sync.mockResolvedValue({ jobId: "exj_1", created: true, enqueued: true });
 	});
 
 	it("lists only readable mailboxes and never returns token material", async () => {
@@ -93,7 +94,7 @@ describe("external account management", () => {
 		expect(await updateExternalAccount({} as CloudflareEnv, "usr_1", "org_1", "exa_1", {
 			status: "active",
 		})).toEqual({ status: "updated" });
-		expect(mock.inserts.at(-1)?.values).toMatchObject({ accountId: "exa_1", kind: "incremental", status: "pending" });
+		expect(h.sync).toHaveBeenCalledWith(expect.anything(), "exa_1", "incremental", expect.any(Date));
 
 		mock.queueSelect([account]);
 		expect(await updateExternalAccount({} as CloudflareEnv, "usr_2", "org_1", "exa_1", { status: "paused" }))
@@ -125,7 +126,7 @@ describe("external account management", () => {
 		expect(mock.updates.at(-1)?.set).toMatchObject({
 			status: "disconnected", tokenCiphertext: "", tokenIv: "", tokenKeyId: "",
 		});
-		expect(h.revoke).toHaveBeenCalledWith("google", "refresh-secret");
+		expect(h.revoke).toHaveBeenCalledWith("google", "refresh-secret", undefined);
 		h.revoke.mockRejectedValue(new Error("provider down"));
 		mock.queueSelect([account]);
 		expect(await disconnectExternalAccount({ EXTERNAL_TOKEN_KEYS: "keys" } as CloudflareEnv,
@@ -139,11 +140,12 @@ describe("external account management", () => {
 	});
 
 	it("queues one bounded manual sync and rejects paused or overlapping work", async () => {
-		mock.queueSelect([account]).queueSelect([]);
+		mock.queueSelect([account]);
 		expect(await requestExternalAccountSync({ EXTERNAL_SYNC_QUEUE: { send: vi.fn() } } as unknown as CloudflareEnv,
 			"usr_1", "org_1", "exa_1")).toEqual({ status: "accepted", jobId: "exj_1" });
-		expect(mock.inserts.at(-1)?.values).toMatchObject({ kind: "incremental", accountId: "exa_1" });
-		mock.queueSelect([account]).queueSelect([{ id: "exj_existing" }]);
+		expect(h.sync).toHaveBeenCalledWith(expect.anything(), "exa_1", "incremental", expect.any(Date));
+		h.sync.mockResolvedValueOnce({ jobId: "exj_existing", created: false, enqueued: true });
+		mock.queueSelect([account]);
 		expect(await requestExternalAccountSync({} as CloudflareEnv, "usr_1", "org_1", "exa_1"))
 			.toEqual({ status: "accepted", jobId: "exj_existing" });
 		mock.queueSelect([{ ...account, status: "paused" }]);
@@ -152,7 +154,7 @@ describe("external account management", () => {
 		mock.queueSelect([]);
 		expect(await requestExternalAccountSync({} as CloudflareEnv, "usr_1", "org_1", "missing"))
 			.toEqual({ status: "not-found" });
-		mock.queueSelect([{ ...account, ownerUserId: "usr_other" }]).queueSelect([]);
+		mock.queueSelect([{ ...account, ownerUserId: "usr_other" }]);
 		h.access.mockResolvedValue({ mailboxId: "mbx_1", organizationId: "org_1", role: "manager" });
 		expect(await requestExternalAccountSync({ EXTERNAL_SYNC_QUEUE: { send: vi.fn() } } as unknown as CloudflareEnv,
 			"usr_1", "org_1", "exa_1")).toMatchObject({ status: "accepted" });
@@ -160,10 +162,10 @@ describe("external account management", () => {
 		h.access.mockResolvedValue({ mailboxId: "mbx_1", organizationId: "org_1", role: "viewer" });
 		expect(await requestExternalAccountSync({} as CloudflareEnv, "usr_1", "org_1", "exa_1"))
 			.toEqual({ status: "not-found" });
-		mock.queueSelect([{ ...account, status: "resync_required" }]).queueSelect([]);
+		mock.queueSelect([{ ...account, status: "resync_required" }]);
 		expect(await requestExternalAccountSync({ EXTERNAL_SYNC_QUEUE: { send: vi.fn() } } as unknown as CloudflareEnv,
 			"usr_1", "org_1", "exa_1")).toMatchObject({ status: "accepted" });
-		expect(mock.inserts.at(-1)?.values).toMatchObject({ kind: "resync" });
+		expect(h.sync).toHaveBeenLastCalledWith(expect.anything(), "exa_1", "resync", expect.any(Date));
 	});
 
 	it("starts a reconnect flow bound to the existing owner and account settings", async () => {

@@ -236,11 +236,45 @@ Lumimail users, admins, API keys, and Worker runtime bindings have no signing or
   purpose at this scale. CI verifies; it never signs. — 2026-08-15
 - Decision: rotation adds a key ID to the committed trust store and retains prior public keys so
   older releases still verify. Revocation is a commit. — 2026-08-15
+- Decision: the first signed release requires schema `0039` exactly. The deployed code depends on
+  the external-sync job fields and uniqueness invariant introduced by migration `0039`, so it must
+  not claim compatibility with the prior `0032` policy. — 2026-08-19
 - Open question: whether the exit gate still requires a disposable-resource upgrade rehearsal. The
   recommendation is to drop it for a single-operator deployment with a proven Worker rollback drill
   and record that reason. Not yet applied.
 
 ## 13. Bug / Change Log
+
+### 2026-08-19 — Produce the first operator-signed release
+
+Type: Release / Operations
+
+Summary:
+
+- Generate the deployment's first offline Ed25519 operator key as `bstag-2026`, pin only its public
+  key in `release.trust.json`, and keep the private key outside the repository.
+- Bind release `0.1.0` to a clean source commit, the deterministic OpenNext artifact, and exact
+  schema `0039`, then sign and verify the detached manifest.
+
+Reason:
+
+- Production is running the verified external-sync architecture change, but the direct deployment
+  did not produce the signed artifact required by the F81 provenance contract.
+
+Impact:
+
+- Signing and verification are offline and do not upload, deploy, migrate, or alter production
+  traffic. Migration `0039` was applied separately before the current Worker became active.
+
+Verification plan:
+
+- Run the repository verification suite, build OpenNext from the clean release commit, prepare the
+  deterministic bundle, sign from standard input, and verify against the pinned public key with
+  expected version `0.1.0` and schema `0039`.
+
+Result:
+
+- Pending release preparation and verification.
 
 ### 2026-08-12 — Define signed release provenance
 

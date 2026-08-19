@@ -1,29 +1,20 @@
-import { and, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import {
 	domains,
 	externalAccounts,
-	externalSyncCursors,
 	externalSyncJobs,
 	mailboxes,
 } from "@/db/schema";
-import { newId } from "@/lib/ids";
-import { persistExternalMessage } from "./import-message";
-import { ExternalOAuthRefreshError, refreshExternalAccessToken } from "./oauth-provider";
+import { refreshExternalAccountCredential } from "./credentials";
 import {
 	ExternalProviderRequestError,
-	fetchGoogleSyncPage,
-	fetchMicrosoftSyncPage,
-	type GoogleSyncCursor,
-	type MicrosoftFolder,
-	type MicrosoftSyncCursor,
 } from "./provider-client";
 import {
-	decryptExternalSecret,
-	encryptExternalSecret,
-	parseExternalSecretKeyring,
-} from "./secret-vault";
+	getExternalProviderAdapter,
+} from "./provider-adapter";
+import { applyExternalSyncPage, readExternalSyncCursor } from "./sync-page";
 
 export type ExternalSyncQueueMessage = {
 	kind: "external-sync";
@@ -40,94 +31,9 @@ const queueMessageSchema = z.object({
 export function isExternalSyncQueueMessage(value: unknown): value is ExternalSyncQueueMessage {
 	return queueMessageSchema.safeParse(value).success;
 }
-
-const googleCursorSchema = z.object({
-	historyId: z.string().min(1).max(128).optional(),
-	pageToken: z.string().min(1).max(4096).optional(),
-}).strict();
-const microsoftCursorSchema = z.object({
-	url: z.string().min(1).max(16_384),
-	complete: z.boolean(),
-}).strict();
-const MICROSOFT_FOLDERS: readonly MicrosoftFolder[] = ["inbox", "sent", "archive"];
-
-function accountSecretAad(account: {
-	id: string;
-	organizationId: string;
-	mailboxId: string;
-	ownerUserId: string;
-	provider: string;
-}): string {
-	return `external-account:${account.id}:${account.organizationId}:${account.mailboxId}:${account.ownerUserId}:${account.provider}`;
-}
-
-function cursorAad(accountId: string, folder: string): string {
-	return `external-cursor:${accountId}:${folder}`;
-}
-
-async function readCursor<T>(
-	env: CloudflareEnv,
-	accountId: string,
-	folder: string,
-	schema: z.ZodType<T>,
-): Promise<T | undefined> {
-	const [row] = await getDb(env).select().from(externalSyncCursors).where(and(
-		eq(externalSyncCursors.accountId, accountId),
-		eq(externalSyncCursors.remoteFolderKey, folder),
-	)).limit(1);
-	if (!row) return undefined;
-	const plaintext = await decryptExternalSecret({
-		keyId: row.cursorKeyId,
-		iv: row.cursorIv,
-		ciphertext: row.cursorCiphertext,
-	}, cursorAad(accountId, folder), parseExternalSecretKeyring(env.EXTERNAL_TOKEN_KEYS));
-	let value: unknown;
-	try {
-		value = JSON.parse(plaintext);
-	} catch {
-		throw new ExternalProviderRequestError("cursor_expired", false);
-	}
-	const parsed = schema.safeParse(value);
-	if (!parsed.success) throw new ExternalProviderRequestError("cursor_expired", false);
-	return parsed.data;
-}
-
-async function writeCursor(
-	env: CloudflareEnv,
-	accountId: string,
-	folder: string,
-	type: "gmail_history" | "microsoft_delta",
-	cursor: GoogleSyncCursor | MicrosoftSyncCursor,
-	now: Date,
-): Promise<void> {
-	const sealed = await encryptExternalSecret(
-		JSON.stringify(cursor),
-		cursorAad(accountId, folder),
-		parseExternalSecretKeyring(env.EXTERNAL_TOKEN_KEYS),
-	);
-	await getDb(env).insert(externalSyncCursors).values({
-		id: newId("exc"),
-		accountId,
-		remoteFolderKey: folder,
-		cursorType: type,
-		cursorCiphertext: sealed.ciphertext,
-		cursorIv: sealed.iv,
-		cursorKeyId: sealed.keyId,
-		updatedAt: now,
-	}).onConflictDoUpdate({
-		target: [externalSyncCursors.accountId, externalSyncCursors.remoteFolderKey],
-		set: {
-			cursorType: type,
-			cursorCiphertext: sealed.ciphertext,
-			cursorIv: sealed.iv,
-			cursorKeyId: sealed.keyId,
-			updatedAt: now,
-		},
-	});
-}
-
 function retryDelay(attempts: number): number {
-	return Math.min(3_600, 60 * 2 ** Math.max(0, attempts - 1));
+	const ceiling = Math.min(3_600, 60 * 2 ** Math.max(0, attempts - 1));
+	return Math.max(1, Math.floor(ceiling * (0.5 + Math.random() * 0.5)));
 }
 
 async function markJobFailed(
@@ -204,24 +110,27 @@ export async function processExternalSyncQueue(
 	}
 
 	try {
-		const keyring = parseExternalSecretKeyring(env.EXTERNAL_TOKEN_KEYS);
-		const refreshToken = await decryptExternalSecret({
-			keyId: account.tokenKeyId,
-			iv: account.tokenIv,
-			ciphertext: account.tokenCiphertext,
-		}, accountSecretAad(account), keyring);
-		const tokens = await refreshExternalAccessToken(env, account.provider, refreshToken);
-		if (tokens.refreshToken !== refreshToken) {
-			const sealed = await encryptExternalSecret(tokens.refreshToken, accountSecretAad(account), keyring);
-			await db.update(externalAccounts).set({
-				tokenCiphertext: sealed.ciphertext,
-				tokenIv: sealed.iv,
-				tokenKeyId: sealed.keyId,
-				updatedAt: now,
-			}).where(and(
-				eq(externalAccounts.id, account.id),
-				eq(externalAccounts.tokenCiphertext, account.tokenCiphertext),
-			));
+		const credential = await refreshExternalAccountCredential(env, account, now);
+		if (credential.status === "error") {
+			if (credential.revoked) {
+				await markJobFailed(env, job.id, account.id, "reconnect_required", credential.code, now);
+				return { action: "ack" };
+			}
+			if (credential.retryable) {
+				const delaySeconds = retryDelay(job.attempts);
+				await db.update(externalSyncJobs).set({
+					status: "pending",
+					kind: sql`coalesce(${externalSyncJobs.requestedKind}, ${externalSyncJobs.kind})`,
+					requestedKind: null,
+					attempts: sql`CASE WHEN ${externalSyncJobs.requestedKind} IS NULL THEN ${externalSyncJobs.attempts} ELSE 0 END`,
+					leaseUntil: null,
+					nextAttemptAt: new Date(now.getTime() + delaySeconds * 1000),
+					errorCode: credential.code,
+				}).where(eq(externalSyncJobs.id, job.id));
+				return { action: "retry", delaySeconds };
+			}
+			await markJobFailed(env, job.id, account.id, "error", credential.code, now);
+			return { action: "ack" };
 		}
 		const importAccount = {
 			id: account.id,
@@ -240,49 +149,40 @@ export async function processExternalSyncQueue(
 			hostname: account.mailboxHostname,
 		};
 		const mode = job.kind === "initial" || job.kind === "resync" ? "initial" : "incremental";
-		let hasMore = false;
-		if (account.provider === "google") {
-			const cursor = job.kind === "resync"
-				? undefined
-				: await readCursor(env, account.id, "gmail", googleCursorSchema);
-			const page = await fetchGoogleSyncPage({
-				accessToken: tokens.accessToken,
-				mode,
-				importMode: account.importMode,
-				cursor,
-			});
-			for (const change of page.changes) {
-				await persistExternalMessage(env, importAccount, mailbox, change, now);
-			}
-			await writeCursor(env, account.id, "gmail", "gmail_history", page.cursor, now);
-			hasMore = page.hasMore;
-		} else {
-			for (const folder of MICROSOFT_FOLDERS) {
-				const cursor = job.kind === "resync"
-					? undefined
-					: await readCursor(env, account.id, folder, microsoftCursorSchema);
-				const page = await fetchMicrosoftSyncPage({
-					accessToken: tokens.accessToken,
-					folder,
-					importMode: account.importMode,
-					cursor,
-				}, fetch, now);
-				for (const change of page.changes) {
-					await persistExternalMessage(env, importAccount, mailbox, change, now);
-				}
-				await writeCursor(env, account.id, folder, "microsoft_delta", page.cursor, now);
-				hasMore ||= page.hasMore;
-			}
-		}
+		const adapter = getExternalProviderAdapter(account.provider);
+		const page = await adapter.fetchSyncPage({
+			accessToken: credential.accessToken,
+			mode,
+			importMode: account.importMode,
+			readCursor: job.kind === "resync" && job.attempts === 1
+				? async () => undefined
+				: (key) => readExternalSyncCursor(env, account.id, key),
+			fetcher: fetch,
+			now,
+		});
+		await applyExternalSyncPage(env, importAccount, mailbox, page.changes, page.cursors, now);
+		const hasMore = page.hasMore;
 		if (hasMore) {
 			await db.update(externalSyncJobs).set({
-				status: "pending", leaseUntil: null, nextAttemptAt: now,
+				status: "pending",
+				kind: sql`coalesce(${externalSyncJobs.requestedKind}, ${externalSyncJobs.kind})`,
+				requestedKind: null,
+				attempts: sql`CASE WHEN ${externalSyncJobs.requestedKind} IS NULL THEN ${externalSyncJobs.attempts} ELSE 0 END`,
+				leaseUntil: null,
+				nextAttemptAt: now,
 			}).where(eq(externalSyncJobs.id, job.id));
 			return { action: "retry", delaySeconds: 1 };
 		}
 		await db.batch([
 			db.update(externalSyncJobs).set({
-				status: "completed", leaseUntil: null, completedAt: now, errorCode: null,
+				status: sql`CASE WHEN ${externalSyncJobs.requestedKind} IS NULL THEN 'completed' ELSE 'pending' END`,
+				kind: sql`coalesce(${externalSyncJobs.requestedKind}, ${externalSyncJobs.kind})`,
+				requestedKind: null,
+				attempts: sql`CASE WHEN ${externalSyncJobs.requestedKind} IS NULL THEN ${externalSyncJobs.attempts} ELSE 0 END`,
+				leaseUntil: null,
+				nextAttemptAt: now,
+				completedAt: sql`CASE WHEN ${externalSyncJobs.requestedKind} IS NULL THEN ${now} ELSE NULL END`,
+				errorCode: null,
 			}).where(eq(externalSyncJobs.id, job.id)),
 			db.update(externalAccounts).set({
 				status: "active", lastSyncAt: now, lastErrorCode: null, updatedAt: now,
@@ -290,78 +190,25 @@ export async function processExternalSyncQueue(
 		]);
 		return { action: "ack" };
 	} catch (error) {
-		if (error instanceof ExternalOAuthRefreshError && error.code === "authorization_revoked") {
-			await markJobFailed(env, job.id, account.id, "reconnect_required", error.code, now);
-			return { action: "ack" };
-		}
 		if (error instanceof ExternalProviderRequestError && error.code === "cursor_expired") {
 			await markJobFailed(env, job.id, account.id, "resync_required", error.code, now);
 			return { action: "ack" };
 		}
-		if ((error instanceof ExternalProviderRequestError || error instanceof ExternalOAuthRefreshError) && error.retryable) {
+		if (error instanceof ExternalProviderRequestError && error.retryable) {
 			const delaySeconds = retryDelay(job.attempts);
 			await db.update(externalSyncJobs).set({
 				status: "pending",
+				kind: sql`coalesce(${externalSyncJobs.requestedKind}, ${externalSyncJobs.kind})`,
+				requestedKind: null,
+				attempts: sql`CASE WHEN ${externalSyncJobs.requestedKind} IS NULL THEN ${externalSyncJobs.attempts} ELSE 0 END`,
 				leaseUntil: null,
 				nextAttemptAt: new Date(now.getTime() + delaySeconds * 1000),
 				errorCode: error.code,
 			}).where(eq(externalSyncJobs.id, job.id));
 			return { action: "retry", delaySeconds };
 		}
-		const errorCode = error instanceof ExternalProviderRequestError || error instanceof ExternalOAuthRefreshError
-			? error.code : "sync_failed";
+		const errorCode = error instanceof ExternalProviderRequestError ? error.code : "sync_failed";
 		await markJobFailed(env, job.id, account.id, "error", errorCode, now);
 		return { action: "ack" };
 	}
-}
-
-export async function reconcileExternalSyncJobs(
-	env: CloudflareEnv,
-	now = new Date(),
-): Promise<{ enqueued: number; created: number }> {
-	const db = getDb(env);
-	let enqueued = 0;
-	let created = 0;
-	const jobs = await db.select({ id: externalSyncJobs.id }).from(externalSyncJobs).where(and(
-		eq(externalSyncJobs.status, "pending"),
-		lte(externalSyncJobs.nextAttemptAt, now),
-	)).limit(100);
-	for (const job of jobs) {
-		try {
-			await env.EXTERNAL_SYNC_QUEUE.send({ kind: "external-sync", version: 1, jobId: job.id });
-			enqueued += 1;
-		} catch {
-			console.warn("External sync reconciliation enqueue deferred", { jobId: job.id });
-		}
-	}
-	const dueBefore = new Date(now.getTime() - 5 * 60 * 1000);
-	const accounts = await db.select({ id: externalAccounts.id }).from(externalAccounts).where(and(
-		eq(externalAccounts.status, "active"),
-		or(isNull(externalAccounts.lastSyncAt), lte(externalAccounts.lastSyncAt, dueBefore)),
-	)).limit(50);
-	for (const account of accounts) {
-		const [existing] = await db.select({ id: externalSyncJobs.id }).from(externalSyncJobs).where(and(
-			eq(externalSyncJobs.accountId, account.id),
-			inArray(externalSyncJobs.status, ["pending", "processing"]),
-		)).limit(1);
-		if (existing) continue;
-		const jobId = newId("exj");
-		await db.insert(externalSyncJobs).values({
-			id: jobId,
-			accountId: account.id,
-			kind: "reconcile",
-			status: "pending",
-			attempts: 0,
-			nextAttemptAt: now,
-			createdAt: now,
-		});
-		created += 1;
-		try {
-			await env.EXTERNAL_SYNC_QUEUE.send({ kind: "external-sync", version: 1, jobId });
-			enqueued += 1;
-		} catch {
-			console.warn("External polling enqueue deferred", { jobId });
-		}
-	}
-	return { enqueued, created };
 }

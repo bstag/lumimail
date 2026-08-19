@@ -245,6 +245,53 @@ supply provider credentials or override the connected address.
    otherwise RFC `Message-ID` plus a bounded sender/recipient/time match. An ambiguous
    match is retained and flagged rather than silently merging unrelated messages.
 
+### 6.3 Architecture deepening contract
+
+This change preserves the Stage 1 user contract while concentrating synchronization,
+provider, credential, and verification behavior behind deeper module interfaces.
+
+- Exactly one `pending` or `processing` sync job may exist for an external account.
+  D1 enforces this invariant rather than relying on check-then-insert behavior.
+- A new request reuses the active job. Stronger intent wins in this order:
+  `resync`, `initial`, then `incremental`/`reconcile`. If stronger intent arrives while
+  a page is processing, that page finishes before the same active job returns to
+  `pending` with the stronger intent.
+- Queue payload version 1 remains unchanged and contains only the job ID. Existing
+  account, message, cursor, and completed-job data remains valid.
+- Sync-job creation, coalescing, claim, wake-up, retry scheduling with jitter,
+  completion, failure, and enqueue recovery live behind one durable job interface.
+- A Sync Page applies as one D1 progress decision: normalized messages, external
+  mappings, retained-original metadata, and the next cursor commit together. Required
+  R2 objects are written first and compensated if D1 fails; failed compensation is
+  recoverable as an orphan and never permits cursor advancement.
+- Google and Microsoft each provide one provider adapter covering delegated OAuth,
+  bounded synchronization, and sending. Provider selection happens once per workflow;
+  provider-specific folders, cursors, endpoints, and response validation remain inside
+  the selected adapter.
+- Provider adapters receive short-lived access tokens only. A credential-custody
+  module exclusively owns Delegated Credential encryption, account identity binding,
+  refresh, and compare-and-set rotation, and returns typed outcomes. The calling sync
+  or outbound workflow owns account and job lifecycle transitions.
+- Tests use the same durable job and page interfaces as callers. Database invariants,
+  transactions, conflicts, lease expiry, and coalescing are verified with real
+  SQLite/D1 semantics; implementation-order mocks replaced by those tests are removed.
+
+Edge and error behavior:
+
+- Competing job creation cannot produce two active jobs for one account.
+- A weaker request never downgrades pending or in-flight work.
+- A crashed or expired worker lease makes the active job claimable without creating a
+  second active job.
+- Transient provider failures use bounded exponential backoff with jitter; tests assert
+  bounds, not one exact delay.
+- A provider page replay may repeat reads and R2 writes but cannot duplicate Lumimail
+  messages, mappings, or Retained Originals.
+- Any message, mapping, metadata, or D1 commit failure leaves the prior cursor visible.
+- Delegated Credential revocation becomes a typed credential outcome; no adapter or
+  caller receives plaintext refresh credentials.
+- This change adds no providers, generic IMAP ingestion, provider push, or two-way
+  synchronization.
+
 ## 7. UI/UX
 
 - Add `External accounts` to the unified Settings shell for eligible mailbox users.
@@ -284,6 +331,17 @@ supply provider credentials or override the connected address.
   import mail from an external server.
 - Generic IMAP/SMTP ingestion, full-history completeness, restore, provider push, and
   two-way remote state mutation remain the staged expansion described above.
+- D1 now enforces one active Sync Job per External Account. OAuth completion, manual
+  sync, resume, and scheduled reconciliation use one creation/coalescing module;
+  stronger intent is retained without creating overlapping work, and retries use
+  bounded exponential jitter.
+- Google and Microsoft behavior is selected through one provider adapter seam covering
+  OAuth, bounded page retrieval, and outbound sending. Stored Delegated Credentials are
+  opened, refreshed, and compare-and-set rotated only by credential custody; adapters
+  receive short-lived access tokens.
+- A Sync Page prepares normalized message, mapping, attachment, Retained Original, and
+  cursor statements before committing them in one transactional D1 batch. R2 objects
+  written during preparation are compensated if preparation or the D1 commit fails.
 
 ## 9. Error States
 
@@ -429,6 +487,15 @@ tests, UI, provider failure handling, and controlled evidence. They are not comm
 
 ### Decisions
 
+- Decision 2026-08-19: deepen F89 in two verified slices: durable jobs/page application
+  first, then provider adapters/credential custody. Complete both without expanding the
+  Stage 1 product scope.
+- Decision 2026-08-19: enforce one active Sync Job per External Account in D1 and
+  coalesce stronger intent onto that job while preserving queue payload version 1.
+- Decision 2026-08-19: provider adapters receive only short-lived access tokens;
+  credential custody owns stored Delegated Credentials and returns typed outcomes,
+  while workflows own lifecycle transitions.
+
 - Decision 2026-08-15: Google and Microsoft use their HTTPS APIs rather than treating
   IMAP/SMTP as the preferred provider path. Their incremental APIs and delegated OAuth
   provide clearer cursor, throttling, folder, and error contracts.
@@ -482,6 +549,58 @@ tests, UI, provider failure handling, and controlled evidence. They are not comm
 - [F63 R2 retention](./F63-r2-retention-and-cleanup.md)
 
 ## 16. Bug / Change Log
+
+### 2026-08-19 — Deepen external-account synchronization architecture
+
+Type: Architecture / Correctness Change
+
+Planned summary:
+
+- Consolidate durable Sync Job creation, coalescing, leases, transitions, jitter, and
+  enqueue recovery behind one interface with a D1-enforced active-job invariant.
+- Commit each Sync Page's D1 state and cursor as one progress decision with explicit R2
+  compensation.
+- Select one Google or Microsoft adapter per workflow and isolate stored Delegated
+  Credentials behind credential custody.
+- Replace implementation-order database mocks with interface-level and real SQLite/D1
+  durability tests.
+
+Reason:
+
+- The implemented MVP repeats job and credential invariants across callers, exposes
+  provider-specific knowledge to orchestration, and cannot currently prove the F89
+  account-lease, jitter, or page/cursor atomicity contracts.
+
+Verification plan:
+
+- Add migration tests for the active-job uniqueness and compatible existing data.
+- Add state-based tests for competing creation, intent coalescing, lease expiry,
+  enqueue failure recovery, jitter bounds, page rollback, R2 compensation, and replay.
+- Retain direct provider-adapter and AES-GCM primitive coverage while replacing tests
+  that reach past the new interfaces.
+- Run `npm run verify`; no E2E run is required unless implementation changes a
+  user-visible contract.
+
+Result:
+
+- Added migration `0039`, including safe coalescing of any pre-existing duplicate
+  active jobs, preservation of every job row, a carried-forward stronger intent, and a
+  partial unique active-account index. Wrangler fresh and staged-upgrade migration
+  suites pass.
+- Added durable job, provider adapter, credential-custody, and Sync Page modules;
+  callers now cross those interfaces instead of reconstructing job, provider, crypto,
+  or page/cursor implementation details.
+- `npm run verify` passes: 300 application test files / 2,572 tests at 100% statement,
+  branch, function, and line coverage, plus 21 IMAP/SMTP bridge tests.
+- Browser E2E was not run because the user-visible F89 contract and routes/UI are
+  unchanged.
+- Production migration `0039` applied successfully on 2026-08-19 and Worker version
+  `12eeb49b-3ef5-4195-98a2-83abaa06d2a5` now receives 100% of traffic. The read-only
+  production doctor passes 26/26 with no pending migrations, exact active-version
+  bindings and handlers, public smoke, schedule, D1, R2, queues, Email Routing, and
+  Email Sending all healthy.
+- Controlled Google/Microsoft provider evidence remains pending under the existing
+  F89 release gate.
 
 ### 2026-08-15 — Repair external-sync deployment wiring
 

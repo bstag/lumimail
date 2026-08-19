@@ -1,4 +1,5 @@
 import { and, eq, inArray, or } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { getDb } from "@/db";
 import {
 	attachments,
@@ -15,7 +16,7 @@ import { resolveInboundThreading } from "@/lib/email/threading";
 import { newId } from "@/lib/ids";
 import type { ExternalRemoteChange } from "./provider-client";
 
-type ExternalImportAccount = {
+export type ExternalImportAccount = {
 	id: string;
 	organizationId: string;
 	mailboxId: string;
@@ -24,7 +25,7 @@ type ExternalImportAccount = {
 	retainOriginal: boolean;
 };
 
-type ExternalImportMailbox = {
+export type ExternalImportMailbox = {
 	id: string;
 	userId: string;
 	organizationId: string | null;
@@ -44,16 +45,23 @@ async function sha256Bytes(bytes: Uint8Array): Promise<string> {
 	return [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-export async function persistExternalMessage(
+export type ExternalImportResult =
+	| { status: "created" | "existing" | "removed"; messageId: string }
+	| { status: "ignored" };
+
+export type PreparedExternalMessage = {
+	statements: BatchItem<"sqlite">[];
+	result: ExternalImportResult;
+};
+
+export async function prepareExternalMessage(
 	env: CloudflareEnv,
 	account: ExternalImportAccount,
 	mailbox: ExternalImportMailbox,
 	change: ExternalRemoteChange,
 	now = new Date(),
-): Promise<
-	| { status: "created" | "existing" | "removed"; messageId: string }
-	| { status: "ignored" }
-> {
+	attemptedKeys: string[] = [],
+): Promise<PreparedExternalMessage> {
 	const db = getDb(env);
 	const [existing] = await db.select({
 		id: externalMessages.id,
@@ -64,18 +72,21 @@ export async function persistExternalMessage(
 	)).limit(1);
 
 	if (existing) {
-		await db.update(externalMessages).set({
+		const update = db.update(externalMessages).set({
 			remoteFolderKey: change.remoteFolderKey,
 			remoteRevision: change.remoteRevision,
 			lastSeenAt: now,
 			removedAt: change.removed ? now : null,
 		}).where(eq(externalMessages.id, existing.id));
 		return {
-			status: change.removed ? "removed" : "existing",
-			messageId: existing.lumimailMessageId,
+			statements: [update],
+			result: {
+				status: change.removed ? "removed" : "existing",
+				messageId: existing.lumimailMessageId,
+			},
 		};
 	}
-	if (change.removed) return { status: "ignored" };
+	if (change.removed) return { statements: [], result: { status: "ignored" } };
 	if (!change.rawMime) throw new Error("External message MIME is missing");
 
 	const parsed = await parseRawMime(exactArrayBuffer(change.rawMime));
@@ -105,9 +116,9 @@ export async function persistExternalMessage(
 				lastSeenAt: now,
 			});
 			let originalInsert: ReturnType<ReturnType<typeof db.insert>["values"]> | null = null;
-			let originalKey: string | null = null;
 			if (account.retainOriginal) {
-				originalKey = `external-originals/${account.organizationId}/${account.id}/${externalMessageId}.eml`;
+				const originalKey = `external-originals/${account.organizationId}/${account.id}/${externalMessageId}.eml`;
+				attemptedKeys.push(originalKey);
 				await env.BUCKET.put(originalKey, change.rawMime, {
 					httpMetadata: { contentType: "message/rfc822" },
 				});
@@ -122,13 +133,10 @@ export async function persistExternalMessage(
 					retainedAt: now,
 				});
 			}
-			try {
-				await db.batch([mappingInsert, ...(originalInsert ? [originalInsert] : [])]);
-			} catch (error) {
-				if (originalKey) await cleanupAttachmentObjects(env, [originalKey]);
-				throw error;
-			}
-			return { status: "existing", messageId };
+			return {
+				statements: [mappingInsert, ...(originalInsert ? [originalInsert] : [])],
+				result: { status: "existing", messageId },
+			};
 		}
 	}
 	const messageId = newMessageId;
@@ -230,7 +238,6 @@ export async function persistExternalMessage(
 		lastSeenAt: now,
 	});
 
-	const attemptedKeys: string[] = [];
 	let originalInsert: ReturnType<ReturnType<typeof db.insert>["values"]> | null = null;
 	if (account.retainOriginal) {
 		const r2Key = `external-originals/${account.organizationId}/${account.id}/${externalMessageId}.eml`;
@@ -249,23 +256,40 @@ export async function persistExternalMessage(
 			retainedAt: now,
 		});
 	}
-	try {
-		for (const attachment of attachmentRows) {
-			attemptedKeys.push(attachment.r2Key);
-			await env.BUCKET.put(attachment.r2Key, attachment.content, {
-				httpMetadata: { contentType: attachment.contentType },
-			});
-		}
-		await db.batch([
+	for (const attachment of attachmentRows) {
+		attemptedKeys.push(attachment.r2Key);
+		await env.BUCKET.put(attachment.r2Key, attachment.content, {
+			httpMetadata: { contentType: attachment.contentType },
+		});
+	}
+	return {
+		statements: [
 			messageInsert,
 			bodyInsert,
 			...(attachmentInsert ? [attachmentInsert] : []),
 			mappingInsert,
 			...(originalInsert ? [originalInsert] : []),
-		]);
+		],
+		result: { status: "created", messageId },
+	};
+}
+
+export async function persistExternalMessage(
+	env: CloudflareEnv,
+	account: ExternalImportAccount,
+	mailbox: ExternalImportMailbox,
+	change: ExternalRemoteChange,
+	now = new Date(),
+): Promise<ExternalImportResult> {
+	const attemptedKeys: string[] = [];
+	try {
+		const prepared = await prepareExternalMessage(env, account, mailbox, change, now, attemptedKeys);
+		if (prepared.statements.length > 0) {
+			await getDb(env).batch(prepared.statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+		}
+		return prepared.result;
 	} catch (error) {
 		await cleanupAttachmentObjects(env, attemptedKeys);
 		throw error;
 	}
-	return { status: "created", messageId };
 }

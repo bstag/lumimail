@@ -4,7 +4,7 @@ import { createDbMock, type DbMock } from "../../../helpers/db";
 const h = vi.hoisted(() => ({
 	db: null as unknown,
 	keyring: vi.fn(), decrypt: vi.fn(), encrypt: vi.fn(), refresh: vi.fn(),
-	google: vi.fn(), microsoft: vi.fn(), persist: vi.fn(), newId: vi.fn(),
+	google: vi.fn(), microsoft: vi.fn(), apply: vi.fn(), read: vi.fn(),
 }));
 vi.mock("@/db", () => ({ getDb: () => h.db }));
 vi.mock("@/lib/email/external/secret-vault", () => ({
@@ -16,15 +16,16 @@ vi.mock("@/lib/email/external/oauth-provider", async (importOriginal) => ({
 vi.mock("@/lib/email/external/provider-client", async (importOriginal) => ({
 	...(await importOriginal<any>()), fetchGoogleSyncPage: h.google, fetchMicrosoftSyncPage: h.microsoft,
 }));
-vi.mock("@/lib/email/external/import-message", () => ({ persistExternalMessage: h.persist }));
-vi.mock("@/lib/ids", () => ({ newId: h.newId }));
+vi.mock("@/lib/email/external/sync-page", () => ({
+	applyExternalSyncPage: h.apply,
+	readExternalSyncCursor: h.read,
+}));
 
 import { ExternalOAuthRefreshError } from "@/lib/email/external/oauth-provider";
 import { ExternalProviderRequestError } from "@/lib/email/external/provider-client";
 import {
 	isExternalSyncQueueMessage,
 	processExternalSyncQueue,
-	reconcileExternalSyncJobs,
 } from "@/lib/email/external/sync-queue";
 
 const job = {
@@ -54,8 +55,8 @@ describe("external sync queue", () => {
 		h.refresh.mockResolvedValue({ accessToken: "access", refreshToken: "refresh-secret", expiresIn: 3600, scope: "scope" });
 		h.google.mockResolvedValue({ changes: [], cursor: { historyId: "500" }, hasMore: false });
 		h.microsoft.mockResolvedValue({ changes: [], cursor: { url: "https://graph.microsoft.com/delta", complete: true }, hasMore: false });
-		h.persist.mockResolvedValue({ status: "created", messageId: "msg_1" });
-		h.newId.mockImplementation((prefix: string) => `${prefix}_new`);
+		h.apply.mockResolvedValue([{ status: "created", messageId: "msg_1" }]);
+		h.read.mockResolvedValue(undefined);
 	});
 
 	it("strictly recognizes versioned content-free queue messages", () => {
@@ -67,18 +68,18 @@ describe("external sync queue", () => {
 	});
 
 	it("claims, refreshes, imports, commits cursor, and activates a Google account", async () => {
-		mock.queueSelect([job]).queueSelect([account]).queueSelect([]);
+		mock.queueSelect([job]).queueSelect([account]);
 		h.google.mockResolvedValue({
 			changes: [{ remoteMessageId: "g1", remoteFolderKey: "inbox", removed: false, rawMime: new Uint8Array([1]) }],
 			cursor: { historyId: "501" }, hasMore: false,
 		});
 		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" },
 			new Date("2026-08-15T12:00:00Z"))).toEqual({ action: "ack" });
-		expect(h.persist).toHaveBeenCalledWith(env, expect.objectContaining({ id: "exa_1" }),
-			expect.objectContaining({ id: "mbx_1", hostname: "example.com" }), expect.objectContaining({ remoteMessageId: "g1" }), expect.any(Date));
-		expect(mock.inserts.map((insert) => insert.values)).toContainEqual(expect.objectContaining({
-			accountId: "exa_1", remoteFolderKey: "gmail", cursorType: "gmail_history",
-		}));
+		expect(h.apply).toHaveBeenCalledWith(env, expect.objectContaining({ id: "exa_1" }),
+			expect.objectContaining({ id: "mbx_1", hostname: "example.com" }),
+			[expect.objectContaining({ remoteMessageId: "g1" })],
+			[{ key: "gmail", type: "gmail_history", value: { historyId: "501" } }],
+			expect.any(Date));
 		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({ status: "active", lastErrorCode: null }));
 	});
 
@@ -113,7 +114,7 @@ describe("external sync queue", () => {
 			.toEqual({ action: "ack" });
 		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({ status: "reconnect_required" }));
 
-		mock.queueSelect([job]).queueSelect([account]).queueSelect([]);
+		mock.queueSelect([job]).queueSelect([account]);
 		h.refresh.mockResolvedValue({ accessToken: "access", refreshToken: "refresh-secret", expiresIn: 3600, scope: "scope" });
 		h.google.mockRejectedValue(new ExternalProviderRequestError("cursor_expired", false));
 		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
@@ -121,32 +122,56 @@ describe("external sync queue", () => {
 		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({ status: "resync_required" }));
 	});
 
+	it("retries typed credential throttling and terminally records other credential failures", async () => {
+		const random = vi.spyOn(Math, "random").mockReturnValue(0);
+		mock.queueSelect([job]).queueSelect([account]);
+		h.refresh.mockRejectedValueOnce(new ExternalOAuthRefreshError("provider_throttled", true));
+		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
+			.toEqual({ action: "retry", delaySeconds: 30 });
+		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({
+			status: "pending", errorCode: "provider_throttled",
+		}));
+
+		mock.queueSelect([job]).queueSelect([account]);
+		h.refresh.mockRejectedValueOnce(new Error("credential subsystem failed"));
+		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
+			.toEqual({ action: "ack" });
+		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({
+			status: "error", lastErrorCode: "EXTERNAL_AUTH",
+		}));
+		random.mockRestore();
+	});
+
 	it("retries transient provider faults and persists rotated refresh tokens", async () => {
-		mock.queueSelect([job]).queueSelect([account]).queueSelect([]);
+		const random = vi.spyOn(Math, "random").mockReturnValue(0);
+		mock.queueSelect([job]).queueSelect([account]);
 		h.refresh.mockResolvedValue({ accessToken: "access", refreshToken: "rotated", expiresIn: 3600, scope: "scope" });
 		h.google.mockRejectedValue(new ExternalProviderRequestError("provider_throttled", true));
 		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
-			.toEqual({ action: "retry", delaySeconds: 60 });
+			.toEqual({ action: "retry", delaySeconds: 30 });
 		expect(h.encrypt).toHaveBeenCalledWith("rotated", expect.stringContaining("external-account:exa_1"), expect.anything());
 		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({ tokenCiphertext: "new-cipher" }));
+		random.mockRestore();
 	});
 
 	it("decrypts validated cursors, runs incremental mode, and marks corrupt cursors for resync", async () => {
-		const cursorRow = { cursorKeyId: "v1", cursorIv: "cursor-iv", cursorCiphertext: "cursor-cipher" };
-		mock.queueSelect([{ ...job, kind: "incremental" }]).queueSelect([{ ...account, status: "active" }]).queueSelect([cursorRow]);
-		h.decrypt.mockResolvedValueOnce("refresh-secret").mockResolvedValueOnce(JSON.stringify({ historyId: "500" }));
+		mock.queueSelect([{ ...job, kind: "incremental" }]).queueSelect([{ ...account, status: "active" }]);
+		h.read.mockResolvedValueOnce({ historyId: "500" });
 		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
 			.toEqual({ action: "ack" });
-		expect(h.google).toHaveBeenCalledWith(expect.objectContaining({ mode: "incremental", cursor: { historyId: "500" } }));
+		expect(h.google).toHaveBeenCalledWith(
+			expect.objectContaining({ mode: "incremental", cursor: { historyId: "500" } }),
+			fetch,
+		);
 
-		mock.queueSelect([{ ...job, kind: "incremental" }]).queueSelect([{ ...account, status: "active" }]).queueSelect([cursorRow]);
-		h.decrypt.mockResolvedValueOnce("refresh-secret").mockResolvedValueOnce("not-json");
+		mock.queueSelect([{ ...job, kind: "incremental" }]).queueSelect([{ ...account, status: "active" }]);
+		h.read.mockRejectedValueOnce(new ExternalProviderRequestError("cursor_expired", false));
 		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
 			.toEqual({ action: "ack" });
 		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({ status: "resync_required" }));
 
-		mock.queueSelect([{ ...job, kind: "incremental" }]).queueSelect([{ ...account, status: "active" }]).queueSelect([cursorRow]);
-		h.decrypt.mockResolvedValueOnce("refresh-secret").mockResolvedValueOnce(JSON.stringify({ bad: true }));
+		mock.queueSelect([{ ...job, kind: "incremental" }]).queueSelect([{ ...account, status: "active" }]);
+		h.read.mockResolvedValueOnce({ bad: true });
 		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
 			.toEqual({ action: "ack" });
 	});
@@ -160,46 +185,28 @@ describe("external sync queue", () => {
 		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
 			.toEqual({ action: "ack" });
 		expect(h.microsoft).toHaveBeenCalledWith(expect.objectContaining({ cursor: undefined }), fetch, expect.any(Date));
-		expect(h.persist).toHaveBeenCalledTimes(3);
+		expect(h.apply).toHaveBeenCalledWith(env, expect.anything(), expect.anything(),
+			expect.arrayContaining([expect.objectContaining({ remoteMessageId: "m1" })]),
+			expect.arrayContaining([expect.objectContaining({ type: "microsoft_delta" })]), expect.any(Date));
 
 		mock.queueSelect([{ ...job, kind: "resync" }]).queueSelect([{ ...account, status: "resync_required" }]);
 		h.google.mockResolvedValue({ changes: [], cursor: { historyId: "800" }, hasMore: false });
 		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
 			.toEqual({ action: "ack" });
-		expect(h.google).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: undefined }));
+		expect(h.google).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: undefined }), fetch);
 	});
 
 	it("terminally classifies unexpected and nonretryable provider failures", async () => {
-		mock.queueSelect([job]).queueSelect([account]).queueSelect([]);
+		mock.queueSelect([job]).queueSelect([account]);
 		h.google.mockRejectedValue(new ExternalProviderRequestError("invalid_provider_response", false));
 		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
 			.toEqual({ action: "ack" });
 		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({ status: "error", lastErrorCode: "invalid_provider_response" }));
-		mock.queueSelect([job]).queueSelect([account]).queueSelect([]);
+		mock.queueSelect([job]).queueSelect([account]);
 		h.google.mockRejectedValue(new Error("unexpected"));
 		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
 			.toEqual({ action: "ack" });
 		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({ lastErrorCode: "sync_failed" }));
 	});
 
-	it("reconciles committed due jobs and creates a bounded polling job only when needed", async () => {
-		const send = vi.fn().mockResolvedValue(undefined);
-		mock.queueSelect([{ id: "exj_pending" }]).queueSelect([{ id: "exa_due" }]).queueSelect([]);
-		expect(await reconcileExternalSyncJobs({ EXTERNAL_SYNC_QUEUE: { send } } as unknown as CloudflareEnv,
-			new Date("2026-08-15T12:00:00Z"))).toEqual({ enqueued: 2, created: 1 });
-		expect(send).toHaveBeenCalledWith({ kind: "external-sync", version: 1, jobId: "exj_pending" });
-		expect(mock.inserts.at(-1)?.values).toMatchObject({ accountId: "exa_due", kind: "reconcile" });
-	});
-
-	it("keeps reconciliation durable across queue failures and skips accounts already working", async () => {
-		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-		const send = vi.fn().mockRejectedValue(new Error("queue down"));
-		mock.queueSelect([{ id: "exj_pending" }]).queueSelect([{ id: "exa_busy" }, { id: "exa_new" }])
-			.queueSelect([{ id: "exj_busy" }]).queueSelect([]);
-		expect(await reconcileExternalSyncJobs({ EXTERNAL_SYNC_QUEUE: { send } } as unknown as CloudflareEnv))
-			.toEqual({ enqueued: 0, created: 1 });
-		expect(warn).toHaveBeenCalledWith("External sync reconciliation enqueue deferred", { jobId: "exj_pending" });
-		expect(warn).toHaveBeenCalledWith("External polling enqueue deferred", { jobId: "exj_new" });
-		warn.mockRestore();
-	});
 });

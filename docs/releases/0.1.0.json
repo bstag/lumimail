@@ -1,0 +1,5 @@
+[
+  "Deepen external-account synchronization with durable account-level jobs and intent coalescing.",
+  "Apply provider adapters, delegated-credential custody, transactional sync pages, and R2 compensation.",
+  "Require production schema 0039 and verify migration, queue, binding, and public health contracts."
+]

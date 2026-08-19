@@ -608,6 +608,7 @@ export const externalSyncJobs = sqliteTable(
 		id: text("id").primaryKey(),
 		accountId: text("account_id").notNull().references(() => externalAccounts.id, { onDelete: "cascade" }),
 		kind: text("kind", { enum: ["initial", "incremental", "resync", "reconcile"] }).notNull(),
+		requestedKind: text("requested_kind", { enum: ["initial", "incremental", "resync", "reconcile"] }),
 		status: text("status", { enum: ["pending", "processing", "completed", "failed"] }).notNull(),
 		attempts: integer("attempts").notNull().default(0),
 		nextAttemptAt: integer("next_attempt_at", { mode: "timestamp" }).notNull(),
@@ -619,6 +620,9 @@ export const externalSyncJobs = sqliteTable(
 	(t) => [
 		index("external_sync_jobs_due_idx").on(t.status, t.nextAttemptAt),
 		index("external_sync_jobs_account_status_idx").on(t.accountId, t.status),
+		uniqueIndex("external_sync_jobs_one_active_account_idx")
+			.on(t.accountId)
+			.where(sql`${t.status} IN ('pending', 'processing')`),
 	],
 );
 
