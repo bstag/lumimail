@@ -16,7 +16,7 @@ type InlineAttachment = {
 	disposition: "attachment" | "inline";
 };
 
-function sanitize(html: string): string {
+export function sanitizeMessageHtml(html: string): string {
 	const purified = DOMPurify.sanitize(html, {
 		ALLOWED_TAGS: [...SAFE_EMAIL_HTML_TAGS],
 		ALLOWED_ATTR: [...SAFE_EMAIL_HTML_ATTRIBUTES],
@@ -65,7 +65,7 @@ export function SafeMessageHtml({
 	html: string;
 	className?: string;
 }) {
-	const safeHtml = useMemo(() => sanitize(html), [html]);
+	const safeHtml = useMemo(() => sanitizeMessageHtml(html), [html]);
 	const [resolvedHtml, setResolvedHtml] = useState<string | null>(null);
 
 	useEffect(() => {

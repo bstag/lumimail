@@ -29,6 +29,14 @@ import {
 	type CreatedApiKey,
 } from "./utils";
 
+function localizeApiKeyTimestamp(
+	value: string | null | undefined,
+	locale: string,
+	labels: { never: string; unknown: string },
+): string {
+	return formatApiKeyTimestamp(value, locale, undefined, labels);
+}
+
 export default function ApiKeysPage() {
 	const t = useTranslations("admin");
 	const tCommon = useTranslations("common");
@@ -84,11 +92,7 @@ export default function ApiKeysPage() {
 		setCopyError(false);
 	}
 
-	const formatTimestamp = (value: string | null | undefined) =>
-		formatApiKeyTimestamp(value, locale, undefined, {
-			never: t("never"),
-			unknown: t("unknown"),
-		});
+	const timestampLabels = { never: t("never"), unknown: t("unknown") };
 
 	return (
 		<div className="space-y-6">
@@ -206,14 +210,14 @@ export default function ApiKeysPage() {
 									))}
 								</span>
 								<span className="block text-xs text-ink-muted">
-									{t("createdAt", { timestamp: formatTimestamp(key.createdAt) })}
+									{t("createdAt", { timestamp: localizeApiKeyTimestamp(key.createdAt, locale, timestampLabels) })}
 								</span>
 								<span className="block text-xs text-ink-muted">
-									{t("lastUsedAt", { timestamp: formatTimestamp(key.lastUsedAt) })}
+									{t("lastUsedAt", { timestamp: localizeApiKeyTimestamp(key.lastUsedAt, locale, timestampLabels) })}
 								</span>
 								{key.revokedAt && (
 									<span className="block text-xs text-ink-muted">
-										{t("revokedAt", { timestamp: formatTimestamp(key.revokedAt) })}
+										{t("revokedAt", { timestamp: localizeApiKeyTimestamp(key.revokedAt, locale, timestampLabels) })}
 									</span>
 								)}
 								{!key.revokedAt && (

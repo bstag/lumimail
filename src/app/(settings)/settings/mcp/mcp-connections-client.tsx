@@ -21,12 +21,16 @@ type Connection = {
 	revokedAt: string | null;
 };
 
+function mcpEndpoint() {
+	return typeof window === "undefined" ? "/mcp" : `${window.location.origin}/mcp`;
+}
+
 export function McpConnectionsClient() {
 	const queryClient = useQueryClient();
 	const [copied, setCopied] = useState(false);
 	const [target, setTarget] = useState<Connection | null>(null);
 	const [password, setPassword] = useState("");
-	const endpoint = typeof window === "undefined" ? "/mcp" : `${window.location.origin}/mcp`;
+	const endpoint = mcpEndpoint();
 	const query = useQuery({
 		queryKey: ["mcp-connections"],
 		queryFn: () => apiJson.get<{ connections: Connection[] }>("/api/mcp/connections"),

@@ -8,6 +8,37 @@ import { Label } from "@/components/ui/label";
 import { apiJson, ApiResponseError } from "@/lib/api/client-response";
 import type { ProfileFormProps, ProfileFormResponse } from "./types";
 
+type ProfileSaveResult =
+	| { ok: true; name: string; resetEmail: string }
+	| { ok: false; message: string };
+
+type ProfilePatch = (name: string, resetEmail: string) => Promise<ProfileFormResponse>;
+
+function patchProfile(name: string, resetEmail: string) {
+	return apiJson.patch<ProfileFormResponse>("/api/settings/profile", { name, resetEmail });
+}
+
+export async function saveProfile(
+	name: string,
+	resetEmail: string,
+	failureMessage: string,
+	request: ProfilePatch = patchProfile,
+): Promise<ProfileSaveResult> {
+	try {
+		const data = await request(name, resetEmail);
+		return {
+			ok: true,
+			name: data.user?.name ?? name.trim(),
+			resetEmail: data.user?.resetEmail ?? "",
+		};
+	} catch (error) {
+		return {
+			ok: false,
+			message: error instanceof ApiResponseError ? error.message : failureMessage,
+		};
+	}
+}
+
 export function ProfileForm({ initialName, initialResetEmail, email }: ProfileFormProps) {
 	const t = useTranslations("settings");
 	const [name, setName] = useState(initialName);
@@ -23,18 +54,15 @@ export function ProfileForm({ initialName, initialResetEmail, email }: ProfileFo
 		setLoading(true);
 		setStatus(null);
 
-		let data: ProfileFormResponse;
-		try {
-			data = await apiJson.patch<ProfileFormResponse>("/api/settings/profile", { name, resetEmail });
-		} catch (error) {
-			setLoading(false);
-			setStatus(error instanceof ApiResponseError ? error.message : t("accountFailed"));
+		const result = await saveProfile(name, resetEmail, t("accountFailed"));
+		setLoading(false);
+		if (!result.ok) {
+			setStatus(result.message);
 			return;
 		}
-		setLoading(false);
 
-		const nextName = data.user?.name ?? name.trim();
-		const nextResetEmail = data.user?.resetEmail ?? "";
+		const nextName = result.name;
+		const nextResetEmail = result.resetEmail;
 		setName(nextName);
 		setResetEmail(nextResetEmail);
 		setSavedName(nextName);

@@ -94,11 +94,142 @@ function errorText(error: unknown, fallback: string): string | null {
   return error instanceof Error ? error.message : fallback;
 }
 
+function MembersList({ members, onRoleChange, onRemove }: {
+  members: Member[]; onRoleChange: (memberId: string, role: string) => void; onRemove: (member: Member) => void;
+}) {
+  const t = useTranslations("admin");
+  return <div className="space-y-2">{members.map((member) => <div key={member.id} className="flex items-center justify-between rounded-lg border border-border bg-surface-raised px-4 py-3">
+    <div className="flex items-center gap-3"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-subtle text-sm font-medium text-ink-muted">{member.name.charAt(0).toUpperCase()}</div><div><p className="text-sm font-medium text-ink">{member.name}</p><p className="text-xs text-ink-muted">{member.email}</p></div></div>
+    <div className="flex items-center gap-3">{member.role === "owner"
+      ? <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${ROLE_BADGES.owner}`}>{t("roleOwner")}</span>
+      : <><Select value={member.role} onChange={(event) => onRoleChange(member.id, event.target.value)} size="sm" className="w-auto"><option value="admin">{t("roleAdmin")}</option><option value="member">{t("roleMember")}</option></Select><button type="button" onClick={() => onRemove(member)} className="text-ink-faint hover:text-danger" title={t("removeMemberConfirm")}><X className="h-4 w-4" /></button></>}
+    </div>
+  </div>)}</div>;
+}
+
+function inviteActivity(invite: Invite, format: ReturnType<typeof useFormatter>) {
+  const options = { dateStyle: "medium", timeStyle: "short" } as const;
+  if (invite.acceptedAt) return `Accepted ${format.dateTime(new Date(invite.acceptedAt), options)}`;
+  if (invite.lastDeliveredAt) return `Provider accepted ${format.dateTime(new Date(invite.lastDeliveredAt), options)}`;
+  if (invite.lastDeliveryAttemptAt) return `Last attempted ${format.dateTime(new Date(invite.lastDeliveryAttemptAt), options)}`;
+  return "No delivery attempted";
+}
+
+function inviteDeliveryLabel(status: Invite["deliveryStatus"]) {
+  if (status === "sent") return "Invitation sent";
+  if (status === "failed") return "Delivery failed";
+  if (status === "sending") return "Delivery unconfirmed";
+  return "Not sent";
+}
+
+function inviteStatusLabel(status: Invite["status"]) {
+	return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function InvitationsList({ invites, pending, error, onResend }: {
+  invites: Invite[]; pending: boolean; error: unknown; onResend: (invite: Invite) => void;
+}) {
+  const t = useTranslations("admin");
+  const format = useFormatter();
+  if (invites.length === 0) return null;
+  return <div className="space-y-2"><h3 className="text-sm font-semibold text-ink">Invitations</h3>
+    {error ? <p className="rounded-md bg-danger-muted px-3 py-2 text-sm text-danger">{errorText(error, "Failed to resend invitation")}</p> : null}
+    {invites.map((invite) => <div key={invite.id} className="flex items-center justify-between rounded-lg border border-dashed border-border bg-surface-subtle px-4 py-3">
+      <div className="flex items-center gap-3"><Mail className="h-5 w-5 text-ink-faint" /><div><p className="text-sm text-ink-muted">{invite.email}</p><p className="text-xs text-ink-faint"><Clock className="mr-1 inline h-3 w-3" />{t("expires", { date: format.dateTime(new Date(invite.expiresAt), { year: "numeric", month: "numeric", day: "numeric" }) })}</p><p className="mt-1 text-xs text-ink-faint">{inviteActivity(invite, format)}</p></div></div>
+      <div className="flex items-center gap-2"><span className="rounded-full bg-surface px-2.5 py-0.5 text-xs font-medium text-ink-muted">{inviteStatusLabel(invite.status)}</span><span className="rounded-full bg-surface px-2.5 py-0.5 text-xs font-medium text-ink-muted">{inviteDeliveryLabel(invite.deliveryStatus)}</span><span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${ROLE_BADGES[invite.role]}`}>{invite.role}</span>{invite.status !== "accepted" && <Button variant="outline" size="sm" disabled={pending} onClick={() => onResend(invite)}>Resend invitation</Button>}</div>
+    </div>)}
+  </div>;
+}
+
+function membersPageError({ memberError, accessError, sessionError, securityError, roleError, removeError, owner, fallback }: {
+  memberError: unknown; accessError: unknown; sessionError: unknown; securityError: unknown;
+  roleError: unknown; removeError: unknown; owner: boolean; fallback: string;
+}) {
+  const errors = [
+    errorText(memberError, fallback),
+    errorText(accessError, "Failed to load access overview"),
+    owner ? errorText(sessionError, "Failed to load active sessions") : null,
+    owner ? errorText(securityError, "Failed to load security history") : null,
+    errorText(roleError, "Failed to change role"),
+    errorText(removeError, "Failed to remove member"),
+  ];
+  return errors.find((error) => error !== null) ?? null;
+}
+
+function RemoveMemberDialog({ target, onClose, onConfirm }: {
+  target: Member | null; onClose: () => void; onConfirm: (id: string) => void;
+}) {
+  const t = useTranslations("admin");
+  const tCommon = useTranslations("common");
+  return <ConfirmDialog open={target !== null} onOpenChange={(open) => { if (!open) onClose(); }}
+    title={t("removeMemberTitle")} description={target ? t("removeMemberDesc", { email: target.email }) : ""}
+    confirmLabel={t("removeMemberConfirm")} cancelLabel={tCommon("cancel")} danger
+    onConfirm={() => { if (target) onConfirm(target.id); onClose(); }} />;
+}
+
+function SessionRevocationControl({ target, password, pending, error, onPasswordChange, onClose, onConfirm, onReset }: {
+  target: SessionRevocationTarget | null; password: string; pending: boolean; error: string | null;
+  onPasswordChange: (value: string) => void; onClose: () => void;
+  onConfirm: (target: SessionRevocationTarget, password: string) => void; onReset: () => void;
+}) {
+  return <SessionRevocationDialog target={target} password={password} pending={pending} error={error}
+    onPasswordChange={onPasswordChange} onOpenChange={(open) => { if (!open && !pending) { onClose(); onReset(); } }}
+    onConfirm={() => { if (target && password) onConfirm(target, password); }} />;
+}
+
+function toggleSelectedMailbox(ids: string[], mailboxId: string, selected: boolean) {
+  return selected ? [...ids, mailboxId] : ids.filter((id) => id !== mailboxId);
+}
+
+function BulkGrantControl({ target, mailboxes, selectedIds, role, password, pending, error, onSelectedIdsChange, onRoleChange, onPasswordChange, onClose, onConfirm, onReset }: {
+  target: AccessMember | null; mailboxes: AccessOverview["mailboxes"]; selectedIds: string[];
+  role: AccessMailboxRole; password: string; pending: boolean; error: string | null;
+  onSelectedIdsChange: (ids: string[]) => void; onRoleChange: (role: AccessMailboxRole) => void;
+  onPasswordChange: (value: string) => void; onClose: () => void; onReset: () => void;
+  onConfirm: (target: AccessMember, ids: string[], role: AccessMailboxRole, password: string) => void;
+}) {
+  const ready = target !== null && selectedIds.length > 0 && password.length > 0;
+  return <BulkGrantDialog target={target} mailboxes={mailboxes} selectedMailboxIds={selectedIds} role={role}
+    password={password} pending={pending} error={error}
+    onMailboxToggle={(id, selected) => onSelectedIdsChange(toggleSelectedMailbox(selectedIds, id, selected))}
+    onRoleChange={onRoleChange} onPasswordChange={onPasswordChange}
+    onOpenChange={(open) => { if (!open && !pending) { onClose(); onReset(); } }}
+    onConfirm={() => { if (ready && target) onConfirm(target, selectedIds, role, password); }} />;
+}
+
+function ResentInviteDialog({ invite, onClose }: { invite: ResentInvite | null; onClose: () => void }) {
+  const deliveryMessage = invite?.deliveryStatus === "sent" ? "Invitation sent"
+    : invite?.deliveryStatus === "failed" ? "Email delivery failed — share this link"
+      : "Delivery is unconfirmed — share this link";
+  return <Dialog open={invite !== null} onOpenChange={(open) => { if (!open) onClose(); }}><DialogContent>
+    <DialogHeader><DialogTitle>Invitation resent</DialogTitle><DialogDescription>The previous link is no longer valid.</DialogDescription></DialogHeader>
+    {invite && <div className="space-y-3"><p className={`rounded-md px-3 py-2 text-sm font-medium ${invite.deliveryStatus === "sent" ? "bg-success-muted text-success" : "bg-warning-muted text-warning"}`}>{deliveryMessage}</p><p className="text-sm text-ink-muted">Fallback link for {invite.email}</p><Input value={invite.link} readOnly /><Button variant="outline" className="w-full" onClick={() => { void navigator.clipboard.writeText(invite.link); }}>Copy link</Button></div>}
+  </DialogContent></Dialog>;
+}
+
+function OwnerSessionSection({ owner, query, onRevoke }: {
+  owner: boolean; query: { isLoading: boolean; data?: SessionOverview }; onRevoke: (target: SessionRevocationTarget) => void;
+}) {
+  if (!owner) return null;
+  if (query.isLoading) return <p className="text-sm text-ink-muted">Loading active sessions…</p>;
+  return query.data ? <SessionOverviewCard overview={query.data} onRevoke={onRevoke} /> : null;
+}
+
+function OwnerSecuritySection({ owner, query, members }: {
+  owner: boolean; members: Member[];
+  query: { isLoading: boolean; data?: { pages: SecurityAuditHistory[] }; hasNextPage?: boolean; isFetchingNextPage?: boolean; fetchNextPage: () => unknown };
+}) {
+  if (!owner) return null;
+  if (query.isLoading) return <p className="text-sm text-ink-muted">Loading security history…</p>;
+  if (!query.data) return null;
+  return <div id="security" className="scroll-mt-6"><SecurityHistoryCard history={query.data.pages} members={members}
+    hasNextPage={query.hasNextPage ?? false} loadingMore={query.isFetchingNextPage ?? false} onLoadMore={() => { void query.fetchNextPage(); }} /></div>;
+}
+
 export default function MembersPage() {
   const t = useTranslations("admin");
   const tCommon = useTranslations("common");
   const tNav = useTranslations("nav");
-  const format = useFormatter();
   const authSession = useAuthSession();
   const isOwner = authSession?.user.role === "owner";
   const qc = useQueryClient();
@@ -231,13 +362,12 @@ export default function MembersPage() {
 
   const members = membersQuery.data?.members ?? [];
   const invites = membersQuery.data?.invites ?? [];
-  const error =
-    errorText(membersQuery.error, t("loadMembersFailed")) ??
-    errorText(accessOverviewQuery.error, "Failed to load access overview") ??
-    (isOwner ? errorText(sessionOverviewQuery.error, "Failed to load active sessions") : null) ??
-    (isOwner ? errorText(securityHistoryQuery.error, "Failed to load security history") : null) ??
-    errorText(changeRole.error, t("changeRoleFailed")) ??
-    errorText(removeMember.error, t("removeMemberFailed"));
+  const error = membersPageError({
+    memberError: membersQuery.error, accessError: accessOverviewQuery.error,
+    sessionError: sessionOverviewQuery.error, securityError: securityHistoryQuery.error,
+    roleError: changeRole.error, removeError: removeMember.error, owner: isOwner,
+    fallback: t("loadMembersFailed"),
+  });
 
   if (membersQuery.isLoading || accessOverviewQuery.isLoading) {
     return (
@@ -265,231 +395,29 @@ export default function MembersPage() {
         <p className="rounded-lg border border-danger/30 bg-danger-muted px-4 py-3 text-sm text-danger">{error}</p>
       )}
 
-      <ConfirmDialog
-        open={removeTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setRemoveTarget(null);
-        }}
-        title={t("removeMemberTitle")}
-        description={
-          removeTarget
-            ? t("removeMemberDesc", { email: removeTarget.email })
-            : ""
-        }
-        confirmLabel={t("removeMemberConfirm")}
-        cancelLabel={tCommon("cancel")}
-        danger
-        onConfirm={() => {
-          if (removeTarget) removeMember.mutate(removeTarget.id);
-          setRemoveTarget(null);
-        }}
-      />
+      <RemoveMemberDialog target={removeTarget} onClose={() => setRemoveTarget(null)} onConfirm={(id) => removeMember.mutate(id)} />
+      <SessionRevocationControl target={sessionRevocationTarget} password={sessionPassword}
+        pending={revokeSessions.isPending} error={errorText(revokeSessions.error, "Failed to revoke session")}
+        onPasswordChange={setSessionPassword} onClose={() => { setSessionRevocationTarget(null); setSessionPassword(""); }}
+        onReset={revokeSessions.reset} onConfirm={(target, password) => revokeSessions.mutate({ target, password })} />
+      <BulkGrantControl target={bulkGrantTarget} mailboxes={accessOverviewQuery.data?.mailboxes ?? []}
+        selectedIds={bulkGrantMailboxIds} role={bulkGrantRole} password={bulkGrantPassword}
+        pending={bulkGrant.isPending} error={errorText(bulkGrant.error, "Failed to grant mailbox access")}
+        onSelectedIdsChange={setBulkGrantMailboxIds} onRoleChange={setBulkGrantRole} onPasswordChange={setBulkGrantPassword}
+        onClose={() => { setBulkGrantTarget(null); setBulkGrantMailboxIds([]); setBulkGrantPassword(""); }} onReset={bulkGrant.reset}
+        onConfirm={(target, mailboxIds, role, password) => bulkGrant.mutate({ targetUserId: target.userId, mailboxIds, role, password })} />
+      <ResentInviteDialog invite={resentInvite} onClose={() => setResentInvite(null)} />
 
-      <SessionRevocationDialog
-        target={sessionRevocationTarget}
-        password={sessionPassword}
-        pending={revokeSessions.isPending}
-        error={errorText(revokeSessions.error, "Failed to revoke session")}
-        onPasswordChange={setSessionPassword}
-        onOpenChange={(open) => {
-          if (!open && !revokeSessions.isPending) {
-            setSessionRevocationTarget(null);
-            setSessionPassword("");
-            revokeSessions.reset();
-          }
-        }}
-        onConfirm={() => {
-          if (sessionRevocationTarget && sessionPassword.length > 0) {
-            revokeSessions.mutate({ target: sessionRevocationTarget, password: sessionPassword });
-          }
-        }}
-      />
-
-      <BulkGrantDialog
-        target={bulkGrantTarget}
-        mailboxes={accessOverviewQuery.data?.mailboxes ?? []}
-        selectedMailboxIds={bulkGrantMailboxIds}
-        role={bulkGrantRole}
-        password={bulkGrantPassword}
-        pending={bulkGrant.isPending}
-        error={errorText(bulkGrant.error, "Failed to grant mailbox access")}
-        onMailboxToggle={(mailboxId, selected) => {
-          setBulkGrantMailboxIds((current) => selected
-            ? [...current, mailboxId]
-            : current.filter((id) => id !== mailboxId));
-        }}
-        onRoleChange={setBulkGrantRole}
-        onPasswordChange={setBulkGrantPassword}
-        onOpenChange={(open) => {
-          if (!open && !bulkGrant.isPending) {
-            setBulkGrantTarget(null);
-            setBulkGrantMailboxIds([]);
-            setBulkGrantPassword("");
-            bulkGrant.reset();
-          }
-        }}
-        onConfirm={() => {
-          if (bulkGrantTarget && bulkGrantMailboxIds.length > 0 && bulkGrantPassword.length > 0) {
-            bulkGrant.mutate({
-              targetUserId: bulkGrantTarget.userId,
-              mailboxIds: bulkGrantMailboxIds,
-              role: bulkGrantRole,
-              password: bulkGrantPassword,
-            });
-          }
-        }}
-      />
-
-      <Dialog open={resentInvite !== null} onOpenChange={(open) => { if (!open) setResentInvite(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Invitation resent</DialogTitle>
-            <DialogDescription>The previous link is no longer valid.</DialogDescription>
-          </DialogHeader>
-          {resentInvite && (
-            <div className="space-y-3">
-              <p className={`rounded-md px-3 py-2 text-sm font-medium ${resentInvite.deliveryStatus === "sent" ? "bg-success-muted text-success" : "bg-warning-muted text-warning"}`}>
-                {resentInvite.deliveryStatus === "sent" ? "Invitation sent" : resentInvite.deliveryStatus === "failed" ? "Email delivery failed — share this link" : "Delivery is unconfirmed — share this link"}
-              </p>
-              <p className="text-sm text-ink-muted">Fallback link for {resentInvite.email}</p>
-              <Input value={resentInvite.link} readOnly />
-              <Button variant="outline" className="w-full" onClick={() => { void navigator.clipboard.writeText(resentInvite.link); }}>Copy link</Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <div className="space-y-2">
-        {members.map((member) => (
-          <div
-            key={member.id}
-            className="flex items-center justify-between rounded-lg border border-border bg-surface-raised px-4 py-3"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-subtle text-sm font-medium text-ink-muted">
-                {member.name.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <p className="text-sm font-medium text-ink">{member.name}</p>
-                <p className="text-xs text-ink-muted">{member.email}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {member.role === "owner" ? (
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${ROLE_BADGES.owner}`}>
-                  {t("roleOwner")}
-                </span>
-              ) : (
-                <Select
-                  value={member.role}
-                  onChange={(e) => {
-                    changeRole.mutate({ memberId: member.id, role: e.target.value });
-                  }}
-                  size="sm" className="w-auto"
-                >
-                  <option value="admin">{t("roleAdmin")}</option>
-                  <option value="member">{t("roleMember")}</option>
-                </Select>
-              )}
-              {member.role !== "owner" && (
-                <button
-                  type="button"
-                  onClick={() => setRemoveTarget(member)}
-                  className="text-ink-faint hover:text-danger"
-                  title={t("removeMemberConfirm")}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+      <MembersList members={members} onRoleChange={(memberId, role) => changeRole.mutate({ memberId, role })} onRemove={setRemoveTarget} />
 
       {accessOverviewQuery.data && (
         <AccessMatrix overview={accessOverviewQuery.data} canBulkGrant={isOwner} onManageAccess={openBulkGrant} />
       )}
 
-      {isOwner && sessionOverviewQuery.isLoading && (
-        <p className="text-sm text-ink-muted">Loading active sessions…</p>
-      )}
-      {isOwner && sessionOverviewQuery.data && (
-        <SessionOverviewCard overview={sessionOverviewQuery.data} onRevoke={openSessionRevocation} />
-      )}
+      <OwnerSessionSection owner={isOwner} query={sessionOverviewQuery} onRevoke={openSessionRevocation} />
+      <OwnerSecuritySection owner={isOwner} query={securityHistoryQuery} members={members} />
 
-      {isOwner && securityHistoryQuery.isLoading && (
-        <p className="text-sm text-ink-muted">Loading security history…</p>
-      )}
-      {isOwner && securityHistoryQuery.data && (
-		<div id="security" className="scroll-mt-6">
-		<SecurityHistoryCard
-          history={securityHistoryQuery.data.pages}
-          members={members}
-          hasNextPage={securityHistoryQuery.hasNextPage}
-          loadingMore={securityHistoryQuery.isFetchingNextPage}
-          onLoadMore={() => { void securityHistoryQuery.fetchNextPage(); }}
-		/>
-		</div>
-      )}
-
-      {invites.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-ink">Invitations</h3>
-          {resendInvite.error && (
-            <p className="rounded-md bg-danger-muted px-3 py-2 text-sm text-danger">
-              {errorText(resendInvite.error, "Failed to resend invitation")}
-            </p>
-          )}
-          {invites.map((invite) => (
-            <div
-              key={invite.id}
-              className="flex items-center justify-between rounded-lg border border-dashed border-border bg-surface-subtle px-4 py-3"
-            >
-              <div className="flex items-center gap-3">
-                <Mail className="h-5 w-5 text-ink-faint" />
-                <div>
-                  <p className="text-sm text-ink-muted">{invite.email}</p>
-                  <p className="text-xs text-ink-faint">
-                    <Clock className="mr-1 inline h-3 w-3" />
-                    {t("expires", {
-                      date: format.dateTime(new Date(invite.expiresAt), {
-                        year: "numeric",
-                        month: "numeric",
-                        day: "numeric",
-                      }),
-                    })}
-                  </p>
-                  <p className="mt-1 text-xs text-ink-faint">
-                    {invite.acceptedAt
-                      ? `Accepted ${format.dateTime(new Date(invite.acceptedAt), { dateStyle: "medium", timeStyle: "short" })}`
-                      : invite.lastDeliveredAt
-                        ? `Provider accepted ${format.dateTime(new Date(invite.lastDeliveredAt), { dateStyle: "medium", timeStyle: "short" })}`
-                        : invite.lastDeliveryAttemptAt
-                          ? `Last attempted ${format.dateTime(new Date(invite.lastDeliveryAttemptAt), { dateStyle: "medium", timeStyle: "short" })}`
-                          : "No delivery attempted"}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="rounded-full bg-surface px-2.5 py-0.5 text-xs font-medium text-ink-muted">
-                  {invite.status === "pending" ? "Pending" : invite.status === "expired" ? "Expired" : "Accepted"}
-                </span>
-                <span className="rounded-full bg-surface px-2.5 py-0.5 text-xs font-medium text-ink-muted">
-                  {invite.deliveryStatus === "sent" ? "Invitation sent" : invite.deliveryStatus === "failed" ? "Delivery failed" : invite.deliveryStatus === "sending" ? "Delivery unconfirmed" : "Not sent"}
-                </span>
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${ROLE_BADGES[invite.role]}`}>
-                  {invite.role}
-                </span>
-                {invite.status !== "accepted" && (
-                  <Button variant="outline" size="sm" disabled={resendInvite.isPending} onClick={() => resendInvite.mutate(invite)}>
-                    Resend invitation
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <InvitationsList invites={invites} pending={resendInvite.isPending} error={resendInvite.error} onResend={(invite) => resendInvite.mutate(invite)} />
 
       <InviteMemberDialog
         open={inviteOpen}

@@ -145,46 +145,101 @@ export async function failJobQueueUnavailable(
 	]);
 }
 
+type SendAuthorization = SenderAuthorization | ExternalSenderAuthorization;
+
+async function resolveSendAuthorization(
+	env: CloudflareEnv,
+	input: SendEmailInput,
+): Promise<SendAuthorization> {
+	const authorization = input.externalAccountId
+		? await resolveExternalSenderAuthorization(
+			env, input.userId, input.externalAccountId, input.from, input.mailboxId,
+		)
+		: await resolveSenderAuthorization(env, input.userId, input.from, input.mailboxId);
+	if (!authorization) throw new SenderNotAllowedError(input.from);
+	return authorization;
+}
+
+async function readExistingIdempotency(
+	db: AppDatabase,
+	input: SendEmailInput,
+) {
+	if (!input.idempotency) return null;
+	const [existing] = await db
+		.select({
+			requestHash: outboundIdempotency.requestHash,
+			messageId: outboundIdempotency.messageId,
+			status: messages.status,
+		})
+		.from(outboundIdempotency)
+		.innerJoin(messages, eq(messages.id, outboundIdempotency.messageId))
+		.where(and(
+			eq(outboundIdempotency.principalType, input.idempotency.principalType),
+			eq(outboundIdempotency.principalId, input.idempotency.principalId),
+			eq(outboundIdempotency.idempotencyKey, input.idempotency.key),
+		))
+		.limit(1);
+	if (!existing) return null;
+	const status = existing.status === "sent" || existing.status === "failed" ? existing.status : "queued";
+	return resolveExistingIdempotency({ ...existing, status }, input.idempotency.requestHash);
+}
+
+function resolveAuthorizedFromAddress(input: SendEmailInput, authorization: SendAuthorization): string {
+	return input.externalAccountId
+		? (authorization as ExternalSenderAuthorization).externalAddress
+		: resolveFromAddress(input.from, authorization as SenderAuthorization);
+}
+
+function buildAttachmentSnapshots(
+	input: SendEmailInput,
+	messageId: string,
+	validatedAttachments: ReturnType<typeof validateOutboundAttachments>,
+): OutboundAttachmentSnapshot[] {
+	return validatedAttachments.map((attachment) => {
+		const id = newId("att");
+		return {
+			id,
+			filename: attachment.filename,
+			contentType: attachment.contentType,
+			size: attachment.size,
+			r2Key: attachmentKey(input.userId, messageId, id),
+			disposition: attachment.disposition,
+			...(attachment.contentId ? { contentId: attachment.contentId } : {}),
+		};
+	});
+}
+
+function buildDeliverySnapshot(
+	input: SendEmailInput,
+	fromAddr: string,
+	deliveryBodies: { text?: string | null; html?: string | null },
+	replySource: Awaited<ReturnType<typeof resolveReplySource>>,
+	attachmentSnapshots: OutboundAttachmentSnapshot[],
+): OutboundDeliverySnapshot {
+	return {
+		from: fromAddr,
+		to: input.to,
+		subject: input.subject,
+		html: deliveryBodies.html ?? undefined,
+		text: deliveryBodies.text ?? undefined,
+		...(attachmentSnapshots.length ? { attachments: attachmentSnapshots } : {}),
+		...(replySource?.threading.headers ? { headers: replySource.threading.headers } : {}),
+		...(input.autoReply ? { autoReply: true } : {}),
+		...(input.externalAccountId ? { externalAccountId: input.externalAccountId } : {}),
+	};
+}
+
 export async function sendEmail(
 	env: CloudflareEnv,
 	input: SendEmailInput,
 ): Promise<{ messageId: string; status: "queued" | "sent" | "failed"; replayed?: true }> {
 	const db = getDb(env);
-	const authorization: SenderAuthorization | ExternalSenderAuthorization | null = input.externalAccountId
-		? await resolveExternalSenderAuthorization(
-			env, input.userId, input.externalAccountId, input.from, input.mailboxId,
-		)
-		: await resolveSenderAuthorization(env, input.userId, input.from, input.mailboxId);
-	if (!authorization) {
-		throw new SenderNotAllowedError(input.from);
-	}
-	async function readExistingIdempotency() {
-		if (!input.idempotency) return null;
-		const [existing] = await db
-			.select({
-				requestHash: outboundIdempotency.requestHash,
-				messageId: outboundIdempotency.messageId,
-				status: messages.status,
-			})
-			.from(outboundIdempotency)
-			.innerJoin(messages, eq(messages.id, outboundIdempotency.messageId))
-			.where(and(
-				eq(outboundIdempotency.principalType, input.idempotency.principalType),
-				eq(outboundIdempotency.principalId, input.idempotency.principalId),
-				eq(outboundIdempotency.idempotencyKey, input.idempotency.key),
-			))
-			.limit(1);
-		if (!existing) return null;
-		const status = existing.status === "sent" || existing.status === "failed" ? existing.status : "queued";
-		return resolveExistingIdempotency({ ...existing, status }, input.idempotency.requestHash);
-	}
-	const replay = await readExistingIdempotency();
+	const authorization = await resolveSendAuthorization(env, input);
+	const replay = await readExistingIdempotency(db, input);
 	if (replay) return replay;
 
 	const replySource = await resolveReplySource(env, input, authorization);
-	const fromAddr = input.externalAccountId
-		? (authorization as ExternalSenderAuthorization).externalAddress
-		: resolveFromAddress(input.from, authorization as SenderAuthorization);
+	const fromAddr = resolveAuthorizedFromAddress(input, authorization);
 	const authoredContent = normalizeAuthoredContent(input, { allowInlineImages: true });
 	const deliveryBodies = replySource
 		? buildReplyBodies(
@@ -203,29 +258,8 @@ export async function sendEmail(
 	const snippet = buildSnippet(deliveryBodies.text ?? null, deliveryBodies.html ?? null);
 
 	const jobId = newId("job");
-	const attachmentSnapshots: OutboundAttachmentSnapshot[] = validatedAttachments.map((attachment) => {
-		const id = newId("att");
-		return {
-			id,
-			filename: attachment.filename,
-			contentType: attachment.contentType,
-			size: attachment.size,
-			r2Key: attachmentKey(input.userId, messageId, id),
-			disposition: attachment.disposition,
-			...(attachment.contentId ? { contentId: attachment.contentId } : {}),
-		};
-	});
-	const snapshot: OutboundDeliverySnapshot = {
-		from: fromAddr,
-		to: input.to,
-		subject: input.subject,
-		html: deliveryBodies.html ?? undefined,
-		text: deliveryBodies.text ?? undefined,
-		...(attachmentSnapshots.length ? { attachments: attachmentSnapshots } : {}),
-		...(replySource?.threading.headers ? { headers: replySource.threading.headers } : {}),
-		...(input.autoReply ? { autoReply: true } : {}),
-		...(input.externalAccountId ? { externalAccountId: input.externalAccountId } : {}),
-	};
+	const attachmentSnapshots = buildAttachmentSnapshots(input, messageId, validatedAttachments);
+	const snapshot = buildDeliverySnapshot(input, fromAddr, deliveryBodies, replySource, attachmentSnapshots);
 	const messageInsert = db.insert(messages).values({
 		id: messageId,
 		userId: input.userId,
@@ -314,7 +348,7 @@ export async function sendEmail(
 		]);
 	} catch (error) {
 		await cleanupAttachmentObjects(env, writtenKeys);
-		const winner = await readExistingIdempotency();
+		const winner = await readExistingIdempotency(db, input);
 		if (winner) return winner;
 		throw error;
 	}

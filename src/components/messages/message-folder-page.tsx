@@ -56,7 +56,68 @@ async function fetchLabels(): Promise<Label[]> {
 	return json.data ?? [];
 }
 
-function MessageListRow({
+function MessageRowMeta({ message, config, mailboxLabel, externalSourceLabel, timestamp, unread }: Pick<MessageListRowProps, "message" | "config" | "mailboxLabel" | "externalSourceLabel" | "timestamp"> & { unread: boolean }) {
+	return <div className="flex shrink-0 items-center gap-2">
+		{externalSourceLabel && <Badge variant="outline">{externalSourceLabel}</Badge>}
+		{mailboxLabel && <Badge variant="outline" title={mailboxLabel}>{mailboxLabel}</Badge>}
+		{config.showRowBadge !== false && <Badge variant={config.badgeVariant ?? "secondary"}>{getMessageBadge(message, config.folder)}</Badge>}
+		{timestamp && <time dateTime={message.createdAt} className={`shrink-0 text-xs tabular-nums ${unread ? "font-semibold text-ink" : "text-ink-muted"}`}>{timestamp}</time>}
+	</div>;
+}
+
+function MessageRowContent({ message, config, compact, meta }: Pick<MessageListRowProps, "message" | "config" | "compact"> & { meta: React.ReactNode }) {
+	const t = useTranslations("messages");
+	const unread = message.direction === "inbound" && !message.read;
+	return <div className="flex min-w-0 flex-1 items-center gap-3">
+		<span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-muted text-xs font-semibold text-accent">{getConversationInitial(getMessageParty(message, config.folder))}</span>
+		<div className={`flex min-w-0 flex-1 gap-0.5 ${compact ? "flex-col py-1.5" : "flex-row items-center gap-3"}`}>
+			<div className={`flex min-w-0 items-center gap-2 ${compact ? "" : "w-40 shrink-0 sm:w-60"}`}><span className={`${getMessagePartyClassName(message, config.folder)} ${compact ? "flex-1" : ""}`}>{getMessageParty(message, config.folder)}</span>{compact && meta}</div>
+			<span className="min-w-0 flex-1 truncate text-ink-muted"><span className={unread ? "font-bold text-ink" : ""}>{message.subject ?? t("noSubject")}</span><span className="text-ink-muted"> - {getMessagePreview(message, config.folder)}</span></span>
+			{(message.threadCount ?? 1) > 1 && <Badge variant="outline" aria-label={`${message.threadCount} messages in thread`}>{message.threadCount}</Badge>}
+			{!compact && meta}
+		</div>
+	</div>;
+}
+
+function FolderLabelHeader({ title, pinned, labels, activeId, onChange }: {
+	title?: string; pinned: boolean; labels: Label[]; activeId: string | null; onChange: (id: string | null) => void;
+}) {
+	return <>
+		{title && <div className="flex items-center gap-2 border-b border-border px-6 py-2"><h1 className="truncate text-sm font-semibold text-ink">{title}</h1></div>}
+		{!pinned && labels.length > 0 && <div className="flex items-center gap-2 border-b border-border px-6 py-2">
+			<button type="button" onClick={() => onChange(null)} className={`rounded-full px-3 py-0.5 text-xs font-medium transition-colors ${activeId === null ? "bg-surface-inverse text-ink-inverse" : "bg-surface-subtle text-ink-muted hover:bg-surface-subtle"}`}>All</button>
+			{labels.map((label) => <button key={label.id} type="button" onClick={() => onChange(activeId === label.id ? null : label.id)} className={`flex items-center gap-1.5 rounded-full px-3 py-0.5 text-xs font-medium transition-colors ${activeId === label.id ? "bg-surface-inverse text-ink-inverse" : "bg-surface-subtle text-ink-muted hover:bg-surface-subtle"}`}><span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: label.color }} />{label.name}</button>)}
+		</div>}
+	</>;
+}
+
+function FolderSelectionControls({ messageCount, allSelected, selectedCount, hasUnread, pending, onToggleAll, onAction, onClear }: {
+	messageCount: number; allSelected: boolean; selectedCount: number; hasUnread: boolean; pending: boolean;
+	onToggleAll: (selected: boolean) => void; onAction: (action: BulkMessageAction) => void; onClear: () => void;
+}) {
+	const t = useTranslations("messages");
+	return <div className="flex items-center gap-3 w-full"><Tooltip label={t("selectAll")}><input type="checkbox" checked={allSelected} disabled={messageCount === 0} onChange={(event) => onToggleAll(event.target.checked)} className="h-4 w-4 rounded border-border-strong" aria-label={t("selectAll")} /></Tooltip>
+		{selectedCount > 0 && <BulkMessageToolbar selectedCount={selectedCount} hasUnreadSelection={hasUnread} onAction={onAction} onClearSelection={onClear} pending={pending} />}
+	</div>;
+}
+
+function FolderPaginationControls({ hidden, splitDesktop, selectedMessageId, orientation, range, offset, limit, messageCount, total, loading, onToggleOrientation, onOffsetChange }: {
+	hidden: boolean; splitDesktop: boolean; selectedMessageId: string | null; orientation: SplitOrientation;
+	range: { start: number; end: number; total: number }; offset: number; limit: number; messageCount: number; total: number; loading: boolean;
+	onToggleOrientation: () => void; onOffsetChange: (offset: number) => void;
+}) {
+	const t = useTranslations("messages");
+	if (hidden) return null;
+	const orientationLabel = orientation === "right" ? "Move conversation panel below the list" : "Move conversation panel beside the list";
+	return <div className="flex items-center gap-2 text-ink-muted">
+		{splitDesktop && selectedMessageId && <Tooltip label={orientationLabel}><Button variant="ghost" size="sm" onClick={onToggleOrientation} aria-label={orientationLabel}>{orientation === "right" ? <PanelBottom className="h-4 w-4" /> : <PanelRight className="h-4 w-4" />}</Button></Tooltip>}
+		<span className="text-xs text-ink-muted whitespace-nowrap">{t("pageRange", { start: range.start, end: range.end, total: range.total })}</span>
+		<Tooltip label={t("previousPage")}><Button variant="ghost" size="sm" disabled={offset === 0 || loading} onClick={() => onOffsetChange(Math.max(offset - limit, 0))} aria-label={t("previousPage")}><ChevronLeft className="h-4 w-4" /></Button></Tooltip>
+		<Tooltip label={t("nextPage")}><Button variant="ghost" size="sm" disabled={offset + messageCount >= total || loading} onClick={() => onOffsetChange(offset + limit)} aria-label={t("nextPage")}><ChevronRight className="h-4 w-4" /></Button></Tooltip>
+	</div>;
+}
+
+export function MessageListRow({
 	message,
 	config,
 	selected,
@@ -151,59 +212,8 @@ function MessageListRow({
 	 * two would be read twice by a screen reader and would make every strict
 	 * `getByText` locator in the suites ambiguous.
 	 */
-	const meta = (
-		<div className="flex shrink-0 items-center gap-2">
-			{externalSourceLabel && <Badge variant="outline">{externalSourceLabel}</Badge>}
-			{mailboxLabel && (
-				<Badge variant="outline" title={mailboxLabel}>
-					{mailboxLabel}
-				</Badge>
-			)}
-			{config.showRowBadge !== false && (
-				<Badge variant={config.badgeVariant ?? "secondary"}>
-					{getMessageBadge(message, config.folder)}
-				</Badge>
-			)}
-			{timestamp && (
-				<time
-					dateTime={message.createdAt}
-					className={`shrink-0 text-xs tabular-nums ${unread ? "font-semibold text-ink" : "text-ink-muted"}`}
-				>
-					{timestamp}
-				</time>
-			)}
-		</div>
-	);
-
-	const content = (
-		<div className="flex min-w-0 flex-1 items-center gap-3">
-			<span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-muted text-xs font-semibold text-accent">
-				{getConversationInitial(getMessageParty(message, config.folder))}
-			</span>
-		<div className={`flex min-w-0 flex-1 gap-0.5 ${
-				compact ? "flex-col py-1.5" : "flex-row items-center gap-3"
-			}`}>
-			<div className={`flex min-w-0 items-center gap-2 ${compact ? "" : "w-40 shrink-0 sm:w-60"}`}>
-				<span className={`${getMessagePartyClassName(message, config.folder)} ${compact ? "flex-1" : ""}`}>
-					{getMessageParty(message, config.folder)}
-				</span>
-				{compact && meta}
-			</div>
-			<span className="min-w-0 flex-1 truncate text-ink-muted">
-				<span className={unread ? "font-bold text-ink" : ""}>
-					{message.subject ?? t("noSubject")}
-				</span>
-				<span className="text-ink-muted"> - {getMessagePreview(message, config.folder)}</span>
-			</span>
-			{(message.threadCount ?? 1) > 1 && (
-				<Badge variant="outline" aria-label={`${message.threadCount} messages in thread`}>
-					{message.threadCount}
-				</Badge>
-			)}
-			{!compact && meta}
-		</div>
-		</div>
-	);
+	const meta = <MessageRowMeta message={message} config={config} mailboxLabel={mailboxLabel} externalSourceLabel={externalSourceLabel} timestamp={timestamp} unread={unread} />;
+	const content = <MessageRowContent message={message} config={config} compact={compact} meta={meta} />;
 
 	if (config.folder === "drafts") {
 		return (
@@ -411,115 +421,15 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 
 	const list = (
 		<div className="flex h-full flex-col">
-			{config.title && (
-				<div className="flex items-center gap-2 border-b border-border px-6 py-2">
-					<h1 className="truncate text-sm font-semibold text-ink">{config.title}</h1>
-				</div>
-			)}
-			{!pinnedLabelId && labels.length > 0 && (
-				<div className="flex items-center gap-2 border-b border-border px-6 py-2">
-					<button
-						type="button"
-						onClick={() => setActiveLabelId(null)}
-						className={`rounded-full px-3 py-0.5 text-xs font-medium transition-colors ${
-							activeLabelId === null
-								? "bg-surface-inverse text-ink-inverse"
-								: "bg-surface-subtle text-ink-muted hover:bg-surface-subtle"
-						}`}
-					>
-						All
-					</button>
-					{labels.map((label) => (
-						<button
-							key={label.id}
-							type="button"
-							onClick={() => setActiveLabelId(activeLabelId === label.id ? null : label.id)}
-							className={`flex items-center gap-1.5 rounded-full px-3 py-0.5 text-xs font-medium transition-colors ${
-								activeLabelId === label.id
-									? "bg-surface-inverse text-ink-inverse"
-									: "bg-surface-subtle text-ink-muted hover:bg-surface-subtle"
-							}`}
-						>
-							<span
-								className="h-2 w-2 rounded-full flex-shrink-0"
-								style={{ backgroundColor: label.color }}
-							/>
-							{label.name}
-						</button>
-					))}
-				</div>
-			)}
+			<FolderLabelHeader title={config.title} pinned={!!pinnedLabelId} labels={labels} activeId={activeLabelId} onChange={setActiveLabelId} />
 			<div className="flex h-14 items-center justify-between border-b border-border px-6">
-				<div className="flex items-center gap-3 w-full">
-					<Tooltip label={t("selectAll")}>
-						<input
-							type="checkbox"
-							checked={allVisibleSelected}
-							disabled={messages.length === 0}
-							onChange={(event) => toggleAllVisible(event.target.checked)}
-							className="h-4 w-4 rounded border-border-strong"
-							aria-label={t("selectAll")}
-						/>
-					</Tooltip>
-					{selectedIds.length > 0 && (
-						<BulkMessageToolbar
-							selectedCount={selectedIds.length}
-							hasUnreadSelection={hasUnreadSelection}
-							onAction={runSelectedAction}
-							onClearSelection={() => setSelectedIds([])}
-							pending={pendingBulkAction}
-						/>
-					)}
-				</div>
-				{selectedIds.length === 0 && (
-					<div className="flex items-center gap-2 text-ink-muted">
-						{splitDesktop && selectedMessageId && (
-							<Tooltip
-								label={splitOrientation === "right"
-									? "Move conversation panel below the list"
-									: "Move conversation panel beside the list"}
-							>
-								<Button
-									variant="ghost"
-									size="sm"
-									onClick={toggleSplitOrientation}
-									aria-label={splitOrientation === "right"
-										? "Move conversation panel below the list"
-										: "Move conversation panel beside the list"}
-								>
-									{splitOrientation === "right"
-										? <PanelBottom className="h-4 w-4" />
-										: <PanelRight className="h-4 w-4" />}
-								</Button>
-							</Tooltip>
-						)}
-						<span className="text-xs text-ink-muted whitespace-nowrap">
-							{t("pageRange", { start: pageRange.start, end: pageRange.end, total: pageRange.total })}
-						</span>
-						<Tooltip label={t("previousPage")}>
-							<Button
-								variant="ghost"
-								size="sm"
-								disabled={offset === 0 || isLoading}
-								onClick={() => setOffset(Math.max(offset - limit, 0))}
-								aria-label={t("previousPage")}
-							>
-								<ChevronLeft className="h-4 w-4" />
-							</Button>
-						</Tooltip>
-						<Tooltip label={t("nextPage")}>
-							<Button
-								variant="ghost"
-								size="sm"
-								disabled={offset + messages.length >= total || isLoading}
-								onClick={() => setOffset(offset + limit)}
-								aria-label={t("nextPage")}
-							>
-								<ChevronRight className="h-4 w-4" />
-							</Button>
-						</Tooltip>
-					</div>
-				)}
+				<FolderSelectionControls messageCount={messages.length} allSelected={allVisibleSelected}
+					selectedCount={selectedIds.length} hasUnread={hasUnreadSelection} pending={pendingBulkAction}
+					onToggleAll={toggleAllVisible} onAction={runSelectedAction} onClear={() => setSelectedIds([])} />
+				<FolderPaginationControls hidden={selectedIds.length > 0} splitDesktop={splitDesktop}
+					selectedMessageId={selectedMessageId} orientation={splitOrientation} range={pageRange}
+					offset={offset} limit={limit} messageCount={messages.length} total={total} loading={isLoading}
+					onToggleOrientation={toggleSplitOrientation} onOffsetChange={setOffset} />
 			</div>
 
 			<div className="divide-y divide-border">

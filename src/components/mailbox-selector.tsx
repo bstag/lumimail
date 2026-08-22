@@ -14,7 +14,22 @@ import { isAllScopeAvailable } from "@/components/mailbox-scope-utils";
 import { isSettingsPath } from "@/components/settings/settings-nav-utils";
 import { cn } from "@/lib/utils";
 
-export function MailboxSelector() {
+function selectedMailboxLabels(allMailboxes: boolean, selectedMailbox: ReturnType<typeof useSelectedMailbox>["selectedMailbox"], t: ReturnType<typeof useTranslations>) {
+	if (allMailboxes) return { name: t("allMailboxes"), email: t("allDomains"), ariaLabel: t("allMailboxes") };
+	const name = selectedMailbox?.displayName ?? selectedMailbox?.localPart ?? t("allMailboxes");
+	const email = selectedMailbox ? `${selectedMailbox.localPart}@${selectedMailbox.hostname}` : t("allDomains");
+	return { name, email, ariaLabel: `${name} ${email}` };
+}
+
+function visibleCount(count: number, t: ReturnType<typeof useTranslations>) {
+	return count > 99 ? t("countOverflow") : count;
+}
+
+function settingsDescription(canAdministerOrganization: boolean) {
+	return canAdministerOrganization ? "Account and organization settings" : "Profile, mailbox, and integrations";
+}
+
+export function MailboxSelector({ defaultOpen = false }: { defaultOpen?: boolean } = {}) {
 	const t = useTranslations("nav");
 	const session = useAuthSession();
 	const canAdministerOrganization = isOrganizationAdminRole(session?.user?.role);
@@ -22,7 +37,7 @@ export function MailboxSelector() {
 		useSelectedMailbox();
 	const pathname = usePathname();
 	const router = useRouter();
-	const [open, setOpen] = useState(false);
+	const [open, setOpen] = useState(defaultOpen);
 	const ref = useRef<HTMLDivElement>(null);
 	const { counts } = useMessageCounts(null, open);
 	const allUnread = counts.mailboxes.reduce((sum, mailbox) => sum + mailbox.unread, 0);
@@ -38,12 +53,7 @@ export function MailboxSelector() {
 
 	if (isLoading) return null;
 
-	const selectedName = allMailboxes
-		? t("allMailboxes")
-		: (selectedMailbox?.displayName ?? selectedMailbox?.localPart ?? t("allMailboxes"));
-	const selectedEmail = allMailboxes || !selectedMailbox
-		? t("allDomains")
-		: `${selectedMailbox.localPart}@${selectedMailbox.hostname}`;
+	const selectedLabels = selectedMailboxLabels(allMailboxes, selectedMailbox, t);
 	const settingsActive = isSettingsPath(pathname);
 
 	async function logout() {
@@ -57,7 +67,7 @@ export function MailboxSelector() {
 		<div ref={ref} className="relative shrink-0">
 			<button
 				type="button"
-				aria-label={allMailboxes ? t("allMailboxes") : `${selectedName} ${selectedEmail}`}
+				aria-label={selectedLabels.ariaLabel}
 				aria-expanded={open}
 				aria-haspopup="menu"
 				onClick={() => setOpen((value) => !value)}
@@ -65,8 +75,8 @@ export function MailboxSelector() {
 			>
 				<div className="flex min-w-0 items-center gap-3">
 					<div className="hidden min-w-0 text-right flex-col justify-center sm:flex">
-						<p className="truncate text-sm font-medium text-ink">{selectedName}</p>
-						<p className="truncate text-[11px] text-ink-muted">{selectedEmail}</p>
+						<p className="truncate text-sm font-medium text-ink">{selectedLabels.name}</p>
+						<p className="truncate text-[11px] text-ink-muted">{selectedLabels.email}</p>
 					</div>
 					<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-white">
 						<Mail className="h-4 w-4" />
@@ -103,7 +113,7 @@ export function MailboxSelector() {
 							</div>
 							{allUnread > 0 && (
 								<span className="rounded-full bg-accent-muted px-2 py-0.5 text-[11px] font-semibold text-accent">
-									{allUnread > 99 ? t("countOverflow") : allUnread}
+									{visibleCount(allUnread, t)}
 								</span>
 							)}
 							{!settingsActive && allMailboxes && <Check className="h-4 w-4 text-accent" />}
@@ -151,7 +161,7 @@ export function MailboxSelector() {
 								</div>
 								{unread > 0 && (
 									<span className="rounded-full bg-accent-muted px-2 py-0.5 text-[11px] font-semibold text-accent">
-										{unread > 99 ? t("countOverflow") : unread}
+										{visibleCount(unread, t)}
 									</span>
 								)}
 								{active && <Check className="h-4 w-4 text-accent" />}
@@ -173,9 +183,7 @@ export function MailboxSelector() {
 							<div>
 								<p className="text-sm font-medium text-ink">{t("settings")}</p>
 								<p className="text-xs text-ink-muted">
-									{canAdministerOrganization
-										? "Account and organization settings"
-										: "Profile, mailbox, and integrations"}
+									{settingsDescription(canAdministerOrganization)}
 								</p>
 							</div>
 							{settingsActive && <Check className="ml-auto h-4 w-4 text-accent" />}

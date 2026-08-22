@@ -22,7 +22,7 @@ import { formatEmailAddress } from "@/lib/email/address";
 import { cn } from "@/lib/utils";
 import { submitMessage } from "./utils";
 import { buildForwardQuote, plainTextToHtml } from "./compose-form-utils";
-import { useComposeAttachments } from "./use-compose-attachments";
+import { useComposeAttachments, type AttachedFile } from "./use-compose-attachments";
 import { useComposeDraft } from "./use-compose-draft";
 import { AttachmentChips } from "./attachment-chips";
 import { ComposeEditor } from "./compose-editor";
@@ -43,12 +43,94 @@ type ExternalSender = {
 	status: string;
 };
 
-export function ComposeForm({
-	mode = "page",
+function activeExternalSenders(accounts: ExternalSender[] | undefined, mailboxId: string | undefined) {
+	return (accounts ?? []).filter((account) => account.status === "active" && account.mailboxId === mailboxId);
+}
+
+function nativeSenderAddress(mailbox: ReturnType<typeof useSelectedMailbox>["selectedMailbox"]) {
+	if (!mailbox || !canMailboxSend(mailbox)) return "";
+	return formatEmailAddress(`${mailbox.localPart}@${mailbox.hostname}`, mailbox.displayName ?? mailbox.localPart);
+}
+
+function ComposeToast({ toast }: { toast: Toast }) {
+	if (!toast) return null;
+	return <div className={cn("fixed right-6 top-6 z-50 rounded-lg px-4 py-3 text-sm font-medium shadow-lg", toast.type === "success" ? "bg-success text-white" : "bg-danger text-white")}>{toast.message}</div>;
+}
+
+function ComposeHeader({ mode, loadingDraft, draftId, onClose }: { mode: "page" | "popup"; loadingDraft: boolean; draftId: string | null | undefined; onClose?: () => void }) {
+	const t = useTranslations("compose");
+	const title = loadingDraft ? t("loadingDraft") : draftId ? t("draftSaved") : t("newMessage");
+	return <div className="flex h-9 items-center justify-between border-b border-border bg-surface-subtle px-4 text-sm font-medium text-ink"><span>{title}</span>{mode === "popup" && <div className="flex items-center gap-3 text-ink-muted"><Minimize2 className="h-4 w-4" /><button type="button" onClick={onClose}><X className="h-4 w-4" /></button></div>}</div>;
+}
+
+function ComposeFooter({ draftId, sending, loadingDraft, fromAddr, fileInputRef, imageInputRef, onFileChange, onImageChange }: {
+	draftId: string | null | undefined; sending: boolean; loadingDraft: boolean; fromAddr: string;
+	fileInputRef: React.RefObject<HTMLInputElement | null>; imageInputRef: React.RefObject<HTMLInputElement | null>;
+	onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void; onImageChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+	const t = useTranslations("compose");
+	return <div className="flex items-center gap-3 border-t border-border px-4 py-3">
+		<input ref={fileInputRef} type="file" multiple className="sr-only" onChange={onFileChange} aria-label="Attach files" />
+		<input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" onChange={onImageChange} aria-label="Insert inline image" />
+		<button type="button" onClick={() => fileInputRef.current?.click()} disabled={sending || loadingDraft} className="rounded-full p-2 text-ink-muted hover:bg-surface-subtle hover:text-ink-muted disabled:opacity-40" title="Attach files"><Paperclip className="h-4 w-4" /></button>
+		<span className="flex-1" /><p className="text-xs text-ink-muted">{draftId ? t("savedToDrafts") : t("autosaveDraft")}</p>
+		<Button type="submit" disabled={sending || loadingDraft || !fromAddr} className="rounded-full px-5"><Send className="h-4 w-4" />{sending ? t("sending") : t("send")}</Button>
+	</div>;
+}
+
+function submissionParts(attachedFiles: AttachedFile[]) {
+	return {
+		attachments: attachedFiles.filter((attachment) => attachment.disposition === "attachment").map((attachment) => attachment.file),
+		inlineAttachments: attachedFiles.filter((attachment) => attachment.disposition === "inline").map((attachment) => ({ file: attachment.file, contentId: attachment.contentId as string })),
+	};
+}
+
+function submissionPayload({ from, to, subject, text, html, mailboxId, externalSender, replyToMessageId }: {
+	from: string; to: string; subject: string; text: string; html: string; mailboxId?: string;
+	externalSender?: ExternalSender; replyToMessageId: string | null;
+}) {
+	return {
+		from, to, subject, text, html, mailboxId,
+		...(externalSender ? { externalAccountId: externalSender.id } : {}),
+		...(replyToMessageId ? { replyToMessageId } : {}),
+	};
+}
+
+function selectedSenderAddress(externalSender: ExternalSender | undefined, nativeAddress: string) {
+	return externalSender?.externalAddress ?? nativeAddress;
+}
+
+function draftSender(externalSender: ExternalSender | undefined, fromAddr: string, mailboxId: string | undefined) {
+	return { fromAddr: externalSender ? "" : fromAddr, mailboxId };
+}
+
+function composeFrameClass(mode: "page" | "popup") {
+	return mode === "popup"
+		? "fixed bottom-4 right-4 z-40 flex h-[min(520px,calc(100vh-88px))] w-[min(560px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg border border-border bg-surface-raised shadow-2xl"
+		: "flex min-h-[320px] w-full max-w-4xl flex-1 flex-col overflow-hidden rounded-xl border border-border bg-surface-raised shadow-sm";
+}
+
+function ComposeSenderSelect({ mode, selected, nativeAddress, senders, onChange }: {
+	mode: "page" | "popup"; selected?: ExternalSender; nativeAddress: string; senders: ExternalSender[]; onChange: (id: string) => void;
+}) {
+	const t = useTranslations("compose");
+	return <div className="border-b border-border px-4 py-1"><Label htmlFor={`${mode}-from`} className="sr-only">{t("from")}</Label><select id={`${mode}-from`} value={selected?.id ?? "native"} onChange={(event) => onChange(event.target.value === "native" ? "" : event.target.value)} required className="h-8 w-full border-0 bg-transparent px-0 py-1 text-sm outline-none"><option value="native">{nativeAddress || t("selectMailboxFirst")}</option>{senders.map((account) => <option key={account.id} value={account.id}>{account.externalAddress} ({account.provider})</option>)}</select></div>;
+}
+
+function draftValue(value: string | null | undefined, fallback = "") {
+	return value ?? fallback;
+}
+
+function mailboxId(mailbox: ReturnType<typeof useSelectedMailbox>["selectedMailbox"]) {
+	return mailbox?.id;
+}
+
+function ComposeFormContent({
+	mode,
 	draftIdToLoad,
 	onClose,
 }: {
-	mode?: "page" | "popup";
+	mode: "page" | "popup";
 	draftIdToLoad?: string | null;
 	onClose?: () => void;
 }) {
@@ -69,21 +151,12 @@ export function ComposeForm({
 		queryKey: ["external-accounts"],
 		queryFn: () => apiJson.get<{ accounts: ExternalSender[] }>("/api/external-accounts"),
 	});
-	const externalSenders = (externalAccounts.data?.accounts ?? []).filter((account) =>
-		account.status === "active" && account.mailboxId === selectedMailbox?.id);
+	const selectedMailboxId = mailboxId(selectedMailbox);
+	const externalSenders = activeExternalSenders(externalAccounts.data?.accounts, selectedMailboxId);
 	const selectedExternalSender = externalSenders.find((account) => account.id === externalAccountId);
 
-	const nativeFromAddr = useMemo(
-		() =>
-			selectedMailbox && canMailboxSend(selectedMailbox)
-				? formatEmailAddress(
-						`${selectedMailbox.localPart}@${selectedMailbox.hostname}`,
-						selectedMailbox.displayName ?? selectedMailbox.localPart,
-					)
-				: "",
-		[selectedMailbox],
-	);
-	const fromAddr = selectedExternalSender?.externalAddress ?? nativeFromAddr;
+	const nativeFromAddr = useMemo(() => nativeSenderAddress(selectedMailbox), [selectedMailbox]);
+	const fromAddr = selectedSenderAddress(selectedExternalSender, nativeFromAddr);
 
 	const {
 		attachedFiles,
@@ -96,16 +169,17 @@ export function ComposeForm({
 		clearAttachments,
 	} = useComposeAttachments(editor, (message) => setToast({ type: "error", message }));
 
+	const draftIdentity = draftSender(selectedExternalSender, fromAddr, selectedMailboxId);
 	const draft = useComposeDraft({
 		draftIdToLoad,
-		fromAddr: selectedExternalSender ? "" : fromAddr,
-		mailboxId: selectedMailbox?.id,
+		fromAddr: draftIdentity.fromAddr,
+		mailboxId: draftIdentity.mailboxId,
 		fields: { to, subject, text, html, replyToMessageId },
 		onDraftLoaded: (loaded) => {
 			setTo(loaded.toAddr);
-			setSubject(loaded.subject ?? "");
-			setText(loaded.textBody ?? "");
-			setHtml(loaded.htmlBody ?? plainTextToHtml(loaded.textBody ?? ""));
+			setSubject(draftValue(loaded.subject));
+			setText(draftValue(loaded.textBody));
+			setHtml(draftValue(loaded.htmlBody, plainTextToHtml(draftValue(loaded.textBody))));
 			setReplyToMessageId(loaded.replySourceMessageId);
 		},
 		onLoadError: (message) =>
@@ -120,10 +194,10 @@ export function ComposeForm({
 	const fromMailboxIdParam = searchParams.get("fromMailboxId");
 	useEffect(() => {
 		if (!fromMailboxIdParam) return;
-		if (selectedMailbox?.id === fromMailboxIdParam) return;
+		if (selectedMailboxId === fromMailboxIdParam) return;
 		const requested = mailboxes.find((mailbox) => mailbox.id === fromMailboxIdParam);
 		if (requested && canMailboxSend(requested)) setSelectedMailbox(requested);
-	}, [fromMailboxIdParam, mailboxes, selectedMailbox?.id, setSelectedMailbox]);
+	}, [fromMailboxIdParam, mailboxes, selectedMailboxId, setSelectedMailbox]);
 
 	useEffect(() => {
 		if (canMailboxSend(selectedMailbox)) return;
@@ -175,11 +249,11 @@ export function ComposeForm({
 
 	useEffect(() => {
 		if (!draft.loadedDraftMailboxId) return;
-		if (selectedMailbox?.id === draft.loadedDraftMailboxId) return;
+		if (selectedMailboxId === draft.loadedDraftMailboxId) return;
 
 		const draftMailbox = mailboxes.find((mailbox) => mailbox.id === draft.loadedDraftMailboxId);
 		if (draftMailbox) setSelectedMailbox(draftMailbox);
-	}, [draft.loadedDraftMailboxId, mailboxes, selectedMailbox?.id, setSelectedMailbox]);
+	}, [draft.loadedDraftMailboxId, mailboxes, selectedMailboxId, setSelectedMailbox]);
 
 	async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
@@ -189,26 +263,15 @@ export function ComposeForm({
 		}
 		setLoading(true);
 		try {
-			await submitMessage({
+			const parts = submissionParts(attachedFiles);
+			await submitMessage(submissionPayload({
 				from: fromAddr,
 				to,
 				subject,
 				text,
 				html,
-				mailboxId: selectedMailbox?.id,
-				...(selectedExternalSender ? { externalAccountId: selectedExternalSender.id } : {}),
-				...(replyToMessageId ? { replyToMessageId } : {}),
-			},
-			attachedFiles
-				.filter((attachment) => attachment.disposition === "attachment")
-				.map((attachment) => attachment.file),
-			attachedFiles
-				.filter((attachment) => attachment.disposition === "inline")
-				.map((attachment) => ({
-					file: attachment.file,
-					contentId: attachment.contentId as string,
-				})),
-			);
+				mailboxId: selectedMailboxId, externalSender: selectedExternalSender, replyToMessageId,
+			}), parts.attachments, parts.inlineAttachments);
 			setLoading(false);
 		} catch (error) {
 			setLoading(false);
@@ -227,50 +290,16 @@ export function ComposeForm({
 		void invalidateMessageQueries(queryClient);
 	}
 
-	const frameClass =
-		mode === "popup"
-			? "fixed bottom-4 right-4 z-40 flex h-[min(520px,calc(100vh-88px))] w-[min(560px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg border border-border bg-surface-raised shadow-2xl"
-			: "flex min-h-[320px] w-full max-w-4xl flex-1 flex-col overflow-hidden rounded-xl border border-border bg-surface-raised shadow-sm";
+	const frameClass = composeFrameClass(mode);
 
 	const isSending = loading;
 
 	return (
 		<>
-			{toast && (
-				<div
-					className={cn(
-						"fixed right-6 top-6 z-50 rounded-lg px-4 py-3 text-sm font-medium shadow-lg",
-						toast.type === "success" ? "bg-success text-white" : "bg-danger text-white",
-					)}
-				>
-					{toast.message}
-				</div>
-			)}
+			<ComposeToast toast={toast} />
 			<form onSubmit={onSubmit} className={frameClass}>
-				<div className="flex h-9 items-center justify-between border-b border-border bg-surface-subtle px-4 text-sm font-medium text-ink">
-					<span>{loadingDraft ? t("loadingDraft") : draft.draftId ? t("draftSaved") : t("newMessage")}</span>
-					{mode === "popup" && (
-						<div className="flex items-center gap-3 text-ink-muted">
-							<Minimize2 className="h-4 w-4" />
-							<button type="button" onClick={onClose}>
-								<X className="h-4 w-4" />
-							</button>
-						</div>
-					)}
-				</div>
-				<div className="border-b border-border px-4 py-1">
-					<Label htmlFor={`${mode}-from`} className="sr-only">{t("from")}</Label>
-					<select
-						id={`${mode}-from`}
-						value={selectedExternalSender ? selectedExternalSender.id : "native"}
-						onChange={(event) => setExternalAccountId(event.target.value === "native" ? "" : event.target.value)}
-						required
-						className="h-8 w-full border-0 bg-transparent px-0 py-1 text-sm outline-none"
-					>
-						<option value="native">{nativeFromAddr || t("selectMailboxFirst")}</option>
-						{externalSenders.map((account) => <option key={account.id} value={account.id}>{account.externalAddress} ({account.provider})</option>)}
-					</select>
-				</div>
+				<ComposeHeader mode={mode} loadingDraft={loadingDraft} draftId={draft.draftId} onClose={onClose} />
+				<ComposeSenderSelect mode={mode} selected={selectedExternalSender} nativeAddress={nativeFromAddr} senders={externalSenders} onChange={setExternalAccountId} />
 				<div className="border-b border-border px-4 py-1">
 					<Label htmlFor={`${mode}-to`} className="sr-only">{t("to")}</Label>
 					<Input
@@ -320,44 +349,17 @@ export function ComposeForm({
 					attachments={attachedFiles}
 					onRemove={removeAttachment}
 				/>
-				<div className="flex items-center gap-3 border-t border-border px-4 py-3">
-					<input
-						ref={fileInputRef}
-						type="file"
-						multiple
-						className="sr-only"
-						onChange={handleFileInputChange}
-						aria-label="Attach files"
-					/>
-					<input
-						ref={imageInputRef}
-						type="file"
-						accept="image/jpeg,image/png,image/gif,image/webp"
-						className="sr-only"
-						onChange={handleInlineImageChange}
-						aria-label="Insert inline image"
-					/>
-					<button
-						type="button"
-						onClick={() => fileInputRef.current?.click()}
-						disabled={isSending || loadingDraft}
-						className="rounded-full p-2 text-ink-muted hover:bg-surface-subtle hover:text-ink-muted disabled:opacity-40"
-						title="Attach files"
-					>
-						<Paperclip className="h-4 w-4" />
-					</button>
-					<span className="flex-1" />
-					<p className="text-xs text-ink-muted">
-						{draft.draftId
-								? t("savedToDrafts")
-								: t("autosaveDraft")}
-					</p>
-					<Button type="submit" disabled={isSending || loadingDraft || !fromAddr} className="rounded-full px-5">
-						<Send className="h-4 w-4" />
-						{isSending ? t("sending") : t("send")}
-					</Button>
-				</div>
+				<ComposeFooter draftId={draft.draftId} sending={isSending} loadingDraft={loadingDraft} fromAddr={fromAddr}
+					fileInputRef={fileInputRef} imageInputRef={imageInputRef} onFileChange={handleFileInputChange} onImageChange={handleInlineImageChange} />
 			</form>
 		</>
 	);
+}
+
+export function ComposeForm(props: {
+	mode?: "page" | "popup";
+	draftIdToLoad?: string | null;
+	onClose?: () => void;
+} = {}) {
+	return <ComposeFormContent {...props} mode={props.mode ?? "page"} />;
 }

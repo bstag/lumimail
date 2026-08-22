@@ -14,6 +14,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchFilterLabels, fetchMessageFilters, type MessageFilter } from "./utils";
 import { Select } from "@/components/ui/select";
 
+function present(value: string | boolean | null | undefined, description: string) {
+	return value ? description : null;
+}
+
+function describeFilter(f: MessageFilter, t: ReturnType<typeof useTranslations>) {
+	const conds = [
+		present(f.fromContains, t("condFrom", { value: f.fromContains ?? "" })),
+		present(f.subjectContains, t("condSubject", { value: f.subjectContains ?? "" })),
+		present(f.toContains, t("condTo", { value: f.toContains ?? "" })),
+		present(f.hasWords, t("condWords", { value: f.hasWords ?? "" })),
+	].filter((value): value is string => value !== null);
+	const acts = [
+		present(f.actionStar, t("actStar")), present(f.actionMarkRead, t("actMarkRead")),
+		present(f.actionArchive, t("actArchive")), present(f.actionMoveToTrash, t("actTrash")),
+		present(f.actionLabelId, t("actLabel")),
+	].filter((value): value is string => value !== null);
+	return { conds, acts };
+}
+
 export default function FiltersPage() {
 	const t = useTranslations("filters");
 	const qc = useQueryClient();
@@ -68,21 +87,6 @@ export default function FiltersPage() {
 		},
 		onSuccess: () => qc.invalidateQueries({ queryKey: ["filters"] }),
 	});
-
-	const describeFilter = (f: MessageFilter) => {
-		const conds: string[] = [];
-		if (f.fromContains) conds.push(t("condFrom", { value: f.fromContains }));
-		if (f.subjectContains) conds.push(t("condSubject", { value: f.subjectContains }));
-		if (f.toContains) conds.push(t("condTo", { value: f.toContains }));
-		if (f.hasWords) conds.push(t("condWords", { value: f.hasWords }));
-		const acts: string[] = [];
-		if (f.actionStar) acts.push(t("actStar"));
-		if (f.actionMarkRead) acts.push(t("actMarkRead"));
-		if (f.actionArchive) acts.push(t("actArchive"));
-		if (f.actionMoveToTrash) acts.push(t("actTrash"));
-		if (f.actionLabelId) acts.push(t("actLabel"));
-		return { conds, acts };
-	};
 
 	return (
 		<div className="max-w-2xl space-y-6 px-4 py-6 sm:px-12 sm:py-8">
@@ -159,7 +163,7 @@ export default function FiltersPage() {
 					) : (
 						<ul className="divide-y divide-border">
 							{(filters.data ?? []).map((f) => {
-								const { conds, acts } = describeFilter(f);
+								const { conds, acts } = describeFilter(f, t);
 								return (
 									<li key={f.id} className="flex items-start justify-between py-3 gap-4">
 										<div className="flex items-start gap-3 text-sm min-w-0">

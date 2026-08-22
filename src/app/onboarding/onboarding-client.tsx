@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowRight, MailPlus } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { Button } from "@/components/ui/button";
@@ -95,7 +95,7 @@ export function OnboardingClient() {
 						</div>
 						<Button
 							onClick={addDomain}
-							disabled={!hostname || loading}
+							disabled={formUnavailable(hostname, loading)}
 							className="h-11 w-full rounded-full px-6 active:scale-[0.98]"
 						>
 							{loading ? t("adding") : t("addDomain")}
@@ -118,7 +118,7 @@ export function OnboardingClient() {
 						</div>
 						<Button
 							onClick={addMailbox}
-							disabled={!localPart || loading}
+							disabled={formUnavailable(localPart, loading)}
 							className="h-11 w-full rounded-full px-6 active:scale-[0.98]"
 						>
 							{loading ? t("creating") : t("goToInbox")}
@@ -133,4 +133,8 @@ export function OnboardingClient() {
 			</div>
 		</AuthShell>
 	);
+}
+
+function formUnavailable(value: string, loading: boolean) {
+	return !value || loading;
 }

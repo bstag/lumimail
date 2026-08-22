@@ -25,9 +25,11 @@ tests/
 npm run test          # vitest run (no coverage gate, fast loop)
 npm run test:watch    # vitest watch mode
 npm run test:cov      # vitest run --coverage (enforces 100% on included files)
+npm run crap          # regenerate all-source coverage and enforce CRAP <= 30
+npm run crap:report   # full report from the latest all-source CRAP coverage
 npm run typecheck     # tsc --noEmit
 npm run e2e           # playwright test (boots `npm run dev`)
-npm run verify        # typecheck + lint + test:cov
+npm run verify        # typecheck + lint + test:cov + CRAP + bridge tests
 ```
 
 ## Coverage strategy: grow the include list, never lower the threshold
@@ -46,6 +48,20 @@ gate honest while the suite is built out incrementally:
 
 Never add a file to `include` before it has tests, and never remove a passing
 file from `include` to make the gate pass.
+
+## Change-risk analysis (CRAP)
+
+`npm run crap` first runs the dedicated `vitest.crap.config.ts` coverage pass over
+every executable `src/**/*.ts` and `src/**/*.tsx` file, then combines each
+function's cyclomatic complexity with its attributable statement and branch
+coverage. Untested source is present at zero coverage rather than omitted. This
+all-source report is separate from the incremental 100% gate in `vitest.config.ts`.
+
+The concise command prints threshold violations and fails when a function has a
+CRAP score above 30; use `npm run crap:report` to inspect every scored function.
+Executable source reported as `N/A` is a gate defect to resolve, not an accepted
+skip. Generated reports remain under the ignored `coverage/` directory.
+`npm run verify` includes the all-source concise CRAP gate.
 
 ## What to test where
 

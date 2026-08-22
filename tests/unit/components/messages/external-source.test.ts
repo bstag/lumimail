@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getExternalSourceLabel } from "@/components/messages/utils";
+import { getExternalSourceLabel, getMessageParty } from "@/components/messages/utils";
 
 const message = {
 	id: "msg_1", userId: "usr_1", mailboxId: "mbx_1", direction: "inbound" as const,
@@ -20,5 +20,17 @@ describe("external source presentation", () => {
 		expect(getExternalSourceLabel({ ...message, direction: "outbound", fromAddr: "person@outlook.com", toAddr: "target@example.com" }, [
 			{ id: "exa_2", mailboxId: "mbx_1", provider: "microsoft", externalAddress: "person@outlook.com" },
 		])).toBe("Microsoft · person@outlook.com");
+	});
+});
+
+describe("message party presentation", () => {
+	it("uses the folder-specific contact and address fallbacks", () => {
+		expect(getMessageParty(message, "drafts")).toBe("Draft");
+		expect(getMessageParty({ ...message, toContactName: "Recipient" }, "sent")).toBe("Recipient");
+		expect(getMessageParty({ ...message, toAddr: "Person <person@example.com>" }, "sent")).toBe("Person");
+		expect(getMessageParty({ ...message, toAddr: "" }, "sent")).toBe("No recipient");
+		expect(getMessageParty({ ...message, fromContactName: "Sender" }, "inbox")).toBe("Sender");
+		expect(getMessageParty({ ...message, fromAddr: "Person <person@example.com>" }, "inbox")).toBe("Person");
+		expect(getMessageParty({ ...message, fromAddr: "" }, "inbox")).toBe("Unknown sender");
 	});
 });

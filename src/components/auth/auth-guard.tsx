@@ -10,6 +10,45 @@ import {
 } from "./auth-session-context";
 import type { AuthGuardProps } from "./auth-guard-types";
 
+type GuardOptions = Pick<AuthGuardProps, "mode" | "requireMailbox" | "requireOrgAdmin" | "requireOrgOwner"> & { pathname: string };
+
+function publicRedirect(session: AuthSession, mode: AuthGuardProps["mode"]) {
+	if (mode !== "public") return null;
+	return session.hasMailboxes === false ? "/onboarding" : "/inbox";
+}
+
+function mailboxRedirect(session: AuthSession, options: GuardOptions) {
+	if (needsOnboarding(session, options)) return "/onboarding";
+	if (needsInboxAfterOnboarding(session, options)) return "/inbox";
+	return null;
+}
+
+function needsOnboarding(session: AuthSession, options: GuardOptions) {
+	return options.requireMailbox && session.hasMailboxes === false && options.pathname !== "/onboarding";
+}
+
+function needsInboxAfterOnboarding(session: AuthSession, options: GuardOptions) {
+	return !options.requireMailbox && !!session.hasMailboxes && options.pathname === "/onboarding";
+}
+
+function roleRedirect(session: AuthSession, options: GuardOptions) {
+	if (lacksAdminRole(session, options)) return "/inbox";
+	if (lacksOwnerRole(session, options)) return "/inbox";
+	return null;
+}
+
+function lacksAdminRole(session: AuthSession, options: GuardOptions) {
+	return !!options.requireOrgAdmin && !isOrganizationAdminRole(session.user?.role);
+}
+
+function lacksOwnerRole(session: AuthSession, options: GuardOptions) {
+	return !!options.requireOrgOwner && session.user?.role !== "owner";
+}
+
+function getAuthRedirect(session: AuthSession, options: GuardOptions) {
+	return publicRedirect(session, options.mode) ?? mailboxRedirect(session, options) ?? roleRedirect(session, options);
+}
+
 export function AuthGuard({
 	children,
 	mode = "protected",
@@ -36,28 +75,9 @@ export function AuthGuard({
 			}
 
 			const data = (await response.json()) as AuthSession;
-			if (mode === "public") {
-				router.replace(data.hasMailboxes === false ? "/onboarding" : "/inbox");
-				return;
-			}
-
-			if (requireMailbox && data.hasMailboxes === false && pathname !== "/onboarding") {
-				router.replace("/onboarding");
-				return;
-			}
-
-			if (!requireMailbox && data.hasMailboxes && pathname === "/onboarding") {
-				router.replace("/inbox");
-				return;
-			}
-
-			if (requireOrgAdmin && !isOrganizationAdminRole(data.user?.role)) {
-				router.replace("/inbox");
-				return;
-			}
-
-			if (requireOrgOwner && data.user?.role !== "owner") {
-				router.replace("/inbox");
+			const redirect = getAuthRedirect(data, { mode, pathname, requireMailbox, requireOrgAdmin, requireOrgOwner });
+			if (redirect) {
+				router.replace(redirect);
 				return;
 			}
 

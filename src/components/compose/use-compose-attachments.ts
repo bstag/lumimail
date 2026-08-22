@@ -12,6 +12,16 @@ const MAX_SIZE = 3 * 1024 * 1024;
 const MAX_COUNT = 10;
 const INLINE_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
+function inlineImageError(file: File, attachmentCount: number) {
+	if (!INLINE_IMAGE_TYPES.includes(file.type)) return "Inline images must be JPEG, PNG, GIF, or WebP.";
+	if (file.size > MAX_SIZE || attachmentCount >= MAX_COUNT) return "Inline image exceeds the attachment limits.";
+	return null;
+}
+
+function firstSelectedFile(event: React.ChangeEvent<HTMLInputElement>) {
+	return event.target.files?.[0] ?? null;
+}
+
 /**
  * Owns the compose form's attachment state: regular file attachments, inline
  * cid: images inserted into the editor, and removal (which also strips the
@@ -52,15 +62,12 @@ export function useComposeAttachments(editor: Editor | null, onError: (message: 
 	}
 
 	function handleInlineImageChange(event: React.ChangeEvent<HTMLInputElement>) {
-		const file = event.target.files?.[0];
+		const file = firstSelectedFile(event);
 		if (imageInputRef.current) imageInputRef.current.value = "";
 		if (!file || !editor) return;
-		if (!INLINE_IMAGE_TYPES.includes(file.type)) {
-			onError("Inline images must be JPEG, PNG, GIF, or WebP.");
-			return;
-		}
-		if (file.size > MAX_SIZE || attachedFiles.length >= MAX_COUNT) {
-			onError("Inline image exceeds the attachment limits.");
+		const validationError = inlineImageError(file, attachedFiles.length);
+		if (validationError) {
+			onError(validationError);
 			return;
 		}
 		const contentId = `img_${crypto.randomUUID().replaceAll("-", "")}`;

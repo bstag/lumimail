@@ -18,18 +18,20 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onInviteCreated: () => void;
+  initialInviteLink?: string | null;
+  initialDeliveryStatus?: "not_sent" | "sending" | "sent" | "failed" | null;
 };
 
-export function InviteMemberDialog({ open, onOpenChange, onInviteCreated }: Props) {
+export function InviteMemberDialog({ open, onOpenChange, onInviteCreated, initialInviteLink = null, initialDeliveryStatus = null }: Props) {
   const t = useTranslations("admin");
   const tCommon = useTranslations("common");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "member">("member");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [inviteLink, setInviteLink] = useState<string | null>(initialInviteLink);
   const [copied, setCopied] = useState(false);
-  const [deliveryStatus, setDeliveryStatus] = useState<"not_sent" | "sending" | "sent" | "failed" | null>(null);
+  const [deliveryStatus, setDeliveryStatus] = useState<"not_sent" | "sending" | "sent" | "failed" | null>(initialDeliveryStatus);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

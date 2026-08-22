@@ -71,6 +71,60 @@ function freezeOverview(report: OperationsOverview): Readonly<OperationsOverview
 	return Object.freeze(report);
 }
 
+function summarizeQueues(queues: QueueHealthSnapshot[] | null): OperationsOverview["queues"] {
+	const unavailableCount = queues?.filter((queue) => queue.status === "unavailable").length ?? 0;
+	const attentionCount = queues?.filter((queue) =>
+		queue.status === "attention" || queue.status === "delayed").length ?? 0;
+	const status: OperationsQueueStatus = queues === null
+		? "unavailable"
+		: queues.length === 0
+			? "unknown"
+			: unavailableCount > 0
+				? "unavailable"
+				: attentionCount > 0 ? "attention" : "healthy";
+	const checkedAt = queues?.reduce<string | null>((latest, queue) =>
+		!latest || queue.checkedAt > latest ? queue.checkedAt : latest, null) ?? null;
+
+	return {
+		status,
+		checkedAt,
+		queueCount: queues?.length ?? 0,
+		attentionCount,
+		unavailableCount,
+		backlogCount: queues?.reduce((total, queue) => total + queue.backlogCount, 0) ?? 0,
+		backlogBytes: queues?.reduce((total, queue) => total + queue.backlogBytes, 0) ?? 0,
+		staleJobCount: queues?.reduce((total, queue) => total + queue.staleJobCount, 0) ?? 0,
+	};
+}
+
+function summarizeRetention(retention: RetentionReport | null): OperationsOverview["retention"] {
+	return {
+		status: retention === null ? "unavailable" : retention.orphans > 0 ? "attention" : "healthy",
+		scanned: retention?.scanned ?? 0,
+		orphanCount: retention?.orphans ?? 0,
+		orphanBytes: retention?.bytes ?? 0,
+		oldestOrphanAt: retention?.oldestUploadedAt ?? null,
+	};
+}
+
+function resolveOverviewStatus(
+	readiness: RuntimeReadiness,
+	queues: OperationsOverview["queues"],
+	retention: OperationsOverview["retention"],
+	evidence: OperationalEvidenceSummary,
+): OperationsStatus {
+	if (readiness.status === "unavailable" || queues.status === "unavailable" ||
+		retention.status === "unavailable" || evidence.status === "unavailable") {
+		return "unavailable";
+	}
+	if (queues.status === "attention" || queues.status === "unknown" ||
+		retention.status === "attention" || evidence.status === "attention" ||
+		evidence.status === "unknown") {
+		return "attention";
+	}
+	return "healthy";
+}
+
 export function buildOperationsOverview(input: OverviewInput): Readonly<OperationsOverview> {
 	const readiness = input.readiness ?? Object.freeze({
 		status: "unavailable" as const,
@@ -84,53 +138,18 @@ export function buildOperationsOverview(input: OverviewInput): Readonly<Operatio
 		service: false,
 		assets: false,
 	});
-	const unavailableCount = input.queues?.filter((queue) => queue.status === "unavailable").length ?? 0;
-	const attentionCount = input.queues?.filter((queue) =>
-		queue.status === "attention" || queue.status === "delayed").length ?? 0;
-	const queueStatus: OperationsQueueStatus = input.queues === null
-		? "unavailable"
-		: input.queues.length === 0
-			? "unknown"
-			: unavailableCount > 0
-				? "unavailable"
-				: attentionCount > 0 ? "attention" : "healthy";
-	const retentionStatus: OperationsStatus = input.retention === null
-		? "unavailable"
-		: input.retention.orphans > 0 ? "attention" : "healthy";
 	const evidence = input.evidence ?? { status: "unavailable" as const, records: [] };
-	const status: OperationsStatus = readiness.status === "unavailable" || queueStatus === "unavailable" ||
-		retentionStatus === "unavailable" || evidence.status === "unavailable"
-		? "unavailable"
-		: queueStatus === "attention" || queueStatus === "unknown" || retentionStatus === "attention" ||
-			evidence.status === "attention" || evidence.status === "unknown"
-			? "attention"
-			: "healthy";
-	const checkedAt = input.queues?.reduce<string | null>((latest, queue) =>
-		!latest || queue.checkedAt > latest ? queue.checkedAt : latest, null) ?? null;
+	const queues = summarizeQueues(input.queues);
+	const retention = summarizeRetention(input.retention);
 
 	return freezeOverview({
-		status,
+		status: resolveOverviewStatus(readiness, queues, retention, evidence),
 		observedAt: input.observedAt,
 		application: { version: input.version, schema: input.schema },
 		readiness,
 		evidence,
-		queues: {
-			status: queueStatus,
-			checkedAt,
-			queueCount: input.queues?.length ?? 0,
-			attentionCount,
-			unavailableCount,
-			backlogCount: input.queues?.reduce((total, queue) => total + queue.backlogCount, 0) ?? 0,
-			backlogBytes: input.queues?.reduce((total, queue) => total + queue.backlogBytes, 0) ?? 0,
-			staleJobCount: input.queues?.reduce((total, queue) => total + queue.staleJobCount, 0) ?? 0,
-		},
-		retention: {
-			status: retentionStatus,
-			scanned: input.retention?.scanned ?? 0,
-			orphanCount: input.retention?.orphans ?? 0,
-			orphanBytes: input.retention?.bytes ?? 0,
-			oldestOrphanAt: input.retention?.oldestUploadedAt ?? null,
-		},
+		queues,
+		retention,
 	});
 }
 

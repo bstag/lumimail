@@ -17,12 +17,14 @@ type ConsentSummary = {
 	defaultProfile: "read";
 };
 
-export function OAuthConsentClient() {
+export function OAuthConsentClient({ initialSummary = null, initialProfile = "read", initialPassword = "" }: {
+	initialSummary?: ConsentSummary | null; initialProfile?: "read" | "actions"; initialPassword?: string;
+} = {}) {
 	const router = useRouter();
 	const [query] = useState(() => typeof window === "undefined" ? "" : window.location.search);
-	const [summary, setSummary] = useState<ConsentSummary | null>(null);
-	const [profile, setProfile] = useState<"read" | "actions">("read");
-	const [password, setPassword] = useState("");
+	const [summary, setSummary] = useState<ConsentSummary | null>(initialSummary);
+	const [profile, setProfile] = useState<"read" | "actions">(initialProfile);
+	const [password, setPassword] = useState(initialPassword);
 	const [pending, setPending] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 

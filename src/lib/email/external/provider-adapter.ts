@@ -145,18 +145,55 @@ async function sendMicrosoftMessage(
 	return { providerMessageId: messageId };
 }
 
+function buildProviderAuthorizationUrl(
+	provider: ExternalProvider,
+	env: CloudflareEnv,
+	input: { state: string; codeChallenge: string },
+) {
+	return buildExternalAuthorizationUrl(env, provider, input);
+}
+
+function exchangeProviderAuthorizationCode(
+	provider: ExternalProvider,
+	env: CloudflareEnv,
+	code: string,
+	verifier: string,
+) {
+	return exchangeExternalAuthorizationCode(env, provider, code, verifier);
+}
+
+function fetchProviderIdentity(
+	provider: ExternalProvider,
+	accessToken: string,
+	fetcher?: ExternalFetch,
+) {
+	return fetchExternalIdentity(provider, accessToken, fetcher);
+}
+
+function refreshProviderAccessToken(
+	provider: ExternalProvider,
+	env: CloudflareEnv,
+	refreshToken: string,
+	fetcher?: ExternalFetch,
+) {
+	return refreshExternalAccessToken(env, provider, refreshToken, fetcher);
+}
+
+function revokeProviderRefreshToken(
+	provider: ExternalProvider,
+	refreshToken: string,
+	fetcher?: ExternalFetch,
+) {
+	return revokeExternalRefreshToken(provider, refreshToken, fetcher);
+}
+
 function oauthCapabilities(provider: ExternalProvider) {
 	return {
-		buildAuthorizationUrl: (env: CloudflareEnv, input: { state: string; codeChallenge: string }) =>
-			buildExternalAuthorizationUrl(env, provider, input),
-		exchangeAuthorizationCode: (env: CloudflareEnv, code: string, verifier: string) =>
-			exchangeExternalAuthorizationCode(env, provider, code, verifier),
-		fetchIdentity: (accessToken: string, fetcher?: ExternalFetch) =>
-			fetchExternalIdentity(provider, accessToken, fetcher),
-		refreshAccessToken: (env: CloudflareEnv, refreshToken: string, fetcher?: ExternalFetch) =>
-			refreshExternalAccessToken(env, provider, refreshToken, fetcher),
-		revokeRefreshToken: (refreshToken: string, fetcher?: ExternalFetch) =>
-			revokeExternalRefreshToken(provider, refreshToken, fetcher),
+		buildAuthorizationUrl: buildProviderAuthorizationUrl.bind(undefined, provider),
+		exchangeAuthorizationCode: exchangeProviderAuthorizationCode.bind(undefined, provider),
+		fetchIdentity: fetchProviderIdentity.bind(undefined, provider),
+		refreshAccessToken: refreshProviderAccessToken.bind(undefined, provider),
+		revokeRefreshToken: revokeProviderRefreshToken.bind(undefined, provider),
 	};
 }
 

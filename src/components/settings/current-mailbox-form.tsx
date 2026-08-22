@@ -10,6 +10,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getMailboxAddress, updateCurrentMailboxName } from "./utils";
 
+async function saveCurrentMailbox(id: string, displayName: string, fallback: string) {
+	try {
+		return { ok: true as const, mailbox: await updateCurrentMailboxName(id, displayName) };
+	} catch (error) {
+		return { ok: false as const, message: error instanceof Error ? error.message : fallback };
+	}
+}
+
 /**
  * The mailbox card on `/settings`, plus that page's heading.
  *
@@ -38,17 +46,13 @@ export function CurrentMailboxForm({ embedded = false }: { embedded?: boolean } 
 
 		setSaving(true);
 		setStatus(null);
-		try {
-			const updated = await updateCurrentMailboxName(selectedMailbox.id, displayName);
-			setSelectedMailbox(updated);
-			setSavedDisplayName(updated.displayName ?? "");
-			setDisplayName(updated.displayName ?? "");
-			setStatus(t("saved"));
-		} catch (err) {
-			setStatus(err instanceof Error ? err.message : t("updateFailed"));
-		} finally {
-			setSaving(false);
-		}
+		const result = await saveCurrentMailbox(selectedMailbox.id, displayName, t("updateFailed"));
+		setSaving(false);
+		if (!result.ok) return setStatus(result.message);
+		setSelectedMailbox(result.mailbox);
+		setSavedDisplayName(result.mailbox.displayName ?? "");
+		setDisplayName(result.mailbox.displayName ?? "");
+		setStatus(t("saved"));
 	}
 
 	if (isLoading) {

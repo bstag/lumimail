@@ -30,7 +30,7 @@ export default defineConfig({
 		setupFiles: [],
 		coverage: {
 			provider: "v8",
-			reporter: ["text", "html", "lcov"],
+			reporter: ["text", "html", "json", "lcov"],
 			reportsDirectory: "./coverage",
 			// Gate ALL logic files: every TS module under src/lib, every API route
 			// handler + colocated `utils.ts`, and component `*-utils.ts` helpers.
@@ -41,6 +41,9 @@ export default defineConfig({
 			include: ["src/lib/**/*.ts", "src/app/**/*.ts", "src/components/**/*-utils.ts"],
 			exclude: [
 				"**/*.d.ts",
+				// `src/app/**/*.ts` also matches TSX under Vitest's glob engine once a
+				// smoke test imports those views. UI is scored by the CRAP pass instead.
+				"**/*.tsx",
 				// Type-only module (no runtime statements).
 				"src/lib/email/providers/types.ts",
 				// Pure re-export barrel (no own executable statements to cover).

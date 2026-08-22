@@ -30,13 +30,139 @@ import {
 	updateMailboxMemberRole,
 	updateMailboxName,
 } from "./utils";
-import type { MailboxMember, MailboxRole } from "./types";
+import type { MailboxDetail, MailboxMember, MailboxRole, WorkspaceMember } from "./types";
 import { Select } from "@/components/ui/select";
+
+function MailboxSettingsCard({
+	displayName, localPart, loading, pending, error, success, onNameChange, onSave,
+}: {
+	displayName: string; localPart?: string; loading: boolean; pending: boolean;
+	error: unknown; success: boolean; onNameChange: (value: string) => void; onSave: () => void;
+}) {
+	const t = useTranslations("admin");
+	const tCommon = useTranslations("common");
+	return <Card>
+		<CardHeader><CardTitle>{t("mailboxSettings")}</CardTitle><CardDescription>{t("mailboxSettingsDesc")}</CardDescription></CardHeader>
+		<CardContent className="space-y-4">
+			<FormField label={t("mailboxName")} htmlFor="displayName">
+				<Input id="displayName" value={displayName} onChange={(event) => onNameChange(event.target.value)} placeholder={localPart ?? t("mailboxNamePlaceholder")} disabled={loading || pending} />
+			</FormField>
+			{error ? <p className="text-sm text-danger">{error instanceof Error ? error.message : t("updateFailed")}</p> : null}
+			{success && <p className="text-sm text-success">{t("mailboxSaved")}</p>}
+			<Button onClick={onSave} disabled={loading || pending}><Save className="h-4 w-4" />{pending ? tCommon("saving") : t("saveChanges")}</Button>
+		</CardContent>
+	</Card>;
+}
+
+function MailboxAccessCard({
+	members, availableMembers, newMemberId, newMemberRole, loading, pending, error,
+	onMemberIdChange, onRoleChange, onAdd, onMemberRoleChange, onRemove,
+}: {
+	members: MailboxMember[]; availableMembers: WorkspaceMember[]; newMemberId: string; newMemberRole: MailboxRole;
+	loading: boolean; pending: boolean; error?: string;
+	onMemberIdChange: (value: string) => void; onRoleChange: (value: MailboxRole) => void; onAdd: () => void;
+	onMemberRoleChange: (id: string, role: MailboxRole) => void; onRemove: (member: MailboxMember) => void;
+}) {
+	const t = useTranslations("admin");
+	const tCommon = useTranslations("common");
+	return <Card>
+		<CardHeader><CardTitle>{t("mailboxAccessTitle")}</CardTitle><CardDescription>{t("mailboxAccessDesc")}</CardDescription></CardHeader>
+		<CardContent className="space-y-4">
+			<div className="grid gap-2 sm:grid-cols-[1fr_9rem_auto]">
+				<Select value={newMemberId} onChange={(event) => onMemberIdChange(event.target.value)} className="w-auto">
+					<option value="">{t("selectWorkspaceMember")}</option>
+					{availableMembers.map((member) => <option key={member.userId} value={member.userId}>{member.name} ({member.email})</option>)}
+				</Select>
+				<Select value={newMemberRole} onChange={(event) => onRoleChange(event.target.value as MailboxRole)} className="w-auto">
+					<option value="viewer">{t("roleViewer")}</option><option value="responder">{t("roleResponder")}</option><option value="manager">{t("roleManager")}</option>
+				</Select>
+				<Button onClick={onAdd} disabled={!newMemberId || pending}><UserPlus className="h-4 w-4" /> {tCommon("add")}</Button>
+			</div>
+			{loading && <p className="text-sm text-ink-muted">{t("loadingMailboxAccess")}</p>}
+			{error && <p className="text-sm text-danger">{error}</p>}
+			<div className="divide-y divide-border rounded-md border border-border">
+				{members.map((member) => <div key={member.id} className="flex items-center justify-between gap-3 px-3 py-3">
+					<div className="min-w-0"><p className="truncate text-sm font-medium text-ink">{member.name}</p><p className="truncate text-xs text-ink-muted">{member.email}</p></div>
+					<div className="flex items-center gap-2">
+						<Select value={member.role} onChange={(event) => onMemberRoleChange(member.id, event.target.value as MailboxRole)} size="sm" className="w-auto">
+							<option value="viewer">{t("roleViewer")}</option><option value="responder">{t("roleResponder")}</option><option value="manager">{t("roleManager")}</option>
+						</Select>
+						<Button variant="ghost" size="sm" onClick={() => onRemove(member)} aria-label={t("removeMemberAria", { email: member.email })}><X className="h-4 w-4" /></Button>
+					</div>
+				</div>)}
+			</div>
+		</CardContent>
+	</Card>;
+}
+
+function MailboxAddressCard({ mailbox, address }: { mailbox?: MailboxDetail; address: string }) {
+	const t = useTranslations("admin");
+	const fields: Array<[string, string | undefined]> = [["fieldEmail", address], ["fieldUsername", mailbox?.localPart], ["fieldDomain", mailbox?.hostname]];
+	return <Card>
+		<CardHeader><CardTitle>{t("mailboxAddress")}</CardTitle><CardDescription>{t("addressDesc")}</CardDescription></CardHeader>
+		<CardContent className="grid gap-4 sm:grid-cols-2">
+			{fields.map(([label, value]) => <div key={label} className="space-y-1"><p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{t(label)}</p><p className="truncate font-mono text-sm text-ink">{value || t("emptyFallback")}</p></div>)}
+			<div className="space-y-1"><p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{t("fieldRouting")}</p><p className="flex items-center gap-2 text-sm text-ink"><Mail className="h-4 w-4 text-ink-faint" />{t("cloudflareRouting")}</p></div>
+		</CardContent>
+	</Card>;
+}
+
+function DeleteMailboxCard({ address, confirmation, pending, error, onConfirmationChange, onDelete }: {
+	address: string; confirmation: string; pending: boolean; error: unknown;
+	onConfirmationChange: (value: string) => void; onDelete: () => void;
+}) {
+	const t = useTranslations("admin");
+	const confirmed = !!address && confirmation.trim().toLowerCase() === address.toLowerCase();
+	return <Card className="border-danger/30">
+		<CardHeader><CardTitle className="text-danger">{t("deleteMailbox")}</CardTitle><CardDescription>{t("deleteMailboxDesc")}</CardDescription></CardHeader>
+		<CardContent className="space-y-4">
+			<FormField label={t("confirmMailboxAddress")} htmlFor="deleteConfirmation"><Input id="deleteConfirmation" value={confirmation} onChange={(event) => onConfirmationChange(event.target.value)} placeholder={address} autoComplete="off" /></FormField>
+			{error ? <p className="text-sm text-danger">{error instanceof Error ? error.message : t("deleteMailboxFailed")}</p> : null}
+			<Button variant="destructive" onClick={onDelete} disabled={!confirmed || pending}><Trash2 className="h-4 w-4" />{pending ? t("deleting") : t("deleteMailbox")}</Button>
+		</CardContent>
+	</Card>;
+}
+
+function changeMailboxMemberRole({ mailboxId, membershipId, role }: { mailboxId: string; membershipId: string; role: MailboxRole }) {
+	return updateMailboxMemberRole(mailboxId, membershipId, role);
+}
+
+function getAvailableMembers(data: { members: MailboxMember[]; workspaceMembers: WorkspaceMember[] } | undefined) {
+	const assignedUserIds = new Set((data?.members ?? []).map((member) => member.userId));
+	return (data?.workspaceMembers ?? []).filter((member) => !assignedUserIds.has(member.userId));
+}
+
+function MailboxPageHeading({ mailbox, address }: { mailbox?: MailboxDetail; address: string }) {
+	const t = useTranslations("admin");
+	const tNav = useTranslations("nav");
+	return <PageHeader
+		title={mailbox?.displayName || mailbox?.localPart || t("mailbox")}
+		description={<span className="font-mono">{address || t("loadingMailbox")}</span>}
+		action={mailbox?.isPrimary ? <Badge variant="secondary">{tNav("primary")}</Badge> : null}
+	/>;
+}
+
+function MailboxLoadError({ error }: { error: unknown }) {
+	const t = useTranslations("admin");
+	if (!error) return null;
+	return <p className="rounded-lg border border-danger/30 bg-danger-muted px-4 py-3 text-sm text-danger">
+		{error instanceof Error ? error.message : t("failedMailbox")}
+	</p>;
+}
+
+function MemberRemovalDialog({ target, pending, onClose, onConfirm }: {
+	target: MailboxMember | null; pending: boolean; onClose: () => void; onConfirm: (id: string) => void;
+}) {
+	const t = useTranslations("admin");
+	const tCommon = useTranslations("common");
+	return <ConfirmDialog open={target !== null} onOpenChange={(open) => { if (!open && !pending) onClose(); }}
+		title={t("removeAccessTitle")} description={target ? t("removeAccessDesc", { email: target.email }) : ""}
+		confirmLabel={t("removeAccessConfirm")} cancelLabel={tCommon("cancel")} danger
+		onConfirm={() => { if (target) onConfirm(target.id); onClose(); }} />;
+}
 
 export default function MailboxSettingsPage() {
 	const t = useTranslations("admin");
-	const tCommon = useTranslations("common");
-	const tNav = useTranslations("nav");
 	const params = useParams<{ id: string }>();
 	const mailboxId = params.id;
 	const router = useRouter();
@@ -94,8 +220,7 @@ export default function MailboxSettingsPage() {
 	});
 
 	const changeMemberRole = useMutation({
-		mutationFn: ({ membershipId, role }: { membershipId: string; role: MailboxRole }) =>
-			updateMailboxMemberRole(mailboxId, membershipId, role),
+		mutationFn: changeMailboxMemberRole,
 		meta: { suppressErrorToast: true },
 		onSuccess: () => qc.invalidateQueries({ queryKey: ["mailbox-members", mailboxId] }),
 	});
@@ -107,33 +232,13 @@ export default function MailboxSettingsPage() {
 	});
 
 	const address = mailbox.data ? getMailboxAddress(mailbox.data) : "";
-	const memberRemovalDialog = (
-		<ConfirmDialog
-			open={removeMemberTarget !== null}
-			onOpenChange={(open) => {
-				if (!open) setRemoveMemberTarget(null);
-			}}
-			title={t("removeAccessTitle")}
-			description={
-				removeMemberTarget ? t("removeAccessDesc", { email: removeMemberTarget.email }) : ""
-			}
-			confirmLabel={t("removeAccessConfirm")}
-			cancelLabel={tCommon("cancel")}
-			danger
-			onConfirm={() => {
-				if (removeMemberTarget) removeMember.mutate(removeMemberTarget.id);
-				setRemoveMemberTarget(null);
-			}}
-		/>
-	);
-	const assignedUserIds = new Set((members.data?.members ?? []).map((member) => member.userId));
-	const availableMembers = (members.data?.workspaceMembers ?? []).filter(
-		(member) => !assignedUserIds.has(member.userId),
-	);
+	const availableMembers = getAvailableMembers(members.data);
+	const memberError = (members.error ?? addMember.error ?? changeMemberRole.error ?? removeMember.error)?.message;
 
 	return (
 		<div className="space-y-6">
-			{memberRemovalDialog}
+			<MemberRemovalDialog target={removeMemberTarget} pending={removeMember.isPending}
+				onClose={() => setRemoveMemberTarget(null)} onConfirm={(id) => removeMember.mutate(id)} />
 			<div className="flex items-center gap-3">
 				<Button asChild variant="ghost" size="sm">
 					<Link href="/mailboxes">
@@ -143,202 +248,25 @@ export default function MailboxSettingsPage() {
 				</Button>
 			</div>
 
-			<PageHeader
-				title={mailbox.data?.displayName || mailbox.data?.localPart || t("mailbox")}
-				description={
-					<span className="font-mono">{address || t("loadingMailbox")}</span>
-				}
-				action={mailbox.data?.isPrimary && <Badge variant="secondary">{tNav("primary")}</Badge>}
-			/>
+			<MailboxPageHeading mailbox={mailbox.data} address={address} />
+			<MailboxLoadError error={mailbox.error} />
 
-			{mailbox.isError && (
-				<p className="rounded-lg border border-danger/30 bg-danger-muted px-4 py-3 text-sm text-danger">
-					{mailbox.error instanceof Error ? mailbox.error.message : t("failedMailbox")}
-				</p>
-			)}
+			<MailboxSettingsCard displayName={displayName} localPart={mailbox.data?.localPart}
+				loading={mailbox.isLoading} pending={updateName.isPending} error={updateName.error}
+				success={updateName.isSuccess} onNameChange={setDisplayName} onSave={() => updateName.mutate()} />
 
-			<Card>
-				<CardHeader>
-					<CardTitle>{t("mailboxSettings")}</CardTitle>
-					<CardDescription>
-						{t("mailboxSettingsDesc")}
-					</CardDescription>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					<FormField label={t("mailboxName")} htmlFor="displayName">
-						<Input
-							id="displayName"
-							value={displayName}
-							onChange={(event) => setDisplayName(event.target.value)}
-							placeholder={mailbox.data?.localPart ?? t("mailboxNamePlaceholder")}
-							disabled={mailbox.isLoading || updateName.isPending}
-						/>
-					</FormField>
-					{updateName.isError && (
-						<p className="text-sm text-danger">
-							{updateName.error instanceof Error
-								? updateName.error.message
-								: t("updateFailed")}
-						</p>
-					)}
-					{updateName.isSuccess && (
-						<p className="text-sm text-success">{t("mailboxSaved")}</p>
-					)}
-					<Button
-						onClick={() => updateName.mutate()}
-						disabled={mailbox.isLoading || updateName.isPending}
-					>
-						<Save className="h-4 w-4" />
-						{updateName.isPending ? tCommon("saving") : t("saveChanges")}
-					</Button>
-				</CardContent>
-			</Card>
+			{mailbox.data?.role === "manager" && <MailboxAccessCard
+				members={members.data?.members ?? []} availableMembers={availableMembers}
+				newMemberId={newMemberId} newMemberRole={newMemberRole} loading={members.isLoading}
+				pending={addMember.isPending} error={memberError} onMemberIdChange={setNewMemberId}
+				onRoleChange={setNewMemberRole} onAdd={() => addMember.mutate()}
+				onMemberRoleChange={(membershipId, role) => changeMemberRole.mutate({ mailboxId, membershipId, role })}
+				onRemove={setRemoveMemberTarget} />}
 
-			{mailbox.data?.role === "manager" && (
-				<Card>
-					<CardHeader>
-						<CardTitle>{t("mailboxAccessTitle")}</CardTitle>
-						<CardDescription>
-							{t("mailboxAccessDesc")}
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						<div className="grid gap-2 sm:grid-cols-[1fr_9rem_auto]">
-							<Select
-								value={newMemberId}
-								onChange={(event) => setNewMemberId(event.target.value)}
-								className="w-auto"
-							>
-								<option value="">{t("selectWorkspaceMember")}</option>
-								{availableMembers.map((member) => (
-									<option key={member.userId} value={member.userId}>{member.name} ({member.email})</option>
-								))}
-							</Select>
-							<Select
-								value={newMemberRole}
-								onChange={(event) => setNewMemberRole(event.target.value as MailboxRole)}
-								className="w-auto"
-							>
-								<option value="viewer">{t("roleViewer")}</option>
-								<option value="responder">{t("roleResponder")}</option>
-								<option value="manager">{t("roleManager")}</option>
-							</Select>
-							<Button onClick={() => addMember.mutate()} disabled={!newMemberId || addMember.isPending}>
-								<UserPlus className="h-4 w-4" /> {tCommon("add")}
-							</Button>
-						</div>
-
-						{members.isLoading && <p className="text-sm text-ink-muted">{t("loadingMailboxAccess")}</p>}
-						{(members.error || addMember.error || changeMemberRole.error || removeMember.error) && (
-							<p className="text-sm text-danger">
-								{(members.error ?? addMember.error ?? changeMemberRole.error ?? removeMember.error)?.message}
-							</p>
-						)}
-						<div className="divide-y divide-border rounded-md border border-border">
-							{(members.data?.members ?? []).map((member) => (
-								<div key={member.id} className="flex items-center justify-between gap-3 px-3 py-3">
-									<div className="min-w-0">
-										<p className="truncate text-sm font-medium text-ink">{member.name}</p>
-										<p className="truncate text-xs text-ink-muted">{member.email}</p>
-									</div>
-									<div className="flex items-center gap-2">
-										<Select
-											value={member.role}
-											onChange={(event) => changeMemberRole.mutate({ membershipId: member.id, role: event.target.value as MailboxRole })}
-											size="sm" className="w-auto"
-										>
-											<option value="viewer">{t("roleViewer")}</option>
-											<option value="responder">{t("roleResponder")}</option>
-											<option value="manager">{t("roleManager")}</option>
-										</Select>
-										<Button
-											variant="ghost"
-											size="sm"
-											onClick={() => setRemoveMemberTarget(member)}
-											aria-label={t("removeMemberAria", { email: member.email })}
-										>
-											<X className="h-4 w-4" />
-										</Button>
-									</div>
-								</div>
-							))}
-						</div>
-					</CardContent>
-				</Card>
-			)}
-
-			<Card>
-				<CardHeader>
-					<CardTitle>{t("mailboxAddress")}</CardTitle>
-					<CardDescription>
-						{t("addressDesc")}
-					</CardDescription>
-				</CardHeader>
-				<CardContent className="grid gap-4 sm:grid-cols-2">
-					<div className="space-y-1">
-						<p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{t("fieldEmail")}</p>
-						<p className="truncate font-mono text-sm text-ink">{address || t("emptyFallback")}</p>
-					</div>
-					<div className="space-y-1">
-						<p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{t("fieldUsername")}</p>
-						<p className="truncate font-mono text-sm text-ink">
-							{mailbox.data?.localPart ?? t("emptyFallback")}
-						</p>
-					</div>
-					<div className="space-y-1">
-						<p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{t("fieldDomain")}</p>
-						<p className="truncate font-mono text-sm text-ink">
-							{mailbox.data?.hostname ?? t("emptyFallback")}
-						</p>
-					</div>
-					<div className="space-y-1">
-						<p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{t("fieldRouting")}</p>
-						<p className="flex items-center gap-2 text-sm text-ink">
-							<Mail className="h-4 w-4 text-ink-faint" />
-							{t("cloudflareRouting")}
-						</p>
-					</div>
-				</CardContent>
-			</Card>
-
-			<Card className="border-danger/30">
-				<CardHeader>
-					<CardTitle className="text-danger">{t("deleteMailbox")}</CardTitle>
-					<CardDescription>
-						{t("deleteMailboxDesc")}
-					</CardDescription>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					<FormField label={t("confirmMailboxAddress")} htmlFor="deleteConfirmation">
-						<Input
-							id="deleteConfirmation"
-							value={deleteConfirmation}
-							onChange={(event) => setDeleteConfirmation(event.target.value)}
-							placeholder={address}
-							autoComplete="off"
-						/>
-					</FormField>
-					{removeMailbox.isError && (
-						<p className="text-sm text-danger">
-							{removeMailbox.error instanceof Error
-								? removeMailbox.error.message
-								: t("deleteMailboxFailed")}
-						</p>
-					)}
-					<Button
-						variant="destructive"
-						onClick={() => removeMailbox.mutate()}
-						disabled={
-							!address ||
-							deleteConfirmation.trim().toLowerCase() !== address.toLowerCase() ||
-							removeMailbox.isPending
-						}
-					>
-						<Trash2 className="h-4 w-4" />
-						{removeMailbox.isPending ? t("deleting") : t("deleteMailbox")}
-					</Button>
-				</CardContent>
-			</Card>
+			<MailboxAddressCard mailbox={mailbox.data} address={address} />
+			<DeleteMailboxCard address={address} confirmation={deleteConfirmation}
+				pending={removeMailbox.isPending} error={removeMailbox.error}
+				onConfirmationChange={setDeleteConfirmation} onDelete={() => removeMailbox.mutate()} />
 		</div>
 	);
 }

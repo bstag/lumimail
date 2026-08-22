@@ -23,6 +23,14 @@ type CommandButton = {
 	enabled?: (editor: Editor) => boolean;
 };
 
+function isLinkShortcut(event: KeyboardEvent) {
+	return (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k";
+}
+
+function startsCommandGroup(commands: CommandButton[], index: number) {
+	return index > 0 && commands[index - 1]?.group !== commands[index]?.group;
+}
+
 function EditorButton({ editor, command }: { editor: Editor; command: CommandButton }) {
 	const active = command.active?.(editor) ?? false;
 	const enabled = command.enabled?.(editor) ?? true;
@@ -43,6 +51,15 @@ function EditorButton({ editor, command }: { editor: Editor; command: CommandBut
 	);
 }
 
+function ToolbarPanels({ editor, linkOpen, linkUrl, imageAlt, setLinkUrl, setLinkOpen, setImageAlt, applyLink, onRemoveInlineImage }: {
+	editor: Editor; linkOpen: boolean; linkUrl: string; imageAlt: string;
+	setLinkUrl: (value: string) => void; setLinkOpen: (value: boolean) => void; setImageAlt: (value: string) => void;
+	applyLink: () => void; onRemoveInlineImage?: (contentId: string) => void;
+}) {
+	const t = useTranslations("compose.toolbar");
+	return <>{linkOpen && <div className="mt-1 flex items-center gap-2 rounded-md bg-surface-subtle p-2"><Input value={linkUrl} onChange={(event) => setLinkUrl(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); applyLink(); } if (event.key === "Escape") setLinkOpen(false); }} placeholder="https://example.com" aria-label={t("linkUrl")} autoFocus /><Button type="button" size="sm" onClick={applyLink}>{t("apply")}</Button><Button type="button" size="sm" variant="ghost" onClick={() => { editor.chain().focus().extendMarkRange("link").unsetLink().run(); setLinkOpen(false); }}>{t("remove")}</Button></div>}{editor.isActive("image") && <div className="mt-1 flex items-center gap-2 rounded-md bg-surface-subtle p-2"><Input value={imageAlt} onChange={(event) => setImageAlt(event.target.value)} aria-label={t("imageAltText")} placeholder={t("imageAltPlaceholder")} /><Button type="button" size="sm" onClick={() => editor.chain().focus().updateAttributes("image", { alt: imageAlt.trim() }).run()}>{t("apply")}</Button><Button type="button" size="sm" variant="ghost" onClick={() => { const src = editor.getAttributes("image").src as string | undefined; editor.chain().focus().deleteSelection().run(); if (src?.startsWith("cid:")) onRemoveInlineImage?.(src.slice(4)); }}>{t("removeImage")}</Button></div>}{editor.isActive("table") && <div className="mt-1 flex flex-wrap gap-1" aria-label={t("tableControls")}><Button type="button" size="sm" variant="ghost" onClick={() => editor.chain().focus().addRowAfter().run()}>{t("addRow")}</Button><Button type="button" size="sm" variant="ghost" onClick={() => editor.chain().focus().addColumnAfter().run()}>{t("addColumn")}</Button><Button type="button" size="sm" variant="ghost" onClick={() => editor.chain().focus().deleteRow().run()}>{t("deleteRow")}</Button><Button type="button" size="sm" variant="ghost" onClick={() => editor.chain().focus().deleteColumn().run()}>{t("deleteColumn")}</Button><Button type="button" size="sm" variant="ghost" onClick={() => editor.chain().focus().mergeOrSplit().run()}>{t("mergeSplit")}</Button></div>}</>;
+}
+
 export function ComposeEditorToolbar({
 	editor,
 	onInsertImage,
@@ -61,7 +78,7 @@ export function ComposeEditorToolbar({
 	useEffect(() => {
 		if (!editor) return;
 		const onKeyDown = (event: KeyboardEvent) => {
-			if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+			if (isLinkShortcut(event)) {
 				event.preventDefault();
 				setLinkUrl((editor.getAttributes("link").href as string | undefined) ?? "");
 				setLinkOpen(true);
@@ -138,7 +155,7 @@ export function ComposeEditorToolbar({
 				<div className="hidden min-w-0 flex-wrap items-center gap-0.5 sm:flex">
 					{secondaryCommands.map((command, index) => (
 						<span key={command.key} className="contents">
-							{index > 0 && secondaryCommands[index - 1]?.group !== command.group && (
+							{startsCommandGroup(secondaryCommands, index) && (
 								<span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
 							)}
 							<EditorButton editor={editor} command={command} />
@@ -192,50 +209,7 @@ export function ComposeEditorToolbar({
 					</Button>
 				)}
 			</div>
-			{linkOpen && (
-				<div className="mt-1 flex items-center gap-2 rounded-md bg-surface-subtle p-2">
-					<Input
-						value={linkUrl}
-						onChange={(event) => setLinkUrl(event.target.value)}
-						onKeyDown={(event) => {
-							if (event.key === "Enter") { event.preventDefault(); applyLink(); }
-							if (event.key === "Escape") setLinkOpen(false);
-						}}
-						placeholder="https://example.com"
-						aria-label={t("linkUrl")}
-						autoFocus
-					/>
-					<Button type="button" size="sm" onClick={applyLink}>{t("apply")}</Button>
-					<Button type="button" size="sm" variant="ghost" onClick={() => {
-						editor.chain().focus().extendMarkRange("link").unsetLink().run();
-						setLinkOpen(false);
-					}}>{t("remove")}</Button>
-				</div>
-			)}
-			{editor.isActive("image") && (
-				<div className="mt-1 flex items-center gap-2 rounded-md bg-surface-subtle p-2">
-					<Input value={imageAlt} onChange={(event) => setImageAlt(event.target.value)} aria-label={t("imageAltText")} placeholder={t("imageAltPlaceholder")} />
-					<Button type="button" size="sm" onClick={() => editor.chain().focus().updateAttributes("image", { alt: imageAlt.trim() }).run()}>
-						{t("apply")}
-					</Button>
-					<Button type="button" size="sm" variant="ghost" onClick={() => {
-						const src = editor.getAttributes("image").src as string | undefined;
-						editor.chain().focus().deleteSelection().run();
-						if (src?.startsWith("cid:")) onRemoveInlineImage?.(src.slice(4));
-					}}>
-						{t("removeImage")}
-					</Button>
-				</div>
-			)}
-			{editor.isActive("table") && (
-				<div className="mt-1 flex flex-wrap gap-1" aria-label={t("tableControls")}>
-					<Button type="button" size="sm" variant="ghost" onClick={() => editor.chain().focus().addRowAfter().run()}>{t("addRow")}</Button>
-					<Button type="button" size="sm" variant="ghost" onClick={() => editor.chain().focus().addColumnAfter().run()}>{t("addColumn")}</Button>
-					<Button type="button" size="sm" variant="ghost" onClick={() => editor.chain().focus().deleteRow().run()}>{t("deleteRow")}</Button>
-					<Button type="button" size="sm" variant="ghost" onClick={() => editor.chain().focus().deleteColumn().run()}>{t("deleteColumn")}</Button>
-					<Button type="button" size="sm" variant="ghost" onClick={() => editor.chain().focus().mergeOrSplit().run()}>{t("mergeSplit")}</Button>
-				</div>
-			)}
+			<ToolbarPanels editor={editor} linkOpen={linkOpen} linkUrl={linkUrl} imageAlt={imageAlt} setLinkUrl={setLinkUrl} setLinkOpen={setLinkOpen} setImageAlt={setImageAlt} applyLink={applyLink} onRemoveInlineImage={onRemoveInlineImage} />
 		</div>
 	);
 }

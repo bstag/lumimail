@@ -14,6 +14,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
+    "crap:coverage": "vitest run --coverage --config vitest.crap.config.ts",
+    "crap": "npm run crap:coverage && crap-typescript --threshold 30 --format text --failures-only",
+    "crap:report": "crap-typescript --threshold 30 --format text",
     "e2e": "playwright test --project=chromium",
     "e2e:local": "npm run db:migrate:local && node scripts/seed-e2e.mjs && playwright test --project=local --workers=1",
     "smoke": "node scripts/smoke.mjs",
@@ -32,7 +35,7 @@
     "recovery:retention": "node scripts/recovery-retention.mjs",
     "performance:measure": "node scripts/performance-evidence.mjs",
     "performance:d1": "node scripts/performance-d1.mjs",
-    "verify": "npm run typecheck && npm run lint && npm run test:cov && npm --prefix imap-bridge test",
+    "verify": "npm run typecheck && npm run lint && npm run test:cov && npm run crap && npm --prefix imap-bridge test",
     "deploy": "npm run db:migrate:remote && opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
@@ -109,6 +112,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@barney-media/crap-typescript": "0.5.0",
     "@cloudflare/workers-types": "^5.20260722.1",
     "@eslint/eslintrc": "^3",
     "@playwright/test": "^1.61.1",

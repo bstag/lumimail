@@ -34,6 +34,20 @@ type ThreadMessage = Message & {
 
 type ThreadResponse = { messages: ThreadMessage[] };
 
+function messageReadState(message: Message, readOverride: boolean | null, markedRead: boolean) {
+	const read = readOverride ?? message.read;
+	const autoMarkRead = !markedRead && readOverride === null && message.direction === "inbound" && message.read === false;
+	return { read, autoMarkRead };
+}
+
+function ConversationBackControl({ presentation, message, onClose }: {
+	presentation: "page" | "panel"; message: Message; onClose?: () => void;
+}) {
+	return presentation === "panel"
+		? <button type="button" aria-label="Close conversation" onClick={onClose} className="rounded-full p-2 text-ink-muted hover:bg-surface-subtle"><X className="h-5 w-5" /></button>
+		: <Link href={getMessageBackHref(message.direction, message.status)} className="rounded-full p-2 text-ink-muted hover:bg-surface-subtle"><ArrowLeft className="h-5 w-5" /></Link>;
+}
+
 function ThreadItem({
 	msg,
 	isExpanded,
@@ -155,8 +169,7 @@ export function MessageDetailView({
 	if (!data?.message) return <p className="px-6 py-4 text-sm text-ink-muted">{data?.error ?? t("messageNotFound")}</p>;
 
 	const { message, body } = data;
-	const read = readOverride ?? message.read;
-	const autoMarkRead = !markedRead && readOverride === null && message.direction === "inbound" && message.read === false;
+	const { read, autoMarkRead } = messageReadState(message, readOverride, markedRead);
 	const { fromName, fromAddress, toName } = getMessageHeaderParties(message);
 	const bodyDisplay = getMessageBodyDisplay(body?.textBody, body?.htmlBody, message.snippet);
 	const canSend = canMailboxSend(mailboxes.find((mailbox) => mailbox.id === message.mailboxId));
@@ -167,15 +180,7 @@ export function MessageDetailView({
 			{autoMarkRead && <MarkAsRead messageId={message.id} onMarkedRead={handleMarkedRead} />}
 			<div className="flex items-center justify-between gap-2 overflow-x-auto px-2 py-2">
 				<div className="flex items-center gap-6">
-					{presentation === "panel" ? (
-						<button type="button" aria-label="Close conversation" onClick={onClose} className="rounded-full p-2 text-ink-muted hover:bg-surface-subtle">
-							<X className="h-5 w-5" />
-						</button>
-					) : (
-						<Link href={getMessageBackHref(message.direction, message.status)} className="rounded-full p-2 text-ink-muted hover:bg-surface-subtle">
-							<ArrowLeft className="h-5 w-5" />
-						</Link>
-					)}
+					<ConversationBackControl presentation={presentation} message={message} onClose={onClose} />
 				</div>
 				<MessageActions
 					messageId={message.id}
