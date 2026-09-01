@@ -95,7 +95,8 @@ Source of truth for behavior. Each follows
           [`F88-push-notifications`](./specs/F88-push-notifications.md),
            [`F89-external-mail-accounts`](./specs/F89-external-mail-accounts.md),
            [`F90-crap-quality-gate`](./specs/F90-crap-quality-gate.md),
-           [`F91-picket-ui-rebrand`](./specs/F91-picket-ui-rebrand.md).
+           [`F91-picket-ui-rebrand`](./specs/F91-picket-ui-rebrand.md),
+           [`F92-mantle-presentation-layer`](./specs/F92-mantle-presentation-layer.md).
 
 ## Implementation notes (`implementation/`)
 

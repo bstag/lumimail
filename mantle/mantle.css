@@ -1,0 +1,32 @@
+:root {
+  /* The Royal Script */
+  --font-header: 'Plus Jakarta Sans', serif;
+  --font-body: 'IBM Plex Sans', sans-serif;
+
+  /* Thread & Dye */
+  --color-perimeter-navy: #0D1524;
+  --color-waypoint-amber: #E06A3B;
+  --color-steward-teal: #1F4E66;
+  --color-coordinate-slate: #5A6B82;
+  --color-canvas-mist: #F6F8FB;
+
+  /* Summer Mantle (Light) */
+  --bg-page: #F6F8FB;
+  --bg-surface: #FFFFFF;
+  --text-main: #0D1524;
+  --text-muted: #5A6B82;
+  --border-dim: #E2E8F0;
+  --brand-accent: #E06A3B;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Winter Mantle (Dark) */
+    --bg-page: #090E17;
+    --bg-surface: #121C2D;
+    --text-main: #F1F5F9;
+    --text-muted: #94A3B8;
+    --border-dim: #1E2E45;
+    --brand-accent: #F07B4F;
+  }
+}

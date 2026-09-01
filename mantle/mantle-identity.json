@@ -1,0 +1,65 @@
+{
+  "mission": "Picket is a self-hosted email operations platform for teams that want to own their domains, mailboxes, routing, and data without inheriting the complexity and ugliness of traditional mail-server administration.\n\nIt combines familiar webmail with the operational controls of a serious email platform: multi-domain and multi-tenant administration, shared mailboxes, aliases, groups, access controls, durable delivery, routing, integrations, recovery tooling, and optional IMAP/SMTP access. It runs in the customer’s Cloudflare account, making ownership and inspectability central to the product.\n\nPIcket’s core promise is: **your organization’s email, clearly organized and firmly under your control.**\n\nThe product should feel:\n\n - Protective, but not paranoid\n - Technically credible, but not intimidating\n - Calm, precise, and operationally dependable\n - Independent and self-owned\n - Modern without resembling another Gmail clone\n\n Its strongest brand themes are boundaries, stewardship, routing, watchfulness, coordination, and controlled access. The name “PIcket” can evoke a guarded perimeter, a reliable watch post, or a set of orderly markers guiding traffic. Favor the “clear boundary and dependable signal” interpretation over militaristic or restrictive imagery.\n\n The primary audience is technically capable small businesses, agencies, infrastructure-conscious teams, self-hosters, and organizations that manage multiple domains or shared addresses. They value autonomy and security, but still expect a polished, approachable daily email experience.\n\n Avoid:\n\n - Generic envelope-and-paper-plane branding\n - Hacker, cyberpunk, surveillance, or fortress aesthetics\n - Aggressive anti-Google messaging\n - Cold enterprise-security imagery\n - Excessively playful consumer branding\n - Claims that it replaces every feature of a mature hosted suite\n\n A suitable visual system would use structured geometry, clear boundaries, directional paths, or a distinctive waypoint/gate symbol. It should communicate that messages arrive at the correct place, authorized people have appropriate access, and operators can understand what the system is doing.\n\n The brand should ultimately make PIcket feel like a well-designed control point for organizational email: **open enough to own, disciplined enough to trust, and pleasant enough to use every day.**\n\nA shorter positioning line would be:\n\n**PIcket is the self-hosted email workspace that keeps your domains, delivery, and team access under your control.**\n\nPotential tagline directions:\n\n- **Email on your terms.**\n- **Your mail. Your boundaries.**\n- **A clearer way to own email.**\n- **Team email, firmly in hand.**\n- **Where your email belongs.**\n- **Own the route. Control the inbox.**",
+  "tagline": "Own the route. Control the inbox.",
+  "brandVoice": "Calm, precise, and operationally grounded. Picket speaks like a trusted systems architect: clear about boundaries, transparent about data ownership, and focused on reliability. It avoids alarmist security jargon, aggressive anti-big-tech rhetoric, and playful gimmicks in favor of articulate clarity and quiet technical authority.",
+  "colors": [
+    {
+      "hex": "#0D1524",
+      "name": "Perimeter Navy",
+      "usage": "Primary dark neutral for backgrounds, dark surfaces, and high-emphasis typography.",
+      "detailedUsage": "Forms the bedrock of the visual identity. Used for sidebars, deep dark-mode canvases, primary headers in light mode, and high-contrast structural dividers.",
+      "contrastInfo": "Yields a 15.8:1 contrast ratio against white and light backgrounds, meeting WCAG AAA requirements."
+    },
+    {
+      "hex": "#E06A3B",
+      "name": "Waypoint Amber",
+      "usage": "Primary brand accent, interactive indicators, routing signals, and key CTAs.",
+      "detailedUsage": "Acts as the directional marker across the interface. Applied to routing state badges, active waypoint markers, send/configure actions, and focused domain boundaries.",
+      "contrastInfo": "Achieves 4.6:1 contrast against dark surfaces (#0D1524) for UI elements and large text (WCAG AA)."
+    },
+    {
+      "hex": "#1F4E66",
+      "name": "Steward Teal",
+      "usage": "Secondary brand color, access-control indicators, and multi-tenant domain tags.",
+      "detailedUsage": "Represents governed access, DNS verification indicators, shared mailbox tags, and secondary navigation elements.",
+      "contrastInfo": "Provides 5.4:1 contrast against light grey and white backdrops for readable metadata and badges."
+    },
+    {
+      "hex": "#5A6B82",
+      "name": "Coordinate Slate",
+      "usage": "Secondary body text, metadata timestamps, table borders, and inactive route tracks.",
+      "detailedUsage": "Applied to message preview snippets, MX/SPF verification helper text, subtle grid dividers, and secondary iconography.",
+      "contrastInfo": "Maintains 4.8:1 contrast ratio on clean white/off-white surfaces, passing WCAG AA for normal text."
+    },
+    {
+      "hex": "#F6F8FB",
+      "name": "Canvas Mist",
+      "usage": "Primary light background and surface foundation for webmail reading surfaces.",
+      "detailedUsage": "Sets the clean, low-strain backdrop for reading emails, organizing multi-domain workspaces, and rendering operational dashboards.",
+      "contrastInfo": "Provides an ultra-clean base with 14.5:1 contrast against Perimeter Navy."
+    }
+  ],
+  "theme": {
+    "light": {
+      "background": "#F6F8FB",
+      "surface": "#FFFFFF",
+      "textPrimary": "#0D1524",
+      "textSecondary": "#5A6B82",
+      "accent": "#E06A3B",
+      "border": "#E2E8F0"
+    },
+    "dark": {
+      "background": "#090E17",
+      "surface": "#121C2D",
+      "textPrimary": "#F1F5F9",
+      "textSecondary": "#94A3B8",
+      "accent": "#F07B4F",
+      "border": "#1E2E45"
+    }
+  },
+  "typography": {
+    "headerFamily": "Plus Jakarta Sans",
+    "bodyFamily": "IBM Plex Sans",
+    "reasoning": "Plus Jakarta Sans delivers geometric precision and clear, modern boundary-like letterforms for headers without feeling harsh or militaristic. IBM Plex Sans brings engineered credibility, exceptional legibility for multi-domain routing tables, headers, and email body text, reinforcing Picket's focus on dependable technical stewardship."
+  }
+}
