@@ -12,7 +12,7 @@ test.describe("PWA shell", () => {
 		expect(manifestResponse.ok()).toBe(true);
 		expect(manifestResponse.headers()["content-type"]).toMatch(/application\/manifest\+json|application\/json/);
 		expect(await manifestResponse.json()).toMatchObject({
-			name: "Lumimail",
+			name: "Picket",
 			start_url: "/",
 			scope: "/",
 			display: "standalone",

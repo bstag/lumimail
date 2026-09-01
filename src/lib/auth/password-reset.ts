@@ -1,6 +1,6 @@
 import { selectOutboundProvider } from "@/lib/email/providers";
 
-const RESET_SUBJECT = "Reset your Lumimail password";
+const RESET_SUBJECT = "Reset your Picket password";
 
 function bytesToHex(bytes: Uint8Array): string {
 	return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -54,7 +54,7 @@ export async function sendPasswordResetEmail(
 		from,
 		to: recoveryEmail,
 		subject: RESET_SUBJECT,
-		text: `We received a request to reset your Lumimail password.\n\nReset your password: ${resetLink}\n\nThis link expires in one hour. If you did not request this, you can ignore this email.`,
-		html: `<p>We received a request to reset your Lumimail password.</p><p><a href="${safeLink}">Reset your password</a></p><p>This link expires in one hour. If you did not request this, you can ignore this email.</p>`,
+		text: `We received a request to reset your Picket password.\n\nReset your password: ${resetLink}\n\nThis link expires in one hour. If you did not request this, you can ignore this email.`,
+		html: `<p>We received a request to reset your Picket password.</p><p><a href="${safeLink}">Reset your password</a></p><p>This link expires in one hour. If you did not request this, you can ignore this email.</p>`,
 	});
 }

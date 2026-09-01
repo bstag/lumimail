@@ -8,7 +8,7 @@ import { RateLimitUnavailableError, rateLimitCheck } from "@/lib/rate-limit";
 
 const INVITE_LIFETIME_MS = 7 * 24 * 60 * 60 * 1_000;
 const INVITE_COOLDOWN_MS = 60_000;
-const INVITE_SUBJECT_SUFFIX = " on Lumimail";
+const INVITE_SUBJECT_SUFFIX = " on Picket";
 
 type InviteRole = "admin" | "member";
 type DeliveryStatus = "not_sent" | "sending" | "sent" | "failed";

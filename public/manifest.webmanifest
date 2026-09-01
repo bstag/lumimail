@@ -1,6 +1,6 @@
 {
-	"name": "Lumimail",
-	"short_name": "Lumimail",
+	"name": "Picket",
+	"short_name": "Picket",
 	"description": "Multi-tenant email on Cloudflare",
 	"id": "/",
 	"start_url": "/",

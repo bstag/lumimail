@@ -27,7 +27,7 @@
     "done": "完成"
   },
   "brand": {
-    "name": "Lumimail",
+    "name": "Picket",
     "tagline": "Cloudflare 上的多租户邮件",
     "homeLabel": "邮件平台首页"
   },
@@ -45,7 +45,7 @@
     "priorityInbox": "优先收件箱",
     "updatedAgo": "2 分钟前更新",
     "dashboard": "控制台",
-    "homeAria": "Lumimail 首页",
+    "homeAria": "Picket 首页",
     "featureDeliveryTitle": "可靠投递",
     "featureDeliveryDesc": "队列发送、可见的投递状态、分类重试，以及需操作员确认的恢复。",
     "featureCollabTitle": "安全协作",
@@ -386,7 +386,7 @@
     "removeCatchAllDesc": "移除此 catch-all 将禁用此域名的未匹配投递。",
     "removeRuleConfirm": "移除规则",
     "patternPlaceholder": "*、support 或 support@domain.com",
-    "catchAllHint": "使用 <mono>*</mono> 匹配所选域名上所有未匹配的地址。添加后将为 Lumimail 启用该域名的 Cloudflare catch-all。",
+    "catchAllHint": "使用 <mono>*</mono> 匹配所选域名上所有未匹配的地址。添加后将为 Picket 启用该域名的 Cloudflare catch-all。",
     "action": "操作",
     "actionStore": "存储到邮箱",
     "actionForward": "转发到地址",
@@ -472,7 +472,7 @@
     "loadingWebhooks": "加载 Webhooks 中...",
     "noWebhooks": "暂无 Webhooks。",
     "queueHealthTitle": "队列健康",
-    "queueHealthDesc": "此 Lumimail 部署的平台级投递健康状况。这些数字不限于所选邮箱或域名。",
+    "queueHealthDesc": "此 Picket 部署的平台级投递健康状况。这些数字不限于所选邮箱或域名。",
     "checkNow": "立即检查",
     "checkingNow": "检查中…",
     "queueStatusHealthy": "健康",

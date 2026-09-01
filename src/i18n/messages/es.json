@@ -27,7 +27,7 @@
     "done": "Hecho"
   },
   "brand": {
-    "name": "Lumimail",
+    "name": "Picket",
     "tagline": "Correo multi-tenant en Cloudflare",
     "homeLabel": "Inicio de la plataforma de correo"
   },
@@ -45,7 +45,7 @@
     "priorityInbox": "Bandeja prioritaria",
     "updatedAgo": "Actualizado hace 2 min",
     "dashboard": "Panel",
-    "homeAria": "Inicio de Lumimail",
+    "homeAria": "Inicio de Picket",
     "featureDeliveryTitle": "Entrega fiable",
     "featureDeliveryDesc": "Envío en cola, estado de entrega visible, reintentos clasificados y recuperación confirmada por el operador.",
     "featureCollabTitle": "Colaboración segura",
@@ -386,7 +386,7 @@
     "removeCatchAllDesc": "Eliminar este catch-all desactiva la entrega sin coincidencia para este dominio.",
     "removeRuleConfirm": "Eliminar regla",
     "patternPlaceholder": "*, support o support@domain.com",
-    "catchAllHint": "Usa <mono>*</mono> para todas las direcciones sin coincidencia en el dominio seleccionado. Añadirlo habilita el catch-all de Cloudflare de ese dominio para Lumimail.",
+    "catchAllHint": "Usa <mono>*</mono> para todas las direcciones sin coincidencia en el dominio seleccionado. Añadirlo habilita el catch-all de Cloudflare de ese dominio para Picket.",
     "action": "Acción",
     "actionStore": "Guardar en buzón",
     "actionForward": "Reenviar a dirección",
@@ -472,7 +472,7 @@
     "loadingWebhooks": "Cargando webhooks...",
     "noWebhooks": "Aún no hay webhooks.",
     "queueHealthTitle": "Salud de colas",
-    "queueHealthDesc": "Salud de entrega de toda la plataforma para este despliegue de Lumimail. Estas cifras no se limitan al buzón o dominio seleccionado.",
+    "queueHealthDesc": "Salud de entrega de toda la plataforma para este despliegue de Picket. Estas cifras no se limitan al buzón o dominio seleccionado.",
     "checkNow": "Comprobar ahora",
     "checkingNow": "Comprobando…",
     "queueStatusHealthy": "Saludable",

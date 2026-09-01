@@ -23,11 +23,11 @@ async function apiRequest(path, options = {}, apiKey) {
 	try {
 		payload = await response.json();
 	} catch {
-		throw new LumimailApiError(`Lumimail API returned invalid JSON (${response.status})`, response.status);
+		throw new LumimailApiError(`Picket API returned invalid JSON (${response.status})`, response.status);
 	}
 	if (!response.ok || payload?.success !== true) {
 		throw new LumimailApiError(
-			payload?.error?.message || `Lumimail API request failed (${response.status})`,
+			payload?.error?.message || `Picket API request failed (${response.status})`,
 			response.status,
 		);
 	}

@@ -171,7 +171,7 @@ export function forwardRefusalMessage(reason: ForwardRefusalReason): string {
 		case "invalid_address":
 			return "A valid forwarding destination is required";
 		case "managed_domain":
-			return "Cannot forward to an address on a domain Lumimail manages";
+			return "Cannot forward to an address on a domain Picket manages";
 		case "not_verified":
 			return "That destination has not confirmed Cloudflare's verification email yet";
 		default:

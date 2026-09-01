@@ -35,7 +35,7 @@ export const heroMessages: MailPreview[] = [
 	},
 	{
 		icon: MailCheck,
-		sender: "admin@lumimail.dev",
+		sender: "admin@example.com",
 		subject: "Mailbox provisioned",
 		preview: "New routing mailbox is ready for customer replies.",
 		badge: "Admin",

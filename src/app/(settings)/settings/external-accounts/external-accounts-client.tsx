@@ -114,18 +114,18 @@ export function ExternalAccountsClient() {
 		<div className="space-y-6">
 			<div>
 				<h2 className="text-2xl font-semibold text-ink">External accounts</h2>
-				<p className="mt-1 text-sm text-ink-muted">Read and send Google or Microsoft mail from a Lumimail mailbox. Sync is one-way into Lumimail.</p>
+				<p className="mt-1 text-sm text-ink-muted">Read and send Google or Microsoft mail from a Picket mailbox. Sync is one-way into Picket.</p>
 			</div>
 
 			<section className="space-y-4 rounded-lg border border-border p-4">
-				<div className="flex items-start gap-3"><Cloud className="mt-0.5 h-5 w-5 text-accent" /><div><h3 className="font-semibold text-ink">Connect an account</h3><p className="text-sm text-ink-muted">Provider authorization uses delegated OAuth. Lumimail never asks for the provider password.</p></div></div>
+				<div className="flex items-start gap-3"><Cloud className="mt-0.5 h-5 w-5 text-accent" /><div><h3 className="font-semibold text-ink">Connect an account</h3><p className="text-sm text-ink-muted">Provider authorization uses delegated OAuth. Picket never asks for the provider password.</p></div></div>
 				<div className="grid gap-4 md:grid-cols-2">
 					<div className="space-y-2"><Label htmlFor="external-mailbox">Target mailbox</Label><select id="external-mailbox" className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={mailboxId} onChange={(event) => setMailboxId(event.target.value)}><option value="">Select a mailbox</option>{manageableMailboxes.map((mailbox) => <option key={mailbox.id} value={mailbox.id}>{mailbox.displayName || `${mailbox.localPart}@${mailbox.hostname}`} ({mailbox.localPart}@{mailbox.hostname})</option>)}</select></div>
 					<div className="space-y-2"><Label htmlFor="external-import-mode">Initial import</Label><select id="external-import-mode" className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm" value={importMode} onChange={(event) => setImportMode(event.target.value as typeof importMode)}><option value="from_now">From now</option><option value="recent_30_days">Last 30 days</option></select></div>
 				</div>
 				<label className="flex items-start gap-3 text-sm"><input type="checkbox" className="mt-1" checked={retainOriginal} onChange={(event) => setRetainOriginal(event.target.checked)} /><span><strong>Retain original copies</strong><span className="block text-ink-muted">Keeps exact MIME bytes for mail imported after this is enabled. This is not yet a complete backup or restore service.</span></span></label>
-				<label className="flex items-start gap-3 rounded-md bg-surface-subtle p-3 text-sm"><input type="checkbox" className="mt-1" checked={disclosureAccepted} onChange={(event) => setDisclosureAccepted(event.target.checked)} /><span>I understand every Lumimail user with read access to the selected mailbox can read imported mail.</span></label>
-				<div className="max-w-sm space-y-2"><Label htmlFor="external-password">Confirm your Lumimail password</Label><Input id="external-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></div>
+				<label className="flex items-start gap-3 rounded-md bg-surface-subtle p-3 text-sm"><input type="checkbox" className="mt-1" checked={disclosureAccepted} onChange={(event) => setDisclosureAccepted(event.target.checked)} /><span>I understand every Picket user with read access to the selected mailbox can read imported mail.</span></label>
+				<div className="max-w-sm space-y-2"><Label htmlFor="external-password">Confirm your Picket password</Label><Input id="external-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></div>
 				<div className="flex flex-wrap gap-2"><Button disabled={connectDisabled} onClick={() => connect.mutate("google")}>Connect Google</Button><Button variant="outline" disabled={connectDisabled} onClick={() => connect.mutate("microsoft")}>Connect Microsoft</Button></div>
 				{connect.isError && <p role="alert" className="text-sm text-danger">{connect.error.message}</p>}
 			</section>

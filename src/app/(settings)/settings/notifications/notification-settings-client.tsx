@@ -72,9 +72,9 @@ async function enableNotifications(config: PushConfig | undefined, deviceName: s
 
 function unavailableMessage(support: BrowserSupport, configLoading: boolean, available: boolean | undefined) {
 	if (support === "unsupported") return "This browser or connection does not support secure push notifications.";
-	if (support === "install-required") return "On iPhone or iPad, add Lumimail to your Home Screen before enabling notifications.";
+	if (support === "install-required") return "On iPhone or iPad, add Picket to your Home Screen before enabling notifications.";
 	if (support === "denied") return "Notifications are blocked. Allow them in your browser or device settings, then return here.";
-	if (!configLoading && !available) return "Push notifications are not configured on this Lumimail server.";
+	if (!configLoading && !available) return "Push notifications are not configured on this Picket server.";
 	return null;
 }
 

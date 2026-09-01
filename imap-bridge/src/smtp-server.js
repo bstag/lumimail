@@ -95,7 +95,7 @@ function createSmtpServer(config, client = apiClient) {
 					await client.sendMessage(creds, submission);
 					finish();
 				} catch (error) {
-					finish(error.responseCode ? error : smtpError("Lumimail send failed", 451));
+					finish(error.responseCode ? error : smtpError("Picket send failed", 451));
 				}
 			});
 		},

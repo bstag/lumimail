@@ -65,7 +65,7 @@ export function McpConnectionsClient() {
 				<p className="mt-1 text-sm text-ink-muted">Connect compatible assistants through OAuth without sharing a personal API key.</p>
 			</div>
 			<section className="space-y-3 rounded-lg border border-border p-4">
-				<div className="flex items-start gap-3"><Bot className="mt-0.5 h-5 w-5 text-accent" /><div><h3 className="font-semibold text-ink">Lumimail MCP endpoint</h3><p className="text-sm text-ink-muted">Add this URL in your MCP client. New approvals default to read only.</p></div></div>
+				<div className="flex items-start gap-3"><Bot className="mt-0.5 h-5 w-5 text-accent" /><div><h3 className="font-semibold text-ink">Picket MCP endpoint</h3><p className="text-sm text-ink-muted">Add this URL in your MCP client. New approvals default to read only.</p></div></div>
 				<div className="flex flex-col gap-2 sm:flex-row"><code className="min-w-0 flex-1 break-all rounded-md bg-surface-subtle px-3 py-2 text-sm">{endpoint}</code><Button variant="outline" onClick={copyEndpoint}><Copy className="h-4 w-4" />{copied ? "Copied" : "Copy"}</Button></div>
 				<p className="text-xs text-ink-muted">Mail actions require separate consent. Organization administration, credentials, sessions, operations, and backups are never exposed.</p>
 			</section>

@@ -105,7 +105,7 @@ test("the connection listener enforces its cap and releases capacity on close", 
 	const replacement = new FakeSocket();
 	listener(replacement);
 	assert.equal(replacement.destroyed, false);
-	assert.match(replacement.output, /\* OK Lumimail IMAP bridge ready/);
+	assert.match(replacement.output, /\* OK Picket IMAP bridge ready/);
 });
 
 test("UID command dispatches UID FETCH and preserves persisted UIDs", async () => {

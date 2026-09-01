@@ -27,7 +27,7 @@
     "done": "সম্পন্ন"
   },
   "brand": {
-    "name": "Lumimail",
+    "name": "Picket",
     "tagline": "Cloudflare-এ মাল্টি-টেন্যান্ট ইমেইল",
     "homeLabel": "ইমেইল প্ল্যাটফর্ম হোম"
   },
@@ -45,7 +45,7 @@
     "priorityInbox": "অগ্রাধিকার ইনবক্স",
     "updatedAgo": "২ মিনিট আগে আপডেট হয়েছে",
     "dashboard": "ড্যাশবোর্ড",
-    "homeAria": "Lumimail হোম",
+    "homeAria": "Picket হোম",
     "featureDeliveryTitle": "নির্ভরযোগ্য ডেলিভারি",
     "featureDeliveryDesc": "সারিবদ্ধ পাঠানো, দৃশ্যমান ডেলিভারি অবস্থা, শ্রেণীবদ্ধ পুনঃচেষ্টা এবং অপারেটর-নিশ্চিত পুনরুদ্ধার।",
     "featureCollabTitle": "নিরাপদ সহযোগিতা",
@@ -386,7 +386,7 @@
     "removeCatchAllDesc": "এই catch-all সরালে এই ডোমেইনের জন্য অমিলিত ডেলিভারি নিষ্ক্রিয় হবে।",
     "removeRuleConfirm": "নিয়ম সরান",
     "patternPlaceholder": "*, support, বা support@domain.com",
-    "catchAllHint": "নির্বাচিত ডোমেইনে সমস্ত অমিলিত ঠিকানার জন্য <mono>*</mono> ব্যবহার করুন। এটি যোগ করলে Lumimail-এর জন্য সেই ডোমেইনের Cloudflare catch-all সক্ষম হয়।",
+    "catchAllHint": "নির্বাচিত ডোমেইনে সমস্ত অমিলিত ঠিকানার জন্য <mono>*</mono> ব্যবহার করুন। এটি যোগ করলে Picket-এর জন্য সেই ডোমেইনের Cloudflare catch-all সক্ষম হয়।",
     "action": "ক্রিয়া",
     "actionStore": "মেইলবক্সে সংরক্ষণ",
     "actionForward": "ঠিকানায় ফরওয়ার্ড",
@@ -472,7 +472,7 @@
     "loadingWebhooks": "ওয়েবহুক লোড হচ্ছে...",
     "noWebhooks": "এখনও কোনো ওয়েবহুক নেই।",
     "queueHealthTitle": "সারির স্বাস্থ্য",
-    "queueHealthDesc": "এই Lumimail স্থাপনার জন্য প্ল্যাটফর্ম-ব্যাপী ডেলিভারি স্বাস্থ্য। এই সংখ্যাগুলি নির্বাচিত মেইলবক্স বা ডোমেইনে সীমাবদ্ধ নয়।",
+    "queueHealthDesc": "এই Picket স্থাপনার জন্য প্ল্যাটফর্ম-ব্যাপী ডেলিভারি স্বাস্থ্য। এই সংখ্যাগুলি নির্বাচিত মেইলবক্স বা ডোমেইনে সীমাবদ্ধ নয়।",
     "checkNow": "এখনই পরীক্ষা করুন",
     "checkingNow": "পরীক্ষা করা হচ্ছে…",
     "queueStatusHealthy": "সুস্থ",

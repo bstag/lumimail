@@ -68,7 +68,7 @@ describe("organization invitation lifecycle", () => {
 		});
 		expect(h.send).toHaveBeenCalledWith(expect.objectContaining({
 			from: "noreply@example.com", to: "new@example.com",
-			subject: "You're invited to Example Org on Lumimail",
+			subject: "You're invited to Example Org on Picket",
 			text: expect.stringContaining("https://mail.example.com/register?token=tok_1"),
 			html: expect.stringContaining("https://mail.example.com/register?token=tok_1"),
 		}));
@@ -195,7 +195,7 @@ describe("organization invitation lifecycle", () => {
 		expect(await createOrganizationInvitation(env, {
 			organizationId: "org_1", email: "new@example.com", role: "member", now,
 		})).toMatchObject({ status: "created", deliveryStatus: "sending" });
-		expect(h.send).toHaveBeenLastCalledWith(expect.objectContaining({ subject: "You're invited to Org Injected on Lumimail" }));
+		expect(h.send).toHaveBeenLastCalledWith(expect.objectContaining({ subject: "You're invited to Org Injected on Picket" }));
 
 		mock = createDbMock(); h.db = mock.db;
 		mock.queueSelect([]).queueSelect([]).queueSelect([{ name: "Org" }]).queueSelect([]);

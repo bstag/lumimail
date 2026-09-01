@@ -45,7 +45,7 @@ export const POST = withOrgAdmin(async ({ request, env, user: orgUser }) => {
 		.where(eq(domains.hostname, parsed.domain))
 		.limit(1);
 	if (managed) {
-		return apiError("Cannot forward to an address on a domain Lumimail manages", 422);
+		return apiError("Cannot forward to an address on a domain Picket manages", 422);
 	}
 
 	const organizationId = orgUser.organizationId;

@@ -50,7 +50,7 @@ describe("password reset helpers", () => {
 		expect(send).toHaveBeenCalledWith({
 			from: "noreply@example.com",
 			to: "recovery@example.net",
-			subject: "Reset your Lumimail password",
+			subject: "Reset your Picket password",
 			text: expect.stringContaining(resetLink),
 			html: expect.stringContaining(resetLink.replaceAll("&", "&amp;")),
 		});

@@ -27,7 +27,7 @@
     "done": "पूर्ण"
   },
   "brand": {
-    "name": "Lumimail",
+    "name": "Picket",
     "tagline": "Cloudflare पर मल्टी-टेनेंट ईमेल",
     "homeLabel": "ईमेल प्लेटफॉर्म होम"
   },
@@ -45,7 +45,7 @@
     "priorityInbox": "प्राथमिकता इनबॉक्स",
     "updatedAgo": "2 मिनट पहले अपडेट किया गया",
     "dashboard": "डैशबोर्ड",
-    "homeAria": "Lumimail होम",
+    "homeAria": "Picket होम",
     "featureDeliveryTitle": "भरोसेमंद डिलीवरी",
     "featureDeliveryDesc": "कतारबद्ध भेजना, दिखाई देने वाली डिलीवरी स्थिति, वर्गीकृत पुनःप्रयास और ऑपरेटर-पुष्ट पुनर्प्राप्ति।",
     "featureCollabTitle": "सुरक्षित सहयोग",
@@ -386,7 +386,7 @@
     "removeCatchAllDesc": "इस catch-all को हटाने से इस डोमेन के लिए बेमेल डिलीवरी अक्षम हो जाती है।",
     "removeRuleConfirm": "नियम हटाएं",
     "patternPlaceholder": "*, support, या support@domain.com",
-    "catchAllHint": "चयनित डोमेन पर सभी अन्यथा बेमेल पतों के लिए <mono>*</mono> का उपयोग करें। इसे जोड़ने से Lumimail के लिए उस डोमेन का Cloudflare catch-all सक्षम हो जाता है।",
+    "catchAllHint": "चयनित डोमेन पर सभी अन्यथा बेमेल पतों के लिए <mono>*</mono> का उपयोग करें। इसे जोड़ने से Picket के लिए उस डोमेन का Cloudflare catch-all सक्षम हो जाता है।",
     "action": "कार्रवाई",
     "actionStore": "मेलबॉक्स में संग्रहीत करें",
     "actionForward": "पते पर अग्रेषित करें",
@@ -472,7 +472,7 @@
     "loadingWebhooks": "वेबहुक लोड हो रहे हैं...",
     "noWebhooks": "अभी तक कोई वेबहुक नहीं।",
     "queueHealthTitle": "कतार स्वास्थ्य",
-    "queueHealthDesc": "इस Lumimail परिनियोजन के लिए प्लेटफ़ॉर्म-व्यापी डिलीवरी स्वास्थ्य। ये संख्याएं चयनित मेलबॉक्स या डोमेन तक सीमित नहीं हैं।",
+    "queueHealthDesc": "इस Picket परिनियोजन के लिए प्लेटफ़ॉर्म-व्यापी डिलीवरी स्वास्थ्य। ये संख्याएं चयनित मेलबॉक्स या डोमेन तक सीमित नहीं हैं।",
     "checkNow": "अभी जांचें",
     "checkingNow": "जांच हो रही है…",
     "queueStatusHealthy": "स्वस्थ",

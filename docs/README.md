@@ -93,8 +93,9 @@ Source of truth for behavior. Each follows
         [`F86-desktop-split-view`](./specs/F86-desktop-split-view.md),
          [`F87-mcp-oauth`](./specs/F87-mcp-oauth.md),
           [`F88-push-notifications`](./specs/F88-push-notifications.md),
-          [`F89-external-mail-accounts`](./specs/F89-external-mail-accounts.md),
-          [`F90-crap-quality-gate`](./specs/F90-crap-quality-gate.md).
+           [`F89-external-mail-accounts`](./specs/F89-external-mail-accounts.md),
+           [`F90-crap-quality-gate`](./specs/F90-crap-quality-gate.md),
+           [`F91-picket-ui-rebrand`](./specs/F91-picket-ui-rebrand.md).
 
 ## Implementation notes (`implementation/`)
 

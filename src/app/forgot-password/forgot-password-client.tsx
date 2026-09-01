@@ -31,7 +31,7 @@ export function ForgotPasswordClient() {
 	return (
 		<AuthShell
 			title="Forgot your password?"
-			description="Enter your Lumimail account email. If recovery is configured, we’ll send a secure link to your recovery address."
+			description="Enter your Picket account email. If recovery is configured, we’ll send a secure link to your recovery address."
 			footer={<Link href="/login" className="hover:underline">Back to sign in</Link>}
 		>
 			{message ? (

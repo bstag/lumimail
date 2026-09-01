@@ -16,7 +16,7 @@ function resolveTransportConfig(env = process.env) {
 
 	if (allowInsecure) {
 		if (!["127.0.0.1", "localhost", "::1"].includes(apiUrl.hostname)) {
-			throw new Error("Insecure development mode requires a loopback Lumimail API URL");
+			throw new Error("Insecure development mode requires a loopback Picket API URL");
 		}
 		return {
 			apiUrl: apiUrl.toString().replace(/\/$/, ""),
@@ -31,7 +31,7 @@ function resolveTransportConfig(env = process.env) {
 		};
 	}
 
-	if (apiUrl.protocol !== "https:") throw new Error("Production Lumimail API URL must use HTTPS");
+	if (apiUrl.protocol !== "https:") throw new Error("Production Picket API URL must use HTTPS");
 	if (hasKey !== hasCert) throw new Error("Both TLS key and certificate paths are required");
 	if (!hasKey || !hasCert) throw new Error("TLS key and certificate are required in production");
 

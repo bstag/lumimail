@@ -21,8 +21,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-	applicationName: "Lumimail",
-	title: "Lumimail",
+	applicationName: "Picket",
+	title: "Picket",
 	description: "Multi-tenant email on Cloudflare",
 	manifest: "/manifest.webmanifest",
 	icons: {
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
 	},
 	appleWebApp: {
 		capable: true,
-		title: "Lumimail",
+		title: "Picket",
 		statusBarStyle: "default",
 	},
 	formatDetection: {

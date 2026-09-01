@@ -27,7 +27,7 @@
     "done": "Xong"
   },
   "brand": {
-    "name": "Lumimail",
+    "name": "Picket",
     "tagline": "Email đa người dùng trên Cloudflare",
     "homeLabel": "Trang chủ nền tảng email"
   },
@@ -45,7 +45,7 @@
     "priorityInbox": "Hộp thư ưu tiên",
     "updatedAgo": "Đã cập nhật 2 phút trước",
     "dashboard": "Bảng điều khiển",
-    "homeAria": "Trang chủ Lumimail",
+    "homeAria": "Trang chủ Picket",
     "featureDeliveryTitle": "Giao nhận đáng tin cậy",
     "featureDeliveryDesc": "Gửi qua hàng đợi, trạng thái giao nhận rõ ràng, thử lại có phân loại và khôi phục có xác nhận của người vận hành.",
     "featureCollabTitle": "Cộng tác an toàn",
@@ -386,7 +386,7 @@
     "removeCatchAllDesc": "Xóa catch-all này sẽ tắt việc gửi thư không khớp cho tên miền này.",
     "removeRuleConfirm": "Xóa quy tắc",
     "patternPlaceholder": "*, support hoặc support@domain.com",
-    "catchAllHint": "Dùng <mono>*</mono> cho tất cả địa chỉ không khớp trên tên miền đã chọn. Thêm nó sẽ bật catch-all Cloudflare của tên miền đó cho Lumimail.",
+    "catchAllHint": "Dùng <mono>*</mono> cho tất cả địa chỉ không khớp trên tên miền đã chọn. Thêm nó sẽ bật catch-all Cloudflare của tên miền đó cho Picket.",
     "action": "Hành động",
     "actionStore": "Lưu vào hộp thư",
     "actionForward": "Chuyển tiếp đến địa chỉ",
@@ -472,7 +472,7 @@
     "loadingWebhooks": "Đang tải webhook...",
     "noWebhooks": "Chưa có webhook nào.",
     "queueHealthTitle": "Tình trạng hàng đợi",
-    "queueHealthDesc": "Tình trạng gửi thư toàn nền tảng cho bản triển khai Lumimail này. Các số liệu này không giới hạn ở hộp thư hoặc tên miền đã chọn.",
+    "queueHealthDesc": "Tình trạng gửi thư toàn nền tảng cho bản triển khai Picket này. Các số liệu này không giới hạn ở hộp thư hoặc tên miền đã chọn.",
     "checkNow": "Kiểm tra ngay",
     "checkingNow": "Đang kiểm tra…",
     "queueStatusHealthy": "Bình thường",

@@ -27,7 +27,7 @@
     "done": "تم"
   },
   "brand": {
-    "name": "Lumimail",
+    "name": "Picket",
     "tagline": "بريد إلكتروني متعدد المستأجرين على Cloudflare",
     "homeLabel": "الصفحة الرئيسية لمنصة البريد"
   },
@@ -45,7 +45,7 @@
     "priorityInbox": "صندوق الوارد ذو الأولوية",
     "updatedAgo": "تم التحديث منذ دقيقتين",
     "dashboard": "لوحة التحكم",
-    "homeAria": "الصفحة الرئيسية لـ Lumimail",
+    "homeAria": "الصفحة الرئيسية لـ Picket",
     "featureDeliveryTitle": "تسليم موثوق",
     "featureDeliveryDesc": "إرسال عبر قائمة انتظار، وحالة تسليم مرئية، وإعادة محاولات مصنّفة، واسترداد بتأكيد المشغّل.",
     "featureCollabTitle": "تعاون آمن",
@@ -386,7 +386,7 @@
     "removeCatchAllDesc": "إزالة catch-all هذا يعطل تسليم الرسائل غير المتطابقة لهذا النطاق.",
     "removeRuleConfirm": "إزالة القاعدة",
     "patternPlaceholder": "* أو support أو support@domain.com",
-    "catchAllHint": "استخدم <mono>*</mono> لجميع العناوين غير المتطابقة على النطاق المحدد. إضافته تفعّل catch-all الخاص بـ Cloudflare لذلك النطاق في Lumimail.",
+    "catchAllHint": "استخدم <mono>*</mono> لجميع العناوين غير المتطابقة على النطاق المحدد. إضافته تفعّل catch-all الخاص بـ Cloudflare لذلك النطاق في Picket.",
     "action": "الإجراء",
     "actionStore": "تخزين في صندوق البريد",
     "actionForward": "إعادة توجيه إلى عنوان",
@@ -472,7 +472,7 @@
     "loadingWebhooks": "جار تحميل webhooks...",
     "noWebhooks": "لا توجد webhooks بعد.",
     "queueHealthTitle": "صحة قوائم الانتظار",
-    "queueHealthDesc": "صحة التسليم على مستوى المنصة لهذا النشر من Lumimail. هذه الأرقام غير مقيدة بصندوق البريد أو النطاق المحدد.",
+    "queueHealthDesc": "صحة التسليم على مستوى المنصة لهذا النشر من Picket. هذه الأرقام غير مقيدة بصندوق البريد أو النطاق المحدد.",
     "checkNow": "التحقق الآن",
     "checkingNow": "جار التحقق…",
     "queueStatusHealthy": "سليم",

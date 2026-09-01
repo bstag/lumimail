@@ -207,7 +207,7 @@ describe("forwardRefusalMessage", () => {
 			"A valid forwarding destination is required",
 		);
 		expect(forwardRefusalMessage("managed_domain")).toBe(
-			"Cannot forward to an address on a domain Lumimail manages",
+			"Cannot forward to an address on a domain Picket manages",
 		);
 		expect(forwardRefusalMessage("not_verified")).toBe(
 			"That destination has not confirmed Cloudflare's verification email yet",

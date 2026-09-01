@@ -27,7 +27,7 @@
     "done": "Готово"
   },
   "brand": {
-    "name": "Lumimail",
+    "name": "Picket",
     "tagline": "Мультиарендная почта на Cloudflare",
     "homeLabel": "Главная почтовой платформы"
   },
@@ -45,7 +45,7 @@
     "priorityInbox": "Приоритетный inbox",
     "updatedAgo": "Обновлено 2 мин назад",
     "dashboard": "Панель",
-    "homeAria": "Главная Lumimail",
+    "homeAria": "Главная Picket",
     "featureDeliveryTitle": "Надёжная доставка",
     "featureDeliveryDesc": "Отправка через очередь, видимый статус доставки, классифицированные повторы и восстановление с подтверждением оператора.",
     "featureCollabTitle": "Безопасная совместная работа",
@@ -386,7 +386,7 @@
     "removeCatchAllDesc": "Удаление этого catch-all отключает доставку несопоставленных писем для этого домена.",
     "removeRuleConfirm": "Удалить правило",
     "patternPlaceholder": "*, support или support@domain.com",
-    "catchAllHint": "Используйте <mono>*</mono> для всех несопоставленных адресов на выбранном домене. Добавление включает Cloudflare catch-all этого домена для Lumimail.",
+    "catchAllHint": "Используйте <mono>*</mono> для всех несопоставленных адресов на выбранном домене. Добавление включает Cloudflare catch-all этого домена для Picket.",
     "action": "Действие",
     "actionStore": "Сохранить в ящик",
     "actionForward": "Переслать на адрес",
@@ -472,7 +472,7 @@
     "loadingWebhooks": "Загрузка вебхуков...",
     "noWebhooks": "Пока нет вебхуков.",
     "queueHealthTitle": "Состояние очередей",
-    "queueHealthDesc": "Состояние доставки на уровне всей платформы для этого развертывания Lumimail. Эти цифры не ограничены выбранным ящиком или доменом.",
+    "queueHealthDesc": "Состояние доставки на уровне всей платформы для этого развертывания Picket. Эти цифры не ограничены выбранным ящиком или доменом.",
     "checkNow": "Проверить сейчас",
     "checkingNow": "Проверка…",
     "queueStatusHealthy": "В норме",

@@ -87,7 +87,7 @@ class ImapSession {
 				this.close("IMAP session timed out");
 			});
 		}
-		this.send("* OK Lumimail IMAP bridge ready");
+		this.send("* OK Picket IMAP bridge ready");
 	}
 
 	handleData(data) {
@@ -114,7 +114,7 @@ class ImapSession {
 			if (!line.trim()) continue;
 			this.handleLine(line).catch(() => {
 				const tag = line.split(" ", 1)[0] || "*";
-				this.send(`${tag} NO Lumimail operation failed`);
+				this.send(`${tag} NO Picket operation failed`);
 			});
 		}
 	}
@@ -158,7 +158,7 @@ class ImapSession {
 				this.send(`${tag} OK NOOP completed`);
 				return;
 			case "LOGOUT":
-				this.sendUntagged("BYE Lumimail IMAP bridge signing off");
+				this.sendUntagged("BYE Picket IMAP bridge signing off");
 				this.send(`${tag} OK LOGOUT completed`);
 				this.socket.end();
 				return;

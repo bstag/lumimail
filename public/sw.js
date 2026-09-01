@@ -104,7 +104,7 @@ self.addEventListener("push", (event) => {
 	if (!isPushPayload(payload)) return;
 	const { notificationId } = payload;
 	event.waitUntil(self.registration.showNotification("New mail", {
-		body: "Open Lumimail to view it.",
+		body: "Open Picket to view it.",
 		icon: "/icon-192.png",
 		badge: "/icon-96.png",
 		tag: notificationId,
@@ -125,7 +125,7 @@ self.addEventListener("pushsubscriptionchange", (event) => {
 	// Never silently create a replacement subscription: that would restore a
 	// device's delivery capability without a fresh user gesture or preferences.
 	event.waitUntil(self.registration.showNotification("Notifications paused", {
-		body: "Open Lumimail to enable notifications again.",
+		body: "Open Picket to enable notifications again.",
 		icon: "/icon-192.png",
 		badge: "/icon-96.png",
 		tag: "lumimail-push-subscription-change",

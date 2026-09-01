@@ -4,7 +4,7 @@ import { sanitizeAttachmentFilename } from "@/lib/email/attachment-storage";
 export const MAX_INBOUND_ATTACHMENT_COUNT = 50;
 export const MAX_INBOUND_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 export const INBOUND_ATTACHMENT_OMISSION_MESSAGE =
-	"Attachments were omitted because this message exceeded Lumimail's safe ingestion limits.";
+	"Attachments were omitted because this message exceeded Picket's safe ingestion limits.";
 
 export type PreparedInboundAttachment = {
 	filename: string;

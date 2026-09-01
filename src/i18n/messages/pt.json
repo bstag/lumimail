@@ -27,7 +27,7 @@
     "done": "Concluído"
   },
   "brand": {
-    "name": "Lumimail",
+    "name": "Picket",
     "tagline": "Email multi-tenant no Cloudflare",
     "homeLabel": "Início da plataforma de email"
   },
@@ -45,7 +45,7 @@
     "priorityInbox": "Caixa prioritária",
     "updatedAgo": "Atualizado há 2 min",
     "dashboard": "Painel",
-    "homeAria": "Início do Lumimail",
+    "homeAria": "Início do Picket",
     "featureDeliveryTitle": "Entrega confiável",
     "featureDeliveryDesc": "Envio em fila, estado de entrega visível, novas tentativas classificadas e recuperação confirmada pelo operador.",
     "featureCollabTitle": "Colaboração segura",
@@ -386,7 +386,7 @@
     "removeCatchAllDesc": "Remover este catch-all desativa a entrega sem correspondência para este domínio.",
     "removeRuleConfirm": "Remover regra",
     "patternPlaceholder": "*, support ou support@domain.com",
-    "catchAllHint": "Use <mono>*</mono> para todos os endereços sem correspondência no domínio selecionado. Adicioná-lo habilita o catch-all da Cloudflare desse domínio para o Lumimail.",
+    "catchAllHint": "Use <mono>*</mono> para todos os endereços sem correspondência no domínio selecionado. Adicioná-lo habilita o catch-all da Cloudflare desse domínio para o Picket.",
     "action": "Ação",
     "actionStore": "Armazenar na caixa",
     "actionForward": "Encaminhar para endereço",
@@ -472,7 +472,7 @@
     "loadingWebhooks": "Carregando webhooks...",
     "noWebhooks": "Nenhum webhook ainda.",
     "queueHealthTitle": "Saúde das filas",
-    "queueHealthDesc": "Saúde de entrega de toda a plataforma para esta implantação do Lumimail. Estes números não se limitam à caixa ou domínio selecionado.",
+    "queueHealthDesc": "Saúde de entrega de toda a plataforma para esta implantação do Picket. Estes números não se limitam à caixa ou domínio selecionado.",
     "checkNow": "Verificar agora",
     "checkingNow": "Verificando…",
     "queueStatusHealthy": "Saudável",

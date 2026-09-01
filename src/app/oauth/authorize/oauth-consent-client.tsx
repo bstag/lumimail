@@ -83,7 +83,7 @@ export function OAuthConsentClient({ initialSummary = null, initialProfile = "re
 	const actionsRequested = summary?.requestedScopes.includes("mail.actions") ?? false;
 	return (
 		<AuthShell
-			title="Connect to Lumimail"
+			title="Connect to Picket"
 			description={summary ? `${summary.clientName} is requesting access to your mail.` : "Review this integration request before continuing."}
 			footer={<span className="inline-flex items-center gap-2"><ShieldCheck className="h-4 w-4" />You can revoke this connection from Settings.</span>}
 		>

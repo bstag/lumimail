@@ -206,8 +206,8 @@ function createServiceWorkerHarness() {
 describe("PWA manifest", () => {
 	it("defines installable app metadata", () => {
 		expect(loadManifest()).toMatchObject({
-			name: "Lumimail",
-			short_name: "Lumimail",
+			name: "Picket",
+			short_name: "Picket",
 			start_url: "/",
 			scope: "/",
 			display: "standalone",
@@ -241,7 +241,8 @@ describe("PWA manifest", () => {
 	it("ships iOS touch icon and offline shell assets", () => {
 		expect(existsSync(publicFile("apple-touch-icon.png"))).toBe(true);
 		expect(readPngSize("apple-touch-icon.png")).toEqual({ width: 180, height: 180 });
-		expect(readPublicText("offline.html")).toContain("You are offline");
+		expect(readPublicText("offline.html")).toContain("You are offline | Picket");
+		expect(readPublicText("offline.html")).toContain("Picket needs a network connection");
 		expect(readPublicText("offline.html")).toContain("/icon-192.png");
 	});
 });
@@ -335,7 +336,7 @@ describe("PWA service worker assets", () => {
 		await harness.dispatchPush({ notificationId });
 
 		expect(harness.showNotification).toHaveBeenCalledWith("New mail", {
-			body: "Open Lumimail to view it.",
+			body: "Open Picket to view it.",
 			icon: "/icon-192.png",
 			badge: "/icon-96.png",
 			tag: notificationId,
@@ -374,7 +375,7 @@ describe("PWA service worker assets", () => {
 		const harness = createServiceWorkerHarness();
 		await harness.dispatchPushSubscriptionChange();
 		expect(harness.showNotification).toHaveBeenCalledWith("Notifications paused", {
-			body: "Open Lumimail to enable notifications again.",
+			body: "Open Picket to enable notifications again.",
 			icon: "/icon-192.png",
 			badge: "/icon-96.png",
 			tag: "lumimail-push-subscription-change",

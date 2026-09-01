@@ -38,8 +38,8 @@ test("external accounts disclose sharing, expose lifecycle state, and start boun
 
 	await page.getByLabel("Target mailbox").selectOption("mbx_support");
 	await page.getByLabel("Initial import").selectOption("recent_30_days");
-	await page.getByText("I understand every Lumimail user").click();
-	await page.getByLabel("Confirm your Lumimail password").fill("correct horse");
+	await page.getByText("I understand every Picket user").click();
+	await page.getByLabel("Confirm your Picket password").fill("correct horse");
 	await page.getByRole("button", { name: "Connect Google" }).click();
 	await expect.poll(() => oauthBody).toEqual({
 		provider: "google", mailboxId: "mbx_support", importMode: "recent_30_days",

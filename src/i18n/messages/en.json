@@ -27,7 +27,7 @@
     "done": "Done"
   },
   "brand": {
-    "name": "Lumimail",
+    "name": "Picket",
     "tagline": "Multi-tenant email on Cloudflare",
     "homeLabel": "Email Platform home"
   },
@@ -45,7 +45,7 @@
     "priorityInbox": "Priority inbox",
     "updatedAgo": "Updated 2 min ago",
     "dashboard": "Dashboard",
-    "homeAria": "Lumimail home",
+    "homeAria": "Picket home",
     "featureDeliveryTitle": "Reliable delivery",
     "featureDeliveryDesc": "Queued sending, visible delivery state, classified retries, and operator-confirmed recovery.",
     "featureCollabTitle": "Safe collaboration",
@@ -386,7 +386,7 @@
     "removeCatchAllDesc": "Removing this catch-all disables unmatched delivery for this domain.",
     "removeRuleConfirm": "Remove rule",
     "patternPlaceholder": "*, support, or support@domain.com",
-    "catchAllHint": "Use <mono>*</mono> for all otherwise unmatched addresses on the selected domain. Adding it enables that domain's Cloudflare catch-all for Lumimail.",
+    "catchAllHint": "Use <mono>*</mono> for all otherwise unmatched addresses on the selected domain. Adding it enables that domain's Cloudflare catch-all for Picket.",
     "action": "Action",
     "actionStore": "Store in mailbox",
     "actionForward": "Forward to address",
@@ -472,7 +472,7 @@
     "loadingWebhooks": "Loading webhooks...",
     "noWebhooks": "No webhooks yet.",
     "queueHealthTitle": "Queue health",
-    "queueHealthDesc": "Platform-wide delivery health for this Lumimail deployment. These numbers are not scoped to the selected mailbox or domain.",
+    "queueHealthDesc": "Platform-wide delivery health for this Picket deployment. These numbers are not scoped to the selected mailbox or domain.",
     "checkNow": "Check now",
     "checkingNow": "Checking…",
     "queueStatusHealthy": "Healthy",

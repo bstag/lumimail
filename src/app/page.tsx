@@ -44,7 +44,7 @@ export default function HomePage() {
         >
           <img src="/icon-96.png" height={28} width={28} alt="" className="shrink-0" />
           <span className="hidden text-base font-semibold tracking-tight min-[360px]:inline">
-            Lumimail
+            Picket
           </span>
         </Link>
 

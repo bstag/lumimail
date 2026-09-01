@@ -25,12 +25,12 @@ export function createLumimailMcpServer(
 	auth: { userId: string; organizationId: string; connectionId: string; scopes: string[] },
 ) {
 	const { userId, organizationId, connectionId } = auth;
-	const server = new McpServer({ name: "Lumimail", version: "0.1.0" });
+	const server = new McpServer({ name: "Picket", version: "0.1.0" });
 	server.registerTool(
 		"list_mailboxes",
 		{
 			title: "List permitted mailboxes",
-			description: "List only mailboxes the connected Lumimail user can currently read.",
+			description: "List only mailboxes the connected Picket user can currently read.",
 			annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
 		},
 		async () => {

@@ -77,7 +77,7 @@ test.describe("inbound attachment presentation", () => {
 					data: {
 						attachmentStatus: "omitted",
 						attachmentError:
-							"Attachments were omitted because this message exceeded Lumimail's safe ingestion limits.",
+							"Attachments were omitted because this message exceeded Picket's safe ingestion limits.",
 						attachments: [],
 					},
 				},
@@ -87,7 +87,7 @@ test.describe("inbound attachment presentation", () => {
 		await page.goto("/inbox/msg_attachment");
 
 		await expect(page.getByRole("status")).toContainText(
-			"Attachments were omitted because this message exceeded Lumimail's safe ingestion limits.",
+			"Attachments were omitted because this message exceeded Picket's safe ingestion limits.",
 		);
 	});
 });
