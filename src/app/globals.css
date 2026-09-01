@@ -3,26 +3,30 @@
 /* ── Design tokens: light mode (default) ───────────────────── */
 :root {
 	color-scheme: light;
-	--surface: #fafaf8;
+	--surface: #f6f8fb;
 	--surface-raised: #ffffff;
-	--surface-subtle: #f4f4f0;
-	--ink: #1a1a18;
-	--ink-muted: #6b6b65;
-	--ink-faint: #9a9a92;
-	--border: #e6e6e0;
-	--border-strong: #d4d4ce;
-	--accent: #2563eb;
-	--accent-muted: #dbeafe;
-	--danger: #dc2626;
-	--danger-muted: #fef2f2;
-	--success: #16a34a;
-	--success-muted: #f0fdf4;
-	--warning: #d97706;
-	--warning-muted: #fffbeb;
-	--info: #7c3aed;
-	--info-muted: #f5f3ff;
-	--surface-inverse: #26262b;
-	--ink-inverse: #fafaf8;
+	--surface-subtle: #eef2f6;
+	--ink: #0d1524;
+	--ink-muted: #5a6b82;
+	--ink-faint: #718096;
+	--border: #e2e8f0;
+	--border-strong: #cbd5e1;
+	--accent: #1f4e66;
+	--accent-muted: #d9e7ec;
+	--accent-ink: #ffffff;
+	--brand-signal: #e06a3b;
+	--brand-signal-muted: #fce8de;
+	--brand-signal-ink: #0d1524;
+	--danger: #b42318;
+	--danger-muted: #fee4e2;
+	--success: #067647;
+	--success-muted: #ecfdf3;
+	--warning: #7a4b00;
+	--warning-muted: #fff8e1;
+	--info: #6941c6;
+	--info-muted: #f4f3ff;
+	--surface-inverse: #0d1524;
+	--ink-inverse: #ffffff;
 }
 
 /* ── Dark palette ───────────────────────────────────────────
@@ -33,51 +37,59 @@
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme]) {
 		color-scheme: dark;
-		--surface: #17171a;
-		--surface-raised: #232327;
-		--surface-subtle: #1d1d20;
-		--ink: #f1f1ef;
-		--ink-muted: #a3a39c;
-		--ink-faint: #70706a;
-		--border: #33333a;
-		--border-strong: #45454d;
-		--accent: #3b82f6;
-		--accent-muted: #1e3a5f;
-		--danger: #ef4444;
-		--danger-muted: #3a1d1d;
-		--success: #22c55e;
-		--success-muted: #153021;
-		--warning: #f59e0b;
-		--warning-muted: #37290f;
-		--info: #a78bfa;
-		--info-muted: #2a2145;
-		--surface-inverse: #e8e8e4;
-		--ink-inverse: #1a1a18;
+		--surface: #090e17;
+		--surface-raised: #121c2d;
+		--surface-subtle: #172337;
+		--ink: #f1f5f9;
+		--ink-muted: #94a3b8;
+		--ink-faint: #7d8ca1;
+		--border: #1e2e45;
+		--border-strong: #31445f;
+		--accent: #74c0d4;
+		--accent-muted: #173b4a;
+		--accent-ink: #090e17;
+		--brand-signal: #f07b4f;
+		--brand-signal-muted: #4a2a20;
+		--brand-signal-ink: #090e17;
+		--danger: #ff7b72;
+		--danger-muted: #3b1c1c;
+		--success: #4ade80;
+		--success-muted: #123523;
+		--warning: #fbbf24;
+		--warning-muted: #3b2b0b;
+		--info: #c4b5fd;
+		--info-muted: #2d2454;
+		--surface-inverse: #f1f5f9;
+		--ink-inverse: #090e17;
 	}
 }
 
 :root[data-theme="dark"] {
 	color-scheme: dark;
-	--surface: #17171a;
-	--surface-raised: #232327;
-	--surface-subtle: #1d1d20;
-	--ink: #f1f1ef;
-	--ink-muted: #a3a39c;
-	--ink-faint: #70706a;
-	--border: #33333a;
-	--border-strong: #45454d;
-	--accent: #3b82f6;
-	--accent-muted: #1e3a5f;
-	--danger: #ef4444;
-	--danger-muted: #3a1d1d;
-	--success: #22c55e;
-	--success-muted: #153021;
-	--warning: #f59e0b;
-	--warning-muted: #37290f;
-	--info: #a78bfa;
-	--info-muted: #2a2145;
-	--surface-inverse: #e8e8e4;
-	--ink-inverse: #1a1a18;
+	--surface: #090e17;
+	--surface-raised: #121c2d;
+	--surface-subtle: #172337;
+	--ink: #f1f5f9;
+	--ink-muted: #94a3b8;
+	--ink-faint: #7d8ca1;
+	--border: #1e2e45;
+	--border-strong: #31445f;
+	--accent: #74c0d4;
+	--accent-muted: #173b4a;
+	--accent-ink: #090e17;
+	--brand-signal: #f07b4f;
+	--brand-signal-muted: #4a2a20;
+	--brand-signal-ink: #090e17;
+	--danger: #ff7b72;
+	--danger-muted: #3b1c1c;
+	--success: #4ade80;
+	--success-muted: #123523;
+	--warning: #fbbf24;
+	--warning-muted: #3b2b0b;
+	--info: #c4b5fd;
+	--info-muted: #2d2454;
+	--surface-inverse: #f1f5f9;
+	--ink-inverse: #090e17;
 }
 
 /* ── Tailwind v4 theme ──────────────────────────────────────── */
@@ -92,6 +104,10 @@
 	--color-border-strong: var(--border-strong);
 	--color-accent: var(--accent);
 	--color-accent-muted: var(--accent-muted);
+	--color-accent-ink: var(--accent-ink);
+	--color-brand-signal: var(--brand-signal);
+	--color-brand-signal-muted: var(--brand-signal-muted);
+	--color-brand-signal-ink: var(--brand-signal-ink);
 	--color-danger: var(--danger);
 	--color-danger-muted: var(--danger-muted);
 	--color-success: var(--success);
@@ -102,7 +118,8 @@
 	--color-info-muted: var(--info-muted);
 	--color-surface-inverse: var(--surface-inverse);
 	--color-ink-inverse: var(--ink-inverse);
-	--font-sans: var(--font-geist-sans);
+	--font-sans: var(--font-body);
+	--font-display: var(--font-picket-display);
 	--font-mono: var(--font-geist-mono);
 }
 
@@ -110,7 +127,7 @@
 body {
 	background: var(--surface);
 	color: var(--ink);
-	font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI",
+	font-family: var(--font-body), -apple-system, BlinkMacSystemFont, "Segoe UI",
 		Roboto, sans-serif;
 	line-height: 1.6;
 	-webkit-font-smoothing: antialiased;
@@ -135,6 +152,14 @@ body {
 [class*="gap-"], [class*="top-"], [class*="left-"],
 [class*="right-"], [class*="bottom-"] {
 	transition-property: none;
+}
+
+h1,
+h2,
+h3 {
+	font-family: var(--font-picket-display), var(--font-body), -apple-system, BlinkMacSystemFont, "Segoe UI",
+		Roboto, sans-serif;
+	letter-spacing: -0.02em;
 }
 
 /* ── Constrained email composer ─────────────────────────────── */

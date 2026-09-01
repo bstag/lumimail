@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, IBM_Plex_Sans, Plus_Jakarta_Sans } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
@@ -10,9 +10,18 @@ import "./globals.css";
 // Applies the saved theme before first paint to avoid a light/dark flash.
 const themeScript = `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`;
 
-const geistSans = Geist({
-	variable: "--font-geist-sans",
-	subsets: ["latin"],
+const bodySans = IBM_Plex_Sans({
+	variable: "--font-body",
+	subsets: ["latin", "latin-ext", "cyrillic", "vietnamese"],
+	weight: "variable",
+	display: "swap",
+});
+
+const displaySans = Plus_Jakarta_Sans({
+	variable: "--font-picket-display",
+	subsets: ["latin", "latin-ext", "vietnamese"],
+	weight: "variable",
+	display: "swap",
 });
 
 const geistMono = Geist_Mono({
@@ -56,7 +65,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 
 	return (
 		<html lang={locale} dir={dir}>
-			<body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+			<body className={`${bodySans.variable} ${displaySans.variable} ${geistMono.variable} antialiased`}>
 				<script dangerouslySetInnerHTML={{ __html: themeScript }} />
 				<NextIntlClientProvider messages={messages}>
 					<Providers>

@@ -114,7 +114,8 @@ independently.
 - Shells: landing/auth, mailbox dashboard, settings/admin, mobile drawer, and mobile tab bar.
 - Dense mail surfaces retain restrained backgrounds and readable hierarchy; branding must not reduce
   scan speed or compete with message content.
-- Steward Teal is reserved for governed access/domain context, not used as a second generic CTA color.
+- Steward Teal carries routine interactive roles; Waypoint Amber remains the rarer route/brand signal
+  and is not used as a competing generic action color.
 - Decorative route geometry is limited to landing/auth/empty states and excluded from email bodies,
   data tables, and critical dialogs.
 
@@ -193,11 +194,12 @@ Each stage is independently reversible and receives its own reviewable commit af
   lockup and secondary crest only as visual references. — 2026-09-01
 - Decision proposed: construct the wordmark and tagline from live text rather than embedded artwork. —
   2026-09-01
-- Open: Is the public tagline `Own the route. Control the inbox.` or `Email on your terms.`?
+- Decision: use `Own the route. Control the inbox.` as the public tagline; retain `Email on your
+  terms.` only as historical source-package material. — 2026-09-01
 - Decision proposed: keep Waypoint Amber as a rarer brand/routing signal with navy foreground text;
   use Steward Teal for routine interactive text, controls, focus, and selected states. — 2026-09-01
-- Open: Should the current F91 rebrand be committed before F92 source/plan work so the history retains
-  a clean functional boundary?
+- Decision: F91 was committed before the F92 source and implementation commits, retaining a clean
+  functional boundary. — 2026-09-01
 
 ## 11. Bug / Change Log Draft
 
@@ -234,3 +236,24 @@ Impact:
 - Staging Worker version `e0aba9c6-d752-429f-8587-355c0ab6e79c` passes the 8/8 public smoke contract.
 - Live visual inspection passes in light and dark desktop modes and at the mobile breakpoint with no
   horizontal overflow.
+
+### Stage 2 — Semantic colors and typography
+
+- Replaced the inherited neutral/blue palette with Mantle-derived light and dark semantic tokens while
+  preserving every existing component-facing token name.
+- Added explicit action and signal foreground roles so Waypoint Amber uses Perimeter Navy text and
+  Steward Teal can safely carry routine controls in either theme.
+- Added programmatic WCAG AA guards for ink, muted ink, interaction, signal, danger, success, warning,
+  and information text pairs in both explicit theme palettes; all tested pairs meet at least 4.5:1.
+- Loaded IBM Plex Sans for interface/body text and Plus Jakarta Sans for display hierarchy through
+  `next/font`, retaining browser/system glyph fallbacks and Geist Mono for data roles.
+- Added an end-to-end contract proving system → light → dark cycling and persisted dark selection.
+- `npm run verify` passes 2,673 tests with 100% statement/branch/function/line coverage, the CRAP gate,
+  and all 21 bridge tests; lint reports 38 pre-existing warnings and no errors.
+- `npm run e2e` passes all 103 Chromium scenarios, including Arabic RTL and representative localized
+  pre-land flows.
+- OpenNext build and staging deployment dry-run pass. The existing warning about intentionally absent
+  staging `R2_SWEEP_ENABLED` and `SEED_ENABLED` values remains unchanged.
+- Staging Worker version `9fd54aa3-57f0-4856-8be0-6f83ff29f6d7` passes the 8/8 public smoke contract.
+- Live desktop dark and phone-breakpoint inspections confirm the new fonts and tokens, readable action
+  hierarchy, and zero horizontal overflow.
