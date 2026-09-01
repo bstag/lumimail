@@ -16,6 +16,7 @@ import {
 } from "@/components/nav-sidebar-utils";
 import { MOBILE_QUERY, useMediaQuery } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
+import { PicketMark } from "@/components/brand";
 
 /**
  * The one shell for the whole settings area — personal preferences and
@@ -79,7 +80,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 								collapsed ? "justify-center px-0" : "px-3",
 							)}
 						>
-							<img src="/icon-96.png" height={28} width={28} alt="" />
+							<PicketMark className="h-7 w-7" />
 							{/* Hidden rather than dropped: the rail still needs a name for anyone
 							    navigating it by screen reader or keyboard. */}
 							<span className={cn("text-lg font-semibold text-ink", collapsed && "sr-only")}>

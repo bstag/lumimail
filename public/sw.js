@@ -1,6 +1,6 @@
 /* global caches, fetch, Response, self */
 
-const VERSION = "lumimail-pwa-v2";
+const VERSION = "lumimail-pwa-v3";
 const PRECACHE_CACHE = `${VERSION}-precache`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const OFFLINE_URL = "/offline.html";

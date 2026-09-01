@@ -13,6 +13,8 @@ test.describe("PWA shell", () => {
 		expect(manifestResponse.headers()["content-type"]).toMatch(/application\/manifest\+json|application\/json/);
 		expect(await manifestResponse.json()).toMatchObject({
 			name: "Picket",
+			background_color: "#F6F8FB",
+			theme_color: "#0D1524",
 			start_url: "/",
 			scope: "/",
 			display: "standalone",

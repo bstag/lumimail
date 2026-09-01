@@ -26,6 +26,7 @@ import { apiJson } from "@/lib/api/client-response";
 import { buildLabelTree, type LabelRecord } from "@/lib/labels-tree";
 import { labelKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
+import { BrandLockup } from "@/components/brand";
 import { NavItem, type NavLink } from "./components-nav";
 import { getFolderNavCount } from "./dashboard-nav-utils";
 
@@ -137,7 +138,6 @@ export function DashboardNav({
   onNavigate?: () => void;
   collapsed?: boolean;
 }) {
-  const t = useTranslations("nav");
   const links = useMailNavLinks();
 
   return (
@@ -149,12 +149,11 @@ export function DashboardNav({
           collapsed ? "justify-center px-0" : "px-3",
         )}
       >
-        <img src="/icon-96.png" height={28} width={28} alt="" />
-        {/* Hidden rather than dropped: the rail still needs a name for anyone
-            navigating it by screen reader or keyboard. */}
-        <span className={cn("text-lg font-semibold text-ink", collapsed && "sr-only")}>
-          {t("mail")}
-        </span>
+        <BrandLockup
+          className="gap-3"
+          markClassName="h-7 w-7"
+          wordmarkClassName={cn("text-lg", collapsed && "sr-only")}
+        />
       </Link>
       {links.map((link, i) => (
         <Fragment key={`nav-${link.href || i}`}>

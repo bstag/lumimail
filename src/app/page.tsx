@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { BrandLockup } from "@/components/brand";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { authFetch, clearLegacySessionToken } from "@/lib/auth/client";
@@ -42,10 +43,11 @@ export default function HomePage() {
           className="flex items-center gap-3"
           aria-label={t("homeAria")}
         >
-          <img src="/icon-96.png" height={28} width={28} alt="" className="shrink-0" />
-          <span className="hidden text-base font-semibold tracking-tight min-[360px]:inline">
-            Picket
-          </span>
+          <BrandLockup
+            className="gap-2"
+            markClassName="h-7 w-7"
+            wordmarkClassName="hidden text-base min-[360px]:inline"
+          />
         </Link>
 
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">

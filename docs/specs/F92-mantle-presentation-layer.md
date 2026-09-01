@@ -1,6 +1,6 @@
 # F92 — Mantle Presentation Layer
 
-> Status: `Planned`
+> Status: `In Progress`
 > Owner area: `mantle/`, `public/`, `src/app/`, `src/components/`, `src/app/globals.css`
 
 ## 1. Problem & User Job
@@ -216,3 +216,21 @@ Reason:
 Impact:
 - Presentation changes only; user data, behavior, permissions, routes, and infrastructure remain
   unchanged.
+
+## 12. Implementation Evidence
+
+### Stage 1 — Normalized identity and PWA assets
+
+- Added a four-path, sub-4 KB canonical SVG derived from the Mantle simplified shield/route concept;
+  generated ImageTracer SVGs remain source references and are not served by the application.
+- Added reusable decorative mark and live-text lockup components to landing, dashboard, and settings
+  navigation.
+- Generated regular, maskable, Apple touch, and favicon assets reproducibly from the canonical SVG.
+- Updated PWA/background theme metadata and advanced the service-worker cache from v2 to v3 so
+  existing installations receive the replacement assets.
+- `npm run verify` passes 2,669 tests with 100% statement/branch/function/line coverage, the CRAP gate,
+  and all 21 bridge tests; lint reports 38 pre-existing warnings and no errors.
+- `npm run e2e` passes all 102 Chromium scenarios.
+- Staging Worker version `e0aba9c6-d752-429f-8587-355c0ab6e79c` passes the 8/8 public smoke contract.
+- Live visual inspection passes in light and dark desktop modes and at the mobile breakpoint with no
+  horizontal overflow.

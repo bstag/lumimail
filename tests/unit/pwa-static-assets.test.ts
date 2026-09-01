@@ -211,13 +211,25 @@ describe("PWA manifest", () => {
 			start_url: "/",
 			scope: "/",
 			display: "standalone",
-			background_color: "#f6f8fc",
-			theme_color: "#2563eb",
+			background_color: "#F6F8FB",
+			theme_color: "#0D1524",
 		});
+	});
+
+	it("ships a compact normalized mark instead of a traced Mantle SVG", () => {
+		const mark = readPublicText("brand/picket-mark.svg");
+
+		expect(mark).toContain('viewBox="0 0 64 64"');
+		expect(mark).toContain("#0D1524");
+		expect(mark).toContain("#E06A3B");
+		expect(mark).not.toContain("imagetracer");
+		expect(mark.match(/<path\b/g)?.length ?? 0).toBeLessThanOrEqual(6);
+		expect(Buffer.byteLength(mark)).toBeLessThan(4_096);
 	});
 
 	it("references complete install icon sizes including maskable icons", () => {
 		const manifest = loadManifest();
+		expect(manifest.icons.every((icon) => !icon.src.startsWith("/mantle/"))).toBe(true);
 		const requiredIcons = [
 			{ src: "/icon-48.png", sizes: "48x48", purpose: "any" },
 			{ src: "/icon-96.png", sizes: "96x96", purpose: "any" },
@@ -264,7 +276,7 @@ describe("PWA service worker assets", () => {
 		harness.cacheStore.set("old-cache", new Map());
 		await harness.dispatchLifecycle("activate");
 
-		expect(harness.cacheStore.get("lumimail-pwa-v2-precache")?.has("https://lumimail.test/offline.html")).toBe(true);
+		expect(harness.cacheStore.get("lumimail-pwa-v3-precache")?.has("https://lumimail.test/offline.html")).toBe(true);
 		expect(harness.cacheStore.has("old-cache")).toBe(false);
 		expect(harness.self.skipWaiting).toHaveBeenCalledOnce();
 		expect(harness.self.clients.claim).toHaveBeenCalledOnce();
@@ -294,7 +306,7 @@ describe("PWA service worker assets", () => {
 		});
 
 		expect(await online?.text()).toBe("network:/inbox");
-		expect(harness.cacheStore.get("lumimail-pwa-v2-runtime")?.has("https://lumimail.test/inbox")).not.toBe(true);
+		expect(harness.cacheStore.get("lumimail-pwa-v3-runtime")?.has("https://lumimail.test/inbox")).not.toBe(true);
 
 		harness.fetchMock.mockRejectedValueOnce(new TypeError("offline"));
 		const offline = await harness.dispatchFetch({
@@ -326,7 +338,7 @@ describe("PWA service worker assets", () => {
 
 		expect(response).toBeUndefined();
 		expect(harness.fetchMock).not.toHaveBeenCalled();
-		expect(harness.cacheStore.get("lumimail-pwa-v2-runtime")).toBeUndefined();
+		expect(harness.cacheStore.get("lumimail-pwa-v3-runtime")).toBeUndefined();
 	});
 
 	it("shows only fixed generic copy for a valid opaque push delivery ID", async () => {
