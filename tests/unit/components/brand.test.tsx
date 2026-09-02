@@ -8,7 +8,8 @@ describe("PicketMark", () => {
 
 		expect(markup).toContain('data-brand-mark="true"');
 		expect(markup).toContain('aria-hidden="true"');
-		expect(markup).toContain('viewBox="0 0 64 64"');
+		expect(markup).toContain("picket-mark-boundary-mask.png");
+		expect(markup).toContain("picket-mark-signal-mask.png");
 		expect(markup).not.toContain("Picket</title>");
 	});
 });

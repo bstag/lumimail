@@ -5,7 +5,7 @@ test.describe("PWA shell", () => {
 		await page.goto("/");
 
 		await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "/manifest.webmanifest");
-		await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute("href", "/apple-touch-icon.png");
+		await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute("href", "/picket-apple-touch-icon-v1.png");
 		await expect(page.locator('meta[name="mobile-web-app-capable"]')).toHaveAttribute("content", "yes");
 
 		const manifestResponse = await page.request.get("/manifest.webmanifest");

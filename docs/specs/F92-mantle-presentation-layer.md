@@ -27,8 +27,9 @@ not overwrite or silently modify the source package.
 
 - Picket presents one coherent identity across landing, authentication, dashboard, settings, PWA,
   offline, and installed-app surfaces.
-- The simplified route/shield sigil is the canonical small mark. A clean, hand-normalized vector—not
-  the traced Mantle SVG—is the source for app-ready derivatives.
+- The shield/route sigil cropped from the supplied primary lockup is the visual authority for the
+  canonical small mark. App-ready derivatives preserve its exact silhouette through deterministic
+  alpha masks rather than approximating it with hand-redrawn geometry or shipping the traced SVG.
 - Large lockups compose the clean sigil with live text so localization, accessibility, responsive
   layout, and future tagline changes do not require regenerating an image.
 - Light, dark, and system themes use Mantle-derived semantic tokens while preserving existing theme
@@ -64,13 +65,19 @@ Known normalization work:
   `--text-on-accent` token in its usage example.
 - Waypoint Amber `#E06A3B` has 3.34:1 contrast with white, so normal-size white button text cannot be
   placed on that accent. Perimeter Navy on Waypoint Amber is 5.47:1 and is the proposed CTA pairing.
+- The first Stage 1 hand-normalized four-path SVG materially changed the supplied mark: it collapsed
+  the double-line shield and double chevron into heavy filled regions. It is not an acceptable visual
+  match and must be replaced before production promotion. — identified 2026-09-01
 
 ## 5. Presentation Architecture
 
 ### 5.1 Brand assets
 
 - Preserve `mantle/` verbatim as the design-source archive.
-- Create a minimal normalized SVG mark from the simplified shield/route concept.
+- Extract the primary sigil from the supplied transparent lockup without resampling or altering its
+  geometry. Preserve that crop under `mantle/derived/` as the comparison oracle.
+- Split its boundary/route and waypoint into aligned alpha masks so theme-safe application colors can
+  change without changing the supplied silhouette.
 - Create theme-safe `BrandMark` and `BrandLockup` components; decorative marks use empty alt text and
   linked lockups receive an accessible label.
 - Derive favicon, Apple touch icon, regular PWA icons, and maskable PWA icons from the canonical mark.
@@ -223,8 +230,8 @@ Impact:
 
 ### Stage 1 — Normalized identity and PWA assets
 
-- Added a four-path, sub-4 KB canonical SVG derived from the Mantle simplified shield/route concept;
-  generated ImageTracer SVGs remain source references and are not served by the application.
+- Introduced the app-ready shield/route mark and PWA asset pipeline; the later source-fidelity
+  correction below replaced the initial four-path interpretation before production promotion.
 - Added reusable decorative mark and live-text lockup components to landing, dashboard, and settings
   navigation.
 - Generated regular, maskable, Apple touch, and favicon assets reproducibly from the canonical SVG.
@@ -278,3 +285,27 @@ Impact:
 - Staging Worker version `5b179eeb-71ed-4504-8770-d62abe268e2e` passes the 8/8 public smoke contract.
 - Live landing and authentication inspection passes in dark desktop and phone modes. Arabic RTL uses
   the intended glyph fallback, preserves logical alignment, and has zero horizontal overflow.
+
+### Stage 3.1 — Source-fidelity correction
+
+- Compared all five supplied Mantle concepts and the generated application icon at original size. The
+  comparison proved that the initial four-path redraw collapsed the primary mark's double-line shield,
+  double chevron, and negative spaces into a materially different heavy silhouette.
+- Added `mantle/derived/primary-mark-reference.png`, an exact, unscaled 290×336 crop from the supplied
+  transparent primary lockup. The original package remains unchanged.
+- Replaced hand-authored geometry with deterministic, aligned boundary and waypoint alpha masks. The
+  application can still apply accessible light/dark semantic colors without altering a source pixel's
+  coverage or the relationship between the mark's parts.
+- Added pixel-level regression tests proving the crop is byte-equivalent after raw decoding and that
+  the two masks are disjoint while their alpha union exactly reconstructs the source crop.
+- Regenerated favicon, regular, Apple touch, and maskable assets from the source-faithful masks and
+  advanced the service-worker cache to v5.
+- Live staging inspection caught an older envelope icon retained at the historical unversioned URL.
+  Metadata, manifest, offline, notification, and precache references now use `picket-*-v1` filenames,
+  forcing browsers and installed PWAs onto the corrected assets rather than relying on cache expiry.
+- `npm run verify` passes 2,679 tests with 100% statement/branch/function/line coverage, the CRAP gate,
+  and all 21 bridge tests; lint reports 38 pre-existing warnings and no errors.
+- `npm run e2e` passes all 104 Chromium scenarios.
+- Staging Worker version `0d329dd3-3819-42fb-beb9-4ada3de4b3cb` passes the 8/8 public smoke contract.
+- Live staging exposes the source-faithful mark through both aligned masks, references only the new
+  versioned favicon/application/touch icons, retains LTR/RTL layout, and has zero horizontal overflow.

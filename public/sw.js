@@ -1,6 +1,6 @@
 /* global caches, fetch, Response, self */
 
-const VERSION = "lumimail-pwa-v3";
+const VERSION = "lumimail-pwa-v5";
 const PRECACHE_CACHE = `${VERSION}-precache`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const OFFLINE_URL = "/offline.html";
@@ -8,14 +8,14 @@ const OFFLINE_URL = "/offline.html";
 const PRECACHE_URLS = [
 	OFFLINE_URL,
 	"/manifest.webmanifest",
-	"/favicon.ico",
-	"/icon-48.png",
-	"/icon-96.png",
-	"/icon-192.png",
-	"/icon-512.png",
-	"/icon-maskable-192.png",
-	"/icon-maskable-512.png",
-	"/apple-touch-icon.png",
+	"/picket-favicon-v1.ico",
+	"/picket-icon-v1-48.png",
+	"/picket-icon-v1-96.png",
+	"/picket-icon-v1-192.png",
+	"/picket-icon-v1-512.png",
+	"/picket-icon-maskable-v1-192.png",
+	"/picket-icon-maskable-v1-512.png",
+	"/picket-apple-touch-icon-v1.png",
 ];
 
 const PUBLIC_ASSET_PATHS = new Set(PRECACHE_URLS);
@@ -105,8 +105,8 @@ self.addEventListener("push", (event) => {
 	const { notificationId } = payload;
 	event.waitUntil(self.registration.showNotification("New mail", {
 		body: "Open Picket to view it.",
-		icon: "/icon-192.png",
-		badge: "/icon-96.png",
+		icon: "/picket-icon-v1-192.png",
+		badge: "/picket-icon-v1-96.png",
 		tag: notificationId,
 		data: { path: `/notifications/${notificationId}` },
 	}));
@@ -126,8 +126,8 @@ self.addEventListener("pushsubscriptionchange", (event) => {
 	// device's delivery capability without a fresh user gesture or preferences.
 	event.waitUntil(self.registration.showNotification("Notifications paused", {
 		body: "Open Picket to enable notifications again.",
-		icon: "/icon-192.png",
-		badge: "/icon-96.png",
+		icon: "/picket-icon-v1-192.png",
+		badge: "/picket-icon-v1-96.png",
 		tag: "lumimail-push-subscription-change",
 		data: { path: "/settings/notifications" },
 	}));

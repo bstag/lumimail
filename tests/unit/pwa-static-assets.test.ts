@@ -216,27 +216,31 @@ describe("PWA manifest", () => {
 		});
 	});
 
-	it("ships a compact normalized mark instead of a traced Mantle SVG", () => {
+	it("ships a compact mask-backed mark instead of a hand-redrawn or traced Mantle SVG", () => {
 		const mark = readPublicText("brand/picket-mark.svg");
 
-		expect(mark).toContain('viewBox="0 0 64 64"');
+		expect(mark).toContain('viewBox="0 0 290 336"');
 		expect(mark).toContain("#0D1524");
 		expect(mark).toContain("#E06A3B");
+		expect(mark).toContain("picket-mark-boundary-mask.png");
+		expect(mark).toContain("picket-mark-signal-mask.png");
 		expect(mark).not.toContain("imagetracer");
-		expect(mark.match(/<path\b/g)?.length ?? 0).toBeLessThanOrEqual(6);
-		expect(Buffer.byteLength(mark)).toBeLessThan(4_096);
+		expect(mark).not.toContain("<path");
+		expect(readPngSize("brand/picket-mark-boundary-mask.png")).toEqual({ width: 290, height: 336 });
+		expect(readPngSize("brand/picket-mark-signal-mask.png")).toEqual({ width: 290, height: 336 });
+		expect(Buffer.byteLength(mark)).toBeLessThan(2_048);
 	});
 
 	it("references complete install icon sizes including maskable icons", () => {
 		const manifest = loadManifest();
 		expect(manifest.icons.every((icon) => !icon.src.startsWith("/mantle/"))).toBe(true);
 		const requiredIcons = [
-			{ src: "/icon-48.png", sizes: "48x48", purpose: "any" },
-			{ src: "/icon-96.png", sizes: "96x96", purpose: "any" },
-			{ src: "/icon-192.png", sizes: "192x192", purpose: "any" },
-			{ src: "/icon-512.png", sizes: "512x512", purpose: "any" },
-			{ src: "/icon-maskable-192.png", sizes: "192x192", purpose: "maskable" },
-			{ src: "/icon-maskable-512.png", sizes: "512x512", purpose: "maskable" },
+			{ src: "/picket-icon-v1-48.png", sizes: "48x48", purpose: "any" },
+			{ src: "/picket-icon-v1-96.png", sizes: "96x96", purpose: "any" },
+			{ src: "/picket-icon-v1-192.png", sizes: "192x192", purpose: "any" },
+			{ src: "/picket-icon-v1-512.png", sizes: "512x512", purpose: "any" },
+			{ src: "/picket-icon-maskable-v1-192.png", sizes: "192x192", purpose: "maskable" },
+			{ src: "/picket-icon-maskable-v1-512.png", sizes: "512x512", purpose: "maskable" },
 		];
 
 		for (const expected of requiredIcons) {
@@ -251,11 +255,11 @@ describe("PWA manifest", () => {
 	});
 
 	it("ships iOS touch icon and offline shell assets", () => {
-		expect(existsSync(publicFile("apple-touch-icon.png"))).toBe(true);
-		expect(readPngSize("apple-touch-icon.png")).toEqual({ width: 180, height: 180 });
+		expect(existsSync(publicFile("picket-apple-touch-icon-v1.png"))).toBe(true);
+		expect(readPngSize("picket-apple-touch-icon-v1.png")).toEqual({ width: 180, height: 180 });
 		expect(readPublicText("offline.html")).toContain("You are offline | Picket");
 		expect(readPublicText("offline.html")).toContain("Picket needs a network connection");
-		expect(readPublicText("offline.html")).toContain("/icon-192.png");
+		expect(readPublicText("offline.html")).toContain("/picket-icon-v1-192.png");
 	});
 });
 
@@ -276,7 +280,7 @@ describe("PWA service worker assets", () => {
 		harness.cacheStore.set("old-cache", new Map());
 		await harness.dispatchLifecycle("activate");
 
-		expect(harness.cacheStore.get("lumimail-pwa-v3-precache")?.has("https://lumimail.test/offline.html")).toBe(true);
+		expect(harness.cacheStore.get("lumimail-pwa-v5-precache")?.has("https://lumimail.test/offline.html")).toBe(true);
 		expect(harness.cacheStore.has("old-cache")).toBe(false);
 		expect(harness.self.skipWaiting).toHaveBeenCalledOnce();
 		expect(harness.self.clients.claim).toHaveBeenCalledOnce();
@@ -306,7 +310,7 @@ describe("PWA service worker assets", () => {
 		});
 
 		expect(await online?.text()).toBe("network:/inbox");
-		expect(harness.cacheStore.get("lumimail-pwa-v3-runtime")?.has("https://lumimail.test/inbox")).not.toBe(true);
+		expect(harness.cacheStore.get("lumimail-pwa-v5-runtime")?.has("https://lumimail.test/inbox")).not.toBe(true);
 
 		harness.fetchMock.mockRejectedValueOnce(new TypeError("offline"));
 		const offline = await harness.dispatchFetch({
@@ -320,14 +324,14 @@ describe("PWA service worker assets", () => {
 
 	it("uses cache-first behavior only for allowed static assets", async () => {
 		const harness = createServiceWorkerHarness();
-		const iconRequest = { url: "https://lumimail.test/icon-192.png" };
+		const iconRequest = { url: "https://lumimail.test/picket-icon-v1-192.png" };
 
 		const first = await harness.dispatchFetch(iconRequest);
-		expect(await first?.text()).toBe("network:/icon-192.png");
+		expect(await first?.text()).toBe("network:/picket-icon-v1-192.png");
 
 		harness.fetchMock.mockRejectedValueOnce(new TypeError("offline"));
 		const second = await harness.dispatchFetch(iconRequest);
-		expect(await second?.text()).toBe("network:/icon-192.png");
+		expect(await second?.text()).toBe("network:/picket-icon-v1-192.png");
 		expect(harness.fetchMock).toHaveBeenCalledTimes(1);
 	});
 
@@ -338,7 +342,7 @@ describe("PWA service worker assets", () => {
 
 		expect(response).toBeUndefined();
 		expect(harness.fetchMock).not.toHaveBeenCalled();
-		expect(harness.cacheStore.get("lumimail-pwa-v3-runtime")).toBeUndefined();
+		expect(harness.cacheStore.get("lumimail-pwa-v5-runtime")).toBeUndefined();
 	});
 
 	it("shows only fixed generic copy for a valid opaque push delivery ID", async () => {
@@ -349,8 +353,8 @@ describe("PWA service worker assets", () => {
 
 		expect(harness.showNotification).toHaveBeenCalledWith("New mail", {
 			body: "Open Picket to view it.",
-			icon: "/icon-192.png",
-			badge: "/icon-96.png",
+			icon: "/picket-icon-v1-192.png",
+			badge: "/picket-icon-v1-96.png",
 			tag: notificationId,
 			data: { path: `/notifications/${notificationId}` },
 		});
@@ -388,8 +392,8 @@ describe("PWA service worker assets", () => {
 		await harness.dispatchPushSubscriptionChange();
 		expect(harness.showNotification).toHaveBeenCalledWith("Notifications paused", {
 			body: "Open Picket to enable notifications again.",
-			icon: "/icon-192.png",
-			badge: "/icon-96.png",
+			icon: "/picket-icon-v1-192.png",
+			badge: "/picket-icon-v1-96.png",
 			tag: "lumimail-push-subscription-change",
 			data: { path: "/settings/notifications" },
 		});
