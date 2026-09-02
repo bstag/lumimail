@@ -103,8 +103,8 @@ export function SettingsNav({
 								aria-current={selected ? "page" : undefined}
 								title={collapsed ? item.label : undefined}
 								className={cn(
-									"flex h-9 items-center gap-3 rounded-r-full text-sm font-medium text-ink-muted transition-colors hover:bg-surface hover:text-ink",
-									selected && "bg-accent-muted text-ink",
+									"relative flex h-9 items-center gap-3 rounded-r-full text-sm font-medium text-ink-muted transition-colors hover:bg-surface hover:text-ink",
+									selected && "bg-accent-muted text-ink after:absolute after:inset-y-2 after:start-0 after:w-0.5 after:rounded-full after:bg-brand-signal",
 									collapsed
 										? "w-10 justify-center gap-0 self-center rounded-[6px] px-0"
 										: "-ml-3 pl-6",

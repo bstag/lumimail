@@ -4,6 +4,8 @@ test.describe("Landing page", () => {
 	test("renders hero and primary CTAs for a logged-out visitor", async ({ page }) => {
 		await page.goto("/");
 		await expect(page.locator("header [data-brand-mark=true]")).toBeVisible();
+		await expect(page.getByText("Own the route. Control the inbox.")).toBeVisible();
+		await expect(page.locator("main [data-brand-route=true]")).toBeVisible();
 
 		await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 		await expect(page.getByRole("banner").getByRole("link", { name: /log in/i })).toBeVisible();
@@ -14,6 +16,12 @@ test.describe("Landing page", () => {
 		await page.goto("/");
 		await page.getByRole("banner").getByRole("link", { name: /log in/i }).click();
 		await expect(page).toHaveURL(/\/login/);
+	});
+
+	test("carries the Picket identity into authentication", async ({ page }) => {
+		await page.goto("/login");
+		await expect(page.getByRole("link", { name: /picket home/i })).toBeVisible();
+		await expect(page.locator("[data-brand-route=true]")).toBeVisible();
 	});
 
 	test("cycles and persists the presentation theme", async ({ page }) => {

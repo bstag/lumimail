@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { BrandLockup } from "@/components/brand";
+import { BrandLockup, RouteMotif } from "@/components/brand";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { authFetch, clearLegacySessionToken } from "@/lib/auth/client";
@@ -46,6 +46,8 @@ export default function HomePage() {
           <BrandLockup
             className="gap-2"
             markClassName="h-7 w-7"
+            tagline="Own the route. Control the inbox."
+            taglineClassName="hidden lg:block"
             wordmarkClassName="hidden text-base min-[360px]:inline"
           />
         </Link>
@@ -67,8 +69,9 @@ export default function HomePage() {
       </header>
 
       <main>
-        <section className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-4 pb-12 pt-8 sm:px-6 md:pt-16 lg:grid-cols-[0.86fr_1.14fr] lg:px-8">
-          <div className="flex max-w-2xl flex-col justify-center">
+        <section className="relative mx-auto grid max-w-7xl grid-cols-1 gap-10 overflow-hidden px-4 pb-12 pt-8 sm:px-6 md:pt-16 lg:grid-cols-[0.86fr_1.14fr] lg:px-8">
+          <RouteMotif className="absolute -left-28 top-2 h-80 w-[28rem] opacity-[0.06]" />
+          <div className="relative flex max-w-2xl flex-col justify-center">
             <div className="mb-6 flex w-fit items-center gap-2 text-sm font-medium text-accent">
               <ShieldCheck className="h-4 w-4" />
               {t("badge")}
@@ -141,7 +144,7 @@ export default function HomePage() {
                     <Search className="h-5 w-5" />
                     <span className="text-[15px]">{t("searchPlaceholder")}</span>
                   </div>
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-white">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-ink">
                     <Mail className="h-4 w-4" />
                   </div>
                 </div>

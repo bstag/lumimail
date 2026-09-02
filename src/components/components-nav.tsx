@@ -36,11 +36,11 @@ export function NavItem({
   const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
   const classes = cn(
     "flex h-9 items-center gap-3 rounded-r-full text-sm font-medium text-ink-muted transition-colors hover:bg-surface hover:text-ink",
-    active && "bg-accent-muted font-medium text-ink",
+    active && "bg-accent-muted font-medium text-ink after:absolute after:inset-y-2 after:start-0 after:w-0.5 after:rounded-full after:bg-brand-signal",
     // The primary action is a filled rectangle, so it takes the same 6px corner as
     // every other filled button. It shipped at 16px, which made it the only solid
     // button in the app with its own radius.
-    link.primary && "mb-3 h-12 w-fit rounded-[6px] bg-accent px-5 text-white hover:brightness-90",
+    link.primary && "mb-3 h-12 w-fit rounded-[6px] bg-accent px-5 text-accent-ink hover:brightness-90",
     // On the rail every item is a centred square, so the pill shape and the negative
     // inset that produce the expanded row are dropped rather than overridden.
     collapsed && "w-10 justify-center gap-0 self-center rounded-[6px] px-0",

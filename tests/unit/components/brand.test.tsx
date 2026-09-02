@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { BrandLockup, PicketMark } from "@/components/brand";
+import { BrandLockup, PicketMark, RouteMotif } from "@/components/brand";
 
 describe("PicketMark", () => {
 	it("renders the normalized sigil as decoration", () => {
@@ -27,5 +27,16 @@ describe("BrandLockup", () => {
 
 		expect(markup).toContain(">Picket<");
 		expect(markup).not.toContain("Own the route");
+	});
+});
+
+describe("RouteMotif", () => {
+	it("renders code-native route geometry as decoration", () => {
+		const markup = renderToStaticMarkup(<RouteMotif className="opacity-10" />);
+
+		expect(markup).toContain('data-brand-route="true"');
+		expect(markup).toContain('aria-hidden="true"');
+		expect(markup).toContain('viewBox="0 0 320 240"');
+		expect(markup).not.toContain("<img");
 	});
 });

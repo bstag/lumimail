@@ -47,6 +47,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 		<AuthGuard requireMailbox>
 			<MailboxProvider>
 				<div
+					data-app-shell="settings"
 					className="grid min-h-screen grid-cols-1 bg-surface md:[grid-template-columns:var(--nav-cols)]"
 					style={{ "--nav-cols": sidebarGridColumns(collapsed) } as React.CSSProperties}
 				>

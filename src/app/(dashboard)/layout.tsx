@@ -47,6 +47,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 				<ComposeProvider>
 					<MailSearchProvider>
 						<div
+							data-app-shell="mail"
 							className="grid min-h-screen grid-cols-1 bg-surface md:[grid-template-columns:var(--nav-cols)]"
 							style={{ "--nav-cols": sidebarGridColumns(collapsed) } as React.CSSProperties}
 						>

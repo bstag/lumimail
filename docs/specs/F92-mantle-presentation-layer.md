@@ -257,3 +257,24 @@ Impact:
 - Staging Worker version `9fd54aa3-57f0-4856-8be0-6f83ff29f6d7` passes the 8/8 public smoke contract.
 - Live desktop dark and phone-breakpoint inspections confirm the new fonts and tokens, readable action
   hierarchy, and zero horizontal overflow.
+
+### Stage 3 — Brand components and shells
+
+- Added a sparse code-native route/boundary motif and restricted it to spacious landing and
+  authentication surfaces; authenticated mail and settings shells explicitly remain motif-free.
+- Added the live-text Picket lockup and chosen public tagline to the authentication shell, with a
+  compact wordmark on narrow screens and no image-baked copy.
+- Applied a restrained Waypoint Amber edge to authentication cards and selected navigation states,
+  while retaining Steward Teal for primary actions and selected-state surfaces.
+- Replaced remaining inherited white-on-action assumptions in the landing mock and compose navigation
+  with the semantic `accent-ink` role.
+- Added static/component contracts for motif decoration, shared shell identity, dense-surface exclusion,
+  action foregrounds, and route markers; added a browser contract for authentication identity.
+- `npm run verify` passes 2,677 tests with 100% statement/branch/function/line coverage, the CRAP gate,
+  and all 21 bridge tests; lint reports 38 pre-existing warnings and no errors.
+- `npm run e2e` passes all 104 Chromium scenarios.
+- OpenNext build and staging deployment dry-run pass with the unchanged staging-vars warning described
+  in Stage 2.
+- Staging Worker version `5b179eeb-71ed-4504-8770-d62abe268e2e` passes the 8/8 public smoke contract.
+- Live landing and authentication inspection passes in dark desktop and phone modes. Arabic RTL uses
+  the intended glyph fallback, preserves logical alignment, and has zero horizontal overflow.
