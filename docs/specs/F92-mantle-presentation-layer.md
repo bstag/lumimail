@@ -1,6 +1,6 @@
 # F92 — Mantle Presentation Layer
 
-> Status: `In Progress`
+> Status: `Shipped`
 > Owner area: `mantle/`, `public/`, `src/app/`, `src/components/`, `src/app/globals.css`
 
 ## 1. Problem & User Job
@@ -309,3 +309,18 @@ Impact:
 - Staging Worker version `0d329dd3-3819-42fb-beb9-4ada3de4b3cb` passes the 8/8 public smoke contract.
 - Live staging exposes the source-faithful mark through both aligned masks, references only the new
   versioned favicon/application/touch icons, retains LTR/RTL layout, and has zero horizontal overflow.
+
+### Stage 4 — Production promotion
+
+- The clean `4289e65` checkpoint and staging-proven `.open-next/worker.js` artifact were promoted
+  unchanged; the artifact SHA-256 is
+  `D05223BF4D44C84108A102AB62AA3BC9C5568F0C3AC2064C37BE5CC65C64BC45`.
+- The production dry run validated all Worker, D1, R2, email, queue, Images, KV, asset, schedule, and
+  environment bindings without applying a database migration or rewriting application data.
+- Production Worker version `2b68803a-6c04-4d50-822d-75648dc0f157` is active on
+  `mail.henriksen.dev`; the previous version `9a76668b-d990-4cde-be74-f9c9bb7b5dfc` remains the
+  recorded rollback point.
+- The 8/8 public smoke contract passes in production, including anonymous authorization boundaries.
+- Live production inspection confirms the Picket title, tagline, source-faithful mark, manifest,
+  `picket-*-v1` favicon/application/touch icon references, 512×512 icon dimensions, explicit light
+  and dark Mantle tokens, and zero horizontal overflow.
