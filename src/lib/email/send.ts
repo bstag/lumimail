@@ -26,6 +26,9 @@ export {
 export {
 	sendEmail,
 	ReplySourceNotAllowedError,
+	OutboundSendRateLimitError,
+	OUTBOUND_SEND_MAX_REQUESTS,
+	OUTBOUND_SEND_WINDOW_MS,
 	type SendEmailInput,
 } from "@/lib/email/outbound/submit";
 export {

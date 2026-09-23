@@ -24,13 +24,16 @@ describe("Google external sync adapter", () => {
 		const fetcher = vi.fn(async (input: string | URL | Request) => {
 			const url = String(input);
 			if (url.includes("/messages?")) return Response.json({ messages: [{ id: "g1", threadId: "t1" }], nextPageToken: "next" });
-			return Response.json({ id: "g1", threadId: "t1", labelIds: ["INBOX"], historyId: "501", raw });
+			if (url.includes("format=metadata")) return Response.json({ id: "g1", threadId: "t1", labelIds: ["INBOX"], historyId: "501" });
+			return Response.json({ id: "g1", threadId: "t1", raw });
 		});
 		const page = await fetchGoogleSyncPage({ accessToken: "token", mode: "initial", importMode: "recent_30_days" }, fetcher);
 		expect(page.hasMore).toBe(true);
 		expect(page.cursor).toEqual({ pageToken: "next" });
 		expect(page.changes[0]).toMatchObject({ remoteMessageId: "g1", remoteThreadId: "t1", remoteFolderKey: "inbox", removed: false });
-		expect(new TextDecoder().decode(page.changes[0].rawMime)).toContain("Subject: Hello");
+		expect(page.changes[0].rawMime).toBeUndefined();
+		expect(page.changes[0].loadRawMime).toBeTypeOf("function");
+		expect(new TextDecoder().decode(await page.changes[0].loadRawMime!())).toContain("Subject: Hello");
 		const listUrl = new URL(String(fetcher.mock.calls[0][0]));
 		expect(listUrl.searchParams.get("maxResults")).toBe("10");
 		expect(listUrl.searchParams.get("q")).toContain("newer_than:30d");
@@ -46,12 +49,14 @@ describe("Google external sync adapter", () => {
 					messagesDeleted: [{ message: { id: "g3", threadId: "t3" } }],
 				}],
 			});
+			if (url.includes("format=metadata")) return Response.json({ id: "g2", threadId: "t2", labelIds: ["SENT"], historyId: "599" });
 			return Response.json({ id: "g2", threadId: "t2", labelIds: ["SENT"], historyId: "599", raw });
 		});
 		const page = await fetchGoogleSyncPage({ accessToken: "token", mode: "incremental", importMode: "from_now", cursor: { historyId: "500" } }, fetcher);
 		expect(page.cursor).toEqual({ historyId: "600" });
 		expect(page.changes.map((change) => [change.remoteMessageId, change.remoteFolderKey, change.removed]))
 			.toEqual([["g2", "sent", false], ["g3", "unknown", true]]);
+		expect(new TextDecoder().decode(await page.changes[0].loadRawMime!())).toContain("Subject: Hello");
 		await expect(fetchGoogleSyncPage({ accessToken: "token", mode: "incremental", importMode: "from_now", cursor: { historyId: "old" } },
 			async () => new Response(null, { status: 404 })))
 			.rejects.toMatchObject({ code: "cursor_expired", retryable: false });
@@ -76,6 +81,7 @@ describe("Google external sync adapter", () => {
 		const completeFetcher = vi.fn(async (input: string | URL | Request) => {
 			const url = String(input);
 			if (url.includes("/messages?")) return Response.json({ messages: [{ id: "g1" }] });
+			if (url.includes("/messages/g1") && url.includes("format=metadata")) return Response.json({ id: "wrong", labelIds: [] });
 			if (url.includes("/messages/g1")) return Response.json({ id: "wrong", labelIds: [], raw });
 			return Response.json({ historyId: "700" });
 		});
@@ -84,12 +90,22 @@ describe("Google external sync adapter", () => {
 		completeFetcher.mockImplementation(async (input: string | URL | Request) => {
 			const url = String(input);
 			if (url.includes("/messages?")) return Response.json({ messages: [{ id: "g1" }] });
+			if (url.includes("/messages/g1") && url.includes("format=metadata")) return Response.json({ id: "g1", labelIds: [] });
 			if (url.includes("/messages/g1")) return Response.json({ id: "g1", labelIds: [], raw });
 			return Response.json({ historyId: "700" });
 		});
 		const completed = await fetchGoogleSyncPage({ accessToken: "token", mode: "initial", importMode: "recent_30_days", cursor: { pageToken: "page2" } }, completeFetcher);
 		expect(completed).toMatchObject({ cursor: { historyId: "700" }, hasMore: false });
 		expect(completed.changes[0].remoteFolderKey).toBe("archive");
+		completeFetcher.mockImplementation(async (input: string | URL | Request) => {
+			const url = String(input);
+			if (url.includes("/messages?")) return Response.json({ messages: [{ id: "g1" }] });
+			if (url.includes("format=metadata")) return Response.json({ id: "g1", labelIds: [] });
+			if (url.includes("format=raw")) return Response.json({ id: "wrong", raw });
+			return Response.json({ historyId: "700" });
+		});
+		const wrongRawIdentity = await fetchGoogleSyncPage({ accessToken: "token", mode: "initial", importMode: "recent_30_days", cursor: { pageToken: "page2" } }, completeFetcher);
+		await expect(wrongRawIdentity.changes[0].loadRawMime!()).rejects.toMatchObject({ code: "invalid_provider_response" });
 		await expect(fetchGoogleSyncPage({ accessToken: "token", mode: "initial", importMode: "recent_30_days" },
 			async () => Response.json({ messages: "invalid" })))
 			.rejects.toMatchObject({ code: "invalid_provider_response" });
@@ -116,17 +132,21 @@ describe("Google external sync adapter", () => {
 	it("rejects invalid or oversized Gmail raw MIME", async () => {
 		const originalAtob = globalThis.atob;
 		vi.stubGlobal("atob", vi.fn(() => { throw new Error("invalid"); }));
-		await expect(fetchGoogleSyncPage({ accessToken: "token", mode: "initial", importMode: "recent_30_days" },
+		const invalidPage = await fetchGoogleSyncPage({ accessToken: "token", mode: "initial", importMode: "recent_30_days" },
 			async (input) => String(input).includes("/messages?")
 				? Response.json({ messages: [{ id: "g1" }], nextPageToken: "next" })
-				: Response.json({ id: "g1", raw: "%%%" })))
-			.rejects.toMatchObject({ code: "invalid_provider_response" });
+				: String(input).includes("format=metadata")
+					? Response.json({ id: "g1" })
+					: Response.json({ id: "g1", raw: "%%%" }));
+		await expect(invalidPage.changes[0].loadRawMime!()).rejects.toMatchObject({ code: "invalid_provider_response" });
 		vi.stubGlobal("atob", vi.fn(() => "a".repeat(30 * 1024 * 1024 + 1)));
-		await expect(fetchGoogleSyncPage({ accessToken: "token", mode: "initial", importMode: "recent_30_days" },
+		const oversizedPage = await fetchGoogleSyncPage({ accessToken: "token", mode: "initial", importMode: "recent_30_days" },
 			async (input) => String(input).includes("/messages?")
 				? Response.json({ messages: [{ id: "g1" }], nextPageToken: "next" })
-				: Response.json({ id: "g1", raw: "eA" })))
-			.rejects.toMatchObject({ code: "message_too_large" });
+				: String(input).includes("format=metadata")
+					? Response.json({ id: "g1" })
+					: Response.json({ id: "g1", raw: "eA" }));
+		await expect(oversizedPage.changes[0].loadRawMime!()).rejects.toMatchObject({ code: "message_too_large" });
 		vi.stubGlobal("atob", originalAtob);
 	});
 });
@@ -146,6 +166,8 @@ describe("Microsoft external sync adapter", () => {
 		expect(page.cursor).toEqual({ url: next, complete: false });
 		expect(page.hasMore).toBe(true);
 		expect(page.changes[0]).toMatchObject({ remoteMessageId: "m1", remoteThreadId: "c1", remoteFolderKey: "inbox", remoteRevision: "rev" });
+		expect(page.changes[0].rawMime).toBeUndefined();
+		expect(new TextDecoder().decode(await page.changes[0].loadRawMime!())).toContain("Subject: Graph");
 		const initial = new URL(String(fetcher.mock.calls[0][0]));
 		expect(initial.searchParams.get("$filter")).toContain("2026-07-16");
 		expect(new Headers(fetcher.mock.calls[0][1]?.headers).get("Prefer")).toBe("odata.maxpagesize=10");
@@ -178,19 +200,19 @@ describe("Microsoft external sync adapter", () => {
 
 	it("bounds Graph MIME responses and propagates MIME authorization failures", async () => {
 		const delta = { value: [{ id: "m1" }], "@odata.deltaLink": "https://graph.microsoft.com/delta" };
-		await expect(fetchMicrosoftSyncPage({ accessToken: "token", folder: "archive", importMode: "from_now" },
+		const deniedPage = await fetchMicrosoftSyncPage({ accessToken: "token", folder: "archive", importMode: "from_now" },
 			async (input) => String(input).endsWith("/$value")
 				? new Response("denied", { status: 401 })
-				: Response.json(delta)))
-			.rejects.toMatchObject({ code: "authorization_revoked" });
-		await expect(fetchMicrosoftSyncPage({ accessToken: "token", folder: "archive", importMode: "from_now" },
+				: Response.json(delta));
+		await expect(deniedPage.changes[0].loadRawMime!()).rejects.toMatchObject({ code: "authorization_revoked" });
+		const oversizedPage = await fetchMicrosoftSyncPage({ accessToken: "token", folder: "archive", importMode: "from_now" },
 			async (input) => String(input).endsWith("/$value")
 				? new Response("x", { headers: { "content-length": String(31 * 1024 * 1024) } })
-				: Response.json(delta)))
-			.rejects.toMatchObject({ code: "message_too_large" });
+				: Response.json(delta));
+		await expect(oversizedPage.changes[0].loadRawMime!()).rejects.toMatchObject({ code: "message_too_large" });
 		const oversized = { ok: true, headers: new Headers(), arrayBuffer: async () => new ArrayBuffer(30 * 1024 * 1024 + 1) } as Response;
-		await expect(fetchMicrosoftSyncPage({ accessToken: "token", folder: "archive", importMode: "from_now" },
-			async (input) => String(input).endsWith("/$value") ? oversized : Response.json(delta)))
-			.rejects.toMatchObject({ code: "message_too_large" });
+		const oversizedBodyPage = await fetchMicrosoftSyncPage({ accessToken: "token", folder: "archive", importMode: "from_now" },
+			async (input) => String(input).endsWith("/$value") ? oversized : Response.json(delta));
+		await expect(oversizedBodyPage.changes[0].loadRawMime!()).rejects.toMatchObject({ code: "message_too_large" });
 	});
 });

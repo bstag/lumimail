@@ -423,10 +423,14 @@ export const webhookDeliveries = sqliteTable("webhook_deliveries", {
 	payload: text("payload").notNull(),
 	status: text("status", { enum: WEBHOOK_DELIVERY_STATUSES }).notNull().default("pending"),
 	attempts: integer("attempts").notNull().default(0),
+	nextAttemptAt: integer("next_attempt_at", { mode: "timestamp" }).notNull().default(sql`0`),
 	createdAt: integer("created_at", { mode: "timestamp" })
 		.notNull()
 		.$defaultFn(() => new Date()),
-}, (t) => [index("webhook_deliveries_webhook_idx").on(t.webhookId)]);
+}, (t) => [
+	index("webhook_deliveries_webhook_idx").on(t.webhookId),
+	index("webhook_deliveries_due_idx").on(t.status, t.nextAttemptAt),
+]);
 
 export const sessions = sqliteTable(
 	"sessions",

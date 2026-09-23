@@ -75,12 +75,28 @@ describe("MCP mail actions", () => {
 	});
 
 	it("fails closed when the durable send rate limit is exhausted", async () => {
-		limiter.mockResolvedValue({ allowed: false, remaining: 0 });
+		send.mockRejectedValue(Object.assign(new Error("Send rate limit exceeded"), {
+			name: "OutboundSendRateLimitError",
+		}));
 		await expect(sendMcpMail({} as CloudflareEnv, {
 			connectionId: "mcp_1", userId: "usr_1", from: "a@example.com", to: "b@example.com",
 			subject: "Hello", idempotencyKey: "request_0123456789",
-		})).rejects.toThrow("rate limit");
-		expect(send).not.toHaveBeenCalled();
+		})).rejects.toMatchObject({ name: "McpSendRateLimitError" });
+		expect(send).toHaveBeenCalledOnce();
+		expect(limiter).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		Object.assign(new Error("Quota storage unavailable"), { name: "RateLimitUnavailableError" }),
+		"Unexpected producer failure",
+	])("preserves non-quota producer failures for the MCP boundary: %s", async (failure) => {
+		send.mockRejectedValue(failure);
+		await expect(sendMcpMail({} as CloudflareEnv, {
+			connectionId: "mcp_1", userId: "usr_1", from: "a@example.com", to: "b@example.com",
+			subject: "Hello", idempotencyKey: "request_0123456789",
+		})).rejects.toBe(failure);
+		expect(send).toHaveBeenCalledOnce();
+		expect(limiter).not.toHaveBeenCalled();
 	});
 
 	it("forwards only an accessible source and includes the stored body without reply headers", async () => {

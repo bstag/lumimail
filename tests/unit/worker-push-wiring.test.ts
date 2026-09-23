@@ -7,6 +7,12 @@ const worker = readFileSync(resolve(root, "worker.ts"), "utf8");
 const config = readFileSync(resolve(root, "wrangler.jsonc"), "utf8");
 const example = readFileSync(resolve(root, "wrangler.jsonc.example"), "utf8");
 
+it("runs pending webhook jobs from the scheduler outside mail consumers", () => {
+	const scheduled = worker.slice(worker.indexOf("async scheduled("));
+	expect(scheduled).toContain("await processDueWebhooks(env)");
+	expect(worker.slice(worker.indexOf("async queue("), worker.indexOf("async scheduled("))).not.toContain("processDueWebhooks");
+});
+
 describe("private push Worker wiring", () => {
 	it("routes isolated queue payloads and schedules reconciliation plus cleanup", () => {
 		expect(worker).toMatch(/isPushQueueMessage/);

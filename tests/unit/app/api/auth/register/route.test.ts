@@ -3,17 +3,20 @@ import { createDbMock, type DbMock } from "../../../../helpers/db";
 
 const m = vi.hoisted(() => ({
 	db: null as unknown,
+	claimFirstRunUser: vi.fn(),
 	hashPassword: vi.fn(),
 	createSession: vi.fn(),
 	addDomainForUser: vi.fn(),
 	ensureEmailRoutingRuleToWorker: vi.fn(),
 	getPrimaryDomain: vi.fn(),
+	hasAnyUser: vi.fn(),
 	getPrimaryDomainForOrg: vi.fn(),
 	ensureUserOrg: vi.fn(),
 	hashInvitationToken: vi.fn(),
 	rateLimitIp: vi.fn(),
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
+vi.mock("@/lib/auth/bootstrap", () => ({ claimFirstRunUser: m.claimFirstRunUser }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
 vi.mock("@/lib/auth/password", () => ({ hashPassword: m.hashPassword }));
 // Partial mock: the route also uses the real setSessionCookie helper.
@@ -28,6 +31,7 @@ vi.mock("@/lib/cloudflare-api", () => ({
 }));
 vi.mock("@/lib/user", () => ({
 	getPrimaryDomain: m.getPrimaryDomain,
+	hasAnyUser: m.hasAnyUser,
 	getPrimaryDomainForOrg: m.getPrimaryDomainForOrg,
 }));
 vi.mock("@/lib/migration/backfill-orgs", () => ({ ensureUserOrg: m.ensureUserOrg }));
@@ -47,11 +51,13 @@ let mock: DbMock;
 beforeEach(() => {
 	mock = createDbMock();
 	m.db = mock.db;
+	m.claimFirstRunUser.mockReset().mockResolvedValue(true);
 	m.hashPassword.mockReset().mockReturnValue("pw-hash");
 	m.createSession.mockReset().mockResolvedValue("sess-token");
 	m.addDomainForUser.mockReset();
 	m.ensureEmailRoutingRuleToWorker.mockReset().mockResolvedValue(undefined);
 	m.getPrimaryDomain.mockReset();
+	m.hasAnyUser.mockReset().mockResolvedValue(false);
 	m.getPrimaryDomainForOrg.mockReset();
 	m.ensureUserOrg.mockReset().mockResolvedValue("org_1");
 	m.hashInvitationToken.mockReset().mockResolvedValue("hashed-token");
@@ -117,6 +123,20 @@ describe("POST /api/auth/register — invite handling", () => {
 });
 
 describe("POST /api/auth/register — first run", () => {
+	it("denies a concurrent first-owner claimant without creating a session", async () => {
+		m.claimFirstRunUser.mockResolvedValue(false);
+		const res = await POST(req(firstRunBody));
+		expect(res.status).toBe(403);
+		expect(m.createSession).not.toHaveBeenCalled();
+	});
+	it("requires an invitation when users remain without a domain", async () => {
+		m.getPrimaryDomain.mockResolvedValue(null);
+		m.hasAnyUser.mockResolvedValue(true);
+		const res = await POST(req(firstRunBody));
+		expect(res.status).toBe(403);
+		expect(m.addDomainForUser).not.toHaveBeenCalled();
+		expect(mock.inserts).toHaveLength(0);
+	});
 	it("returns 400 for an invalid first-run body", async () => {
 		m.getPrimaryDomain.mockResolvedValue(null);
 		const res = await POST(req({ username: "ada" })); // missing domain/password/resetEmail
@@ -141,11 +161,11 @@ describe("POST /api/auth/register — first run", () => {
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({ redirect: "/inbox" });
 		expect(res.cookies.get("ep_session")?.value).toBe("sess-token");
-		expect(mock.inserts[0].values).toMatchObject({
+		expect(m.claimFirstRunUser).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
 			id: "usr_1",
 			email: "ada@example.com",
 			passwordHash: "pw-hash",
-		});
+		}));
 		expect(m.addDomainForUser).toHaveBeenCalled();
 		expect(m.ensureUserOrg).toHaveBeenCalled();
 	});

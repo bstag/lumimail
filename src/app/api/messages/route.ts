@@ -3,9 +3,15 @@ import { eq, desc, and, like, or, count, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { labels, messages, messageLabels } from "@/db/schema";
 import { withUser } from "@/lib/api/handler";
-import { apiSuccess } from "@/lib/api/response";
+import { apiError, apiSuccess } from "@/lib/api/response";
 import { enrichMessagesWithContacts } from "@/lib/messages/enrich";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
+
+const DEFAULT_MESSAGE_LIMIT = 50;
+const MAX_MESSAGE_LIMIT = 100;
+// Leave room for user, organization, role, and draft-access parameters in the
+// access predicate under D1's 100 bound-parameter limit.
+const THREAD_COUNT_BATCH_SIZE = 80;
 
 export const GET = withUser(async ({ request, env, user }) => {
 	const url = new URL(request.url);
@@ -17,8 +23,28 @@ export const GET = withUser(async ({ request, env, user }) => {
 	const read = url.searchParams.get("read");
 	const starred = url.searchParams.get("starred");
 	const labelId = url.searchParams.get("labelId");
-	const limit = Math.min(Number(url.searchParams.get("limit") ?? 50), 100);
-	const offset = Math.max(Number(url.searchParams.get("offset") ?? 0), 0);
+	const rawLimit = url.searchParams.get("limit");
+	const parsedLimit = rawLimit === null ? DEFAULT_MESSAGE_LIMIT : Number(rawLimit);
+	if (
+		rawLimit?.trim() === "" ||
+		!Number.isFinite(parsedLimit) ||
+		!Number.isInteger(parsedLimit) ||
+		parsedLimit < 1
+	) {
+		return apiError("Invalid limit", 400);
+	}
+	const limit = Math.min(parsedLimit, MAX_MESSAGE_LIMIT);
+
+	const rawOffset = url.searchParams.get("offset");
+	const offset = rawOffset === null ? 0 : Number(rawOffset);
+	if (
+		rawOffset?.trim() === "" ||
+		!Number.isFinite(offset) ||
+		!Number.isInteger(offset) ||
+		offset < 0
+	) {
+		return apiError("Invalid offset", 400);
+	}
 
 	const db = getDb(env);
 	const conditions = [messageAccessCondition(db, user.id, user.organizationId, "read")];
@@ -76,16 +102,12 @@ export const GET = withUser(async ({ request, env, user }) => {
 		conditions.push(like(messages.subject, `%${title}%`));
 	}
 	if (labelId) {
-		const labelledMessageIds = await db
+		const labelledMessageIds = db
 			.select({ messageId: messageLabels.messageId })
 			.from(messageLabels)
 			.innerJoin(labels, eq(labels.id, messageLabels.labelId))
 			.where(and(eq(messageLabels.labelId, labelId), eq(labels.userId, user.id)));
-		const ids = labelledMessageIds.map((r) => r.messageId);
-		if (ids.length === 0) {
-			return apiSuccess({ messages: [], total: 0, limit, offset });
-		}
-		conditions.push(inArray(messages.id, ids));
+		conditions.push(inArray(messages.id, labelledMessageIds));
 	}
 	const where = and(...conditions);
 
@@ -103,19 +125,21 @@ export const GET = withUser(async ({ request, env, user }) => {
 	const threadIds = [...new Set(
 		rows.flatMap((message) => message.threadId ? [message.threadId] : []),
 	)];
-	const threadCountRows = threadIds.length > 0
-		? await db
+	const threadCounts = new Map<string, number>();
+	for (let index = 0; index < threadIds.length; index += THREAD_COUNT_BATCH_SIZE) {
+		const batchThreadIds = threadIds.slice(index, index + THREAD_COUNT_BATCH_SIZE);
+		const threadCountRows = await db
 			.select({ threadId: messages.threadId, count: count() })
 			.from(messages)
 			.where(and(
 				messageAccessCondition(db, user.id, user.organizationId, "read"),
-				inArray(messages.threadId, threadIds),
+				inArray(messages.threadId, batchThreadIds),
 			))
-			.groupBy(messages.threadId)
-		: [];
-	const threadCounts = new Map(
-		threadCountRows.flatMap((row) => row.threadId ? [[row.threadId, row.count] as const] : []),
-	);
+			.groupBy(messages.threadId);
+		for (const row of threadCountRows) {
+			if (row.threadId) threadCounts.set(row.threadId, row.count);
+		}
+	}
 	const enrichedRows = await enrichMessagesWithContacts(env, user.id, rows);
 	const messagesWithThreadCounts = enrichedRows.map((message) => ({
 		...message,

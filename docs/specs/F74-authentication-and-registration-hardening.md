@@ -5,6 +5,15 @@
 
 ## 1. Problem & User Job
 
+### 2026-09-05 review follow-up: first-owner registration
+
+- Previous defect: deleting the last domain reopened anonymous first-owner registration even when users remained. Concurrent first-run requests could also both pass the route's initial checks.
+- Current behavior: either any user or any domain closes ordinary registration (403, invitation required). A conditional user insertion must atomically check both tables before claiming first-owner setup; a losing request performs no Cloudflare provisioning and receives the same 403.
+- Decisions: existing invitations remain usable; first-run provisioning failure retains the existing compensating deletion of the claimed user so setup can be retried. No new public-registration mode or credentials are introduced. The existing-user guard closes the reported last-domain deletion case; deleting all users and domains is an intentional full installation reset.
+- Edge/error cases: no users/domains, existing user without domains, existing domain without users, duplicate email, simultaneous claims, D1 failure, provisioning failure, and invitation acceptance.
+- Test plan: route regression for users with no domains, real SQLite tests of conditional insertion and racing first-run requests, existing invitation/rollback coverage, registration E2E invitation-required response; run verify and e2e.
+- Bug/Change Log: Security Fix — prevent reopened and concurrent owner registration. SQLite claim and route regressions pass. `npm run verify` passes with 2,713 application tests, 100% configured coverage, the complexity gate, and 21 bridge tests. All 105 browser tests pass, including the registration regression. Deployed 2026-09-06; production smoke 8/8 and remote doctor 26/26 pass (see [F08 rollout evidence](./F08-webhooks.md)).
+
 Lumimail protects sensitive mailbox data, but its browser session, ordinary
 registration, rate limiting, and organization-role lookup currently leave avoidable
 security gaps:
@@ -36,7 +45,7 @@ authentication limits and tenant roles remain correct across Worker isolates.
   installation's primary domain.
   - The very first registration remains available to bootstrap the first owner.
   - Invitation registration remains available with a valid, identity-bound token.
-  - Once a primary domain exists, ordinary registration without an invitation
+  - Once any user or primary domain exists, ordinary registration without an invitation
     returns `403` and performs no user, organization, mailbox, or Cloudflare write.
   - The registration page explains that an invitation is required instead of
     presenting an address-claim form.
@@ -170,7 +179,7 @@ and sending. A D1 outage must not silently disable abuse protection.
 - When no Cloudflare client IP is available (local/test traffic), all such traffic
   shares a conservative `unknown` actor.
 - Invite registration is checked before the ordinary-registration denial.
-- First-run registration is checked after determining that no primary domain exists.
+- First-run registration requires no users and no primary domain; conditional insertion atomically claims the first user before provisioning.
 - A user with memberships in two organizations receives only the role belonging to
   `users.organizationId`.
 

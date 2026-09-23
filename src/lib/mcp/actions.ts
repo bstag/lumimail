@@ -6,7 +6,6 @@ import { sendEmail } from "@/lib/email/outbound/submit";
 import { newId } from "@/lib/ids";
 import { assertIdempotencyKey, hashMcpSendRequest, type McpSendRequest } from "@/lib/mcp/idempotency";
 import { getMcpMessage } from "@/lib/mcp/read";
-import { rateLimitUser } from "@/lib/rate-limit";
 
 type MutationActor = { connectionId: string; userId: string; organizationId: string };
 
@@ -58,8 +57,6 @@ export class McpSendRateLimitError extends Error {
 
 export async function sendMcpMail(env: CloudflareEnv, args: McpSendArgs) {
 	const key = assertIdempotencyKey(args.idempotencyKey);
-	const limited = await rateLimitUser(env, args.userId, "send", 50, 3_600_000);
-	if (!limited.allowed) throw new McpSendRateLimitError();
 	const request: McpSendRequest = {
 		from: args.from, to: args.to, subject: args.subject,
 		...(args.text !== undefined ? { text: args.text } : {}),
@@ -68,21 +65,30 @@ export async function sendMcpMail(env: CloudflareEnv, args: McpSendArgs) {
 		...(args.replyToMessageId !== undefined ? { replyToMessageId: args.replyToMessageId } : {}),
 	};
 	const requestHash = await hashMcpSendRequest(request);
-	return sendEmail(env, {
-		userId: args.userId,
-		...request,
-		idempotency: {
-			principalType: "mcp",
-			principalId: args.connectionId,
-			key,
-			requestHash,
-			...(args.organizationId ? { audit: {
-				organizationId: args.organizationId,
-				actorUserId: args.userId,
-				requestId: newId("req"),
-			} } : {}),
-		},
-	});
+	try {
+		return await sendEmail(env, {
+			userId: args.userId,
+			...request,
+			idempotency: {
+				principalType: "mcp",
+				principalId: args.connectionId,
+				key,
+				requestHash,
+				...(args.organizationId ? { audit: {
+					organizationId: args.organizationId,
+					actorUserId: args.userId,
+					requestId: newId("req"),
+				} } : {}),
+			},
+		});
+	} catch (error) {
+		// Keep the MCP tool's established bounded error name while charging the
+		// durable user counter only once in the shared producer.
+		if (error instanceof Error && error.name === "OutboundSendRateLimitError") {
+			throw new McpSendRateLimitError();
+		}
+		throw error;
+	}
 }
 
 export async function forwardMcpMail(env: CloudflareEnv, args: MutationActor & {

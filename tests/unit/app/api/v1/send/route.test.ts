@@ -13,6 +13,8 @@ vi.mock("@/lib/api/auth", () => ({
 vi.mock("@/lib/email/send", () => ({ sendEmail: m.sendEmail }));
 
 import { POST } from "@/app/api/v1/send/route";
+import { OutboundSendRateLimitError } from "@/lib/email/outbound/submit";
+import { RateLimitUnavailableError } from "@/lib/rate-limit";
 
 const validBody = { from: "a@x.test", to: "b@x.test", subject: "Hi", text: "Body" };
 
@@ -139,6 +141,32 @@ describe("POST /api/v1/send", () => {
 		const res = await POST(req(validBody));
 		expect(res.status).toBe(500);
 		expect((await res.json()) as any).toMatchObject({ error: { message: "Send failed" } });
+	});
+
+	it("maps the shared send quota exhaustion to 429", async () => {
+		m.authenticateApiKey.mockResolvedValue({ userId: "u1", scopes: ["send"] });
+		m.requireScope.mockReturnValue(true);
+		m.sendEmail.mockRejectedValue(new OutboundSendRateLimitError());
+
+		const res = await POST(req(validBody));
+
+		expect(res.status).toBe(429);
+		expect((await res.json()) as any).toMatchObject({
+			error: { message: "Send rate limit exceeded" },
+		});
+	});
+
+	it("maps shared send-quota storage failure to 503", async () => {
+		m.authenticateApiKey.mockResolvedValue({ userId: "u1", scopes: ["send"] });
+		m.requireScope.mockReturnValue(true);
+		m.sendEmail.mockRejectedValue(new RateLimitUnavailableError());
+
+		const res = await POST(req(validBody));
+
+		expect(res.status).toBe(503);
+		expect((await res.json()) as any).toMatchObject({
+			error: { message: "Service temporarily unavailable" },
+		});
 	});
 
 	it("returns 404 when the key owner is not assigned to the sender mailbox", async () => {

@@ -58,8 +58,8 @@ autosave, and automatic forwarding of original attachments.
 
 | Method | Route | Auth | Request | Response | Errors |
 |--------|-------|------|---------|----------|--------|
-| POST | `/api/send` | `guardUser` | JSON without files, or multipart `payload` + `attachment` fields | `{ messageId, status: "queued" }` | 400, 404, 415, 429, 500 |
-| POST | `/api/v1/send` | API key (`send` scope) | JSON with optional Base64 `attachments` | same | 401, 400, 404, 500 |
+| POST | `/api/send` | `guardUser` | JSON without files, or multipart `payload` + `attachment` fields | `{ messageId, status: "queued" }` | 400, 404, 415, 429, 500, 503 |
+| POST | `/api/v1/send` | API key (`send` scope) | JSON with optional Base64 `attachments` | same | 401, 400, 404, 429, 500, 503 |
 
 ### Drafts
 
@@ -98,6 +98,18 @@ autosave, and automatic forwarding of original attachments.
   consumer selects Cloudflare or Resend and records the final state. See
   [F33](F33-outbound-mail-providers.md), [F54](F54-durable-outbound-delivery.md),
   and [F55](F55-outbound-attachment-delivery.md).
+- Organization-owned sender authorization requires the caller's active
+  organization pointer and a current mailbox membership with a sender role.
+  The legacy personal-mailbox path matches only when both the domain and
+  mailbox have no organization; a removed organization member cannot use the
+  mailbox creator/owner fallback. Missing users fail closed.
+- The shared `sendEmail()` producer enforces one durable per-user quota of 50
+  ordinary sends per hour after sender/idempotency/input checks and before
+  contact, attachment, or message writes. `/api/send`, `/api/v1/send`, and the
+  SMTP bridge (through `/api/v1/send`) therefore consume the same counter.
+  Automatic vacation replies are exempt, and an idempotent MCP replay does not
+  consume another slot. MCP action sends use this same counter once; they do
+  not perform a second route-level check.
 - Auto-save uses `useEffect` with 900ms debounce
 - Drafts POST/PATCH both accept `html` field
 - On send success, associated draft is deleted
@@ -149,6 +161,11 @@ autosave, and automatic forwarding of original attachments.
   exposed through a public URL.
 - Provider failure is represented by queued/failed delivery state rather than a
   false synchronous success.
+- An exhausted ordinary-send quota returns the existing `Send rate limit
+  exceeded` envelope with HTTP 429. If durable rate-limit storage is
+  unavailable, the send fails closed with the existing service-unavailable
+  envelope and HTTP 503. Neither condition writes contacts, attachments,
+  messages, or jobs.
 
 ## 10. Test Plan
 
@@ -170,12 +187,52 @@ autosave, and automatic forwarding of original attachments.
   input.
 - Add CID attachment tests across multipart parsing, R2 snapshots, Cloudflare
   and Resend provider translation, reply handling, and plain-text fallback.
+- Add shared-producer quota tests proving one charge across browser/API/SMTP
+  callers, no charge for automatic vacation replies, no charge for idempotent
+  MCP replays, and fail-closed 429/503 handling.
+- Add sender-authorization regressions proving an organization mailbox cannot
+  be sent from after the creator is removed from the organization, while a
+  genuinely personal mailbox remains usable by its owner.
 - Retain browser contracts for attachment submission, shared draft behavior,
   reply-source submission, visible delivery state, formatting, and draft reload.
 - Documentation-status coverage must keep the registry, this specification, and
   README aligned on constrained WYSIWYG authoring.
 
 ## 11. Bug / Change Log
+
+### 2026-09-05 — Close organization sender fallback and centralize send quota
+
+Type: Security / Abuse-control bug fix.
+
+Observed:
+
+- After an organization member was removed, sender lookup fell back to the
+  legacy `mailboxes.userId` path and could still authorize an organization-owned
+  mailbox created by that user.
+- `/api/v1/send` did not apply the browser's durable 50-per-hour limit, and
+  callers that reached the common producer could bypass route-specific checks.
+
+Implemented locally:
+
+- Organization mailboxes require a live organization membership matching the active
+  pointer plus a current sender-capable mailbox membership. The legacy owner path is limited to a
+  domain and mailbox whose `organizationId` values are both null; missing user
+  rows fail closed.
+- The common producer is the quota seam for browser, API-key, and SMTP sends.
+  Vacation auto-replies remain exempt, and MCP idempotency retries are not
+  double-charged.
+
+Test plan:
+
+- Unit regressions for removed-member authorization, personal-mailbox access,
+  shared quota coverage, automatic-reply exemption, idempotent replay, and
+  429/503 route mapping.
+
+Verification: executable SQLite authorization regressions and the focused send
+suite pass. `npm run verify` passes with 2,713 application tests, 100% configured
+coverage, the complexity gate, and 21 bridge tests. All 105 browser tests pass.
+MCP tests preserve storage/unexpected failures independently of quota exhaustion.
+Deployed 2026-09-06; production smoke 8/8 and remote doctor 26/26 pass (see [F08 rollout evidence](./F08-webhooks.md)).
 
 ### 2026-07-30 — Outbound module split; send-time authorization is pure DB (T-30/T-31)
 

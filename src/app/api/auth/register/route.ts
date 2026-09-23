@@ -9,7 +9,7 @@ import {
 	registerFirstRunUser,
 	registerFromInvite,
 } from "@/lib/auth/registration";
-import { getPrimaryDomain } from "@/lib/user";
+import { getPrimaryDomain, hasAnyUser } from "@/lib/user";
 import { apiError } from "@/lib/api/response";
 import { enforceRateLimit, rateLimitIp } from "@/lib/rate-limit";
 
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
 	}
 
 	const primaryDomain = await getPrimaryDomain(env);
-	if (primaryDomain) return apiError("Registration requires an invitation", 403);
+	if (primaryDomain || await hasAnyUser(env)) return apiError("Registration requires an invitation", 403);
 	const firstRunParsed = firstRunRegisterSchema.safeParse(record);
 
 	if (!firstRunParsed.success) {
@@ -64,6 +64,7 @@ export async function POST(request: Request) {
 
 	const result = await registerFirstRunUser(env, firstRunParsed.data);
 	if (!result.ok) {
+		if (result.error === "setup_complete") return apiError("Registration requires an invitation", 403);
 		return result.error === "email_taken"
 			? NextResponse.json({ error: "Email already registered" }, { status: 409 })
 			: apiError("Domain setup failed", 502);

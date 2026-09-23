@@ -31,6 +31,7 @@ Source of truth for behavior. Each follows
   [`F04-mail-folders`](./specs/F04-mail-folders.md),
   [`F05-compose-send`](./specs/F05-compose-send.md),
   [`F06-api-keys`](./specs/F06-api-keys.md),
+  [`F08-webhooks`](./specs/F08-webhooks.md),
   [`F09-settings`](./specs/F09-settings.md),
   [`F12-multi-user-workspace`](./specs/F12-multi-user-workspace.md),
   [`F13-imap-smtp-bridge`](./specs/F13-imap-smtp-bridge.md).
@@ -96,7 +97,8 @@ Source of truth for behavior. Each follows
            [`F89-external-mail-accounts`](./specs/F89-external-mail-accounts.md),
            [`F90-crap-quality-gate`](./specs/F90-crap-quality-gate.md),
            [`F91-picket-ui-rebrand`](./specs/F91-picket-ui-rebrand.md),
-           [`F92-mantle-presentation-layer`](./specs/F92-mantle-presentation-layer.md).
+            [`F92-mantle-presentation-layer`](./specs/F92-mantle-presentation-layer.md),
+            [`F93-external-sync-bounded-memory`](./specs/F93-external-sync-bounded-memory.md).
 
 ## Implementation notes (`implementation/`)
 

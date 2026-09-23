@@ -3,19 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
 	getCurrentUser: vi.fn(),
 	sendEmail: vi.fn(),
-	rateLimitUser: vi.fn(),
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/lib/auth/cookies", () => ({ getCurrentUser: m.getCurrentUser }));
 vi.mock("@/lib/email/send", () => ({ sendEmail: m.sendEmail }));
-// Partial mock: enforceRateLimit stays real so the route's 429/503 handling
+// Keep the rate-limit module available so mapSendError's shared 503 handling
 // (and the RateLimitUnavailableError instanceof check) run genuine code.
 vi.mock("@/lib/rate-limit", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@/lib/rate-limit")>()),
-	rateLimitUser: m.rateLimitUser,
 }));
 
 import { POST } from "@/app/api/send/route";
+import { OutboundSendRateLimitError } from "@/lib/email/outbound/submit";
 import { RateLimitUnavailableError } from "@/lib/rate-limit";
 
 const validBody = { from: "a@x.test", to: "b@x.test", subject: "Hi", text: "Body" };
@@ -23,8 +22,6 @@ const validBody = { from: "a@x.test", to: "b@x.test", subject: "Hi", text: "Body
 beforeEach(() => {
 	m.getCurrentUser.mockReset().mockResolvedValue({ id: "u1" });
 	m.sendEmail.mockReset();
-	m.rateLimitUser.mockReset();
-	m.rateLimitUser.mockResolvedValue({ allowed: true });
 });
 
 function req(body?: unknown) {
@@ -54,7 +51,7 @@ describe("POST /api/send", () => {
 	});
 
 	it("returns 429 when the rate limit is exceeded", async () => {
-		m.rateLimitUser.mockResolvedValue({ allowed: false });
+		m.sendEmail.mockRejectedValue(new OutboundSendRateLimitError());
 		const res = await POST(req(validBody));
 		expect(res.status).toBe(429);
 		expect((await res.json()) as any).toMatchObject({ error: { message: "Send rate limit exceeded" } });
@@ -78,15 +75,15 @@ describe("POST /api/send", () => {
 	});
 
 	it("fails closed when shared rate-limit storage is unavailable", async () => {
-		m.rateLimitUser.mockRejectedValue(new RateLimitUnavailableError());
+		m.sendEmail.mockRejectedValue(new RateLimitUnavailableError());
 		const res = await POST(req(validBody));
 		expect(res.status).toBe(503);
-		expect(m.sendEmail).not.toHaveBeenCalled();
+		expect(m.sendEmail).toHaveBeenCalledOnce();
 	});
 
-	it("rethrows unexpected limiter errors", async () => {
-		m.rateLimitUser.mockRejectedValue(new Error("unexpected"));
-		await expect(POST(req(validBody))).rejects.toThrow("unexpected");
+	it("maps unexpected producer errors to the existing 500 response", async () => {
+		m.sendEmail.mockRejectedValue(new Error("unexpected"));
+		expect((await POST(req(validBody))).status).toBe(500);
 	});
 
 	it("accepts multipart attachments in the same send request", async () => {

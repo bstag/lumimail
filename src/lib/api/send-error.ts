@@ -1,5 +1,7 @@
 import { apiError } from "@/lib/api/response";
 import { AttachmentValidationError } from "@/lib/email/outbound-attachments";
+import { OutboundSendRateLimitError } from "@/lib/email/outbound/submit";
+import { RateLimitUnavailableError } from "@/lib/rate-limit";
 
 /**
  * Maps a failure thrown by the outbound send pipeline to its API response.
@@ -10,6 +12,12 @@ import { AttachmentValidationError } from "@/lib/email/outbound-attachments";
 export function mapSendError(error: unknown): Response {
 	if (error instanceof AttachmentValidationError) {
 		return apiError(error.message, 400);
+	}
+	if (error instanceof OutboundSendRateLimitError) {
+		return apiError("Send rate limit exceeded", 429);
+	}
+	if (error instanceof RateLimitUnavailableError) {
+		return apiError("Service temporarily unavailable", 503);
 	}
 	if (error instanceof Error && error.name === "SenderNotAllowedError") {
 		return apiError("Mailbox not found", 404);

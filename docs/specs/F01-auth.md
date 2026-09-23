@@ -77,10 +77,13 @@ Validation schemas: `firstRunRegisterSchema`, `primaryDomainRegisterSchema`,
 As implemented (see `src/app/api/auth/register/route.ts`,
 `src/app/api/auth/login/route.ts`, `src/lib/auth/session.ts`):
 
-- First-run is detected by `getPrimaryDomain(env)` returning nothing.
+- First-run requires both no primary domain and no users. A conditional user
+  insertion rechecks both tables atomically, so only one first-owner request can
+  proceed to provisioning (F74 September 2026 review fix).
 - First-run registration: validates with `firstRunRegisterSchema`, lowercases
   `domain`/`username`, builds `email = username@domain`, checks for an existing
-  user with that email (409 if found), inserts the user, then calls
+  user with that email (409 if found), atomically claims the first user (403 if
+  setup has already been claimed), then calls
   `addDomainForUser` (routing+sending enabled) and
   `ensureEmailRoutingRuleToWorker`. On any failure during domain/mailbox setup,
   the just-inserted user row is deleted and a 502 is returned.
@@ -116,10 +119,9 @@ As implemented (see `src/app/api/auth/register/route.ts`,
 - Session token reuse after `expiresAt` — `getUserFromSession` filters with
   `gt(sessions.expiresAt, new Date())`, so expired sessions are treated as
   invalid (401).
-- Concurrent registrations with the same username — both could pass the
-  pre-check race and attempt insert; D1 unique constraints (if any) determine the
-  final outcome — **not currently covered by a unique index/test** (see Open
-  Questions).
+- Concurrent first-owner registrations — an atomic conditional insertion checks
+  both users and domains. Only one request claims setup; a losing request returns
+  403 before provisioning. Real SQLite regressions cover this boundary.
 
 ## 11. Permissions & Security
 
@@ -142,6 +144,14 @@ As implemented (see `src/app/api/auth/register/route.ts`,
   `drizzle/migrations/` before writing the concurrency test.
 
 ## 13. Bug / Change Log
+
+### 2026-09-05 — Protect first-owner setup after domain deletion and during races
+
+Type: Security Fix. Existing users close ordinary registration even if every
+domain has been deleted. A conditional D1 insertion arbitrates simultaneous
+first-owner requests. Invitation acceptance and first-run compensation retain
+their existing behavior. See [F74](./F74-authentication-and-registration-hardening.md)
+for the regression plan and verification evidence.
 
 ### 2026-07-31 — Extract registration flows into a service (T-40)
 

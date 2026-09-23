@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SQL } from "drizzle-orm";
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { createDbMock, type DbMock } from "../../helpers/db";
 
-const h = vi.hoisted(() => ({ db: null as unknown, externalAuth: vi.fn(), externalSend: vi.fn() }));
+const h = vi.hoisted(() => ({ db: null as unknown, externalAuth: vi.fn(), externalSend: vi.fn(), rateLimit: vi.fn() }));
 vi.mock("@/db", () => ({ getDb: () => h.db }));
 
 vi.mock("@/lib/email/providers", () => ({ selectOutboundProvider: vi.fn() }));
@@ -12,6 +14,10 @@ vi.mock("@/lib/ids", () => ({ newId: vi.fn((p?: string) => (p ? `${p}_id` : "raw
 vi.mock("@/lib/email/external/outbound", () => ({
 	resolveExternalSenderAuthorization: h.externalAuth,
 	sendExternalProviderMessage: h.externalSend,
+}));
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/lib/rate-limit")>()),
+	rateLimitUser: h.rateLimit,
 }));
 
 import {
@@ -25,6 +31,7 @@ import { selectOutboundProvider } from "@/lib/email/providers";
 import { OutboundProviderError } from "@/lib/email/providers/types";
 import { dispatchWebhooks } from "@/lib/email/webhooks";
 import { upsertContactFromAddress } from "@/lib/contacts/service";
+import { RateLimitUnavailableError } from "@/lib/rate-limit";
 
 const selectProvider = vi.mocked(selectOutboundProvider);
 const dispatch = vi.mocked(dispatchWebhooks);
@@ -56,6 +63,7 @@ beforeEach(() => {
 	selectProvider.mockReturnValue({ id: "test", send: providerSend } as unknown as ReturnType<typeof selectOutboundProvider>);
 	h.externalAuth.mockResolvedValue(null);
 	h.externalSend.mockResolvedValue({ providerMessageId: "external_1" });
+	h.rateLimit.mockResolvedValue({ allowed: true, remaining: 49 });
 });
 
 const activeDomain = { id: "dom_1", hostname: "example.com", status: "active", zoneId: "zone_1" };
@@ -66,40 +74,43 @@ describe("validateSenderDomain", () => {
 	});
 
 	it("returns false when no active domain matches", async () => {
-		mock.queueSelect([]);
+		mock.queueSelect([{ organizationId: "org_1", memberOrganizationId: "org_1" }]).queueSelect([]);
 		expect(await validateSenderDomain(env, "u1", "a@example.com")).toBe(false);
 	});
 
 	it("returns false when no mailbox matches (org user path)", async () => {
 		mock
+			.queueSelect([{ organizationId: "org_1", memberOrganizationId: "org_1" }])
 			.queueSelect([activeDomain])
-			.queueSelect([{ organizationId: "org_1" }])
 			.queueSelect([]);
 		expect(await validateSenderDomain(env, "u1", "a@example.com")).toBe(false);
 	});
 
 	it("returns true for an org user with a mailbox", async () => {
 		mock
+			.queueSelect([{ organizationId: "org_1", memberOrganizationId: "org_1" }])
 			.queueSelect([activeDomain])
-			.queueSelect([{ organizationId: "org_1" }])
 			.queueSelect([{ id: "mb_1", localPart: "a", displayName: null }]);
 		expect(await validateSenderDomain(env, "u1", "a@example.com")).toBe(true);
 	});
 
 	it("uses the personal-user path when the user has no organization", async () => {
 		mock
-			.queueSelect([activeDomain])
 			.queueSelect([{ organizationId: null }])
+			.queueSelect([activeDomain])
 			.queueSelect([{ id: "mb_1", localPart: "a", displayName: null }]);
 		expect(await validateSenderDomain(env, "u1", "a@example.com")).toBe(true);
 	});
 
-	it("treats a missing user row as a personal user", async () => {
+	it("fails closed when the user row is missing", async () => {
 		mock
-			.queueSelect([activeDomain])
-			.queueSelect([])
-			.queueSelect([{ id: "mb_1", localPart: "a", displayName: null }]);
-		expect(await validateSenderDomain(env, "u1", "a@example.com")).toBe(true);
+			.queueSelect([]);
+		expect(await validateSenderDomain(env, "u1", "a@example.com")).toBe(false);
+	});
+
+	it("fails closed when the active organization pointer has no live membership", async () => {
+		mock.queueSelect([{ organizationId: "org_1", memberOrganizationId: null }]);
+		expect(await validateSenderDomain(env, "u1", "a@example.com")).toBe(false);
 	});
 });
 
@@ -109,8 +120,8 @@ describe("resolveSenderAuthorization", () => {
 	// for a mailbox that authorization had just proven) no longer exists (T-30).
 	it("returns the mailbox identity row used to derive the canonical sender", async () => {
 		mock
+			.queueSelect([{ organizationId: "org_1", memberOrganizationId: "org_1" }])
 			.queueSelect([activeDomain])
-			.queueSelect([{ organizationId: "org_1" }])
 			.queueSelect([{ id: "mb_1", localPart: "a", displayName: "Agent A" }]);
 		expect(await resolveSenderAuthorization(env, "u1", "a@example.com")).toEqual({
 			mailboxId: "mb_1",
@@ -123,12 +134,26 @@ describe("resolveSenderAuthorization", () => {
 
 	it("performs no Cloudflare API work: authorization is pure DB (T-31)", async () => {
 		mock
-			.queueSelect([activeDomain])
 			.queueSelect([{ organizationId: null }])
+			.queueSelect([activeDomain])
 			.queueSelect([{ id: "mb_1", localPart: "a", displayName: null }]);
 		await resolveSenderAuthorization(env, "u1", "a@example.com");
-		// Three DB reads (domain, user org, mailbox) and nothing else.
+		// Three DB reads (user org, domain, mailbox) and nothing else.
 		expect(mock.db.select).toHaveBeenCalledTimes(3);
+	});
+
+	it("does not let a removed organization member use an organization mailbox through the personal fallback", async () => {
+		mock
+			.queueSelect([{ organizationId: null }])
+			.queueSelect([{ ...activeDomain, organizationId: "org_1" }])
+			.queueSelect([{ id: "mb_1", organizationId: "org_1", localPart: "a", displayName: null }]);
+
+		await resolveSenderAuthorization(env, "u1", "a@example.com");
+		const queries = mock.wheres.map((condition) => new SQLiteSyncDialect().sqlToQuery(condition as SQL));
+		expect(queries.find((query) => query.sql.includes('"domains"."organization_id"'))?.sql)
+			.toContain('"domains"."organization_id" is null');
+		expect(queries.find((query) => query.sql.includes('"mailboxes"."organization_id"'))?.sql)
+			.toContain('"mailboxes"."organization_id" is null');
 	});
 });
 
@@ -138,8 +163,8 @@ describe("sendEmail producer", () => {
 		mailbox: Record<string, unknown> = { id: "mb_1", localPart: "a", displayName: null },
 	) {
 		mock
+			.queueSelect([{ organizationId: orgId, memberOrganizationId: orgId }])
 			.queueSelect([activeDomain])
-			.queueSelect([{ organizationId: orgId }])
 			.queueSelect([mailbox]);
 	}
 
@@ -150,6 +175,44 @@ describe("sendEmail producer", () => {
 		).rejects.toThrow(/not an active mailbox/);
 		expect(mock.inserts).toHaveLength(0);
 		expect(queueSend).not.toHaveBeenCalled();
+	});
+
+	it("enforces the durable ordinary-send quota at the shared producer seam", async () => {
+		queueAuthorization();
+		h.rateLimit.mockResolvedValue({ allowed: false, remaining: 0 });
+
+		await expect(
+			sendEmail(env, { userId: "u1", from: "a@example.com", to: "b@x.com", subject: "Hi" }),
+		).rejects.toMatchObject({ name: "OutboundSendRateLimitError" });
+		expect(h.rateLimit).toHaveBeenCalledWith(env, "u1", "send", 50, 3_600_000);
+		expect(mock.inserts).toHaveLength(0);
+		expect(queueSend).not.toHaveBeenCalled();
+	});
+
+	it("fails closed when shared send-quota storage is unavailable", async () => {
+		queueAuthorization();
+		h.rateLimit.mockRejectedValue(new RateLimitUnavailableError());
+
+		await expect(
+			sendEmail(env, { userId: "u1", from: "a@example.com", to: "b@x.com", subject: "Hi" }),
+		).rejects.toBeInstanceOf(RateLimitUnavailableError);
+		expect(mock.inserts).toHaveLength(0);
+		expect(queueSend).not.toHaveBeenCalled();
+	});
+
+	it("does not charge the ordinary quota for an automatic vacation reply", async () => {
+		queueAuthorization();
+		h.rateLimit.mockRejectedValue(new Error("quota should be bypassed"));
+
+		await expect(sendEmail(env, {
+			userId: "u1",
+			from: "a@example.com",
+			to: "b@x.com",
+			subject: "Away",
+			text: "OOO",
+			autoReply: true,
+		})).resolves.toMatchObject({ status: "queued" });
+		expect(h.rateLimit).not.toHaveBeenCalled();
 	});
 
 	it("persists and enqueues without calling the provider", async () => {
@@ -266,6 +329,7 @@ describe("sendEmail producer", () => {
 		})).resolves.toEqual({ messageId: "msg_existing", status: "sent", replayed: true });
 		expect(mock.inserts).toHaveLength(0);
 		expect(queueSend).not.toHaveBeenCalled();
+		expect(h.rateLimit).not.toHaveBeenCalled();
 	});
 
 	it("rejects reuse of an MCP idempotency key for changed input", async () => {
@@ -638,8 +702,8 @@ describe("automatic reply marking", () => {
 	/** Mirrors the sender-authorization select sequence sendEmail performs. */
 	function queueAuthorization(orgId: string | null = null) {
 		mock
+			.queueSelect([{ organizationId: orgId, memberOrganizationId: orgId }])
 			.queueSelect([activeDomain])
-			.queueSelect([{ organizationId: orgId }])
 			.queueSelect([{ id: "mb_1", localPart: "a", displayName: "Agent A" }]);
 	}
 

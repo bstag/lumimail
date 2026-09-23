@@ -154,6 +154,26 @@ describe("external sync queue", () => {
 		random.mockRestore();
 	});
 
+	it("keeps retryable page failures automatic and application failures terminal", async () => {
+		const random = vi.spyOn(Math, "random").mockReturnValue(0);
+		mock.queueSelect([job]).queueSelect([account]);
+		h.apply.mockRejectedValueOnce(new ExternalProviderRequestError("provider_throttled", true));
+		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
+			.toEqual({ action: "retry", delaySeconds: 30 });
+		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({
+			status: "pending", errorCode: "provider_throttled",
+		}));
+
+		mock.queueSelect([job]).queueSelect([account]);
+		h.apply.mockRejectedValueOnce(new Error("D1 unavailable"));
+		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
+			.toEqual({ action: "ack" });
+		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({
+			status: "failed", errorCode: "sync_failed",
+		}));
+		random.mockRestore();
+	});
+
 	it("decrypts validated cursors, runs incremental mode, and marks corrupt cursors for resync", async () => {
 		mock.queueSelect([{ ...job, kind: "incremental" }]).queueSelect([{ ...account, status: "active" }]);
 		h.read.mockResolvedValueOnce({ historyId: "500" });
