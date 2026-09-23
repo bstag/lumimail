@@ -1,17 +1,30 @@
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
-import { domains, mailboxMemberships, mailboxes, users } from "@/db/schema";
+import { domains, mailboxMemberships, mailboxes, organizationMembers, users } from "@/db/schema";
 import { parseAddress } from "@/lib/utils";
 import { SENDER_ROLES } from "@/lib/constants";
 
-async function getUserOrgId(env: CloudflareEnv, userId: string): Promise<string | null> {
+async function getUserOrgId(env: CloudflareEnv, userId: string): Promise<string | null | undefined> {
 	const db = getDb(env);
 	const [user] = await db
-		.select({ organizationId: users.organizationId })
+		.select({
+			organizationId: users.organizationId,
+			memberOrganizationId: organizationMembers.organizationId,
+		})
 		.from(users)
+		.leftJoin(organizationMembers, and(
+			eq(organizationMembers.userId, users.id),
+			eq(organizationMembers.organizationId, users.organizationId),
+		))
 		.where(eq(users.id, userId))
 		.limit(1);
-	return user?.organizationId ?? null;
+	if (!user) return undefined;
+	// `users.organizationId` is an active-workspace pointer, while the join
+	// table is the membership truth. A stale pointer must not authorize an
+	// organization mailbox. A null pointer is the supported personal-account
+	// state and needs no membership row.
+	if (user.organizationId && user.memberOrganizationId !== user.organizationId) return undefined;
+	return user.organizationId;
 }
 
 /**
@@ -53,14 +66,21 @@ export async function resolveSenderAuthorization(
 	const parsed = parseAddress(from);
 	if (!parsed) return null;
 	const db = getDb(env);
+	const orgId = await getUserOrgId(env, userId);
+	// A missing identity is not a legacy personal account. Treat it as
+	// unauthorized rather than allowing an orphaned mailbox-owner fallback.
+	if (orgId === undefined) return null;
 	const [domain] = await db
 		.select()
 		.from(domains)
-		.where(and(eq(domains.hostname, parsed.domain), eq(domains.status, "active")))
+		.where(and(
+			eq(domains.hostname, parsed.domain),
+			eq(domains.status, "active"),
+			orgId ? eq(domains.organizationId, orgId) : isNull(domains.organizationId),
+		))
 		.limit(1);
 	if (!domain) return null;
 
-	const orgId = await getUserOrgId(env, userId);
 	const baseConditions = [
 		eq(mailboxes.domainId, domain.id),
 		eq(mailboxes.localPart, parsed.local),
@@ -69,6 +89,7 @@ export async function resolveSenderAuthorization(
 	const mailboxQuery = db
 		.select({
 			id: mailboxes.id,
+			organizationId: mailboxes.organizationId,
 			localPart: mailboxes.localPart,
 			displayName: mailboxes.displayName,
 		})
@@ -84,14 +105,17 @@ export async function resolveSenderAuthorization(
 			))
 			.limit(1)
 		: await mailboxQuery
-			.where(and(...baseConditions, eq(mailboxes.userId, userId)))
+			.where(and(
+				...baseConditions,
+				eq(mailboxes.userId, userId),
+				isNull(mailboxes.organizationId),
+			))
 			.limit(1);
 
 	if (!mailbox) return null;
-
 	return {
 		mailboxId: mailbox.id,
-		organizationId: orgId,
+		organizationId: mailbox.organizationId ?? orgId,
 		localPart: mailbox.localPart,
 		hostname: domain.hostname,
 		displayName: mailbox.displayName,

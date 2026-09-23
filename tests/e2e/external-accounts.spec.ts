@@ -46,3 +46,33 @@ test("external accounts disclose sharing, expose lifecycle state, and start boun
 		retainOriginal: false,
 	});
 });
+
+async function mockExternalAccountsPage(page: import("@playwright/test").Page) {
+	await mockAuthShell(page, {
+		user: { id: "usr_owner", email: "owner@example.com", name: "Owner", role: "owner" },
+		mailboxes: [{
+			id: "mbx_support", localPart: "support", hostname: "example.com",
+			displayName: "Support", isPrimary: true, role: "manager",
+		}],
+		counts: folderCounts(),
+	});
+	await page.route("**/api/external-accounts", (route) => route.fulfill({ json: {
+		success: true, data: { accounts: [] },
+	} }));
+}
+
+test("external accounts shows the OAuth callback error and clears it from the address bar", async ({ page }) => {
+	await mockExternalAccountsPage(page);
+	await page.goto("/settings/external-accounts?error=reauthenticate");
+	await expect(page.getByRole("alert").filter({
+		hasText: "Your password confirmation expired before the provider returned. Confirm your password and connect again.",
+	})).toBeVisible();
+	await expect(page).toHaveURL(/\/settings\/external-accounts$/);
+});
+
+test("external accounts confirms a completed OAuth connection", async ({ page }) => {
+	await mockExternalAccountsPage(page);
+	await page.goto("/settings/external-accounts?connected=exa_google");
+	await expect(page.getByText("External account connected. The initial import will start shortly.")).toBeVisible();
+	await expect(page).toHaveURL(/\/settings\/external-accounts$/);
+});

@@ -9,6 +9,7 @@ import type { firstRunRegisterSchema, inviteRegisterSchema } from "@/lib/validat
 import { addDomainForUser } from "@/lib/domains/service";
 import { ensureEmailRoutingRuleToWorker } from "@/lib/cloudflare-api";
 import { ensureUserOrg } from "@/lib/migration/backfill-orgs";
+import { claimFirstRunUser } from "@/lib/auth/bootstrap";
 
 /**
  * Registration service (T-40), modeled on `src/lib/domains/service.ts`.
@@ -103,7 +104,7 @@ export type FirstRunRegistrationInput = z.infer<typeof firstRunRegisterSchema>;
 
 export type FirstRunRegistrationResult =
 	| { ok: true; userId: string }
-	| { ok: false; error: "email_taken" | "domain_setup_failed" };
+	| { ok: false; error: "email_taken" | "domain_setup_failed" | "setup_complete" };
 
 export async function registerFirstRunUser(
 	env: CloudflareEnv,
@@ -118,17 +119,17 @@ export async function registerFirstRunUser(
 	if (existing) return { ok: false, error: "email_taken" };
 
 	const userId = newId("usr");
-	await db.insert(users).values({
+	const claimed = await claimFirstRunUser(env, {
 		id: userId,
 		email,
 		resetEmail: input.resetEmail,
 		passwordHash: hashPassword(input.password),
 		name: username,
-		organizationId: null,
 	});
-	const orgId = await ensureUserOrg(env, userId);
+	if (!claimed) return { ok: false, error: "setup_complete" };
 
 	try {
+		const orgId = await ensureUserOrg(env, userId);
 		const { domain } = await addDomainForUser(env, userId, orgId, domainName, {
 			enableRouting: true,
 			enableSending: true,

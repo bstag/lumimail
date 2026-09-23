@@ -43,6 +43,7 @@ import {
 	processExternalSyncQueue,
 } from "./src/lib/email/external/sync-queue";
 import { reconcileExternalSyncJobs } from "./src/lib/email/external/sync-jobs";
+import { processDueWebhooks } from "./src/lib/email/webhooks";
 
 type McpWorkerEnv = McpEnv & { OAUTH_KV: KVNamespace; OAUTH_PROVIDER: OAuthHelpers };
 
@@ -211,6 +212,11 @@ export default {
 		controller: ScheduledController,
 		env: CloudflareEnv,
 	): Promise<void> {
+		try {
+			await processDueWebhooks(env);
+		} catch {
+			console.warn("Webhook scheduling failed");
+		}
 		await runQueueHealthCheck(env);
 
 		// Expired counters are ignored by the rate-limit check itself; this purge

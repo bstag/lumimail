@@ -52,48 +52,60 @@ export async function applyExternalSyncPage(
 	cursors: ExternalCursorMutation[],
 	now = new Date(),
 ): Promise<ExternalImportResult[]> {
-	const attemptedKeys: string[] = [];
-	try {
-		const uniqueChanges = [...new Map(changes.map((change) => [change.remoteMessageId, change])).values()];
-		const preparedMessages = [];
-		for (const change of uniqueChanges) {
-			preparedMessages.push(await prepareExternalMessage(
-				env, account, mailbox, change, now, attemptedKeys,
-			));
-		}
-		const statements: BatchItem<"sqlite">[] = preparedMessages.flatMap((item) => item.statements);
-		for (const cursor of cursors) {
-			const sealed = await encryptExternalSecret(
-				JSON.stringify(cursor.value),
-				cursorContext(account.id, cursor.key),
-				parseExternalSecretKeyring(env.EXTERNAL_TOKEN_KEYS),
+	const db = getDb(env);
+	const uniqueChanges = [...new Map(changes.map((change) => [change.remoteMessageId, change])).values()];
+	const results: ExternalImportResult[] = [];
+	for (const change of uniqueChanges) {
+		const attemptedKeys: string[] = [];
+		try {
+			const loadRawMime = change.loadRawMime;
+			let materializedChange = change;
+			if (!change.rawMime && loadRawMime) {
+				const metadata = { ...change };
+				delete metadata.loadRawMime;
+				materializedChange = { ...metadata, rawMime: await loadRawMime() };
+			}
+			const prepared = await prepareExternalMessage(
+				env, account, mailbox, materializedChange, now, attemptedKeys,
 			);
-			statements.push(getDb(env).insert(externalSyncCursors).values({
-				id: newId("exc"),
-				accountId: account.id,
-				remoteFolderKey: cursor.key,
+			if (prepared.statements.length > 0) {
+				await db.batch(prepared.statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+			}
+			results.push(prepared.result);
+		} catch (error) {
+			await cleanupAttachmentObjects(env, attemptedKeys);
+			throw error;
+		}
+	}
+	const cursorStatements: BatchItem<"sqlite">[] = [];
+	for (const cursor of cursors) {
+		const sealed = await encryptExternalSecret(
+			JSON.stringify(cursor.value),
+			cursorContext(account.id, cursor.key),
+			parseExternalSecretKeyring(env.EXTERNAL_TOKEN_KEYS),
+		);
+		cursorStatements.push(db.insert(externalSyncCursors).values({
+			id: newId("exc"),
+			accountId: account.id,
+			remoteFolderKey: cursor.key,
+			cursorType: cursor.type,
+			cursorCiphertext: sealed.ciphertext,
+			cursorIv: sealed.iv,
+			cursorKeyId: sealed.keyId,
+			updatedAt: now,
+		}).onConflictDoUpdate({
+			target: [externalSyncCursors.accountId, externalSyncCursors.remoteFolderKey],
+			set: {
 				cursorType: cursor.type,
 				cursorCiphertext: sealed.ciphertext,
 				cursorIv: sealed.iv,
 				cursorKeyId: sealed.keyId,
 				updatedAt: now,
-			}).onConflictDoUpdate({
-				target: [externalSyncCursors.accountId, externalSyncCursors.remoteFolderKey],
-				set: {
-					cursorType: cursor.type,
-					cursorCiphertext: sealed.ciphertext,
-					cursorIv: sealed.iv,
-					cursorKeyId: sealed.keyId,
-					updatedAt: now,
-				},
-			}));
-		}
-		if (statements.length > 0) {
-			await getDb(env).batch(statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
-		}
-		return preparedMessages.map((item) => item.result);
-	} catch (error) {
-		await cleanupAttachmentObjects(env, attemptedKeys);
-		throw error;
+			},
+		}));
 	}
+	if (cursorStatements.length > 0) {
+		await db.batch(cursorStatements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+	}
+	return results;
 }

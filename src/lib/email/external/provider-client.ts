@@ -3,6 +3,8 @@ import type { ExternalImportMode } from "./types";
 
 type ExternalFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
+export type ExternalRawMimeLoader = () => Promise<Uint8Array>;
+
 export type ExternalRemoteChange = {
 	remoteMessageId: string;
 	remoteThreadId?: string;
@@ -10,6 +12,7 @@ export type ExternalRemoteChange = {
 	remoteRevision?: string;
 	removed: boolean;
 	rawMime?: Uint8Array;
+	loadRawMime?: ExternalRawMimeLoader;
 };
 
 export type GoogleSyncCursor = { historyId?: string; pageToken?: string };
@@ -78,7 +81,13 @@ const gmailListSchema = z.object({
 	}).passthrough()).max(MAX_PAGE_SIZE).optional(),
 	nextPageToken: z.string().min(1).max(4096).optional(),
 }).passthrough();
-const gmailMessageSchema = z.object({
+const gmailMessageMetadataSchema = z.object({
+	id: z.string().min(1).max(1024),
+	threadId: z.string().min(1).max(1024).optional(),
+	labelIds: z.array(z.string().max(256)).max(100).optional(),
+	historyId: z.string().max(128).optional(),
+}).passthrough();
+const gmailRawMessageSchema = z.object({
 	id: z.string().min(1).max(1024),
 	threadId: z.string().min(1).max(1024).optional(),
 	labelIds: z.array(z.string().max(256)).max(100).optional(),
@@ -118,14 +127,30 @@ function gmailFolder(labelIds: readonly string[] | undefined): "inbox" | "sent" 
 	return "archive";
 }
 
-async function fetchGmailMessage(
+async function fetchGmailRawMime(
+	accessToken: string,
+	messageId: string,
+	fetcher: ExternalFetch,
+): Promise<Uint8Array> {
+	const url = new URL(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}`);
+	url.searchParams.set("format", "raw");
+	const parsed = gmailRawMessageSchema.safeParse(await parseProviderJson(await fetcher(url, {
+		headers: authorizationHeaders(accessToken, { accept: "application/json" }),
+	})));
+	if (!parsed.success || parsed.data.id !== messageId) {
+		throw new ExternalProviderRequestError("invalid_provider_response", false);
+	}
+	return decodeBase64Url(parsed.data.raw);
+}
+
+async function fetchGmailMessageMetadata(
 	accessToken: string,
 	messageId: string,
 	fetcher: ExternalFetch,
 ): Promise<ExternalRemoteChange> {
 	const url = new URL(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}`);
-	url.searchParams.set("format", "raw");
-	const parsed = gmailMessageSchema.safeParse(await parseProviderJson(await fetcher(url, {
+	url.searchParams.set("format", "metadata");
+	const parsed = gmailMessageMetadataSchema.safeParse(await parseProviderJson(await fetcher(url, {
 		headers: authorizationHeaders(accessToken, { accept: "application/json" }),
 	})));
 	if (!parsed.success || parsed.data.id !== messageId) {
@@ -137,7 +162,7 @@ async function fetchGmailMessage(
 		remoteFolderKey: gmailFolder(parsed.data.labelIds),
 		remoteRevision: parsed.data.historyId,
 		removed: false,
-		rawMime: decodeBase64Url(parsed.data.raw),
+		loadRawMime: () => fetchGmailRawMime(accessToken, messageId, fetcher),
 	};
 }
 
@@ -169,7 +194,7 @@ export async function fetchGoogleSyncPage(
 		})));
 		if (!parsed.success) throw new ExternalProviderRequestError("invalid_provider_response", false);
 		const changes = await Promise.all((parsed.data.messages ?? []).map((message) =>
-			fetchGmailMessage(input.accessToken, message.id, fetcher)));
+			fetchGmailMessageMetadata(input.accessToken, message.id, fetcher)));
 		if (parsed.data.nextPageToken) {
 			return { changes, cursor: { pageToken: parsed.data.nextPageToken }, hasMore: true };
 		}
@@ -201,7 +226,7 @@ export async function fetchGoogleSyncPage(
 		for (const removed of history.messagesDeleted ?? []) removals.set(removed.message.id, removed.message);
 	}
 	const addedChanges = await Promise.all([...additions.values()].map((message) =>
-		fetchGmailMessage(input.accessToken, message.id, fetcher)));
+		fetchGmailMessageMetadata(input.accessToken, message.id, fetcher)));
 	const removedChanges = [...removals.values()].map((message): ExternalRemoteChange => ({
 		remoteMessageId: message.id,
 		remoteThreadId: message.threadId,
@@ -314,7 +339,7 @@ export async function fetchMicrosoftSyncPage(
 				remoteFolderKey: input.folder,
 				remoteRevision: message["@odata.etag"],
 				removed: false,
-				rawMime: await fetchGraphMime(input.accessToken, message.id, fetcher),
+				loadRawMime: () => fetchGraphMime(input.accessToken, message.id, fetcher),
 			});
 		}
 	}

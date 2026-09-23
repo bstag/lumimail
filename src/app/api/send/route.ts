@@ -1,7 +1,6 @@
 import { withUser } from "@/lib/api/handler";
 import { sendEmailSchema } from "@/lib/validators";
 import { sendEmail } from "@/lib/email/send";
-import { enforceRateLimit, rateLimitUser } from "@/lib/rate-limit";
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { mapSendError } from "@/lib/api/send-error";
 import {
@@ -77,13 +76,6 @@ async function parseRequest(request: Request): Promise<{
 }
 
 export const POST = withUser(async ({ request, env, user }) => {
-	const limited = await enforceRateLimit(rateLimitUser(env, user.id, "send", 50, 3_600_000), {
-		unavailableLog: "Send rate limit unavailable",
-		limitedMessage: "Send rate limit exceeded",
-		respond: apiError,
-	});
-	if (limited) return limited;
-
 	let requestData: Awaited<ReturnType<typeof parseRequest>>;
 	try {
 		requestData = await parseRequest(request);

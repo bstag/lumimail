@@ -20,7 +20,7 @@ vi.mock("@/lib/email/external/secret-vault", () => ({
 }));
 vi.mock("@/lib/ids", () => ({ newId: h.newId }));
 
-import { ExternalProviderRequestError } from "@/lib/email/external/provider-client";
+import { ExternalProviderRequestError, type ExternalRemoteChange } from "@/lib/email/external/provider-client";
 import { applyExternalSyncPage, readExternalSyncCursor } from "@/lib/email/external/sync-page";
 
 const account = {
@@ -74,13 +74,13 @@ describe("external sync page application", () => {
 			.rejects.toEqual(new ExternalProviderRequestError("cursor_expired", false));
 	});
 
-	it("commits deduplicated messages and cursor mutations in one D1 batch", async () => {
+	it("commits deduplicated messages before the final cursor batch", async () => {
 		const messageStatement = mock.db.update({}).set({ message: true });
 		h.prepare.mockImplementation(async (
 			_env: CloudflareEnv,
 			_account: unknown,
 			_mailbox: unknown,
-			preparedChange: typeof change,
+			preparedChange: ExternalRemoteChange,
 			_now: Date,
 			attemptedKeys: string[],
 		) => {
@@ -100,12 +100,94 @@ describe("external sync page application", () => {
 			new Date("2026-08-19T12:00:00Z"),
 		)).resolves.toEqual([{ status: "created", messageId: "remote_1" }]);
 		expect(h.prepare).toHaveBeenCalledTimes(1);
-		expect(mock.db.batch).toHaveBeenCalledTimes(1);
-		expect(mock.db.batch.mock.calls[0][0]).toHaveLength(2);
+		expect(mock.db.batch).toHaveBeenCalledTimes(2);
+		expect(mock.db.batch.mock.calls[0][0]).toHaveLength(1);
+		expect(mock.db.batch.mock.calls[1][0]).toHaveLength(1);
 		expect(mock.inserts.at(-1)?.values).toEqual(expect.objectContaining({
 			accountId: "exa_1", remoteFolderKey: "gmail", cursorType: "gmail_history",
 		}));
 		expect(h.cleanup).not.toHaveBeenCalled();
+	});
+
+	it("loads lazy MIME sequentially and does not retain page bodies between message batches", async () => {
+		const events: string[] = [];
+		let activeLoaders = 0;
+		let maxActiveLoaders = 0;
+		h.prepare.mockImplementation(async (
+			_env: CloudflareEnv,
+			_account: unknown,
+			_mailbox: unknown,
+			preparedChange: ExternalRemoteChange,
+		) => {
+			events.push(`prepare:${preparedChange.remoteMessageId}:${preparedChange.rawMime?.[0]}`);
+			expect(preparedChange.loadRawMime).toBeUndefined();
+			await Promise.resolve();
+			events.push(`prepared:${preparedChange.remoteMessageId}`);
+			return {
+				statements: [mock.db.update({}).set({ message: preparedChange.remoteMessageId })],
+				result: { status: "created", messageId: preparedChange.remoteMessageId },
+			};
+		});
+		const lazyChange = (remoteMessageId: string, byte: number) => ({
+			remoteMessageId,
+			remoteFolderKey: "inbox" as const,
+			removed: false,
+			loadRawMime: async () => {
+				activeLoaders++;
+				maxActiveLoaders = Math.max(maxActiveLoaders, activeLoaders);
+				events.push(`load:${remoteMessageId}`);
+				await Promise.resolve();
+				activeLoaders--;
+				return new Uint8Array([byte]);
+			},
+		});
+
+		await expect(applyExternalSyncPage(env, account, mailbox, [
+			lazyChange("remote_1", 1), lazyChange("remote_2", 2),
+		], [])).resolves.toEqual([
+			{ status: "created", messageId: "remote_1" },
+			{ status: "created", messageId: "remote_2" },
+		]);
+		expect(events).toEqual([
+			"load:remote_1", "prepare:remote_1:1", "prepared:remote_1",
+			"load:remote_2", "prepare:remote_2:2", "prepared:remote_2",
+		]);
+		expect(maxActiveLoaders).toBe(1);
+		expect(mock.db.batch).toHaveBeenCalledTimes(2);
+	});
+
+	it("leaves the cursor unchanged after a late message failure and replays committed messages safely", async () => {
+		const first = { ...change, remoteMessageId: "remote_1" };
+		const second = { ...change, remoteMessageId: "remote_2" };
+		h.prepare
+			.mockResolvedValueOnce({
+				statements: [mock.db.update({}).set({ message: "first" })],
+				result: { status: "created", messageId: "remote_1" },
+			})
+			.mockRejectedValueOnce(new Error("late message failed"))
+			.mockResolvedValueOnce({
+				statements: [mock.db.update({}).set({ message: "existing-first" })],
+				result: { status: "existing", messageId: "remote_1" },
+			})
+			.mockResolvedValueOnce({
+				statements: [mock.db.update({}).set({ message: "second" })],
+				result: { status: "created", messageId: "remote_2" },
+			});
+
+		await expect(applyExternalSyncPage(env, account, mailbox, [first, second], [
+			{ key: "gmail", type: "gmail_history", value: { historyId: "501" } },
+		])).rejects.toThrow("late message failed");
+		expect(mock.db.batch).toHaveBeenCalledTimes(1);
+		expect(h.encrypt).not.toHaveBeenCalled();
+
+		await expect(applyExternalSyncPage(env, account, mailbox, [first, second], [
+			{ key: "gmail", type: "gmail_history", value: { historyId: "501" } },
+		])).resolves.toEqual([
+			{ status: "existing", messageId: "remote_1" },
+			{ status: "created", messageId: "remote_2" },
+		]);
+		expect(mock.db.batch).toHaveBeenCalledTimes(4);
+		expect(mock.db.batch.mock.calls.at(-1)?.[0]).toHaveLength(1);
 	});
 
 	it("compensates every prepared R2 object when the D1 batch fails", async () => {

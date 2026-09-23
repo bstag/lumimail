@@ -3,12 +3,14 @@ import { createDbMock, type DbMock } from "../../helpers/db";
 
 const m = vi.hoisted(() => ({
 	db: null as unknown,
+	claimFirstRunUser: vi.fn(),
 	hashPassword: vi.fn(),
 	hashInvitationToken: vi.fn(),
 	addDomainForUser: vi.fn(),
 	ensureEmailRoutingRuleToWorker: vi.fn(),
 	ensureUserOrg: vi.fn(),
 }));
+vi.mock("@/lib/auth/bootstrap", () => ({ claimFirstRunUser: m.claimFirstRunUser }));
 vi.mock("@/db", () => ({ getDb: () => m.db }));
 vi.mock("@/lib/auth/password", () => ({ hashPassword: m.hashPassword }));
 vi.mock("@/lib/auth/invitation", () => ({ hashInvitationToken: m.hashInvitationToken }));
@@ -27,6 +29,7 @@ let mock: DbMock;
 beforeEach(() => {
 	mock = createDbMock();
 	m.db = mock.db;
+	m.claimFirstRunUser.mockReset().mockResolvedValue(true);
 	m.hashPassword.mockReset().mockReturnValue("pw-hash");
 	m.hashInvitationToken.mockReset().mockResolvedValue("hashed-token");
 	m.addDomainForUser.mockReset();
@@ -113,6 +116,13 @@ const firstRunInput = {
 };
 
 describe("registerFirstRunUser", () => {
+	it("does not provision when another first-owner request won the claim", async () => {
+		mock.queueSelect([]);
+		m.claimFirstRunUser.mockResolvedValue(false);
+		expect(await registerFirstRunUser(env, firstRunInput)).toEqual({ ok: false, error: "setup_complete" });
+		expect(m.ensureUserOrg).not.toHaveBeenCalled();
+		expect(m.addDomainForUser).not.toHaveBeenCalled();
+	});
 	it("fails when the composed email is already registered", async () => {
 		mock.queueSelect([{ id: "u-old", email: "ada@example.com" }]);
 		expect(await registerFirstRunUser(env, firstRunInput)).toEqual({ ok: false, error: "email_taken" });
@@ -123,19 +133,18 @@ describe("registerFirstRunUser", () => {
 		mock.queueSelect([]);
 		m.addDomainForUser.mockResolvedValue({ domain: { id: "dom_1", zoneId: "zone_1" } });
 		expect(await registerFirstRunUser(env, firstRunInput)).toEqual({ ok: true, userId: "usr_1" });
-		expect(mock.inserts[0].values).toMatchObject({
+		expect(m.claimFirstRunUser).toHaveBeenCalledWith(env, expect.objectContaining({
 			id: "usr_1",
 			email: "ada@example.com",
 			name: "ada",
-			organizationId: null,
-		});
+		}));
 		expect(m.ensureUserOrg).toHaveBeenCalledWith(env, "usr_1");
 		expect(m.addDomainForUser).toHaveBeenCalledWith(env, "usr_1", "org_1", "example.com", {
 			enableRouting: true,
 			enableSending: true,
 		});
 		expect(m.ensureEmailRoutingRuleToWorker).toHaveBeenCalledWith(env, "zone_1", "ada@example.com");
-		expect(mock.inserts[1].values).toMatchObject({
+		expect(mock.inserts[0].values).toMatchObject({
 			id: "mbx_1",
 			userId: "usr_1",
 			organizationId: "org_1",
@@ -163,7 +172,7 @@ describe("registerFirstRunUser", () => {
 			error: "domain_setup_failed",
 		});
 		expect(mock.deletes).toHaveLength(1);
-		// Only the user insert happened; no mailbox was written.
-		expect(mock.inserts).toHaveLength(1);
+		// The first user was claimed separately; no mailbox was written.
+		expect(mock.inserts).toHaveLength(0);
 	});
 });

@@ -35,6 +35,7 @@ import type {
 	OutboundDeliverySnapshot,
 } from "@/lib/email/outbound/snapshot";
 import { resolveExistingIdempotency } from "@/lib/mcp/idempotency";
+import { rateLimitUser } from "@/lib/rate-limit";
 import {
 	resolveExternalSenderAuthorization,
 	type ExternalSenderAuthorization,
@@ -145,6 +146,27 @@ export async function failJobQueueUnavailable(
 	]);
 }
 
+export const OUTBOUND_SEND_MAX_REQUESTS = 50;
+export const OUTBOUND_SEND_WINDOW_MS = 3_600_000;
+
+export class OutboundSendRateLimitError extends Error {
+	constructor() {
+		super("Send rate limit exceeded");
+		this.name = "OutboundSendRateLimitError";
+	}
+}
+
+async function enforceOutboundSendQuota(env: CloudflareEnv, userId: string): Promise<void> {
+	const result = await rateLimitUser(
+		env,
+		userId,
+		"send",
+		OUTBOUND_SEND_MAX_REQUESTS,
+		OUTBOUND_SEND_WINDOW_MS,
+	);
+	if (!result.allowed) throw new OutboundSendRateLimitError();
+}
+
 type SendAuthorization = SenderAuthorization | ExternalSenderAuthorization;
 
 async function resolveSendAuthorization(
@@ -249,6 +271,10 @@ export async function sendEmail(
 		)
 		: authoredContent;
 	const validatedAttachments = validateOutboundAttachments(input);
+	// Automatic vacation replies are governed by their own per-correspondent
+	// window. Idempotent MCP replays return above without charging; every other
+	// ordinary send crosses this one shared quota seam exactly once.
+	if (!input.autoReply) await enforceOutboundSendQuota(env, input.userId);
 	await upsertContactFromAddress(env, {
 		userId: input.userId,
 		address: input.to,

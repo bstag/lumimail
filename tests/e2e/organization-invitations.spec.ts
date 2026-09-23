@@ -16,6 +16,27 @@ async function mockAdminSession(page: Page) {
 }
 
 test.describe("identity-bound organization invitations", () => {
+	test("keeps a losing first-owner registration on the form after setup closes", async ({ page }) => {
+		await page.route("**/api/auth/me", (route) => route.fulfill({ status: 401, json: { error: "Unauthorized" } }));
+		await page.route("**/api/setup/status", (route) => route.fulfill({ json: { hasPrimaryDomain: false, primaryDomain: null } }));
+		await page.route("**/api/setup/domain", (route) => route.fulfill({ json: { success: true, data: { domain: { hostname: "workspace.test" } } } }));
+		let attempts = 0;
+		await page.route("**/api/auth/register", (route) => {
+			attempts++;
+			return route.fulfill({ status: 403, json: { success: false, error: { message: "Registration requires an invitation" } } });
+		});
+		await page.goto("/register");
+		await page.getByLabel("Primary domain").fill("workspace.test");
+		await page.getByRole("button", { name: "Continue", exact: true }).click();
+		await page.getByLabel("Username").fill("owner");
+		await page.getByLabel("Password", { exact: true }).fill("a-strong-test-password");
+		await page.getByLabel("Recovery email").fill("owner@example.net");
+		await page.getByRole("button", { name: "Create account", exact: true }).click();
+		await expect.poll(() => attempts).toBe(1);
+		await expect(page.getByText("Registration failed", { exact: true })).toBeVisible();
+		await expect(page).toHaveURL(/\/register$/);
+		await expect(page.getByRole("button", { name: "Create account", exact: true })).toBeEnabled();
+	});
 	test("sends a new invitation, reveals its link once, and presents lifecycle state", async ({ page }) => {
 		await mockAdminSession(page);
 		let postCount = 0;

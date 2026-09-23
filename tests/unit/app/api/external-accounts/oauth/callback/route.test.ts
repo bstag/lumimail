@@ -36,18 +36,59 @@ describe("GET /api/external-accounts/oauth/callback", () => {
 		});
 	});
 
-	it("rejects provider denial, malformed input, stale session, and invalid configuration safely", async () => {
-		for (const query of ["?error=access_denied&error_description=secret", "?state=s", "?code=c", "?state=x&code=y&extra=z"]) {
-			const response = await GET(new Request(`https://mail.example/api/external-accounts/oauth/callback${query}`));
-			expect(response.status).toBe(303);
-			expect(response.headers.get("location")).not.toContain("secret");
-		}
+	it.each([
+		["Google", "?state=state_1&code=code_1&scope=email%20openid%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.readonly&authuser=0&prompt=consent"],
+		["Google Workspace", "?iss=https%3A%2F%2Faccounts.google.com&code=code_1&scope=email&state=state_1&authuser=1&hd=example.com&prompt=consent"],
+		["Microsoft", "?code=code_1&state=state_1&session_state=0f1e2d3c-aaaa-bbbb-cccc-000000000000"],
+	])("completes a %s callback and ignores provider-appended parameters", async (_provider, query) => {
+		const response = await GET(new Request(`https://mail.example/api/external-accounts/oauth/callback${query}`));
+		expect(response.status).toBe(303);
+		expect(response.headers.get("location")).toBe("https://mail.example/settings/external-accounts?connected=exa_1");
+		expect(h.complete).toHaveBeenCalledWith(h.env, {
+			userId: "usr_1", organizationId: "org_1", sessionId: "sess_1", state: "state_1", code: "code_1",
+		});
+	});
+
+	it("redirects provider denial without echoing the provider description", async () => {
+		const response = await GET(new Request("https://mail.example/api/external-accounts/oauth/callback?error=access_denied&error_description=secret&state=s"));
+		expect(response.status).toBe(303);
+		expect(response.headers.get("location")).toBe("https://mail.example/settings/external-accounts?error=provider-denied");
+		expect(h.complete).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"?state=s",
+		"?code=c",
+		"?state=&code=c",
+		"?state=a&state=b&code=c",
+		"?state=s&code=a&code=b",
+		`?state=${"s".repeat(257)}&code=c`,
+	])("redirects malformed callback %s as invalid without completing", async (query) => {
+		const response = await GET(new Request(`https://mail.example/api/external-accounts/oauth/callback${query}`));
+		expect(response.status).toBe(303);
+		expect(response.headers.get("location")).toBe("https://mail.example/settings/external-accounts?error=invalid");
+		expect(h.complete).not.toHaveBeenCalled();
+	});
+
+	it("redirects stale recent authentication and missing organization instead of returning JSON", async () => {
 		h.recent.mockResolvedValue(null);
-		expect((await GET(new Request("https://mail.example/api/external-accounts/oauth/callback?state=s&code=c"))).status).toBe(403);
+		let response = await GET(new Request("https://mail.example/api/external-accounts/oauth/callback?state=s&code=c"));
+		expect(response.status).toBe(303);
+		expect(response.headers.get("location")).toBe("https://mail.example/settings/external-accounts?error=reauthenticate");
+
+		h.recent.mockResolvedValue({ id: "sess_1", organizationId: "org_other" });
+		response = await GET(new Request("https://mail.example/api/external-accounts/oauth/callback?state=s&code=c"));
+		expect(response.headers.get("location")).toBe("https://mail.example/settings/external-accounts?error=reauthenticate");
+
 		h.recent.mockResolvedValue({ id: "sess_1", organizationId: "org_1" });
 		h.user = { id: "usr_1", organizationId: null };
-		expect((await GET(new Request("https://mail.example/api/external-accounts/oauth/callback?state=s&code=c"))).status).toBe(403);
-		h.user = { id: "usr_1", organizationId: "org_1" };
+		response = await GET(new Request("https://mail.example/api/external-accounts/oauth/callback?state=s&code=c"));
+		expect(response.status).toBe(303);
+		expect(response.headers.get("location")).toBe("https://mail.example/settings/external-accounts?error=forbidden");
+		expect(h.complete).not.toHaveBeenCalled();
+	});
+
+	it("returns 503 when the public origin is not configured", async () => {
 		h.env = {} as CloudflareEnv;
 		expect((await GET(new Request("https://mail.example/api/external-accounts/oauth/callback?state=s&code=c"))).status).toBe(503);
 	});
