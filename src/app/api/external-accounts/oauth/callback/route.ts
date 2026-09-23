@@ -10,7 +10,20 @@ import { normalizePublicAppOrigin } from "@/lib/email/external/oauth-provider";
 const callbackSchema = z.object({
 	state: z.string().min(1).max(256),
 	code: z.string().min(1).max(4096),
-}).strict();
+});
+
+/**
+ * Providers append their own parameters to the redirect (Google: `scope`, `authuser`,
+ * `prompt`, `hd`, `iss`; Microsoft: `session_state`). Only a single `state` and a
+ * single `code` are read; everything else is ignored and never trusted.
+ */
+function readCallbackParams(params: URLSearchParams) {
+	const state = params.getAll("state");
+	const code = params.getAll("code");
+	if (state.length !== 1 || code.length !== 1) return null;
+	const parsed = callbackSchema.safeParse({ state: state[0], code: code[0] });
+	return parsed.success ? parsed.data : null;
+}
 
 function settingsRedirect(origin: string, name: "connected" | "error", value: string): Response {
 	const target = new URL("/settings/external-accounts", origin);
@@ -27,23 +40,20 @@ export const GET = withUser(async ({ request, env, user }) => {
 	}
 	const params = new URL(request.url).searchParams;
 	if (params.has("error")) return settingsRedirect(origin, "error", "provider-denied");
-	const values = Object.fromEntries(params.entries());
-	const parsed = callbackSchema.safeParse(values);
-	if (!parsed.success || [...params.keys()].length !== 2) {
-		return settingsRedirect(origin, "error", "invalid");
-	}
-	if (!user.organizationId) return apiError("No active organization", 403);
+	const callback = readCallbackParams(params);
+	if (!callback) return settingsRedirect(origin, "error", "invalid");
+	if (!user.organizationId) return settingsRedirect(origin, "error", "forbidden");
 	const sessionToken = (await cookies()).get(SESSION_COOKIE)?.value;
 	const session = await readRecentlyAuthenticatedSession(env, user.id, sessionToken);
 	if (!session || session.organizationId !== user.organizationId) {
-		return apiError("Recent authentication required", 403);
+		return settingsRedirect(origin, "error", "reauthenticate");
 	}
 	try {
 		const result = await completeExternalOAuth(env, {
 			userId: user.id,
 			organizationId: user.organizationId,
 			sessionId: session.id,
-			...parsed.data,
+			...callback,
 		});
 		if (result.status === "created") return settingsRedirect(origin, "connected", result.accountId);
 		const error = result.status === "conflict"

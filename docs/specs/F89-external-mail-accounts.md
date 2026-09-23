@@ -196,7 +196,7 @@ behavior is fixed here.
 |---|---|---|---|---|
 | GET | `/api/external-accounts` | signed-in user + live mailbox membership | Connections visible to the user; secret-free status only | 401, 403 |
 | POST | `/api/external-accounts/oauth/start` | recent session + mailbox `manage` and `send` capability | Provider, mailboxId, importMode, retainOriginal; returns exact provider redirect | 400, 401, 403, 409, 429, 503 |
-| GET | `/api/external-accounts/oauth/callback` | one-time state + provider code | Completes exact initiating connection and queues initial sync | provider-safe 400/409/503 page |
+| GET | `/api/external-accounts/oauth/callback` | one-time state + provider code | Completes exact initiating connection and queues initial sync. Reads exactly one `state` and one `code`; other provider-appended parameters (for example Google `scope`, `authuser`, `prompt`, `hd`, `iss`, or Microsoft `session_state`) are ignored, never trusted. Redirects to `/settings/external-accounts?connected=<id>` or `?error=<code>` | 303 redirect with bounded error code; 503 only when the public origin is misconfigured |
 | GET | `/api/external-accounts/:id` | connection owner or authorized mailbox manager | Secret-free provider identity, mode, progress, health, timestamps | 401, 403, 404 |
 | PATCH | `/api/external-accounts/:id` | connection owner + current mailbox `manage`; recent auth for retention expansion | Pause/resume, import mode where safe, future-import retention toggle | 400, 401, 403, 404, 409 |
 | POST | `/api/external-accounts/:id/reconnect` | connection owner + recent session | Begins a new bound OAuth flow | 401, 403, 404, 409, 429 |
@@ -260,10 +260,14 @@ provider, credential, and verification behavior behind deeper module interfaces.
   account, message, cursor, and completed-job data remains valid.
 - Sync-job creation, coalescing, claim, wake-up, retry scheduling with jitter,
   completion, failure, and enqueue recovery live behind one durable job interface.
-- A Sync Page applies as one D1 progress decision: normalized messages, external
-  mappings, retained-original metadata, and the next cursor commit together. Required
-  R2 objects are written first and compensated if D1 fails; failed compensation is
-  recoverable as an orphan and never permits cursor advancement.
+- A Sync Page keeps its provider cursor as the final progress decision. Each
+  normalized message, external mapping, and retained-original metadata is prepared
+  and committed in a bounded idempotent D1 batch before the next message is
+  materialized; the cursor mutations commit only after every message succeeds.
+  Required R2 objects are written first and compensated when that message's D1 batch
+  fails. If a later message or the final cursor batch fails, earlier message writes
+  remain durable and the unchanged cursor makes the replay safe through the existing
+  account/remote-message uniqueness.
 - Google and Microsoft each provide one provider adapter covering delegated OAuth,
   bounded synchronization, and sending. Provider selection happens once per workflow;
   provider-specific folders, cursors, endpoints, and response validation remain inside
@@ -287,6 +291,9 @@ Edge and error behavior:
 - A provider page replay may repeat reads and R2 writes but cannot duplicate Lumimail
   messages, mappings, or Retained Originals.
 - Any message, mapping, metadata, or D1 commit failure leaves the prior cursor visible.
+- A page may contain durable earlier message writes after a later failure; replaying
+  the unchanged page updates those mappings idempotently and never creates a second
+  Lumimail message.
 - Delegated Credential revocation becomes a typed credential outcome; no adapter or
   caller receives plaintext refresh credentials.
 - This change adds no providers, generic IMAP ingestion, provider push, or two-way
@@ -339,9 +346,12 @@ Edge and error behavior:
   OAuth, bounded page retrieval, and outbound sending. Stored Delegated Credentials are
   opened, refreshed, and compare-and-set rotated only by credential custody; adapters
   receive short-lived access tokens.
-- A Sync Page prepares normalized message, mapping, attachment, Retained Original, and
-  cursor statements before committing them in one transactional D1 batch. R2 objects
-  written during preparation are compensated if preparation or the D1 commit fails.
+- A Sync Page defers provider MIME materialization and prepares one normalized
+  message, mapping, attachment, and Retained Original at a time. Each message batch
+  releases its parsed body and statement values before the next message is loaded;
+  cursor mutations are committed in one final D1 batch after all messages succeed.
+  R2 objects written for a message are compensated if that message's preparation or
+  D1 commit fails.
 
 ## 9. Error States
 
@@ -349,12 +359,18 @@ Edge and error behavior:
 |---|---|---|
 | OAuth state missing, expired, replayed, or bound to another session/mailbox | Connection refused; restart connection | No token stored; security event without code/token |
 | Provider identity differs from expected callback identity | Connection refused | No browser-supplied identity accepted |
+| Provider denies consent (`error` parameter) | `Authorization was cancelled or denied by the provider` | `?error=provider-denied`; provider error description is discarded |
+| Callback lacks a single `state` and `code` | `The provider response was incomplete or expired` | `?error=invalid`; nothing is consumed |
+| Session is no longer recently authenticated at callback | `Your password confirmation expired` | `?error=reauthenticate`; state is not consumed |
+| No active organization or lost mailbox management at callback | `You no longer have permission to connect an account to that mailbox` | `?error=forbidden` |
+| Account already connected to the mailbox | `That account is already connected` | `?error=already-connected` |
+| Unexpected provider or storage failure during completion | `The provider could not be reached` | `?error=unavailable`; content-free |
 | User loses mailbox access during OAuth | Connection refused | Callback rechecks live authorization |
 | Refresh token rejected/revoked | `Reconnect required` | Stop import/send; do not retry credentials indefinitely |
 | Provider throttles or is temporarily unavailable | `Sync delayed` | Classified bounded retry; prior mail remains readable |
 | Cursor/delta link invalid or expired | `Resync required` | Preserve local data; require bounded resync path |
 | Queue enqueue fails after connection commit | `Sync pending` | Durable D1 job remains discoverable by scheduled reconciliation |
-| Message page partially fails | No false success or cursor advance | Retry same page idempotently |
+| Message page partially fails | No false success or cursor advance; earlier imports may remain visible | Retryable provider failures use the existing retry path; generic D1/application failures remain terminal until existing recovery replays the page |
 | Original MIME write fails when retention is selected | Message not claimed as retained | Retry or expose retention failure; never mark checksum/object complete |
 | External send provider returns a permanent denial | Existing outbound job/message becomes failed | No fallback sender/provider |
 | Provider accepts send but response is lost | Ambiguous delivery warning | Existing explicit recovery contract applies; possible duplicate disclosed |
@@ -426,7 +442,7 @@ Edge and error behavior:
 | Unit | provider normalization, folder mapping, dedup keys, cursor transitions, retry classification, exact-original checksums, sender binding, Sent reconciliation |
 | Crypto | AES-GCM round trip, wrong key/AAD/tampering refusal, version rotation, plaintext exclusion, concurrent refresh compare-and-set |
 | Route | start/callback PKCE and state lifecycle, callback authorization recheck, connection CRUD ownership, recent-auth boundaries, non-enumeration, validation and rate limits |
-| D1 integration | unique account/remote IDs, account lease, atomic page+cursor commit, idempotent replay, remote move/removal, prospective retention, tenant isolation |
+| D1 integration | unique account/remote IDs, account lease, final cursor commit, idempotent replay after partial page progress, remote move/removal, prospective retention, tenant isolation |
 | Queue | initial paging, incremental sync, retry/DLQ, cursor expiry, reconciliation of committed-but-not-enqueued jobs, revoked-account refusal |
 | Provider contract | recorded Google and Microsoft success/error/throttle/expired-cursor fixtures without live tokens or message content in the repository |
 | Existing mail pipeline | sanitizer, threading, attachment bounds, notifications, search, folder queries, and all-mailbox scope accept external imports without authorization regressions |
@@ -549,6 +565,82 @@ tests, UI, provider failure handling, and controlled evidence. They are not comm
 - [F63 R2 retention](./F63-r2-retention-and-cleanup.md)
 
 ## 16. Bug / Change Log
+
+### 2026-09-23 — Accept provider-appended OAuth callback parameters
+
+Type: Bug Fix / Behavior Change
+
+Summary:
+
+- The OAuth callback reads exactly one `state` and one `code` and ignores any other
+  query parameters instead of rejecting them.
+- Callback failures that previously returned a raw JSON 403 now redirect: stale recent
+  authentication uses `?error=reauthenticate` and a missing active organization uses
+  `?error=forbidden`.
+- The external accounts settings page shows the `connected` or `error` result as a
+  status or alert message and removes the parameters from the address bar.
+
+Reason:
+
+- Google always appends `scope`, `authuser`, and `prompt` (and may append `hd` or
+  `iss`) to the redirect, and Microsoft work accounts append `session_state`. The
+  callback required exactly two parameters, so every real Google connection in
+  production was redirected with `?error=invalid` before the code exchange. The
+  settings page never displayed that error, so the failure was silent.
+
+Impact:
+
+- Google and Microsoft connections can complete. Extra parameters are never trusted;
+  identity still comes only from the provider identity endpoint. Duplicate `state` or
+  `code` values are still rejected.
+
+Verification plan:
+
+- Route tests with Google- and Microsoft-shaped callback URLs, duplicate parameters,
+  and redirect-based reauthentication errors; mapper unit tests for every error code;
+  E2E assertions for connected and error messages. Run `npm run verify` and the
+  external-accounts E2E spec, then retry a production Google connection.
+
+Results:
+
+- `npm run verify` passed: typecheck, lint with no errors, 2,734 unit tests, coverage
+  gate, and CRAP gate. The external-accounts E2E spec passed 3 of 3.
+- Deployed to production 2026-09-23 as Worker version
+  `5f756117-e9b0-4f0a-afa4-e2d97a841f74` from the working tree already live since
+  2026-09-06; no migrations were pending. The live settings bundle contains the new
+  notices and production smoke passed 8/8.
+- A production Google connection completed successfully after the deployment
+  (operator-reported, 2026-09-23). Microsoft remains untested in production because
+  its OAuth client secrets are not yet configured.
+
+### 2026-09-05 — Bound external Sync Page memory
+
+Type: Performance Fix / Behavior Change
+
+Summary:
+
+- Provider changes defer raw MIME loading, and Sync Page application commits each
+  message in a bounded idempotent batch before its final cursor batch.
+
+Reason:
+
+- Ten 30 MiB provider MIME messages and their parsed D1 body statements could remain
+  live together and exceed the Cloudflare Worker isolate memory limit.
+
+Impact:
+
+- Valid provider pages remain fully imported. A late page failure can leave earlier
+  message mappings committed, while the unchanged cursor makes the retry safe and
+  prevents skipped changes or duplicate Lumimail messages.
+
+Verification plan:
+
+- Add provider lazy-loader, adapter, sequential application, final-cursor, and late
+  failure replay tests. Run focused external-sync tests and repository verification.
+
+Notes:
+
+- Detailed contract and edge cases live in [F93](./F93-external-sync-bounded-memory.md).
 
 ### 2026-08-19 — Deepen external-account synchronization architecture
 

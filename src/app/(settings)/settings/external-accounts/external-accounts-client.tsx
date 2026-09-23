@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Cloud, Pause, Play, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiJson } from "@/lib/api/client-response";
+import { describeExternalOAuthResult, type ExternalOAuthNotice } from "./oauth-result";
 
 type ExternalAccount = {
 	id: string;
@@ -74,8 +76,26 @@ function ConnectedExternalAccounts({ accounts, loading, error, statusMessage, on
 	</>;
 }
 
+/** Reads the callback result once, then drops it from the URL so a refresh does not repeat it. */
+function useExternalOAuthNotice(): ExternalOAuthNotice | null {
+	const searchParams = useSearchParams();
+	const [notice] = useState(() => describeExternalOAuthResult(searchParams));
+	useEffect(() => {
+		if (notice) globalThis.history.replaceState(null, "", globalThis.location.pathname);
+	}, [notice]);
+	return notice;
+}
+
+function OAuthResultNotice({ notice }: { notice: ExternalOAuthNotice | null }) {
+	if (!notice) return null;
+	return notice.tone === "error"
+		? <p role="alert" className="rounded-lg border border-danger/30 bg-danger-muted px-4 py-3 text-sm text-danger">{notice.message}</p>
+		: <p role="status" className="rounded-lg border border-success/30 bg-success-muted px-4 py-3 text-sm text-success">{notice.message}</p>;
+}
+
 export function ExternalAccountsClient() {
 	const queryClient = useQueryClient();
+	const oauthNotice = useExternalOAuthNotice();
 	const [mailboxId, setMailboxId] = useState("");
 	const [importMode, setImportMode] = useState<"from_now" | "recent_30_days">("from_now");
 	const [retainOriginal, setRetainOriginal] = useState(false);
@@ -116,6 +136,7 @@ export function ExternalAccountsClient() {
 				<h2 className="text-2xl font-semibold text-ink">External accounts</h2>
 				<p className="mt-1 text-sm text-ink-muted">Read and send Google or Microsoft mail from a Picket mailbox. Sync is one-way into Picket.</p>
 			</div>
+			<OAuthResultNotice notice={oauthNotice} />
 
 			<section className="space-y-4 rounded-lg border border-border p-4">
 				<div className="flex items-start gap-3"><Cloud className="mt-0.5 h-5 w-5 text-accent" /><div><h3 className="font-semibold text-ink">Connect an account</h3><p className="text-sm text-ink-muted">Provider authorization uses delegated OAuth. Picket never asks for the provider password.</p></div></div>
