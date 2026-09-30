@@ -144,4 +144,34 @@ describe("legal content", () => {
 		expect(fullText(termsOfService)).toMatch(/non-consensual intimate imagery/i);
 		expect(fullText(privacyPolicy)).toMatch(/non-consensual intimate imagery/i);
 	});
+
+	it("opens the privacy policy with a plain summary of what is collected and why", () => {
+		const [first] = privacyPolicy.sections;
+		expect(first.id).toBe("summary");
+		expect(first.title).toBe("Summary");
+		const text = (first.items ?? []).join(" ");
+		expect(text).toMatch(/connect a Google account/i);
+		expect(text).toMatch(/only after you consent/i);
+		expect(text).toMatch(/do not sell/i);
+		expect(text).toMatch(/disconnect at any time/i);
+	});
+
+	it("lists every category of Google user data the import and send code actually touch", () => {
+		const section = privacyPolicy.sections.find((item) => item.id === "google-data-accessed");
+		expect(section?.title).toBe("Google data we access");
+		const text = (section?.items ?? []).join(" ");
+		expect(text).toMatch(/email address/i);
+		expect(text).toMatch(/subject/i);
+		expect(text).toMatch(/attachments/i);
+		expect(text).toMatch(/raw message/i);
+		expect(text).toMatch(/labels/i);
+		expect(text).toMatch(/history position/i);
+		expect(text).toMatch(/messages you send/i);
+		expect(text).toMatch(/contacts, calendar, Drive/i);
+	});
+
+	it("leads the home page purpose with the application's name and purpose", () => {
+		const [first] = homePurpose.sections;
+		expect(first.paragraphs?.[0]).toMatch(/^Picket is a shared email workspace/);
+	});
 });

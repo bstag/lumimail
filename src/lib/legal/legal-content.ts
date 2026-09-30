@@ -97,6 +97,16 @@ export const privacyPolicy: LegalDocument = {
 	effectiveDate: "2026-09-30",
 	sections: [
 		{
+			id: "summary",
+			title: "Summary",
+			items: [
+				"Picket is an email service. If you choose to connect a Google account, we read your Gmail messages so they appear in a Picket mailbox, and we send mail you compose from that Gmail address.",
+				"We access Google data only after you consent, only the data listed below, and only to provide those features.",
+				"We do not sell your data, show advertising, or use Google data to train AI or machine-learning models.",
+				"You can disconnect at any time, and you can ask us to delete your data.",
+			],
+		},
+		{
 			id: "who-we-are",
 			title: "Who we are",
 			paragraphs: [
@@ -126,6 +136,18 @@ export const privacyPolicy: LegalDocument = {
 			items: googleScopeDisclosures.map((item) => `${item.scope} — ${item.purpose}.`),
 			links: [
 				{ label: "Google API Services User Data Policy", href: "https://developers.google.com/terms/api-services-user-data-policy" },
+			],
+		},
+		{
+			id: "google-data-accessed",
+			title: "Google data we access",
+			paragraphs: ["If you connect a Google account, Picket accesses only the following Google user data:"],
+			items: [
+				"The email address of your Google account, to show it and match it to the connection.",
+				"Message content: for each message we import, its sender, recipients, subject, date, headers, body, and attachments, received from Google as the complete raw message.",
+				"Message metadata: message and thread identifiers, labels (used to place a message in Inbox, Sent, or archive), and the mailbox history position that lets us fetch only what has changed since the last sync.",
+				"Messages you send: the message you compose in Picket, which we pass to Google to send from your Gmail address.",
+				"We do not access your Google contacts, calendar, Drive files, photos, or any other Google service.",
 			],
 		},
 		{
