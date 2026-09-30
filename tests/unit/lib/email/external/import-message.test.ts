@@ -69,6 +69,25 @@ describe("persistExternalMessage", () => {
 		expect(mock.db.batch).toHaveBeenCalledTimes(1);
 	});
 
+	it("parses exactly the received bytes without copying when the view spans its whole buffer", async () => {
+		mock.queueSelect([]);
+		const whole = new TextEncoder().encode("raw mime");
+		await persistExternalMessage({ BUCKET: bucket } as unknown as CloudflareEnv,
+			account, mailbox, { ...change, rawMime: whole }, new Date("2026-08-15T12:00:00Z"));
+		expect(h.parse.mock.calls[0][0]).toBe(whole.buffer);
+	});
+
+	it("copies only the viewed bytes when the MIME is a window into a larger buffer", async () => {
+		mock.queueSelect([]);
+		const backing = new TextEncoder().encode("xxraw mimexx");
+		const window = backing.subarray(2, 10);
+		await persistExternalMessage({ BUCKET: bucket } as unknown as CloudflareEnv,
+			account, mailbox, { ...change, rawMime: window }, new Date("2026-08-15T12:00:00Z"));
+		const parsedBuffer = h.parse.mock.calls[0][0] as ArrayBuffer;
+		expect(parsedBuffer).not.toBe(backing.buffer);
+		expect(new TextDecoder().decode(parsedBuffer)).toBe("raw mime");
+	});
+
 	it("deduplicates replay and records remote removal without deleting the local copy", async () => {
 		mock.queueSelect([{ id: "exm_existing", lumimailMessageId: "msg_existing" }]);
 		expect(await persistExternalMessage({} as CloudflareEnv, account, mailbox, change))
