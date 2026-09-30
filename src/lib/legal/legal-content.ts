@@ -51,6 +51,45 @@ export const googleScopeDisclosures = [
 	},
 ] as const;
 
+export type HomePurpose = { title: string; sections: readonly LegalSection[] };
+
+/**
+ * Shown on the public home page so a visitor (and Google's reviewers) can see, without signing
+ * in, what the application is for and how it uses Google APIs.
+ */
+export const homePurpose: HomePurpose = {
+	title: "What Picket is for",
+	sections: [
+		{
+			id: "shared-email-workspace",
+			title: "A shared email workspace",
+			paragraphs: [
+				"Picket is a shared email workspace for teams and small organizations, operated by Stagware. It lets you receive, read, organize, and send email for your own domains, with mailboxes shared among the people you choose.",
+			],
+		},
+		{
+			id: "optional-google-connection",
+			title: "Optional Google account connection",
+			paragraphs: [
+				"You can connect a Gmail or Google Workspace account so its mail appears in a Picket mailbox and you can send mail from that address inside Picket. Picket asks Google for read and send access only when you choose to connect, and it never changes or deletes anything in your Gmail account.",
+			],
+		},
+		{
+			id: "what-picket-does-not-do",
+			title: "What Picket does not do",
+			items: [
+				"Picket does not use Google APIs, or data received from them, to create, store, or distribute non-consensual intimate imagery, including AI-generated imagery. Picket has no image or video generation features, and its terms prohibit this content.",
+				"Picket does not use Google user data for advertising, does not sell it, and does not use it to train AI or machine-learning models.",
+				"Stagware does not read your Google data except with your permission, to investigate abuse or a security incident, or where the law requires it.",
+			],
+			links: [
+				{ label: "Privacy Policy", href: "/privacy" },
+				{ label: "Terms of Service", href: "/terms" },
+			],
+		},
+	],
+};
+
 export const privacyPolicy: LegalDocument = {
 	title: "Privacy Policy",
 	summary:
@@ -100,6 +139,7 @@ export const privacyPolicy: LegalDocument = {
 				"Who can read imported mail: everyone with read access to the Picket mailbox you connect can read the mail imported into it. We show this before you connect.",
 				"Human access: Stagware does not read your Google data. We access it only if you ask us to help with a specific problem, where needed to investigate abuse or a security incident, or where the law requires it.",
 				"AI: we do not use Google user data to develop, improve, or train generalized AI or machine-learning models.",
+				"Prohibited content: we do not use Google APIs, or data received from them, to create, store, or distribute non-consensual intimate imagery, including AI-generated imagery.",
 				"Advertising and sale: we do not use Google user data for advertising, and we never sell it.",
 				"Third-party clients you authorize: if you choose to connect an assistant or another client to your Picket mailbox (for example through an API key, the MCP integration, or the IMAP and SMTP bridge), that client can read the mail in that mailbox, including imported Gmail mail, to the extent you authorize it.",
 			],
@@ -235,6 +275,7 @@ export const termsOfService: LegalDocument = {
 				"distribute malware or content that is unlawful, infringing, or harmful;",
 				"harass or threaten anyone, or violate someone's privacy or rights;",
 				"attack, probe, overload, or circumvent the limits or security of the service or other users;",
+				"create, store, or distribute non-consensual intimate imagery (including AI-generated imagery) or any sexual content involving minors;",
 				"send from an address or domain you are not authorized to use; or",
 				"resell or provide the service to others without our permission.",
 			],
