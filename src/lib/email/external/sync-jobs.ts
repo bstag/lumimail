@@ -84,6 +84,7 @@ export async function requestExternalSyncJob(
 		kind: externalSyncJobs.kind,
 		requestedKind: externalSyncJobs.requestedKind,
 		status: externalSyncJobs.status,
+		leaseUntil: externalSyncJobs.leaseUntil,
 	}).from(externalSyncJobs).where(and(
 		eq(externalSyncJobs.accountId, accountId),
 		inArray(externalSyncJobs.status, ["pending", "processing"]),
@@ -103,10 +104,12 @@ export async function requestExternalSyncJob(
 			));
 	}
 
+	const wakeable = active.status === "pending" ||
+		(active.leaseUntil !== null && active.leaseUntil <= now);
 	return {
 		jobId: active.id,
 		created: false,
-		enqueued: active.status === "pending"
+		enqueued: wakeable
 			? await wakeExternalSyncJob(env, active.id, "External sync enqueue deferred")
 			: false,
 	};
@@ -119,9 +122,9 @@ export async function reconcileExternalSyncJobs(
 	const db = getDb(env);
 	let enqueued = 0;
 	let created = 0;
-	const jobs = await db.select({ id: externalSyncJobs.id }).from(externalSyncJobs).where(and(
-		eq(externalSyncJobs.status, "pending"),
-		lte(externalSyncJobs.nextAttemptAt, now),
+	const jobs = await db.select({ id: externalSyncJobs.id }).from(externalSyncJobs).where(or(
+		and(eq(externalSyncJobs.status, "pending"), lte(externalSyncJobs.nextAttemptAt, now)),
+		and(eq(externalSyncJobs.status, "processing"), lte(externalSyncJobs.leaseUntil, now)),
 	)).limit(100);
 	for (const job of jobs) {
 		if (await wakeExternalSyncJob(env, job.id, "External sync reconciliation enqueue deferred")) {

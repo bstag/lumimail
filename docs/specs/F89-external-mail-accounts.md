@@ -285,7 +285,10 @@ Edge and error behavior:
 - Competing job creation cannot produce two active jobs for one account.
 - A weaker request never downgrades pending or in-flight work.
 - A crashed or expired worker lease makes the active job claimable without creating a
-  second active job.
+  second active job. This holds for a `processing` job whose `lease_until` has passed:
+  the queue consumer may claim it, scheduled reconciliation re-enqueues it, and a manual
+  sync request wakes it. A `processing` job with a live lease is never claimed, woken, or
+  stolen.
 - Transient provider failures use bounded exponential backoff with jitter; tests assert
   bounds, not one exact delay.
 - A provider page replay may repeat reads and R2 writes but cannot duplicate Lumimail
@@ -565,6 +568,43 @@ tests, UI, provider failure handling, and controlled evidence. They are not comm
 - [F63 R2 retention](./F63-r2-retention-and-cleanup.md)
 
 ## 16. Bug / Change Log
+
+### 2026-09-30 — Recover sync jobs stranded by an expired lease
+
+Type: Bug Fix
+
+Summary:
+
+- The queue consumer claims a `processing` job whose lease has expired, scheduled
+  reconciliation re-enqueues such jobs, and a manual sync request wakes them.
+
+Reason:
+
+- The production Google account connected 2026-09-23 imported 1,937 messages and then
+  stopped: its worker died mid-page and left the job `processing` with an expired lease
+  and the account `initial_sync`. The claim query and reconciliation only handled
+  `pending` jobs, and reconciliation only polled `active` accounts, so nothing could
+  ever recover it and manual sync silently coalesced into the dead job. This contradicted
+  the §6.3 lease-expiry contract.
+
+Impact:
+
+- Any crash mid-page is now self-healing within one reconciliation minute. The replay
+  resumes from the unchanged cursor and cannot duplicate mail. Attempts are not capped,
+  so a page that deterministically crashes its worker will be retried each minute; the
+  cause of the original crash is not yet identified.
+
+Verification plan:
+
+- Real-SQLite tests for expired and live leases across the claim, reconciliation, and
+  manual-sync paths; run `npm run verify`; after deploy, reset the stranded production job
+  and tail logs while it resumes.
+
+Results:
+
+- `npm run verify` passed 2026-09-30: typecheck, lint with no errors, 2,740 unit tests,
+  the coverage gate, and the CRAP gate. E2E was not run; no user-visible contract changed.
+- Not yet deployed. The stranded production job has not been reset.
 
 ### 2026-09-23 — Accept provider-appended OAuth callback parameters
 
