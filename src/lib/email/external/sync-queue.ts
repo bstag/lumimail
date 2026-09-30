@@ -74,9 +74,15 @@ export async function processExternalSyncQueue(
 		errorCode: null,
 	}).where(and(
 		eq(externalSyncJobs.id, payload.jobId),
-		eq(externalSyncJobs.status, "pending"),
-		lte(externalSyncJobs.nextAttemptAt, now),
-		or(isNull(externalSyncJobs.leaseUntil), lte(externalSyncJobs.leaseUntil, now)),
+		or(
+			and(
+				eq(externalSyncJobs.status, "pending"),
+				lte(externalSyncJobs.nextAttemptAt, now),
+				or(isNull(externalSyncJobs.leaseUntil), lte(externalSyncJobs.leaseUntil, now)),
+			),
+			// A worker that died mid-page never released its job; an expired lease makes it claimable.
+			and(eq(externalSyncJobs.status, "processing"), lte(externalSyncJobs.leaseUntil, now)),
+		),
 	)).returning();
 	if (!job) return { action: "ack" };
 
