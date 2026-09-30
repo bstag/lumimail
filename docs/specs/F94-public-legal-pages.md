@@ -129,6 +129,37 @@ No existing behavior — new feature. `/privacy` and `/terms` currently return 4
 
 ## 13. Bug / Change Log
 
+### 2026-09-30 — Put the purpose first and make the privacy policy explicit about Google data
+
+Type: Behavior Change
+
+Summary:
+
+- The "What Picket is for" section moves above the sign-in hero, so the first content a
+  reader or crawler meets is what the app is, not Log in / Create account and a mock inbox.
+- The privacy policy opens with a plain-language summary and gains a "Google data we
+  access" section listing each category (account email, message content, message
+  metadata, messages sent) and the Google services it does not touch.
+
+Reason:
+
+- Google's review then reported that the privacy policy lacked sufficient detail, the home
+  page was behind a login, the home page did not explain the app's purpose, and the app
+  name did not match. The live page was public and named Picket, but its extracted text
+  began with the language menu, sign-in buttons, and a mock inbox, the purpose section was
+  line 66 of 88, and the hero never said what Picket is.
+
+Impact:
+
+- Presentation and content only; no data, API, or schema changes.
+
+Tests:
+
+- `npm run verify` passed 2026-09-30 (2,765 unit tests, coverage and CRAP gates). The
+  legal-pages and landing Playwright specs passed 11 of 11, including a no-JavaScript check
+  that the purpose precedes the hero in the initial HTML.
+- Not yet deployed.
+
 ### 2026-09-30 — State the application's purpose and Google API restrictions on the home page
 
 Type: Behavior Change

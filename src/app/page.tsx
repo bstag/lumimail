@@ -70,6 +70,8 @@ export default function HomePage() {
       </header>
 
       <main>
+        <HomePurposeSection />
+
         <section className="relative mx-auto grid max-w-7xl grid-cols-1 gap-10 overflow-hidden px-4 pb-12 pt-8 sm:px-6 md:pt-16 lg:grid-cols-[0.86fr_1.14fr] lg:px-8">
           <RouteMotif className="absolute -left-28 top-2 h-80 w-[28rem] opacity-[0.06]" />
           <div className="relative flex max-w-2xl flex-col justify-center">
@@ -194,8 +196,6 @@ export default function HomePage() {
             </div>
           </div>
         </section>
-
-        <HomePurposeSection />
 
         <section className="mx-auto grid max-w-7xl gap-4 px-4 pb-16 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">
           {(["Delivery", "Collab", "Flow", "Clients"] as const).map((feature) => (

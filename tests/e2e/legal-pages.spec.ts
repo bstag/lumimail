@@ -65,4 +65,13 @@ test.describe("Home page without JavaScript", () => {
 		expect(html).toContain('href="/privacy"');
 		expect(html).toContain('href="/terms"');
 	});
+
+	test("puts the purpose before the sign-in hero so a reader sees what the app is first", async ({ request }) => {
+		const html = await (await request.get("/")).text();
+		const purpose = html.indexOf("What Picket is for");
+		const hero = html.indexOf("Mailboxes that feel like your inbox");
+		expect(purpose).toBeGreaterThan(-1);
+		expect(hero).toBeGreaterThan(-1);
+		expect(purpose).toBeLessThan(hero);
+	});
 });

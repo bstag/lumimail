@@ -5,7 +5,7 @@ export function HomePurposeSection() {
 	return (
 		<section
 			aria-labelledby="home-purpose-title"
-			className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8"
+			className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8"
 		>
 			<div className="rounded-2xl border border-border bg-surface-raised p-6 sm:p-8">
 				<h2 id="home-purpose-title" className="font-display text-2xl font-semibold tracking-tight text-ink">
