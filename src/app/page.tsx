@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { BrandLockup, RouteMotif } from "@/components/brand";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { HomePurposeSection } from "@/components/legal/home-purpose-section";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { authFetch, clearLegacySessionToken } from "@/lib/auth/client";
 import { getHomeActions, heroMessages, sidebarItems } from "./utils";
@@ -193,6 +194,8 @@ export default function HomePage() {
             </div>
           </div>
         </section>
+
+        <HomePurposeSection />
 
         <section className="mx-auto grid max-w-7xl gap-4 px-4 pb-16 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">
           {(["Delivery", "Collab", "Flow", "Clients"] as const).map((feature) => (

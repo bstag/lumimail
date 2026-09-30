@@ -3,6 +3,7 @@ import { getExternalOAuthProvider } from "@/lib/email/external/oauth-provider";
 import {
 	LEGAL_OPERATOR,
 	googleScopeDisclosures,
+	homePurpose,
 	privacyPolicy,
 	termsOfService,
 	type LegalDocument,
@@ -113,5 +114,34 @@ describe("legal content", () => {
 		expect(text).toMatch(/not a backup/i);
 		expect(text).toMatch(/as is/i);
 		expect(text).toMatch(/acceptable use/i);
+	});
+
+	it("states the application's purpose and Google API restrictions on the home page", () => {
+		const text = [
+			homePurpose.title,
+			...homePurpose.sections.flatMap((section) => [
+				section.title,
+				...(section.paragraphs ?? []),
+				...(section.items ?? []),
+			]),
+		].join(String.fromCharCode(10));
+		expect(homePurpose.title).toBe("What Picket is for");
+		expect(text).toContain("Stagware");
+		expect(text).toMatch(/shared email workspace/i);
+		expect(text).toMatch(/Gmail/);
+		expect(text).toMatch(/non-consensual intimate imagery/i);
+		expect(text).toMatch(/AI-generated/i);
+		expect(text).toMatch(/no image or video generation|does not generate images or video/i);
+		expect(text).toMatch(/never changes or deletes/i);
+		expect(text).toMatch(/advertis/i);
+		expect(text).toMatch(/sell/i);
+		const hrefs = homePurpose.sections.flatMap((section) => (section.links ?? []).map((link) => link.href));
+		expect(hrefs).toEqual(expect.arrayContaining(["/privacy", "/terms"]));
+		for (const href of hrefs) expect(href).toMatch(/^(\/|https:\/\/)/);
+	});
+
+	it("prohibits non-consensual intimate imagery in the terms and repeats the commitment in the privacy policy", () => {
+		expect(fullText(termsOfService)).toMatch(/non-consensual intimate imagery/i);
+		expect(fullText(privacyPolicy)).toMatch(/non-consensual intimate imagery/i);
 	});
 });

@@ -23,6 +23,13 @@ without signing in.
   - Given no session, when I request either route, then I receive the document, not a
     login redirect or a 404.
 - As a visitor on the landing page, I can find both documents from the page footer.
+- As a Google reviewer opening the home page, I can see, without signing in, what Picket
+  is for, what the optional Google account connection does, and an explicit statement
+  that Picket does not use Google APIs or Google user data to create or distribute
+  non-consensual intimate imagery (including AI-generated imagery) or for generative
+  image or video creation.
+  - Given no session, when I load `/`, then a "What Picket is for" section is present in
+    the server-rendered HTML with those statements and links to both documents.
 - As a reader of either document, I can reach the other document and the home page.
 - As a Google reviewer, I can find on `/privacy`:
   - the operator name and a monitored contact address;
@@ -40,6 +47,8 @@ without signing in.
   component.
 - Footer links on the landing page (localized labels in all 11 locales).
 - A test that keeps the disclosed Google scopes equal to the scopes the code requests.
+- A purpose and Google-use disclosure section on the home page, held as typed data with
+  the legal content, and the matching prohibition in the Terms of Service.
 
 **Out of scope:**
 
@@ -119,6 +128,37 @@ No existing behavior — new feature. `/privacy` and `/terms` currently return 4
 - Open: Google verification for the sensitive Gmail scopes is a separate operator task.
 
 ## 13. Bug / Change Log
+
+### 2026-09-30 — State the application's purpose and Google API restrictions on the home page
+
+Type: Behavior Change
+
+Summary:
+
+- The home page gains a "What Picket is for" section: the product's purpose, what the
+  optional Google connection does, what Picket does not do (no NCII or generative image
+  use of Google APIs, no advertising, no sale, no AI training), and links to both
+  documents. The Terms prohibit non-consensual intimate imagery, and the privacy policy
+  repeats the commitment.
+
+Reason:
+
+- Google's API Terms of Service review could not confirm compliance and asked for a home
+  page that clearly outlines the application's purpose and confirms Google APIs are not
+  used for AI-generated non-consensual intimate imagery. The home page described Picket
+  only as "Cloudflare-native email operations" and never mentioned the Google connection.
+
+Impact:
+
+- Presentation only. English text, like the legal documents; no data, API, or schema
+  changes.
+
+Tests:
+
+- `npm run verify` passed 2026-09-30 (2,762 unit tests, coverage and CRAP gates). The
+  legal-pages Playwright spec passed 6 of 6 and the landing spec 4 of 4, including a
+  check that the purpose section is in the initial HTML with JavaScript disabled.
+- Not yet deployed.
 
 ### 2026-09-30 — Add public privacy policy and terms of service
 
