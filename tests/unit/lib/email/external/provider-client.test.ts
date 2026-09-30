@@ -3,6 +3,7 @@ import {
 	fetchGoogleSyncPage,
 	fetchMicrosoftSyncPage,
 	ExternalProviderRequestError,
+	MAX_EXTERNAL_MIME_BYTES,
 } from "@/lib/email/external/provider-client";
 
 const raw = btoa("From: sender@example.com\r\nTo: user@example.com\r\nSubject: Hello\r\n\r\nBody")
@@ -130,24 +131,71 @@ describe("Google external sync adapter", () => {
 	});
 
 	it("rejects invalid or oversized Gmail raw MIME", async () => {
-		const originalAtob = globalThis.atob;
-		vi.stubGlobal("atob", vi.fn(() => { throw new Error("invalid"); }));
-		const invalidPage = await fetchGoogleSyncPage({ accessToken: "token", mode: "initial", importMode: "recent_30_days" },
+		const pageFor = (rawResponse: () => Response) => fetchGoogleSyncPage(
+			{ accessToken: "token", mode: "initial", importMode: "recent_30_days" },
 			async (input) => String(input).includes("/messages?")
 				? Response.json({ messages: [{ id: "g1" }], nextPageToken: "next" })
 				: String(input).includes("format=metadata")
 					? Response.json({ id: "g1" })
-					: Response.json({ id: "g1", raw: "%%%" }));
+					: rawResponse());
+		const invalidPage = await pageFor(() => Response.json({ id: "g1", raw: "%%%" }));
 		await expect(invalidPage.changes[0].loadRawMime!()).rejects.toMatchObject({ code: "invalid_provider_response" });
-		vi.stubGlobal("atob", vi.fn(() => "a".repeat(30 * 1024 * 1024 + 1)));
-		const oversizedPage = await fetchGoogleSyncPage({ accessToken: "token", mode: "initial", importMode: "recent_30_days" },
+		const nonAsciiPage = await pageFor(() => Response.json({ id: "g1", raw: "QUJé" }));
+		await expect(nonAsciiPage.changes[0].loadRawMime!()).rejects.toMatchObject({ code: "invalid_provider_response" });
+		const impossiblePage =await pageFor(() => Response.json({ id: "g1", raw: "A" }));
+		await expect(impossiblePage.changes[0].loadRawMime!()).rejects.toMatchObject({ code: "invalid_provider_response" });
+		const oversizedPage = await pageFor(() => Response.json({
+			id: "g1", raw: "A".repeat(Math.ceil((MAX_EXTERNAL_MIME_BYTES + 1) * 4 / 3) + 4),
+		}));
+		await expect(oversizedPage.changes[0].loadRawMime!()).rejects.toMatchObject({ code: "message_too_large" });
+	});
+
+	it("caps external MIME at a size a Worker can hold in memory", () => {
+		expect(MAX_EXTERNAL_MIME_BYTES).toBe(10 * 1024 * 1024);
+	});
+
+	it("decodes padded and unpadded base64url exactly, including the URL-safe alphabet", async () => {
+		const pageFor = (rawValue: string) => fetchGoogleSyncPage(
+			{ accessToken: "token", mode: "initial", importMode: "recent_30_days" },
 			async (input) => String(input).includes("/messages?")
 				? Response.json({ messages: [{ id: "g1" }], nextPageToken: "next" })
 				: String(input).includes("format=metadata")
 					? Response.json({ id: "g1" })
-					: Response.json({ id: "g1", raw: "eA" }));
-		await expect(oversizedPage.changes[0].loadRawMime!()).rejects.toMatchObject({ code: "message_too_large" });
-		vi.stubGlobal("atob", originalAtob);
+					: Response.json({ id: "g1", raw: rawValue }));
+		for (const length of [1, 2, 3, 4, 5, 255, 256]) {
+			const bytes = Uint8Array.from({ length }, (_, index) => (index * 37 + 251) % 256);
+			const standard = btoa(String.fromCharCode(...bytes));
+			const urlSafe = standard.replace(/\+/g, "-").replace(/\//g, "_");
+			for (const encoded of [urlSafe, urlSafe.replace(/=+$/g, ""), standard]) {
+				const page = await pageFor(encoded);
+				expect([...await page.changes[0].loadRawMime!()]).toEqual([...bytes]);
+			}
+		}
+		const page = await pageFor("-__-");
+		expect([...await page.changes[0].loadRawMime!()]).toEqual([0xfb, 0xff, 0xfe]);
+	});
+
+	it("carries Gmail's size estimate so oversized messages can be skipped before download", async () => {
+		const page = await fetchGoogleSyncPage(
+			{ accessToken: "token", mode: "initial", importMode: "recent_30_days" },
+			async (input) => String(input).includes("/messages?")
+				? Response.json({ messages: [{ id: "g1" }, { id: "g2" }], nextPageToken: "next" })
+				: String(input).includes("/messages/g1")
+					? Response.json({ id: "g1", sizeEstimate: 123 })
+					: Response.json({ id: "g2" }));
+		expect(page.changes.map((change) => change.sizeEstimate)).toEqual([123, undefined]);
+	});
+
+	it("refuses an oversized Gmail raw response from its declared length before reading it", async () => {
+		const page = await fetchGoogleSyncPage(
+			{ accessToken: "token", mode: "initial", importMode: "recent_30_days" },
+			async (input) => String(input).includes("/messages?")
+				? Response.json({ messages: [{ id: "g1" }], nextPageToken: "next" })
+				: String(input).includes("format=metadata")
+					? Response.json({ id: "g1" })
+					: { ok: true, headers: new Headers({ "content-length": String(MAX_EXTERNAL_MIME_BYTES * 2) }),
+						json: () => { throw new Error("body must not be read"); } } as unknown as Response);
+		await expect(page.changes[0].loadRawMime!()).rejects.toMatchObject({ code: "message_too_large" });
 	});
 });
 

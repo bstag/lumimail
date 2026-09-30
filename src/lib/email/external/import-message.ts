@@ -35,6 +35,8 @@ export type ExternalImportMailbox = {
 };
 
 function exactArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+	if (bytes.buffer instanceof ArrayBuffer && bytes.byteOffset === 0 &&
+		bytes.byteLength === bytes.buffer.byteLength) return bytes.buffer;
 	const copy = new Uint8Array(bytes.byteLength);
 	copy.set(bytes);
 	return copy.buffer;
@@ -47,7 +49,8 @@ async function sha256Bytes(bytes: Uint8Array): Promise<string> {
 
 export type ExternalImportResult =
 	| { status: "created" | "existing" | "removed"; messageId: string }
-	| { status: "ignored" };
+	| { status: "ignored" }
+	| { status: "skipped"; reason: "too_large" };
 
 export type PreparedExternalMessage = {
 	statements: BatchItem<"sqlite">[];

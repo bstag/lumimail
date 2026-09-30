@@ -374,6 +374,7 @@ Edge and error behavior:
 | Cursor/delta link invalid or expired | `Resync required` | Preserve local data; require bounded resync path |
 | Queue enqueue fails after connection commit | `Sync pending` | Durable D1 job remains discoverable by scheduled reconciliation |
 | Message page partially fails | No false success or cursor advance; earlier imports may remain visible | Retryable provider failures use the existing retry path; generic D1/application failures remain terminal until existing recovery replays the page |
+| Provider message larger than 10 MiB of raw MIME | Message is not imported; skipped count is logged, not yet shown in the UI | Skipped before download when the provider's size estimate is known, otherwise on download; the page and cursor still complete |
 | Original MIME write fails when retention is selected | Message not claimed as retained | Retry or expose retention failure; never mark checksum/object complete |
 | External send provider returns a permanent denial | Existing outbound job/message becomes failed | No fallback sender/provider |
 | Provider accepts send but response is lost | Ambiguous delivery warning | Existing explicit recovery contract applies; possible duplicate disclosed |
@@ -404,6 +405,13 @@ Edge and error behavior:
   mailbox-role downgrade fail closed and stop new provider access.
 - Provider HTML, attachment names/types, header values, MIME nesting, and message sizes
   retain the existing inbound safety and omission policies.
+- A message whose raw MIME exceeds 10 MiB (`MAX_EXTERNAL_MIME_BYTES`) is skipped, never
+  imported and never a page failure. The Worker holds the provider response, its decoded
+  bytes, and the parsed message together, so a larger message can exceed the isolate
+  memory limit and repeatedly kill the queue consumer. The skip is logged content-free
+  (account ID and folder only). Gmail's `sizeEstimate` skips it before download; Graph and
+  any message without an estimate are skipped when the download exceeds the cap. Microsoft
+  downloads without a declared length are still fully buffered before the cap applies.
 
 ## 11. Permissions, Privacy, and Security
 
@@ -568,6 +576,50 @@ tests, UI, provider failure handling, and controlled evidence. They are not comm
 - [F63 R2 retention](./F63-r2-retention-and-cleanup.md)
 
 ## 16. Bug / Change Log
+
+### 2026-09-30 — Skip oversized messages and cut per-message memory
+
+Type: Bug Fix / Behavior Change
+
+Summary:
+
+- Raw MIME above 10 MiB is skipped (was 30 MiB and fatal to the page). Gmail messages are
+  skipped from `sizeEstimate` before download, and `message_too_large` during download
+  skips that message instead of failing the page.
+- Gmail raw messages are base64-decoded straight into bytes, a declared oversized response
+  is refused before it is read, and exact-byte buffers are no longer copied for parsing.
+
+Reason:
+
+- After the lease-recovery fix, production logs showed the external-sync queue consumer
+  ending with `exceededMemory` on the page following message 1,937, so the job crashed and
+  was reclaimed every few minutes without advancing. The largest previously imported
+  message was about 7 MiB. The 30 MiB cap admitted messages that need several times their
+  size in Worker memory (response text, parsed string, padded/replaced strings, decoded
+  binary string, byte array, copy, parse).
+
+Impact:
+
+- Messages larger than 10 MiB are not imported from external accounts. This is a
+  deliberate limit, lower than the native inbound attachment allowance. Skipped messages
+  are logged but not yet counted in the connection card; surfacing a skipped count needs a
+  schema change and UI and is follow-up work.
+- Provider messages below the cap import exactly as before.
+
+Verification plan:
+
+- Provider-client tests for the decoder (padded, unpadded, URL-safe, invalid, oversized),
+  size estimate carry-through, and the declared-length guard; page-application tests for
+  skip-before-download, skip-on-download, cursor still committed, and other errors still
+  failing the page; an import test for the no-copy parse path. Run `npm run verify`, then
+  deploy and watch the stuck job resume.
+
+Results:
+
+- `npm run verify` passed 2026-09-30: typecheck, lint with no errors, 2,749 unit tests,
+  the 100% coverage gate, and the CRAP gate. E2E was not run; no user-visible contract
+  changed.
+- Not yet deployed. The stranded production job has not yet been observed resuming.
 
 ### 2026-09-30 — Recover sync jobs stranded by an expired lease
 

@@ -10,7 +10,11 @@ import {
 	type ExternalImportMailbox,
 	type ExternalImportResult,
 } from "./import-message";
-import { ExternalProviderRequestError, type ExternalRemoteChange } from "./provider-client";
+import {
+	ExternalProviderRequestError,
+	MAX_EXTERNAL_MIME_BYTES,
+	type ExternalRemoteChange,
+} from "./provider-client";
 import type { ExternalCursorMutation } from "./provider-adapter";
 import {
 	decryptExternalSecret,
@@ -44,6 +48,18 @@ export async function readExternalSyncCursor(
 	}
 }
 
+function skipOversizedMessage(
+	account: ExternalImportAccount,
+	change: ExternalRemoteChange,
+	results: ExternalImportResult[],
+): void {
+	console.warn("External message skipped: too large", {
+		accountId: account.id,
+		folder: change.remoteFolderKey,
+	});
+	results.push({ status: "skipped", reason: "too_large" });
+}
+
 export async function applyExternalSyncPage(
 	env: CloudflareEnv,
 	account: ExternalImportAccount,
@@ -57,6 +73,10 @@ export async function applyExternalSyncPage(
 	const results: ExternalImportResult[] = [];
 	for (const change of uniqueChanges) {
 		const attemptedKeys: string[] = [];
+		if (change.sizeEstimate !== undefined && change.sizeEstimate > MAX_EXTERNAL_MIME_BYTES) {
+			skipOversizedMessage(account, change, results);
+			continue;
+		}
 		try {
 			const loadRawMime = change.loadRawMime;
 			let materializedChange = change;
@@ -74,6 +94,10 @@ export async function applyExternalSyncPage(
 			results.push(prepared.result);
 		} catch (error) {
 			await cleanupAttachmentObjects(env, attemptedKeys);
+			if (error instanceof ExternalProviderRequestError && error.code === "message_too_large") {
+				skipOversizedMessage(account, change, results);
+				continue;
+			}
 			throw error;
 		}
 	}

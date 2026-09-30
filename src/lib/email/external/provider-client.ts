@@ -11,6 +11,8 @@ export type ExternalRemoteChange = {
 	remoteFolderKey: "inbox" | "sent" | "archive" | "unknown";
 	remoteRevision?: string;
 	removed: boolean;
+	/** Provider's estimate of the raw message size, when known before download. */
+	sizeEstimate?: number;
 	rawMime?: Uint8Array;
 	loadRawMime?: ExternalRawMimeLoader;
 };
@@ -45,7 +47,14 @@ export class ExternalProviderRequestError extends Error {
 }
 
 const MAX_PAGE_SIZE = 10;
-const MAX_MIME_BYTES = 30 * 1024 * 1024;
+/**
+ * Largest raw MIME message imported. A Worker holds the provider response, its decoded bytes, and the
+ * parsed message at once, so a message must fit in memory several times over; larger messages are
+ * skipped rather than allowed to kill the isolate. Production has imported messages up to ~7 MiB.
+ */
+export const MAX_EXTERNAL_MIME_BYTES = 10 * 1024 * 1024;
+const MAX_MIME_BYTES = MAX_EXTERNAL_MIME_BYTES;
+const MAX_GMAIL_RAW_RESPONSE_BYTES = Math.ceil(MAX_MIME_BYTES * 4 / 3) + 4096;
 
 async function parseProviderJson(response: Response, cursorRequest = false): Promise<unknown> {
 	if (!response.ok) {
@@ -86,6 +95,7 @@ const gmailMessageMetadataSchema = z.object({
 	threadId: z.string().min(1).max(1024).optional(),
 	labelIds: z.array(z.string().max(256)).max(100).optional(),
 	historyId: z.string().max(128).optional(),
+	sizeEstimate: z.number().int().nonnegative().optional(),
 }).passthrough();
 const gmailRawMessageSchema = z.object({
 	id: z.string().min(1).max(1024),
@@ -107,18 +117,39 @@ const gmailHistorySchema = z.object({
 	historyId: z.string().min(1).max(128),
 }).passthrough();
 
+const BASE64_VALUES = (() => {
+	const table = new Int8Array(128).fill(-1);
+	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+	for (let index = 0; index < alphabet.length; index++) table[alphabet.charCodeAt(index)] = index;
+	table["+".charCodeAt(0)] = 62;
+	table["/".charCodeAt(0)] = 63;
+	return table;
+})();
+
+/** Decodes padded or unpadded, standard or URL-safe base64 straight into bytes, with no intermediate strings. */
 function decodeBase64Url(value: string): Uint8Array {
-	const padded = value.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((value.length + 3) % 4);
-	let binary: string;
-	try {
-		binary = atob(padded);
-	} catch {
-		throw new ExternalProviderRequestError("invalid_provider_response", false);
+	let end = value.length;
+	while (end > 0 && value.charCodeAt(end - 1) === 61) end--;
+	if (end % 4 === 1) throw new ExternalProviderRequestError("invalid_provider_response", false);
+	const size = Math.floor(end * 3 / 4);
+	if (size > MAX_MIME_BYTES) throw new ExternalProviderRequestError("message_too_large", false);
+	const bytes = new Uint8Array(size);
+	let accumulator = 0;
+	let bits = 0;
+	let written = 0;
+	for (let index = 0; index < end; index++) {
+		const code = value.charCodeAt(index);
+		const sextet = code < 128 ? BASE64_VALUES[code] : -1;
+		if (sextet < 0) throw new ExternalProviderRequestError("invalid_provider_response", false);
+		accumulator = (accumulator << 6) | sextet;
+		bits += 6;
+		if (bits >= 8) {
+			bits -= 8;
+			bytes[written++] = (accumulator >> bits) & 0xff;
+			accumulator &= (1 << bits) - 1;
+		}
 	}
-	if (binary.length > MAX_MIME_BYTES) {
-		throw new ExternalProviderRequestError("message_too_large", false);
-	}
-	return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+	return bytes;
 }
 
 function gmailFolder(labelIds: readonly string[] | undefined): "inbox" | "sent" | "archive" {
@@ -134,9 +165,13 @@ async function fetchGmailRawMime(
 ): Promise<Uint8Array> {
 	const url = new URL(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}`);
 	url.searchParams.set("format", "raw");
-	const parsed = gmailRawMessageSchema.safeParse(await parseProviderJson(await fetcher(url, {
+	const response = await fetcher(url, {
 		headers: authorizationHeaders(accessToken, { accept: "application/json" }),
-	})));
+	});
+	if (response.ok && Number(response.headers.get("content-length")) > MAX_GMAIL_RAW_RESPONSE_BYTES) {
+		throw new ExternalProviderRequestError("message_too_large", false);
+	}
+	const parsed = gmailRawMessageSchema.safeParse(await parseProviderJson(response));
 	if (!parsed.success || parsed.data.id !== messageId) {
 		throw new ExternalProviderRequestError("invalid_provider_response", false);
 	}
@@ -162,6 +197,7 @@ async function fetchGmailMessageMetadata(
 		remoteFolderKey: gmailFolder(parsed.data.labelIds),
 		remoteRevision: parsed.data.historyId,
 		removed: false,
+		sizeEstimate: parsed.data.sizeEstimate,
 		loadRawMime: () => fetchGmailRawMime(accessToken, messageId, fetcher),
 	};
 }

@@ -20,7 +20,11 @@ vi.mock("@/lib/email/external/secret-vault", () => ({
 }));
 vi.mock("@/lib/ids", () => ({ newId: h.newId }));
 
-import { ExternalProviderRequestError, type ExternalRemoteChange } from "@/lib/email/external/provider-client";
+import {
+	ExternalProviderRequestError,
+	MAX_EXTERNAL_MIME_BYTES,
+	type ExternalRemoteChange,
+} from "@/lib/email/external/provider-client";
 import { applyExternalSyncPage, readExternalSyncCursor } from "@/lib/email/external/sync-page";
 
 const account = {
@@ -154,6 +158,53 @@ describe("external sync page application", () => {
 		]);
 		expect(maxActiveLoaders).toBe(1);
 		expect(mock.db.batch).toHaveBeenCalledTimes(2);
+	});
+
+	it("skips a message the provider says is too large without downloading it, and still commits the cursor", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		const loadRawMime = vi.fn();
+		h.prepare.mockResolvedValue({ statements: [], result: { status: "created", messageId: "msg_ok" } });
+
+		await expect(applyExternalSyncPage(env, account, mailbox, [
+			{ remoteMessageId: "big", remoteFolderKey: "inbox", removed: false, sizeEstimate: MAX_EXTERNAL_MIME_BYTES + 1, loadRawMime },
+			{ ...change, remoteMessageId: "small", sizeEstimate: 10 },
+		], [{ key: "gmail", type: "gmail_history", value: { historyId: "9" } }]))
+			.resolves.toEqual([
+				{ status: "skipped", reason: "too_large" },
+				{ status: "created", messageId: "msg_ok" },
+			]);
+
+		expect(loadRawMime).not.toHaveBeenCalled();
+		expect(h.prepare).toHaveBeenCalledTimes(1);
+		expect(warn).toHaveBeenCalledWith("External message skipped: too large", { accountId: "exa_1", folder: "inbox" });
+		expect(mock.inserts.some((insert) => (insert.values as any).remoteFolderKey === "gmail")).toBe(true);
+		warn.mockRestore();
+	});
+
+	it("skips a message whose MIME turns out too large on download and keeps importing the page", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		h.prepare.mockResolvedValue({ statements: [], result: { status: "created", messageId: "msg_ok" } });
+
+		await expect(applyExternalSyncPage(env, account, mailbox, [
+			{
+				remoteMessageId: "big", remoteFolderKey: "sent", removed: false,
+				loadRawMime: async () => { throw new ExternalProviderRequestError("message_too_large", false); },
+			},
+			{ ...change, remoteMessageId: "small" },
+		], [])).resolves.toEqual([
+			{ status: "skipped", reason: "too_large" },
+			{ status: "created", messageId: "msg_ok" },
+		]);
+
+		expect(warn).toHaveBeenCalledWith("External message skipped: too large", { accountId: "exa_1", folder: "sent" });
+		warn.mockRestore();
+	});
+
+	it("still fails the page for other provider errors", async () => {
+		await expect(applyExternalSyncPage(env, account, mailbox, [{
+			remoteMessageId: "denied", remoteFolderKey: "inbox", removed: false,
+			loadRawMime: async () => { throw new ExternalProviderRequestError("provider_unavailable", true); },
+		}], [])).rejects.toMatchObject({ code: "provider_unavailable" });
 	});
 
 	it("leaves the cursor unchanged after a late message failure and replays committed messages safely", async () => {
