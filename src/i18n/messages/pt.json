@@ -53,7 +53,10 @@
     "featureFlowTitle": "Fluxo de e-mail completo",
     "featureFlowDesc": "Anexos, aliases, grupos, roteamento catch-all, encaminhamento verificado e respostas de férias seguras.",
     "featureClientsTitle": "Traga seus clientes de e-mail",
-    "featureClientsDesc": "Use a ponte IMAP/SMTP separada quando precisar de um cliente de e-mail para desktop ou celular."
+    "featureClientsDesc": "Use a ponte IMAP/SMTP separada quando precisar de um cliente de e-mail para desktop ou celular.",
+    "privacyLink": "Privacidade",
+    "termsLink": "Termos",
+    "legalNavAria": "Legal"
   },
   "auth": {
     "signIn": "Entrar",

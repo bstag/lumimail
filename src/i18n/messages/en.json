@@ -53,7 +53,10 @@
     "featureFlowTitle": "Complete mail flow",
     "featureFlowDesc": "Attachments, aliases, groups, catch-all routing, verified forwarding, and safe vacation replies.",
     "featureClientsTitle": "Bring your clients",
-    "featureClientsDesc": "Use the separate IMAP/SMTP bridge when you need a desktop or mobile mail client."
+    "featureClientsDesc": "Use the separate IMAP/SMTP bridge when you need a desktop or mobile mail client.",
+    "privacyLink": "Privacy",
+    "termsLink": "Terms",
+    "legalNavAria": "Legal"
   },
   "auth": {
     "signIn": "Sign in",

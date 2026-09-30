@@ -53,7 +53,10 @@
     "featureFlowTitle": "Flujo de correo completo",
     "featureFlowDesc": "Adjuntos, alias, grupos, enrutamiento catch-all, reenvío verificado y respuestas de vacaciones seguras.",
     "featureClientsTitle": "Usa tus clientes de correo",
-    "featureClientsDesc": "Usa el puente IMAP/SMTP independiente cuando necesites un cliente de correo de escritorio o móvil."
+    "featureClientsDesc": "Usa el puente IMAP/SMTP independiente cuando necesites un cliente de correo de escritorio o móvil.",
+    "privacyLink": "Privacidad",
+    "termsLink": "Términos",
+    "legalNavAria": "Legal"
   },
   "auth": {
     "signIn": "Iniciar sesión",

@@ -53,7 +53,10 @@
     "featureFlowTitle": "Luồng thư hoàn chỉnh",
     "featureFlowDesc": "Tệp đính kèm, bí danh, nhóm, định tuyến catch-all, chuyển tiếp đã xác minh và trả lời nghỉ phép an toàn.",
     "featureClientsTitle": "Dùng ứng dụng thư của bạn",
-    "featureClientsDesc": "Dùng cầu nối IMAP/SMTP riêng khi bạn cần ứng dụng thư trên máy tính hoặc di động."
+    "featureClientsDesc": "Dùng cầu nối IMAP/SMTP riêng khi bạn cần ứng dụng thư trên máy tính hoặc di động.",
+    "privacyLink": "Quyền riêng tư",
+    "termsLink": "Điều khoản",
+    "legalNavAria": "Pháp lý"
   },
   "auth": {
     "signIn": "Đăng nhập",

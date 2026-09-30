@@ -53,7 +53,10 @@
     "featureFlowTitle": "संपूर्ण मेल प्रवाह",
     "featureFlowDesc": "अटैचमेंट, उपनाम, समूह, कैच-ऑल रूटिंग, सत्यापित फ़ॉरवर्डिंग और सुरक्षित अवकाश उत्तर।",
     "featureClientsTitle": "अपने मेल क्लाइंट लाएँ",
-    "featureClientsDesc": "जब डेस्कटॉप या मोबाइल मेल क्लाइंट चाहिए हो तो अलग IMAP/SMTP ब्रिज का उपयोग करें।"
+    "featureClientsDesc": "जब डेस्कटॉप या मोबाइल मेल क्लाइंट चाहिए हो तो अलग IMAP/SMTP ब्रिज का उपयोग करें।",
+    "privacyLink": "गोपनीयता",
+    "termsLink": "शर्तें",
+    "legalNavAria": "कानूनी"
   },
   "auth": {
     "signIn": "साइन इन करें",

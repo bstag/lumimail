@@ -203,6 +203,26 @@ export default function HomePage() {
           ))}
         </section>
       </main>
+
+      <footer className="border-t border-border">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-sm text-ink-muted sm:px-6 lg:px-8">
+          <span>Picket · Stagware</span>
+          <nav aria-label={t("legalNavAria")}>
+            <ul className="flex flex-wrap gap-x-5 gap-y-2">
+              <li>
+                <Link href="/privacy" className="underline-offset-4 hover:text-ink hover:underline">
+                  {t("privacyLink")}
+                </Link>
+              </li>
+              <li>
+                <Link href="/terms" className="underline-offset-4 hover:text-ink hover:underline">
+                  {t("termsLink")}
+                </Link>
+              </li>
+            </ul>
+          </nav>
+        </div>
+      </footer>
     </div>
   );
 }
