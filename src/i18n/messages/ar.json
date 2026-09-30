@@ -53,7 +53,10 @@
     "featureFlowTitle": "تدفق بريد كامل",
     "featureFlowDesc": "مرفقات، وأسماء بديلة، ومجموعات، وتوجيه شامل، وإعادة توجيه موثّقة، وردود إجازة آمنة.",
     "featureClientsTitle": "استخدم عملاء البريد لديك",
-    "featureClientsDesc": "استخدم جسر IMAP/SMTP المنفصل عندما تحتاج إلى عميل بريد لسطح المكتب أو الهاتف."
+    "featureClientsDesc": "استخدم جسر IMAP/SMTP المنفصل عندما تحتاج إلى عميل بريد لسطح المكتب أو الهاتف.",
+    "privacyLink": "الخصوصية",
+    "termsLink": "الشروط",
+    "legalNavAria": "قانوني"
   },
   "auth": {
     "signIn": "تسجيل الدخول",

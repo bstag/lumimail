@@ -53,7 +53,10 @@
     "featureFlowTitle": "完整邮件流程",
     "featureFlowDesc": "附件、别名、群组、全收路由、经验证的转发与安全的休假自动回复。",
     "featureClientsTitle": "使用你的邮件客户端",
-    "featureClientsDesc": "需要桌面或移动邮件客户端时，使用独立的 IMAP/SMTP 桥接服务。"
+    "featureClientsDesc": "需要桌面或移动邮件客户端时，使用独立的 IMAP/SMTP 桥接服务。",
+    "privacyLink": "隐私政策",
+    "termsLink": "服务条款",
+    "legalNavAria": "法律信息"
   },
   "auth": {
     "signIn": "登录",

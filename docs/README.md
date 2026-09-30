@@ -98,7 +98,8 @@ Source of truth for behavior. Each follows
            [`F90-crap-quality-gate`](./specs/F90-crap-quality-gate.md),
            [`F91-picket-ui-rebrand`](./specs/F91-picket-ui-rebrand.md),
             [`F92-mantle-presentation-layer`](./specs/F92-mantle-presentation-layer.md),
-            [`F93-external-sync-bounded-memory`](./specs/F93-external-sync-bounded-memory.md).
+            [`F93-external-sync-bounded-memory`](./specs/F93-external-sync-bounded-memory.md),
+            [`F94-public-legal-pages`](./specs/F94-public-legal-pages.md).
 
 ## Implementation notes (`implementation/`)
 

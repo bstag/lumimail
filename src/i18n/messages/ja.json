@@ -53,7 +53,10 @@
     "featureFlowTitle": "完全なメールフロー",
     "featureFlowDesc": "添付ファイル、エイリアス、グループ、キャッチオール ルーティング、検証済み転送、安全な不在応答。",
     "featureClientsTitle": "お好みのメールクライアントで",
-    "featureClientsDesc": "デスクトップやモバイルのメールクライアントが必要なときは、別体の IMAP/SMTP ブリッジをご利用ください。"
+    "featureClientsDesc": "デスクトップやモバイルのメールクライアントが必要なときは、別体の IMAP/SMTP ブリッジをご利用ください。",
+    "privacyLink": "プライバシー",
+    "termsLink": "利用規約",
+    "legalNavAria": "法務"
   },
   "auth": {
     "signIn": "サインイン",
