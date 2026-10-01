@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
 	returning: vi.fn(),
+	setValues: vi.fn(),
 	selected: vi.fn(),
 	insertValues: vi.fn((value: unknown) => value),
 	batch: vi.fn(),
@@ -14,7 +15,10 @@ const h = vi.hoisted(() => ({
 	hash: vi.fn(),
 }));
 vi.mock("@/db", () => ({ getDb: () => ({
-	update: () => ({ set: () => ({ where: () => ({ returning: h.returning }) }) }),
+	update: () => ({ set: (values: unknown) => {
+		h.setValues(values);
+		return { where: () => ({ returning: h.returning }) };
+	} }),
 	select: () => ({ from: () => ({ where: () => ({ limit: h.selected }) }) }),
 	insert: () => ({ values: h.insertValues }),
 	batch: h.batch,
@@ -151,6 +155,10 @@ describe("completeExternalOAuth", () => {
 			"refresh-secret", "external-account:exa_existing:org_1:mbx_1:usr_1:google", expect.anything(),
 		);
 		expect(h.batch).toHaveBeenCalledTimes(1);
+		// A fresh authorization starts automatic recovery over from the beginning.
+		expect(h.setValues).toHaveBeenCalledWith(expect.objectContaining({
+			status: "initial_sync", lastErrorCode: null, errorRetryCount: 0, nextRetryAt: null,
+		}));
 		h.selected.mockResolvedValue([]);
 		expect(await completeExternalOAuth({ EXTERNAL_TOKEN_KEYS: "keys" } as CloudflareEnv, input))
 			.toEqual({ status: "forbidden" });

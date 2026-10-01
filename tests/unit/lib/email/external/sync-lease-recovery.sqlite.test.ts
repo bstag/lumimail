@@ -45,6 +45,10 @@ beforeEach(() => {
 			next_attempt_at integer NOT NULL,
 			lease_until integer,
 			error_code text,
+			suspect_message_id text,
+			strike_message_id text,
+			strike_count integer NOT NULL DEFAULT 0,
+			failure_count integer NOT NULL DEFAULT 0,
 			created_at integer NOT NULL,
 			completed_at integer
 		);
@@ -54,7 +58,8 @@ beforeEach(() => {
 			id text, organization_id text, mailbox_id text, owner_user_id text, provider text,
 			external_address text, token_ciphertext text, token_iv text, token_key_id text,
 			status text, import_mode text, retain_original integer, last_sync_at integer,
-			last_error_code text, updated_at integer
+			last_error_code text, error_retry_count integer NOT NULL DEFAULT 0, next_retry_at integer,
+			updated_at integer
 		);
 		CREATE TABLE mailboxes (
 			id text, user_id text, organization_id text, local_part text, display_name text, domain_id text

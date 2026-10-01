@@ -207,6 +207,81 @@ describe("external sync page application", () => {
 		}], [])).rejects.toMatchObject({ code: "provider_unavailable" });
 	});
 
+	it("marks each message in flight before loading it so a dying worker leaves the culprit recorded", async () => {
+		const events: string[] = [];
+		mock.queueSelect([]);
+		h.prepare.mockResolvedValue({ statements: [], result: { status: "created", messageId: "msg" } });
+		const lazy = (remoteMessageId: string) => ({
+			remoteMessageId, remoteFolderKey: "inbox" as const, removed: false,
+			loadRawMime: async () => { events.push(`load:${remoteMessageId}`); return new Uint8Array([1]); },
+		});
+
+		await applyExternalSyncPage(env, account, mailbox, [lazy("remote_1"), lazy("remote_2")], [], new Date(),
+			{ jobId: "exj_1" });
+
+		const markers = mock.updates.map((update) => update.set as { suspectMessageId?: string });
+		expect(markers).toEqual([{ suspectMessageId: "remote_1" }, { suspectMessageId: "remote_2" }]);
+		expect(events).toEqual(["load:remote_1", "load:remote_2"]);
+	});
+
+	it("never marks messages when no job context is supplied", async () => {
+		h.prepare.mockResolvedValue({ statements: [], result: { status: "created", messageId: "msg" } });
+		await applyExternalSyncPage(env, account, mailbox, [change], []);
+		expect(mock.updates).toEqual([]);
+	});
+
+	it("skips a message that has struck out, records it in the ledger, and keeps importing", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		const loadRawMime = vi.fn();
+		mock.queueSelect([]);
+		h.prepare.mockResolvedValue({ statements: [], result: { status: "created", messageId: "msg_ok" } });
+
+		await expect(applyExternalSyncPage(env, account, mailbox, [
+			{ remoteMessageId: "poison", remoteFolderKey: "sent", removed: false, loadRawMime },
+			{ ...change, remoteMessageId: "fine" },
+		], [], new Date(), { jobId: "exj_1", skipMessageId: "poison" })).resolves.toEqual([
+			{ status: "skipped", reason: "repeated_failure" },
+			{ status: "created", messageId: "msg_ok" },
+		]);
+
+		expect(loadRawMime).not.toHaveBeenCalled();
+		expect(mock.inserts.map((insert) => insert.values)).toContainEqual(expect.objectContaining({
+			accountId: "exa_1", remoteMessageId: "poison", remoteFolderKey: "sent", reason: "repeated_failure",
+		}));
+		expect(warn).toHaveBeenCalledWith("External message skipped: repeated failure", { accountId: "exa_1", folder: "sent" });
+		warn.mockRestore();
+	});
+
+	it("keeps a ledgered message skipped even when the strike counter has moved to another message", async () => {
+		const loadRawMime = vi.fn();
+		mock.queueSelect([{ remoteMessageId: "poison", reason: "repeated_failure" }]);
+		h.prepare.mockResolvedValue({ statements: [], result: { status: "created", messageId: "msg_ok" } });
+
+		await expect(applyExternalSyncPage(env, account, mailbox, [
+			{ remoteMessageId: "poison", remoteFolderKey: "inbox", removed: false, loadRawMime },
+			{ ...change, remoteMessageId: "fine" },
+		], [], new Date(), { jobId: "exj_1", skipMessageId: "someone_else" })).resolves.toEqual([
+			{ status: "skipped", reason: "repeated_failure" },
+			{ status: "created", messageId: "msg_ok" },
+		]);
+
+		expect(loadRawMime).not.toHaveBeenCalled();
+		expect(mock.inserts.map((insert) => insert.values)).not.toContainEqual(expect.objectContaining({
+			remoteMessageId: "poison",
+		}));
+	});
+
+	it("records an oversized message in the skip ledger too", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		await applyExternalSyncPage(env, account, mailbox, [{
+			remoteMessageId: "big", remoteFolderKey: "inbox", removed: false, sizeEstimate: MAX_EXTERNAL_MIME_BYTES + 1,
+		}], []);
+		expect(mock.inserts.map((insert) => insert.values)).toContainEqual(expect.objectContaining({
+			remoteMessageId: "big", reason: "too_large",
+		}));
+		warn.mockRestore();
+	});
+
 	it("leaves the cursor unchanged after a late message failure and replays committed messages safely", async () => {
 		const first = { ...change, remoteMessageId: "remote_1" };
 		const second = { ...change, remoteMessageId: "remote_2" };

@@ -155,6 +155,8 @@ export async function completeExternalOAuth(
 			tokenKeyId: sealedToken.keyId,
 			status: "initial_sync" as const,
 			lastErrorCode: null,
+			errorRetryCount: 0,
+			nextRetryAt: null,
 			revokedAt: null,
 			updatedAt: now,
 		}).where(eq(externalAccounts.id, accountId))

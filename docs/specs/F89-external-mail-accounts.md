@@ -290,7 +290,19 @@ Edge and error behavior:
   sync request wakes it. A `processing` job with a live lease is never claimed, woken, or
   stolen.
 - Transient provider failures use bounded exponential backoff with jitter; tests assert
-  bounds, not one exact delay.
+  bounds, not one exact delay. Backoff grows with consecutive failures, never with the
+  number of pages already processed.
+- A message that crashes or fails the sync on three consecutive attempts is skipped, recorded
+  in `external_message_skips`, and stays skipped; the rest of the page imports. The job
+  records the message in flight before materializing it, so a worker killed mid-message
+  names its culprit to the next claim.
+- Provider throttling and outages never count against a message. An unexpected failure is
+  retried with backoff and ends the job only after five consecutive failures with no
+  successful page between them.
+- A failure the system can recover from (`error`, `resync_required`) schedules an automatic
+  resync after 5 minutes, then 30 minutes, 2 hours, and 12 hours. When those are spent the
+  account stays put for a person. An authorization loss (`reconnect_required`) never
+  retries automatically.
 - A provider page replay may repeat reads and R2 writes but cannot duplicate Lumimail
   messages, mappings, or Retained Originals.
 - Any message, mapping, metadata, or D1 commit failure leaves the prior cursor visible.
@@ -576,6 +588,49 @@ tests, UI, provider failure handling, and controlled evidence. They are not comm
 - [F63 R2 retention](./F63-r2-retention-and-cleanup.md)
 
 ## 16. Bug / Change Log
+
+### 2026-10-01 — Self-healing external sync
+
+Type: Behavior Change
+
+Summary:
+
+- Migration `0042` adds per-job failure tracking, per-account retry scheduling, and the
+  `external_message_skips` ledger.
+- A message that fails three consecutive attempts is skipped and recorded; the page and
+  account carry on. Oversized messages are recorded in the same ledger.
+- Unexpected failures retry with backoff and give up only after five consecutive failures.
+- `error` and `resync_required` accounts are retried automatically on a backoff schedule
+  (5 min, 30 min, 2 h, 12 h); reconnecting resets the schedule. A mid-sync authorization
+  loss now goes to `reconnect_required` instead of `error`.
+- Retry backoff is driven by consecutive failures; it previously used the page count, so
+  after a few pages every retry waited close to an hour.
+
+Reason:
+
+- One failing message could block an account permanently, an `error` account never
+  recovered without a click, and neither case told anyone why or when.
+
+Impact:
+
+- An account heals itself in the common failure cases. A skipped message is not imported;
+  it is recorded, and surfacing the count and a banner is the follow-up change.
+- A systemic fault (for example a database outage) cannot skip many messages: failures that
+  are not tied to one message end the job after five tries, and a skip needs three strikes
+  on the same message.
+
+Verification plan:
+
+- Real-SQLite tests for the strike transitions, retry scheduling, and due-account
+  reconciliation; unit tests for failure classification, skip handling, the in-flight
+  marker, and reset-on-success; migration parity on fresh and upgraded databases.
+
+Results:
+
+- `npm run verify` passed 2026-10-01: typecheck, lint with no errors, 2,787 unit tests, the
+  100% coverage gate, the CRAP gate, and migration parity on fresh and upgraded databases.
+  No UI changed, so E2E was not run. Not yet deployed. Migration `0042` is applied by
+  `npm run deploy`.
 
 ### 2026-10-01 — Retry an errored account and record why a sync failed
 

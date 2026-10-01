@@ -50,7 +50,7 @@ async function sha256Bytes(bytes: Uint8Array): Promise<string> {
 export type ExternalImportResult =
 	| { status: "created" | "existing" | "removed"; messageId: string }
 	| { status: "ignored" }
-	| { status: "skipped"; reason: "too_large" };
+	| { status: "skipped"; reason: "too_large" | "repeated_failure" };
 
 export type PreparedExternalMessage = {
 	statements: BatchItem<"sqlite">[];
