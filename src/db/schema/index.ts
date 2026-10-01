@@ -532,6 +532,10 @@ export const externalAccounts = sqliteTable(
 		retainOriginal: integer("retain_original", { mode: "boolean" }).notNull().default(false),
 		lastSyncAt: integer("last_sync_at", { mode: "timestamp" }),
 		lastErrorCode: text("last_error_code"),
+		// Automatic recovery of an `error` or `resync_required` account: retries scheduled so far,
+		// and when the next is due. A null due time means none is pending (exhausted or not needed).
+		errorRetryCount: integer("error_retry_count").notNull().default(0),
+		nextRetryAt: integer("next_retry_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 		updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 		revokedAt: integer("revoked_at", { mode: "timestamp" }),
@@ -540,6 +544,7 @@ export const externalAccounts = sqliteTable(
 		uniqueIndex("external_accounts_mailbox_provider_address_idx").on(t.mailboxId, t.provider, t.externalAddress),
 		index("external_accounts_owner_org_status_idx").on(t.ownerUserId, t.organizationId, t.status),
 		index("external_accounts_due_sync_idx").on(t.status, t.lastSyncAt),
+		index("external_accounts_retry_due_idx").on(t.status, t.nextRetryAt),
 	],
 );
 
@@ -618,6 +623,14 @@ export const externalSyncJobs = sqliteTable(
 		nextAttemptAt: integer("next_attempt_at", { mode: "timestamp" }).notNull(),
 		leaseUntil: integer("lease_until", { mode: "timestamp" }),
 		errorCode: text("error_code"),
+		// The remote message being materialized right now. A worker that dies leaves it set, which
+		// is how the next claim learns which message the previous attempt died on.
+		suspectMessageId: text("suspect_message_id"),
+		// Consecutive failures attributed to one message; at the poison threshold it is skipped.
+		strikeMessageId: text("strike_message_id"),
+		strikeCount: integer("strike_count").notNull().default(0),
+		// Consecutive failed attempts with no successful page in between.
+		failureCount: integer("failure_count").notNull().default(0),
 		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 		completedAt: integer("completed_at", { mode: "timestamp" }),
 	},
@@ -627,6 +640,21 @@ export const externalSyncJobs = sqliteTable(
 		uniqueIndex("external_sync_jobs_one_active_account_idx")
 			.on(t.accountId)
 			.where(sql`${t.status} IN ('pending', 'processing')`),
+	],
+);
+
+export const externalMessageSkips = sqliteTable(
+	"external_message_skips",
+	{
+		id: text("id").primaryKey(),
+		accountId: text("account_id").notNull().references(() => externalAccounts.id, { onDelete: "cascade" }),
+		remoteMessageId: text("remote_message_id").notNull(),
+		remoteFolderKey: text("remote_folder_key").notNull(),
+		reason: text("reason", { enum: ["too_large", "repeated_failure"] }).notNull(),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [
+		uniqueIndex("external_message_skips_account_remote_idx").on(t.accountId, t.remoteMessageId),
 	],
 );
 
@@ -936,6 +964,7 @@ export const schema = {
 	externalSyncCursors,
 	externalMessages,
 	externalSyncJobs,
+	externalMessageSkips,
 	externalOriginals,
 	pushDevices,
 	pushDeviceMailboxes,

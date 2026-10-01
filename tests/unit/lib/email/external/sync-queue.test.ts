@@ -31,6 +31,8 @@ import {
 const job = {
 	id: "exj_1", accountId: "exa_1", kind: "initial" as const, status: "processing" as const,
 	attempts: 1, nextAttemptAt: new Date(), leaseUntil: new Date(), errorCode: null,
+	suspectMessageId: null as string | null, strikeMessageId: null as string | null,
+	strikeCount: 0, failureCount: 0,
 	createdAt: new Date(), completedAt: null,
 };
 const account = {
@@ -79,8 +81,13 @@ describe("external sync queue", () => {
 			expect.objectContaining({ id: "mbx_1", hostname: "example.com" }),
 			[expect.objectContaining({ remoteMessageId: "g1" })],
 			[{ key: "gmail", type: "gmail_history", value: { historyId: "501" } }],
-			expect.any(Date));
-		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({ status: "active", lastErrorCode: null }));
+			expect.any(Date), { jobId: "exj_1", skipMessageId: null });
+		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({
+			status: "active", lastErrorCode: null, errorRetryCount: 0, nextRetryAt: null,
+		}));
+		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({
+			status: expect.anything(), strikeCount: 0, strikeMessageId: null, suspectMessageId: null, failureCount: 0,
+		}));
 	});
 
 	it("syncs each Microsoft MVP folder and retries bounded continuation pages", async () => {
@@ -154,24 +161,70 @@ describe("external sync queue", () => {
 		random.mockRestore();
 	});
 
-	it("keeps retryable page failures automatic and application failures terminal", async () => {
+	it("backs off provider throttling by consecutive failures, not by pages processed", async () => {
 		const random = vi.spyOn(Math, "random").mockReturnValue(0);
-		mock.queueSelect([job]).queueSelect([account]);
+		mock.queueSelect([{ ...job, attempts: 196, failureCount: 0, suspectMessageId: null }]).queueSelect([account]);
 		h.apply.mockRejectedValueOnce(new ExternalProviderRequestError("provider_throttled", true));
+		// 196 pages in, the first failure still waits ~30s (not ~30min).
 		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
 			.toEqual({ action: "retry", delaySeconds: 30 });
 		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({
-			status: "pending", errorCode: "provider_throttled",
+			status: "pending", errorCode: "provider_throttled", failureCount: 1, suspectMessageId: null,
 		}));
 
+		mock.queueSelect([{ ...job, failureCount: 3 }]).queueSelect([account]);
+		h.apply.mockRejectedValueOnce(new ExternalProviderRequestError("provider_unavailable", true));
+		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
+			.toEqual({ action: "retry", delaySeconds: 240 });
+		random.mockRestore();
+	});
+
+	it("retries an unexpected failure with backoff and leaves the in-flight marker for the next claim", async () => {
+		const random = vi.spyOn(Math, "random").mockReturnValue(0);
 		mock.queueSelect([job]).queueSelect([account]);
+		h.apply.mockRejectedValueOnce(new Error("D1 unavailable"));
+		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
+			.toEqual({ action: "retry", delaySeconds: 30 });
+		const retry = mock.updates.map((update) => update.set).find((set) => (set as any).errorCode === "sync_failed") as any;
+		expect(retry).toMatchObject({ status: "pending", errorCode: "sync_failed", failureCount: 1 });
+		expect(retry).not.toHaveProperty("suspectMessageId");
+		expect(mock.updates.map((update) => update.set)).not.toContainEqual(expect.objectContaining({ status: "error" }));
+		random.mockRestore();
+	});
+
+	it("gives up and marks the account in error only after the consecutive-failure limit", async () => {
+		mock.queueSelect([{ ...job, failureCount: 4 }]).queueSelect([account]);
 		h.apply.mockRejectedValueOnce(new Error("D1 unavailable"));
 		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
 			.toEqual({ action: "ack" });
 		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({
 			status: "failed", errorCode: "sync_failed",
 		}));
-		random.mockRestore();
+		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({
+			status: "error", lastErrorCode: "sync_failed",
+		}));
+	});
+
+	it("skips a message that has struck out, and only that one", async () => {
+		mock.queueSelect([{ ...job, strikeCount: 3, strikeMessageId: "g_poison" }]).queueSelect([account]);
+		await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" });
+		expect(h.apply).toHaveBeenLastCalledWith(env, expect.anything(), expect.anything(), expect.anything(),
+			expect.anything(), expect.any(Date), { jobId: "exj_1", skipMessageId: "g_poison" });
+
+		mock.queueSelect([{ ...job, strikeCount: 2, strikeMessageId: "g_poison" }]).queueSelect([account]);
+		await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" });
+		expect(h.apply).toHaveBeenLastCalledWith(env, expect.anything(), expect.anything(), expect.anything(),
+			expect.anything(), expect.any(Date), { jobId: "exj_1", skipMessageId: null });
+	});
+
+	it("sends a mid-sync authorization loss to reconnect instead of error", async () => {
+		mock.queueSelect([job]).queueSelect([account]);
+		h.google.mockRejectedValueOnce(new ExternalProviderRequestError("authorization_revoked", false));
+		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
+			.toEqual({ action: "ack" });
+		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({
+			status: "reconnect_required", lastErrorCode: "authorization_revoked",
+		}));
 	});
 
 	it("logs why a sync failed without leaking message content", async () => {
@@ -241,7 +294,8 @@ describe("external sync queue", () => {
 		expect(h.microsoft).toHaveBeenCalledWith(expect.objectContaining({ cursor: undefined }), fetch, expect.any(Date));
 		expect(h.apply).toHaveBeenCalledWith(env, expect.anything(), expect.anything(),
 			expect.arrayContaining([expect.objectContaining({ remoteMessageId: "m1" })]),
-			expect.arrayContaining([expect.objectContaining({ type: "microsoft_delta" })]), expect.any(Date));
+			expect.arrayContaining([expect.objectContaining({ type: "microsoft_delta" })]), expect.any(Date),
+			{ jobId: "exj_1", skipMessageId: null });
 
 		mock.queueSelect([{ ...job, kind: "resync" }]).queueSelect([{ ...account, status: "resync_required" }]);
 		h.google.mockResolvedValue({ changes: [], cursor: { historyId: "800" }, hasMore: false });
@@ -250,13 +304,13 @@ describe("external sync queue", () => {
 		expect(h.google).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: undefined }), fetch);
 	});
 
-	it("terminally classifies unexpected and nonretryable provider failures", async () => {
-		mock.queueSelect([job]).queueSelect([account]);
+	it("classifies unexpected and nonretryable provider failures once the retry limit is reached", async () => {
+		mock.queueSelect([{ ...job, failureCount: 4 }]).queueSelect([account]);
 		h.google.mockRejectedValue(new ExternalProviderRequestError("invalid_provider_response", false));
 		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
 			.toEqual({ action: "ack" });
 		expect(mock.updates.map((update) => update.set)).toContainEqual(expect.objectContaining({ status: "error", lastErrorCode: "invalid_provider_response" }));
-		mock.queueSelect([job]).queueSelect([account]);
+		mock.queueSelect([{ ...job, failureCount: 4 }]).queueSelect([account]);
 		h.google.mockRejectedValue(new Error("unexpected"));
 		expect(await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" }))
 			.toEqual({ action: "ack" });

@@ -14,6 +14,8 @@ import {
 import {
 	getExternalProviderAdapter,
 } from "./provider-adapter";
+import { failExternalSyncJob } from "./sync-jobs";
+import { MAX_CONSECUTIVE_FAILURES, POISON_STRIKES } from "./sync-policy";
 import { applyExternalSyncPage, readExternalSyncCursor } from "./sync-page";
 
 export type ExternalSyncQueueMessage = {
@@ -31,8 +33,9 @@ const queueMessageSchema = z.object({
 export function isExternalSyncQueueMessage(value: unknown): value is ExternalSyncQueueMessage {
 	return queueMessageSchema.safeParse(value).success;
 }
-function retryDelay(attempts: number): number {
-	const ceiling = Math.min(3_600, 60 * 2 ** Math.max(0, attempts - 1));
+/** Jittered exponential backoff, capped at an hour, for the Nth consecutive failure (1-based). */
+function retryDelay(failures: number): number {
+	const ceiling = Math.min(3_600, 60 * 2 ** Math.max(0, failures - 1));
 	return Math.max(1, Math.floor(ceiling * (0.5 + Math.random() * 0.5)));
 }
 
@@ -47,29 +50,32 @@ function describeFailure(error: unknown): { errorName: string; detail: string } 
 	return { errorName: source.name, detail: source.message.slice(0, 160) };
 }
 
-async function markJobFailed(
-	env: CloudflareEnv,
+/** Returns a job to the queue after `delaySeconds`, keeping any stronger intent requested meanwhile. */
+function requeueJob(
+	db: ReturnType<typeof getDb>,
 	jobId: string,
-	accountId: string,
-	accountStatus: "reconnect_required" | "resync_required" | "error",
-	errorCode: string,
 	now: Date,
-): Promise<void> {
-	const db = getDb(env);
-	await db.batch([
-		db.update(externalSyncJobs).set({
-			status: "failed",
-			errorCode,
-			leaseUntil: null,
-			completedAt: now,
-		}).where(eq(externalSyncJobs.id, jobId)),
-		db.update(externalAccounts).set({
-			status: accountStatus,
-			lastErrorCode: errorCode,
-			updatedAt: now,
-		}).where(eq(externalAccounts.id, accountId)),
-	]);
+	delaySeconds: number,
+	extra: Partial<typeof externalSyncJobs.$inferInsert> = {},
+) {
+	return db.update(externalSyncJobs).set({
+		status: "pending",
+		kind: sql`coalesce(${externalSyncJobs.requestedKind}, ${externalSyncJobs.kind})`,
+		requestedKind: null,
+		attempts: sql`CASE WHEN ${externalSyncJobs.requestedKind} IS NULL THEN ${externalSyncJobs.attempts} ELSE 0 END`,
+		leaseUntil: null,
+		nextAttemptAt: new Date(now.getTime() + delaySeconds * 1000),
+		...extra,
+	}).where(eq(externalSyncJobs.id, jobId));
 }
+
+/** A successful page clears every failure the job has accumulated. */
+const PAGE_SUCCEEDED = {
+	strikeCount: 0,
+	strikeMessageId: null,
+	suspectMessageId: null,
+	failureCount: 0,
+} as const;
 
 export async function processExternalSyncQueue(
 	env: CloudflareEnv,
@@ -83,6 +89,14 @@ export async function processExternalSyncQueue(
 		attempts: sql`${externalSyncJobs.attempts} + 1`,
 		leaseUntil,
 		errorCode: null,
+		// A message still marked in flight means the previous attempt died or failed on it: that is a
+		// strike against that message, restarting at one if it is a different message than before.
+		strikeCount: sql`CASE
+			WHEN ${externalSyncJobs.suspectMessageId} IS NULL THEN ${externalSyncJobs.strikeCount}
+			WHEN ${externalSyncJobs.suspectMessageId} = ${externalSyncJobs.strikeMessageId} THEN ${externalSyncJobs.strikeCount} + 1
+			ELSE 1 END`,
+		strikeMessageId: sql`coalesce(${externalSyncJobs.suspectMessageId}, ${externalSyncJobs.strikeMessageId})`,
+		suspectMessageId: null,
 	}).where(and(
 		eq(externalSyncJobs.id, payload.jobId),
 		or(
@@ -126,27 +140,27 @@ export async function processExternalSyncQueue(
 		return { action: "ack" };
 	}
 
+	const fail = (
+		accountStatus: "reconnect_required" | "resync_required" | "error",
+		errorCode: string,
+	) => failExternalSyncJob(env, { jobId: job.id, accountId: account.id, accountStatus, errorCode, now });
+	/** A provider that is throttling or down is not the message's fault: back off, and clear the marker. */
+	const retryTransient = async (errorCode: string) => {
+		const failures = job.failureCount + 1;
+		const delaySeconds = retryDelay(failures);
+		await requeueJob(db, job.id, now, delaySeconds, { errorCode, failureCount: failures, suspectMessageId: null });
+		return { action: "retry", delaySeconds } as const;
+	};
+
 	try {
 		const credential = await refreshExternalAccountCredential(env, account, now);
 		if (credential.status === "error") {
 			if (credential.revoked) {
-				await markJobFailed(env, job.id, account.id, "reconnect_required", credential.code, now);
+				await fail("reconnect_required", credential.code);
 				return { action: "ack" };
 			}
-			if (credential.retryable) {
-				const delaySeconds = retryDelay(job.attempts);
-				await db.update(externalSyncJobs).set({
-					status: "pending",
-					kind: sql`coalesce(${externalSyncJobs.requestedKind}, ${externalSyncJobs.kind})`,
-					requestedKind: null,
-					attempts: sql`CASE WHEN ${externalSyncJobs.requestedKind} IS NULL THEN ${externalSyncJobs.attempts} ELSE 0 END`,
-					leaseUntil: null,
-					nextAttemptAt: new Date(now.getTime() + delaySeconds * 1000),
-					errorCode: credential.code,
-				}).where(eq(externalSyncJobs.id, job.id));
-				return { action: "retry", delaySeconds };
-			}
-			await markJobFailed(env, job.id, account.id, "error", credential.code, now);
+			if (credential.retryable) return await retryTransient(credential.code);
+			await fail("error", credential.code);
 			return { action: "ack" };
 		}
 		const importAccount = {
@@ -177,17 +191,12 @@ export async function processExternalSyncQueue(
 			fetcher: fetch,
 			now,
 		});
-		await applyExternalSyncPage(env, importAccount, mailbox, page.changes, page.cursors, now);
-		const hasMore = page.hasMore;
-		if (hasMore) {
-			await db.update(externalSyncJobs).set({
-				status: "pending",
-				kind: sql`coalesce(${externalSyncJobs.requestedKind}, ${externalSyncJobs.kind})`,
-				requestedKind: null,
-				attempts: sql`CASE WHEN ${externalSyncJobs.requestedKind} IS NULL THEN ${externalSyncJobs.attempts} ELSE 0 END`,
-				leaseUntil: null,
-				nextAttemptAt: now,
-			}).where(eq(externalSyncJobs.id, job.id));
+		await applyExternalSyncPage(env, importAccount, mailbox, page.changes, page.cursors, now, {
+			jobId: job.id,
+			skipMessageId: job.strikeCount >= POISON_STRIKES ? job.strikeMessageId : null,
+		});
+		if (page.hasMore) {
+			await requeueJob(db, job.id, now, 0, PAGE_SUCCEEDED);
 			return { action: "retry", delaySeconds: 1 };
 		}
 		await db.batch([
@@ -200,35 +209,38 @@ export async function processExternalSyncQueue(
 				nextAttemptAt: now,
 				completedAt: sql`CASE WHEN ${externalSyncJobs.requestedKind} IS NULL THEN ${now} ELSE NULL END`,
 				errorCode: null,
+				...PAGE_SUCCEEDED,
 			}).where(eq(externalSyncJobs.id, job.id)),
 			db.update(externalAccounts).set({
 				status: "active", lastSyncAt: now, lastErrorCode: null, updatedAt: now,
+				errorRetryCount: 0, nextRetryAt: null,
 			}).where(eq(externalAccounts.id, account.id)),
 		]);
 		return { action: "ack" };
 	} catch (error) {
-		if (error instanceof ExternalProviderRequestError && error.code === "cursor_expired") {
-			await markJobFailed(env, job.id, account.id, "resync_required", error.code, now);
-			return { action: "ack" };
-		}
-		if (error instanceof ExternalProviderRequestError && error.retryable) {
-			const delaySeconds = retryDelay(job.attempts);
-			await db.update(externalSyncJobs).set({
-				status: "pending",
-				kind: sql`coalesce(${externalSyncJobs.requestedKind}, ${externalSyncJobs.kind})`,
-				requestedKind: null,
-				attempts: sql`CASE WHEN ${externalSyncJobs.requestedKind} IS NULL THEN ${externalSyncJobs.attempts} ELSE 0 END`,
-				leaseUntil: null,
-				nextAttemptAt: new Date(now.getTime() + delaySeconds * 1000),
-				errorCode: error.code,
-			}).where(eq(externalSyncJobs.id, job.id));
-			return { action: "retry", delaySeconds };
+		if (error instanceof ExternalProviderRequestError) {
+			if (error.code === "cursor_expired") {
+				await fail("resync_required", error.code);
+				return { action: "ack" };
+			}
+			if (error.code === "authorization_revoked") {
+				await fail("reconnect_required", error.code);
+				return { action: "ack" };
+			}
+			if (error.retryable) return await retryTransient(error.code);
 		}
 		const errorCode = error instanceof ExternalProviderRequestError ? error.code : "sync_failed";
 		console.error("External sync failed", {
 			accountId: account.id, jobId: job.id, errorCode, ...describeFailure(error),
 		});
-		await markJobFailed(env, job.id, account.id, "error", errorCode, now);
-		return { action: "ack" };
+		const failures = job.failureCount + 1;
+		if (failures >= MAX_CONSECUTIVE_FAILURES) {
+			await fail("error", errorCode);
+			return { action: "ack" };
+		}
+		// Leave the in-flight marker set: the next claim counts it as a strike against that message.
+		const delaySeconds = retryDelay(failures);
+		await requeueJob(db, job.id, now, delaySeconds, { errorCode, failureCount: failures });
+		return { action: "retry", delaySeconds };
 	}
 }
