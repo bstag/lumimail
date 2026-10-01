@@ -1,11 +1,12 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { domains, externalAccounts, mailboxes, users } from "@/db/schema";
+import { domains, externalAccounts, externalMessageSkips, mailboxes, users } from "@/db/schema";
 import { getMailboxAccess, listAccessibleMailboxIds } from "@/lib/auth/mailbox-access";
 import { beginExternalOAuth } from "./connections";
 import { openExternalAccountCredential } from "./credentials";
 import { getExternalProviderAdapter } from "./provider-adapter";
 import { requestExternalSyncJob } from "./sync-jobs";
+import { isAutoRetryExhausted } from "./sync-policy";
 
 type PublicExternalAccount = {
 	id: string;
@@ -21,10 +22,23 @@ type PublicExternalAccount = {
 	retainOriginal: boolean;
 	lastSyncAt: Date | null;
 	lastErrorCode: string | null;
+	/** When the next automatic retry is due; null while one is in flight or none is scheduled. */
+	nextRetryAt: Date | null;
+	/** True once every automatic retry has been used and a person has to act. */
+	autoRetryExhausted: boolean;
+	/** Messages skipped because they were too large or kept failing; the list endpoint only. */
+	skippedMessageCount?: number;
 	createdAt: Date;
 	updatedAt: Date;
 	revokedAt: Date | null;
 };
+
+function recoveryState(account: { status: PublicExternalAccount["status"]; errorRetryCount: number }) {
+	return {
+		autoRetryExhausted: (account.status === "error" || account.status === "resync_required") &&
+			isAutoRetryExhausted(account.errorRetryCount),
+	};
+}
 
 const publicSelection = {
 	id: externalAccounts.id,
@@ -37,6 +51,8 @@ const publicSelection = {
 	retainOriginal: externalAccounts.retainOriginal,
 	lastSyncAt: externalAccounts.lastSyncAt,
 	lastErrorCode: externalAccounts.lastErrorCode,
+	nextRetryAt: externalAccounts.nextRetryAt,
+	errorRetryCount: externalAccounts.errorRetryCount,
 	createdAt: externalAccounts.createdAt,
 	updatedAt: externalAccounts.updatedAt,
 	revokedAt: externalAccounts.revokedAt,
@@ -56,6 +72,10 @@ export async function listExternalAccounts(
 			mailboxLocalPart: mailboxes.localPart,
 			mailboxHostname: domains.hostname,
 			ownerName: users.name,
+			skippedMessageCount: sql<number>`(
+				SELECT COUNT(*) FROM ${externalMessageSkips}
+				WHERE ${externalMessageSkips.accountId} = ${externalAccounts.id}
+			)`,
 		})
 		.from(externalAccounts)
 		.innerJoin(mailboxes, eq(mailboxes.id, externalAccounts.mailboxId))
@@ -78,6 +98,9 @@ export async function listExternalAccounts(
 		retainOriginal: row.retainOriginal,
 		lastSyncAt: row.lastSyncAt,
 		lastErrorCode: row.lastErrorCode,
+		nextRetryAt: row.nextRetryAt,
+		...recoveryState(row),
+		skippedMessageCount: Number(row.skippedMessageCount),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 		revokedAt: row.revokedAt,
@@ -105,6 +128,8 @@ function toPublicAccount(account: typeof externalAccounts.$inferSelect): PublicE
 		retainOriginal: account.retainOriginal,
 		lastSyncAt: account.lastSyncAt,
 		lastErrorCode: account.lastErrorCode,
+		nextRetryAt: account.nextRetryAt,
+		...recoveryState(account),
 		createdAt: account.createdAt,
 		updatedAt: account.updatedAt,
 		revokedAt: account.revokedAt,

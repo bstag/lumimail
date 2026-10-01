@@ -7,6 +7,7 @@ import { AuthGuard } from "@/components/auth/auth-guard";
 import { MailboxProvider } from "@/components/mailbox-provider";
 import { MailboxSelector } from "@/components/mailbox-selector";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { ExternalSyncBanner } from "@/components/settings/external-sync-banner";
 import { SettingsNav } from "@/components/settings/settings-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
@@ -126,6 +127,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 							<ThemeToggle />
 							<MailboxSelector />
 						</header>
+						<ExternalSyncBanner />
 						{/*
 						  The content column is bounded here rather than per page, matching the
 						  mail shell, so the frame never shifts as you navigate the section.

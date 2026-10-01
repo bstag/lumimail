@@ -9,3 +9,8 @@ export const MAX_CONSECUTIVE_FAILURES = 5;
  * has been used the account stays put and waits for a person.
  */
 export const AUTO_RETRY_DELAYS_SECONDS = [300, 1_800, 7_200, 43_200] as const;
+
+/** True once every scheduled automatic retry has been used and a person has to act. */
+export function isAutoRetryExhausted(retryCount: number): boolean {
+	return retryCount > AUTO_RETRY_DELAYS_SECONDS.length;
+}
