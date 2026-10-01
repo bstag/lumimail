@@ -36,6 +36,17 @@ function retryDelay(attempts: number): number {
 	return Math.max(1, Math.floor(ceiling * (0.5 + Math.random() * 0.5)));
 }
 
+/**
+ * Content-free description of an unexpected sync failure. A database wrapper's own message quotes
+ * the statement and its bound values (which can be message content), so only its cause is logged,
+ * truncated; a non-Error throw is reduced to its type.
+ */
+function describeFailure(error: unknown): { errorName: string; detail: string } {
+	const source = error instanceof Error && error.cause instanceof Error ? error.cause : error;
+	if (!(source instanceof Error)) return { errorName: typeof source, detail: "" };
+	return { errorName: source.name, detail: source.message.slice(0, 160) };
+}
+
 async function markJobFailed(
 	env: CloudflareEnv,
 	jobId: string,
@@ -214,6 +225,9 @@ export async function processExternalSyncQueue(
 			return { action: "retry", delaySeconds };
 		}
 		const errorCode = error instanceof ExternalProviderRequestError ? error.code : "sync_failed";
+		console.error("External sync failed", {
+			accountId: account.id, jobId: job.id, errorCode, ...describeFailure(error),
+		});
 		await markJobFailed(env, job.id, account.id, "error", errorCode, now);
 		return { action: "ack" };
 	}

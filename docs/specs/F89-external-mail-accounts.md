@@ -577,6 +577,44 @@ tests, UI, provider failure handling, and controlled evidence. They are not comm
 
 ## 16. Bug / Change Log
 
+### 2026-10-01 — Retry an errored account and record why a sync failed
+
+Type: Bug Fix
+
+Summary:
+
+- The External accounts card shows **Retry sync** for an `error` or `resync_required`
+  account. Both states were already accepted by the sync API (it restarts them as a
+  resync), but the button was disabled unless the account was `active`, and Reconnect
+  appeared only for `reconnect_required` or `disconnected`, so the only way out of `error`
+  was Disconnect then Reconnect.
+- An unexpected sync failure now logs `External sync failed` with the account ID, job ID,
+  error code, error name, and a truncated detail. A database wrapper's own message is
+  never logged because it quotes the statement's bound values; its cause is logged instead.
+
+Reason:
+
+- The production Google account stopped in `error` with `sync_failed` after 131 attempts and
+  3,381 imported messages. Nothing retries an `error` account, the UI offered no retry, and
+  the generic failure left no log, so neither the recovery path nor the cause was visible.
+
+Impact:
+
+- A manager can restart a stalled import from the interface. Resync walks the window again;
+  already-imported messages are matched by their provider ID and not duplicated.
+- The root cause of the original `sync_failed` is still unknown; the new log will name it on
+  the next failure.
+
+Verification plan:
+
+- Unit test for the failure log and its content-free shape; E2E for the Retry sync button in
+  `error`, `resync_required`, and `paused` states. Run `npm run verify`.
+
+Results:
+
+- `npm run verify` passed 2026-10-01 (2,766 unit tests, coverage and CRAP gates); the
+  external-accounts Playwright spec passed 4 of 4. Not yet deployed.
+
 ### 2026-09-30 — Skip oversized messages and cut per-message memory
 
 Type: Bug Fix / Behavior Change
