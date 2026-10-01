@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiJson } from "@/lib/api/client-response";
+import { describeSyncBanners } from "@/components/settings/external-sync-banner-utils";
 import { describeExternalOAuthResult, type ExternalOAuthNotice } from "./oauth-result";
 
 type ExternalAccount = {
@@ -25,6 +26,9 @@ type ExternalAccount = {
 	retainOriginal: boolean;
 	lastSyncAt: string | null;
 	lastErrorCode: string | null;
+	nextRetryAt: string | null;
+	autoRetryExhausted: boolean;
+	skippedMessageCount?: number;
 };
 
 type Mailbox = {
@@ -158,8 +162,10 @@ export function ExternalAccountsClient() {
 }
 
 function ExternalAccountDetails({ account }: { account: ExternalAccount }) {
-	return <><dl className="grid grid-cols-2 gap-2 text-xs"><div><dt className="text-ink-muted">Initial import</dt><dd>{account.importMode === "from_now" ? "From now" : "Last 30 days"}</dd></div><div><dt className="text-ink-muted">Original retention</dt><dd>{account.retainOriginal ? "Enabled" : "Off"}</dd></div><div className="col-span-2"><dt className="text-ink-muted">Last successful sync</dt><dd>{account.lastSyncAt ? new Date(account.lastSyncAt).toLocaleString() : "Not yet"}</dd></div></dl>
-		{account.lastErrorCode && <p role="alert" className="rounded-md bg-surface-subtle p-2 text-sm text-danger">Action required: {account.lastErrorCode.replaceAll("_", " ")}</p>}</>;
+	const recovery = describeSyncBanners([account], account.ownerUserId, new Date()).find((banner) => banner.tone !== "info");
+	return <><dl className="grid grid-cols-2 gap-2 text-xs"><div><dt className="text-ink-muted">Initial import</dt><dd>{account.importMode === "from_now" ? "From now" : "Last 30 days"}</dd></div><div><dt className="text-ink-muted">Original retention</dt><dd>{account.retainOriginal ? "Enabled" : "Off"}</dd></div><div className="col-span-2"><dt className="text-ink-muted">Last successful sync</dt><dd>{account.lastSyncAt ? new Date(account.lastSyncAt).toLocaleString() : "Not yet"}</dd></div>{account.skippedMessageCount ? <div className="col-span-2"><dt className="text-ink-muted">Messages not imported</dt><dd>{account.skippedMessageCount} (too large or repeatedly failing)</dd></div> : null}</dl>
+		{account.lastErrorCode && <p role="alert" className="rounded-md bg-surface-subtle p-2 text-sm text-danger">Action required: {account.lastErrorCode.replaceAll("_", " ")}</p>}
+		{recovery && <p role="status" className="rounded-md bg-surface-subtle p-2 text-sm text-ink">{recovery.message}</p>}</>;
 }
 
 function ExternalStatusAction({ status, pending, mutate }: { status: ExternalAccount["status"]; pending: boolean; mutate: (action: ExternalAccountAction) => void }) {

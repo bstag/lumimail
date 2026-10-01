@@ -38,6 +38,7 @@ const account = {
 	approvingSessionId: "sess_old", provider: "google" as const, externalAddress: "user@example.com",
 	tokenCiphertext: "cipher", tokenIv: "iv", tokenKeyId: "v1", status: "active" as const,
 	importMode: "from_now" as const, retainOriginal: false, lastSyncAt: null, lastErrorCode: null,
+	nextRetryAt: null as Date | null, errorRetryCount: 0,
 	createdAt: new Date("2026-08-15T00:00:00Z"), updatedAt: new Date("2026-08-15T00:00:00Z"), revokedAt: null,
 };
 
@@ -68,10 +69,27 @@ describe("external account management", () => {
 		expect(mock.db.select).toHaveBeenCalledTimes(1);
 	});
 
+	it("reports the automatic-recovery state and skipped-message count, never as a secret", async () => {
+		const due = new Date("2026-10-01T13:00:00Z");
+		mock.queueSelect([
+			{ ...account, id: "exa_active", mailboxLocalPart: "s", mailboxHostname: "e.com", ownerName: "O", skippedMessageCount: "3", errorRetryCount: 9 },
+			{ ...account, id: "exa_waiting", status: "error", nextRetryAt: due, errorRetryCount: 1, mailboxLocalPart: "s", mailboxHostname: "e.com", ownerName: "O", skippedMessageCount: 0 },
+			{ ...account, id: "exa_retrying", status: "error", errorRetryCount: 3, mailboxLocalPart: "s", mailboxHostname: "e.com", ownerName: "O", skippedMessageCount: 0 },
+			{ ...account, id: "exa_spent", status: "resync_required", errorRetryCount: 5, mailboxLocalPart: "s", mailboxHostname: "e.com", ownerName: "O", skippedMessageCount: 0 },
+		]);
+		const rows = await listExternalAccounts({} as CloudflareEnv, "usr_1", "org_1");
+		const byId = Object.fromEntries(rows.map((row) => [row.id, row]));
+		expect(byId.exa_active).toMatchObject({ skippedMessageCount: 3, autoRetryExhausted: false, nextRetryAt: null });
+		expect(byId.exa_waiting).toMatchObject({ autoRetryExhausted: false, nextRetryAt: due });
+		expect(byId.exa_retrying).toMatchObject({ autoRetryExhausted: false, nextRetryAt: null });
+		expect(byId.exa_spent).toMatchObject({ autoRetryExhausted: true });
+		for (const row of rows) expect(row).not.toHaveProperty("errorRetryCount");
+	});
+
 	it("returns detail only to the owner or a live mailbox manager", async () => {
 		mock.queueSelect([account]);
 		expect(await getExternalAccount({} as CloudflareEnv, "usr_1", "org_1", "exa_1"))
-			.toMatchObject({ id: "exa_1" });
+			.toMatchObject({ id: "exa_1", nextRetryAt: null, autoRetryExhausted: false });
 		expect(h.access).not.toHaveBeenCalled();
 		mock.queueSelect([{ ...account, ownerUserId: "usr_other" }]);
 		expect(await getExternalAccount({} as CloudflareEnv, "usr_1", "org_1", "exa_1"))

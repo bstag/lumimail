@@ -14,6 +14,7 @@ import { DashboardNav } from "@/components/dashboard-nav";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { MobileTabBar } from "@/components/mobile-tab-bar";
+import { ExternalSyncBanner } from "@/components/settings/external-sync-banner";
 import {
 	readSidebarCollapsed,
 	sidebarGridColumns,
@@ -113,6 +114,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 									</Link>
 									<MailboxSelector />
 								</header>
+								<ExternalSyncBanner />
 								{/* Rounded on both top corners, matching the admin shell. The mail panes are
 									    deliberately full-bleed — that is why this one has no padding — but the
 									    container itself should not change shape when you switch sections.

@@ -589,6 +589,43 @@ tests, UI, provider failure handling, and controlled evidence. They are not comm
 
 ## 16. Bug / Change Log
 
+### 2026-10-01 — Tell the owner when sync needs attention
+
+Type: Feature
+
+Summary:
+
+- A banner in the mail and settings shells tells a connection's owner when their account
+  needs a reconnect (danger), stopped after the automatic retries ran out (danger), is
+  recovering by itself with the time of the next retry (warning), or has messages that could
+  not be imported (info). It reads the same query as the External accounts page and is
+  hidden on that page, where the card carries the same explanation.
+- `GET /api/external-accounts` adds `nextRetryAt`, `autoRetryExhausted`, and
+  `skippedMessageCount`. The retry schedule stays on the server; the client only formats it.
+- The connection card shows messages not imported and the recovery state.
+
+Reason:
+
+- Automatic recovery is only trustworthy if the owner can see it working, and the reconnect
+  case, which only a person can fix, was silent.
+
+Impact:
+
+- Only the connection's owner is notified. Not shown: an Operations Center section for
+  stale or errored accounts, which is deferred.
+
+Verification plan:
+
+- Pure-logic unit tests for every banner rule and ordering; a real-SQLite test that the
+  skipped count is per account; E2E for the banner in both shells, its absence for healthy
+  accounts and non-owners, and its absence on the External accounts page.
+
+Results:
+
+- `npm run verify` passed 2026-10-01 (2,797 unit tests, coverage and CRAP gates). The
+  external-accounts Playwright spec passed 7 of 7. The banner was checked visually in light
+  and dark themes. Not yet deployed; depends on migration `0042` from the self-healing change.
+
 ### 2026-10-01 — Self-healing external sync
 
 Type: Behavior Change

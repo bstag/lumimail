@@ -117,3 +117,69 @@ test("external accounts confirms a completed OAuth connection", async ({ page })
 	await expect(page.getByText("External account connected. The initial import will start shortly.")).toBeVisible();
 	await expect(page).toHaveURL(/\/settings\/external-accounts$/);
 });
+
+test.describe("sync attention banner", () => {
+	const owned = (id: string, status: string, extra: Record<string, unknown> = {}) => ({
+		id, mailboxId: "mbx_support", mailboxAddress: "support@example.com",
+		ownerUserId: "usr_owner", ownerName: "Owner", provider: "google",
+		externalAddress: `${id}@gmail.com`, status, importMode: "recent_30_days",
+		retainOriginal: false, lastSyncAt: null, lastErrorCode: null,
+		nextRetryAt: null, autoRetryExhausted: false, skippedMessageCount: 0, ...extra,
+	});
+
+	async function mockAccounts(page: import("@playwright/test").Page, accounts: unknown[]) {
+		await mockAuthShell(page, {
+			user: { id: "usr_owner", email: "owner@example.com", name: "Owner", role: "owner" },
+			mailboxes: [{
+				id: "mbx_support", localPart: "support", hostname: "example.com",
+				displayName: "Support", isPrimary: true, role: "manager",
+			}],
+			counts: folderCounts(),
+		});
+		await page.route("**/api/external-accounts", (route) => route.fulfill({ json: {
+			success: true, data: { accounts },
+		} }));
+	}
+
+	test("tells the owner what needs attention, in the settings shell", async ({ page }) => {
+		await mockAccounts(page, [
+			owned("lost", "reconnect_required"),
+			owned("waiting", "error", { nextRetryAt: new Date(Date.now() + 3_600_000).toISOString() }),
+			owned("stopped", "error", { autoRetryExhausted: true }),
+			owned("skips", "active", { skippedMessageCount: 2 }),
+			{ ...owned("theirs", "reconnect_required"), ownerUserId: "usr_someone_else" },
+		]);
+
+		await page.goto("/settings");
+		const banners = page.getByTestId("external-sync-banners");
+		await expect(banners.getByRole("alert").filter({ hasText: "Reconnect lost@gmail.com" })).toBeVisible();
+		await expect(banners.getByRole("alert").filter({ hasText: "Sync for stopped@gmail.com stopped" })).toBeVisible();
+		await expect(banners.getByRole("status").filter({ hasText: "Retrying automatically at" })).toBeVisible();
+		await expect(banners.getByRole("status").filter({ hasText: "2 messages from skips@gmail.com could not be imported" })).toBeVisible();
+		await expect(banners.getByText("theirs@gmail.com")).toHaveCount(0);
+		await expect(banners.getByRole("link", { name: "View" }).first()).toHaveAttribute("href", "/settings/external-accounts");
+	});
+
+	test("shows nothing for healthy accounts and is hidden on the External accounts page itself", async ({ page }) => {
+		await mockAccounts(page, [owned("fine", "active")]);
+		await page.goto("/settings");
+		await expect(page.getByTestId("external-sync-banners")).toHaveCount(0);
+
+		await page.unroute("**/api/external-accounts");
+		await page.route("**/api/external-accounts", (route) => route.fulfill({ json: {
+			success: true, data: { accounts: [owned("lost", "reconnect_required")] },
+		} }));
+		await page.goto("/settings/external-accounts");
+		await expect(page.getByRole("heading", { name: "External accounts" })).toBeVisible();
+		await expect(page.getByTestId("external-sync-banners")).toHaveCount(0);
+		// The card itself carries the same explanation.
+		await expect(page.getByRole("status").filter({ hasText: "Reconnect lost@gmail.com" })).toBeVisible();
+	});
+
+	test("also appears in the mail shell", async ({ page }) => {
+		await mockAccounts(page, [owned("lost", "reconnect_required")]);
+		await page.route("**/api/messages**", (route) => route.fulfill({ json: { messages: [], nextCursor: null } }));
+		await page.goto("/inbox");
+		await expect(page.getByTestId("external-sync-banners").getByRole("alert")).toContainText("Reconnect lost@gmail.com");
+	});
+});
