@@ -61,6 +61,47 @@ async function mockExternalAccountsPage(page: import("@playwright/test").Page) {
 	} }));
 }
 
+test("external accounts offers a retry for an errored or resync-required account", async ({ page }) => {
+	await mockAuthShell(page, {
+		user: { id: "usr_owner", email: "owner@example.com", name: "Owner", role: "owner" },
+		mailboxes: [{
+			id: "mbx_support", localPart: "support", hostname: "example.com",
+			displayName: "Support", isPrimary: true, role: "manager",
+		}],
+		counts: folderCounts(),
+	});
+	const account = (id: string, status: string, lastErrorCode: string | null) => ({
+		id, mailboxId: "mbx_support", mailboxAddress: "support@example.com",
+		ownerUserId: "usr_owner", ownerName: "Owner", provider: "google",
+		externalAddress: `${id}@gmail.com`, status, importMode: "recent_30_days",
+		retainOriginal: false, lastSyncAt: null, lastErrorCode,
+	});
+	await page.route("**/api/external-accounts", (route) => route.fulfill({ json: {
+		success: true,
+		data: { accounts: [
+			account("errored", "error", "sync_failed"),
+			account("stale", "resync_required", "cursor_expired"),
+			account("paused", "paused", null),
+		] },
+	} }));
+	const synced: string[] = [];
+	await page.route("**/api/external-accounts/*/sync", async (route) => {
+		synced.push(route.request().url().split("/").at(-2)!);
+		await route.fulfill({ json: { success: true, data: { jobId: "exj_1" } } });
+	});
+
+	await page.goto("/settings/external-accounts");
+	const errored = page.getByRole("article").filter({ hasText: "errored@gmail.com" });
+	const stale = page.getByRole("article").filter({ hasText: "stale@gmail.com" });
+	const paused = page.getByRole("article").filter({ hasText: "paused@gmail.com" });
+	await expect(errored.getByRole("button", { name: "Retry sync" })).toBeEnabled();
+	await expect(stale.getByRole("button", { name: "Retry sync" })).toBeEnabled();
+	await expect(paused.getByRole("button", { name: "Sync now" })).toBeDisabled();
+
+	await errored.getByRole("button", { name: "Retry sync" }).click();
+	await expect.poll(() => synced).toEqual(["errored"]);
+});
+
 test("external accounts shows the OAuth callback error and clears it from the address bar", async ({ page }) => {
 	await mockExternalAccountsPage(page);
 	await page.goto("/settings/external-accounts?error=reauthenticate");

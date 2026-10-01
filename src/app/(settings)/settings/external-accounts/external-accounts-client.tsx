@@ -172,10 +172,15 @@ function ExternalAccountActions({ account, password, pending, mutate }: { accoun
 	const needsReconnect = accountNeedsReconnect(account.status);
 	return <div className="flex flex-wrap gap-2">
 		<ExternalStatusAction status={account.status} pending={pending} mutate={mutate} />
-		<Button size="sm" variant="outline" disabled={pending || account.status !== "active"} onClick={() => mutate("sync")}><RefreshCw className="h-4 w-4" />Sync now</Button>
+		<Button size="sm" variant="outline" disabled={pending || !accountCanSync(account.status)} onClick={() => mutate("sync")}><RefreshCw className="h-4 w-4" />{account.status === "error" || account.status === "resync_required" ? "Retry sync" : "Sync now"}</Button>
 		{!account.retainOriginal && <Button size="sm" variant="outline" disabled={pending || !password} onClick={() => mutate("retain")}><ShieldCheck className="h-4 w-4" />Retain future originals</Button>}
 		{needsReconnect && <Button size="sm" disabled={pending || !password} onClick={() => mutate("reconnect")}><RefreshCw className="h-4 w-4" />Reconnect</Button>}
 	</div>;
+}
+
+/** Matches the server: an errored or resync-required account may be retried; it restarts as a resync. */
+function accountCanSync(status: ExternalAccount["status"]) {
+	return status === "active" || status === "resync_required" || status === "error";
 }
 
 function accountNeedsReconnect(status: ExternalAccount["status"]) {

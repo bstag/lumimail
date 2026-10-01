@@ -174,6 +174,40 @@ describe("external sync queue", () => {
 		random.mockRestore();
 	});
 
+	it("logs why a sync failed without leaking message content", async () => {
+		const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		mock.queueSelect([job]).queueSelect([account]);
+		h.apply.mockRejectedValueOnce(new Error("unexpected parse failure"));
+		await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" });
+		expect(logged).toHaveBeenLastCalledWith("External sync failed", {
+			accountId: "exa_1", jobId: "exj_1", errorCode: "sync_failed",
+			errorName: "Error", detail: "unexpected parse failure",
+		});
+
+		// A database wrapper's own message quotes the statement and its bound values; only the cause is logged.
+		mock.queueSelect([job]).queueSelect([account]);
+		const wrapped = new Error("Failed query: insert into messages params: secret subject line", {
+			cause: Object.assign(new Error("D1_ERROR: UNIQUE constraint failed: messages.id"), { name: "D1Error" }),
+		});
+		h.apply.mockRejectedValueOnce(wrapped);
+		await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" });
+		const [, fields] = logged.mock.calls.at(-1)!;
+		expect(fields).toMatchObject({ errorName: "D1Error", detail: "D1_ERROR: UNIQUE constraint failed: messages.id" });
+		expect(JSON.stringify(logged.mock.calls.at(-1))).not.toContain("secret subject line");
+
+		mock.queueSelect([job]).queueSelect([account]);
+		h.apply.mockRejectedValueOnce("a thrown string with content");
+		await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" });
+		expect(logged.mock.calls.at(-1)![1]).toMatchObject({ errorName: "string", detail: "" });
+		expect(JSON.stringify(logged.mock.calls.at(-1))).not.toContain("thrown string with content");
+
+		mock.queueSelect([job]).queueSelect([account]);
+		h.apply.mockRejectedValueOnce(new ExternalProviderRequestError("invalid_provider_response", false));
+		await processExternalSyncQueue(env, { kind: "external-sync", version: 1, jobId: "exj_1" });
+		expect(logged.mock.calls.at(-1)![1]).toMatchObject({ errorCode: "invalid_provider_response" });
+		logged.mockRestore();
+	});
+
 	it("decrypts validated cursors, runs incremental mode, and marks corrupt cursors for resync", async () => {
 		mock.queueSelect([{ ...job, kind: "incremental" }]).queueSelect([{ ...account, status: "active" }]);
 		h.read.mockResolvedValueOnce({ historyId: "500" });
