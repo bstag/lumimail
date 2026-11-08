@@ -105,7 +105,10 @@ Source of truth for behavior. Each follows
             [`F97-focused-inbox`](./specs/F97-focused-inbox.md),
             [`F98-sender-cleanup`](./specs/F98-sender-cleanup.md),
             [`F99-other-digest`](./specs/F99-other-digest.md),
-            [`F100-snooze`](./specs/F100-snooze.md).
+            [`F100-snooze`](./specs/F100-snooze.md),
+            [`F101-filters-at-scale`](./specs/F101-filters-at-scale.md),
+            [`F102-bulk-cleanup`](./specs/F102-bulk-cleanup.md),
+            [`F103-group-by-sender`](./specs/F103-group-by-sender.md).
 
 ## Implementation notes (`implementation/`)
 

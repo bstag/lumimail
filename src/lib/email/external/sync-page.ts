@@ -137,7 +137,7 @@ export async function applyExternalSyncPage(
 			}
 			if (prepared.filterInput) {
 				const input = prepared.filterInput;
-				await applyMessageFilters(db, input.userId, input.messageId, input.fromAddr, input.toAddr, input.subject);
+				await applyMessageFilters(db, input.userId, input.messageId, now);
 			}
 			results.push(prepared.result);
 		} catch (error) {

@@ -27,7 +27,7 @@ beforeEach(() => {
 			references_header TEXT, reply_source_message_id TEXT, from_addr TEXT NOT NULL, to_addr TEXT NOT NULL,
 			subject TEXT, snippet TEXT, status TEXT NOT NULL, attachment_status TEXT NOT NULL, attachment_error TEXT,
 			read INTEGER NOT NULL, starred INTEGER NOT NULL, thread_id TEXT, imap_uid INTEGER, received_at INTEGER,
-			unsubscribe_url TEXT, unsubscribe_mailto TEXT, unsubscribe_one_click INTEGER NOT NULL DEFAULT 0, snoozed_until INTEGER,
+			unsubscribe_url TEXT, unsubscribe_mailto TEXT, unsubscribe_one_click INTEGER NOT NULL DEFAULT 0, snoozed_until INTEGER, focus_override TEXT, expires_at INTEGER,
 			created_at INTEGER NOT NULL
 		);
 	`);
@@ -89,6 +89,14 @@ describe("GET /api/messages focus filter (F97)", () => {
 			["foreign-promo", "promo-friend", "promo-reply", "promo-starred", "receipt", "untagged"],
 		);
 		expect((await list()).ids).toHaveLength(8);
+	});
+
+	it("lets a filter's Show in Focused/Other override the computed split (F101)", async () => {
+		sqlite.prepare("UPDATE messages SET focus_override = 'other' WHERE id = 'untagged'").run();
+		sqlite.prepare("UPDATE messages SET focus_override = 'focused' WHERE id = 'promo'").run();
+
+		expect((await list("other")).ids).toEqual(["news", "untagged"]);
+		expect((await list("focused")).ids).toContain("promo");
 	});
 
 	it("rejects an unknown focus value", async () => {

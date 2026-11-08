@@ -31,7 +31,7 @@ beforeEach(() => {
 		CREATE TABLE messages (
 			id TEXT PRIMARY KEY, user_id TEXT NOT NULL, organization_id TEXT, mailbox_id TEXT, direction TEXT NOT NULL,
 			from_addr TEXT NOT NULL, to_addr TEXT NOT NULL, subject TEXT, status TEXT NOT NULL, attachment_status TEXT NOT NULL,
-			read INTEGER NOT NULL, starred INTEGER NOT NULL, received_at INTEGER, created_at INTEGER NOT NULL
+			read INTEGER NOT NULL, starred INTEGER NOT NULL, received_at INTEGER, focus_override TEXT, created_at INTEGER NOT NULL
 		);
 		INSERT INTO mailboxes VALUES ('mbx_1', 'org1'), ('mbx_2', 'org1');
 		INSERT INTO mailbox_memberships VALUES ('mbx_1', 'u1', 'manager'), ('mbx_2', 'u1', 'manager');

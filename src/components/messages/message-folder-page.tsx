@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { INBOX_FOCUS_KEY, parseInboxFocus, type InboxFocus } from "./inbox-focus-utils";
 import { OtherDigest } from "./other-digest";
+import { CleanUpMenu, OtherBacklogPrompt, SelectAllInViewBar } from "./bulk-cleanup";
+import type { ViewQuery } from "./bulk-cleanup-utils";
+import { GroupBySenderToggle } from "./sender-groups";
+import { FolderListBody, useFolderViewActions } from "./folder-view-actions";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { ChevronLeft, ChevronRight, PanelBottom, PanelRight, Star } from "lucide-react";
@@ -30,7 +34,6 @@ import {
 	getMessagePartyClassName,
 	getMessagePreview,
 	retryMessageDelivery,
-	runBulkMessageAction,
 } from "./utils";
 import { canRecoverMessage } from "./message-folder-utils";
 import { formatMessageListTime } from "./message-time-utils";
@@ -134,7 +137,7 @@ function subscribeInboxFocus(onChange: () => void) {
 /** Focused / Other tabs over the Inbox (F97). */
 function InboxFocusTabs({ value, onChange }: { value: InboxFocus; onChange: (value: InboxFocus) => void }) {
 	const t = useTranslations("messages");
-	return <div role="tablist" aria-label={t("inboxView")} className="flex items-center gap-1 border-b border-border px-6">
+	return <div role="tablist" aria-label={t("inboxView")} className="flex items-center gap-1 px-6">
 		{(["focused", "other"] as const).map((option) => <button
 			key={option}
 			type="button"
@@ -161,11 +164,21 @@ function useInboxFocus(config: { folder: string; labelId?: string }, onChange: (
 	};
 }
 
-function InboxFocusHeader({ inbox, showDigest, mailboxId }: { inbox: InboxFocusState; showDigest: boolean; mailboxId: string | null }) {
+function InboxFocusHeader({ inbox, showDigest, mailboxId, view, grouped }: {
+	inbox: InboxFocusState; showDigest: boolean; mailboxId: string | null; view: ViewQuery; grouped: [boolean, (next: boolean) => void];
+}) {
 	if (!inbox.focus) return null;
+	const showOtherExtras = inbox.focus === "other" && showDigest;
 	return <>
-		<InboxFocusTabs value={inbox.focus} onChange={inbox.change} />
-		{inbox.focus === "other" && showDigest && <OtherDigest mailboxId={mailboxId} />}
+		<div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pe-6">
+			<InboxFocusTabs value={inbox.focus} onChange={inbox.change} />
+			<div className="flex flex-wrap items-center gap-3 ps-6">
+				<GroupBySenderToggle value={grouped[0]} onChange={grouped[1]} />
+				<CleanUpMenu query={view} />
+			</div>
+		</div>
+		{showOtherExtras && <OtherBacklogPrompt query={view} />}
+		{showOtherExtras && <OtherDigest mailboxId={mailboxId} />}
 	</>;
 }
 
@@ -420,7 +433,11 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 			),
 		[allMailboxes, mailboxes],
 	);
-	const allVisibleSelected = messages.length > 0 && messages.every((message) => selectedIds.includes(message.id));
+	const viewActions = useFolderViewActions({
+		folder: config.folder, mailboxId: scopedMailboxId, query, labelId: effectiveLabelId, focus: inbox.focus,
+		messageIds: messages.map((message) => message.id), selectedIds, total,
+	});
+	const { view, allVisibleSelected, selection } = viewActions;
 
 	useEffect(() => {
 		setOffset(0);
@@ -476,7 +493,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 
 		setPendingBulkAction(true);
 		try {
-			await runBulkMessageAction(queryClient, selectedIds, action);
+			await viewActions.run(action);
 			setSelectedIds([]);
 		} finally {
 			setPendingBulkAction(false);
@@ -502,13 +519,11 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 		}
 	}, [queryClient, setMessages]);
 
-	const list = (
-		<div className="flex h-full flex-col">
-			<InboxFocusHeader inbox={inbox} showDigest={offset === 0 && !query.trim()} mailboxId={scopedMailboxId ?? null} />
-			<FolderLabelHeader title={config.title} pinned={!!pinnedLabelId} labels={labels} activeId={activeLabelId} onChange={setActiveLabelId} />
+	const flat = (
+		<>
 			<div className="flex h-14 items-center justify-between border-b border-border px-6">
 				<FolderSelectionControls messageCount={messages.length} allSelected={allVisibleSelected}
-					selectedCount={selectedIds.length} hasUnread={hasUnreadSelection} pending={pendingBulkAction}
+					selectedCount={viewActions.selectedCount} hasUnread={hasUnreadSelection} pending={pendingBulkAction}
 					onToggleAll={toggleAllVisible} onAction={runSelectedAction} onClear={() => setSelectedIds([])} />
 				<FolderPaginationControls hidden={selectedIds.length > 0} splitDesktop={splitDesktop}
 					selectedMessageId={selectedMessageId} orientation={splitOrientation} range={pageRange}
@@ -516,6 +531,8 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 					onToggleOrientation={toggleSplitOrientation} onOffsetChange={setOffset} />
 			</div>
 
+			<SelectAllInViewBar allVisibleSelected={allVisibleSelected} pageCount={messages.length} total={total}
+				allInView={selection.allInView} onSelectAll={selection.selectAll} onClear={() => setSelectedIds([])} />
 			<div className="divide-y divide-border">
 				{messages.map((message) => (
 					<MessageListRow
@@ -541,6 +558,14 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 					</p>
 				)}
 			</div>
+		</>
+	);
+
+	const list = (
+		<div className="flex h-full flex-col">
+			<InboxFocusHeader inbox={inbox} showDigest={offset === 0 && !query.trim()} mailboxId={scopedMailboxId ?? null} view={view} grouped={viewActions.groupToggle} />
+			<FolderLabelHeader title={config.title} pinned={!!pinnedLabelId} labels={labels} activeId={activeLabelId} onChange={setActiveLabelId} />
+			<FolderListBody grouped={viewActions.grouped} view={view}>{flat}</FolderListBody>
 		</div>
 	);
 

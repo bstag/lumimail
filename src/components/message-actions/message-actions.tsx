@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Archive, Mail, MailOpen, MoreVertical, Reply, ShieldAlert, Trash2 } from "lucide-react";
+import { Archive, ListFilter, Mail, MailOpen, MoreVertical, Reply, ShieldAlert, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -11,9 +11,23 @@ import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
 import type { MessageActionsProps } from "./types";
 import { getMessageActionRedirect, runSingleMessageAction } from "./utils";
 import { SnoozeMenu } from "./snooze-menu";
+import { filterLikeThisHref } from "@/app/(dashboard)/filters/utils";
 import { Select } from "@/components/ui/select";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { resolveReplyMailboxId } from "@/components/mailbox-scope-utils";
+
+/** Opens the filter form prefilled with an inbound message's sender (F101). */
+function FilterLikeThisButton({ direction, fromAddr }: Pick<MessageActionsProps, "direction" | "fromAddr">) {
+	const t = useTranslations("actions");
+	const router = useRouter();
+	if (direction !== "inbound" || !fromAddr) return null;
+	return <Tooltip label={t("filterLikeThis")}>
+		<Button type="button" variant="ghost" size="sm" aria-label={t("filterLikeThis")}
+			onClick={() => router.push(filterLikeThisHref(fromAddr))}>
+			<ListFilter className="h-5 w-5" />
+		</Button>
+	</Tooltip>;
+}
 
 export function MessageActions({
 	messageId,
@@ -147,6 +161,7 @@ export function MessageActions({
 				{direction === "inbound" && status === "received" && (
 					<SnoozeMenu messageId={messageId} snoozedUntil={snoozedUntil} disabled={disabled} onError={() => setError(t("updateFailed"))} />
 				)}
+				<FilterLikeThisButton direction={direction} fromAddr={fromAddr} />
 				<Tooltip label={t("moveMessage")}>
 					<Select
 						size="sm" className="w-auto"

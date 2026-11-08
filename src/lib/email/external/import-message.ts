@@ -56,7 +56,7 @@ export type PreparedExternalMessage = {
 	statements: BatchItem<"sqlite">[];
 	result: ExternalImportResult;
 	/** Set for newly imported received mail: the owner's filters run once it is stored (F98). */
-	filterInput?: { userId: string; messageId: string; fromAddr: string; toAddr: string; subject: string | undefined };
+	filterInput?: { userId: string; messageId: string };
 };
 
 export async function prepareExternalMessage(
@@ -279,7 +279,7 @@ export async function prepareExternalMessage(
 		],
 		result: { status: "created", messageId },
 		...(sent ? {} : {
-			filterInput: { userId: mailbox.userId, messageId, fromAddr, toAddr, subject: parsed.subject ?? undefined },
+			filterInput: { userId: mailbox.userId, messageId },
 		}),
 	};
 }

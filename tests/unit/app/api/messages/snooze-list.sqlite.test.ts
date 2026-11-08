@@ -27,7 +27,7 @@ beforeEach(() => {
 			from_addr TEXT NOT NULL, to_addr TEXT NOT NULL, subject TEXT, snippet TEXT, status TEXT NOT NULL,
 			attachment_status TEXT NOT NULL, attachment_error TEXT, read INTEGER NOT NULL, starred INTEGER NOT NULL,
 			thread_id TEXT, imap_uid INTEGER, received_at INTEGER, unsubscribe_url TEXT, unsubscribe_mailto TEXT,
-			unsubscribe_one_click INTEGER NOT NULL DEFAULT 0, snoozed_until INTEGER, created_at INTEGER NOT NULL
+			unsubscribe_one_click INTEGER NOT NULL DEFAULT 0, snoozed_until INTEGER, focus_override TEXT, expires_at INTEGER, created_at INTEGER NOT NULL
 		);
 		INSERT INTO mailboxes VALUES ('mbx_1', 'org1');
 		INSERT INTO mailbox_memberships VALUES ('mbx_1', 'u1', 'manager');

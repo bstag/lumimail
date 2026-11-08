@@ -1,4 +1,4 @@
-import { and, eq, inArray, notInArray, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, isNull, notInArray, or, sql, type SQL } from "drizzle-orm";
 import { alias, type SQLiteColumn } from "drizzle-orm/sqlite-core";
 import type { getDb } from "@/db";
 import { labels, messageLabels, messages } from "@/db/schema";
@@ -49,12 +49,14 @@ export function inboxFocusCondition(db: ReturnType<typeof getDb>, userId: string
 	const bulk = taggedWith(db, userId, BULK_TAGS);
 	const priority = taggedWith(db, userId, PRIORITY_TAGS);
 	const fromCorrespondent = inArray(addressOf(messages.fromAddr), correspondents(db, userId));
-	return (focus === "other"
+	const computed = focus === "other"
 		? and(
 			inArray(messages.id, bulk),
 			notInArray(messages.id, priority),
 			eq(messages.starred, false),
 			notInArray(addressOf(messages.fromAddr), correspondents(db, userId)),
 		)
-		: or(notInArray(messages.id, bulk), inArray(messages.id, priority), eq(messages.starred, true), fromCorrespondent)) as SQL;
+		: or(notInArray(messages.id, bulk), inArray(messages.id, priority), eq(messages.starred, true), fromCorrespondent);
+	// A filter's Show in Focused/Other choice wins over the computed split (F101).
+	return or(eq(messages.focusOverride, focus), and(isNull(messages.focusOverride), computed)) as SQL;
 }

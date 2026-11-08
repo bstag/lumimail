@@ -77,7 +77,7 @@ test.describe("canonical API client contracts", () => {
 		await page.goto("/filters");
 
 		await expect(page.getByRole("option", { name: "Finance" })).toHaveCount(1);
-		await expect(page.getByRole("main").getByRole("combobox")).toContainText("Finance");
+		await expect(page.getByRole("main").getByLabel("Apply label")).toContainText("Finance");
 	});
 
 	test("renders canonical domain DNS details", async ({ page }) => {

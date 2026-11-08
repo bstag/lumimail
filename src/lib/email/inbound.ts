@@ -224,7 +224,7 @@ async function deliverToMailbox(
 		throw error;
 	}
 
-	await applyMessageFilters(db, mailbox.userId, messageId, fromAddr, toAddr, parsed.subject ?? undefined);
+	await applyMessageFilters(db, mailbox.userId, messageId);
 
 	if (pushEventId) {
 		try {

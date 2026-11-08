@@ -552,116 +552,18 @@ describe("processInboundMessage", () => {
 });
 
 describe("processInboundMessage filters", () => {
-	const baseEnv = () => makeEnv(makeR2());
-
-	function singleStore() {
+	// Matching itself is SQL, covered against real SQLite in message-filters.sqlite.test.ts (F101).
+	it("runs the owner's filters on the stored message", async () => {
 		resolveInboundTargets.mockResolvedValue(storeDecisions);
-	}
-
-	/**
-	 * Successful processing always clears `message_bodies.raw_r2_key` (F63), so
-	 * "the filter changed nothing" must be asserted against the messages table
-	 * rather than against every update the consumer performs.
-	 */
-	function messageUpdates() {
-		return mock.updates.filter((update) => update.table === messages);
-	}
-
-	it("skips disabled filters", async () => {
-		singleStore();
 		mock
-			.queueSelect([{ enabled: false, fromContains: "sender" }])
+			.queueSelect([{ enabled: true, fromContains: "sender", matchMode: "all", actionStar: true, actionLabelId: "lbl_1" }])
+			.queueSelect([{ f0: 1 }]) // the filter matches the stored message
 			.queueSelect([{ enabled: false }]); // vacation
-		await processInboundMessage(baseEnv(), payload);
-		expect(messageUpdates()).toHaveLength(0);
-	});
+		await processInboundMessage(makeEnv(makeR2()), payload);
 
-	it("does not act when the filter does not match", async () => {
-		singleStore();
-		mock
-			.queueSelect([{ enabled: true, fromContains: "nomatch", actionStar: true }])
-			.queueSelect([{ enabled: false }]);
-		await processInboundMessage(baseEnv(), payload);
-		expect(messageUpdates()).toHaveLength(0);
-	});
-
-	it("applies star/read/trash and a label for a matching filter", async () => {
-		singleStore();
-		mock
-			.queueSelect([
-				{
-					enabled: true,
-					fromContains: "sender",
-					toContains: "example.com",
-					subjectContains: "Hello",
-					hasWords: "Hello",
-					actionStar: true,
-					actionMarkRead: true,
-					actionMoveToTrash: true,
-					actionLabelId: "lbl_1",
-				},
-			])
-			.queueSelect([{ enabled: false }]);
-
-		await processInboundMessage(baseEnv(), payload);
-
-		expect(messageUpdates()).toHaveLength(1);
-		expect(mock.updates[0].set).toEqual({ starred: true, read: true, status: "trash" });
-		// label insert
+		expect(mock.updates.filter((update) => update.table === messages)[0].set).toEqual({ starred: true });
 		expect(mock.inserts).toContainEqual(
 			expect.objectContaining({ values: { messageId: "msg_id", labelId: "lbl_1" } }),
-		);
-	});
-
-	it("applies archive status and updates when only archive is set", async () => {
-		singleStore();
-		mock
-			.queueSelect([{ enabled: true, actionArchive: true }])
-			.queueSelect([{ enabled: false }]);
-		await processInboundMessage(baseEnv(), payload);
-		expect(mock.updates[0].set).toEqual({ status: "archived" });
-	});
-
-	it("matches via hasWords against the subject when fromAddr does not contain it", async () => {
-		singleStore();
-		mock
-			.queueSelect([{ enabled: true, hasWords: "Hello", actionMarkRead: true }])
-			.queueSelect([{ enabled: false }]);
-		await processInboundMessage(baseEnv(), payload);
-		expect(mock.updates[0].set).toEqual({ read: true });
-	});
-
-	it("matches via hasWords against fromAddr when the subject does not contain it", async () => {
-		singleStore();
-		// subject "Hello" does not include "sender"; fromAddr "sender@other.com" does
-		mock
-			.queueSelect([{ enabled: true, hasWords: "sender", actionMarkRead: true }])
-			.queueSelect([{ enabled: false }]);
-		await processInboundMessage(baseEnv(), payload);
-		expect(mock.updates[0].set).toEqual({ read: true });
-	});
-
-	it("evaluates subjectContains and hasWords against an empty string when the subject is null", async () => {
-		singleStore();
-		parseRawMime.mockResolvedValue({ ...parsed, subject: null });
-		// subject null -> (subject ?? "") used for both subjectContains and hasWords.
-		// subjectContains "Hello" no longer matches the empty subject, so the filter is skipped.
-		mock
-			.queueSelect([{ enabled: true, subjectContains: "Hello", hasWords: "Hello", actionMarkRead: true }])
-			.queueSelect([{ enabled: false }]);
-		await processInboundMessage(baseEnv(), payload);
-		expect(messageUpdates()).toHaveLength(0);
-	});
-
-	it("does not update when a matching filter has no field actions but inserts the label", async () => {
-		singleStore();
-		mock
-			.queueSelect([{ enabled: true, actionLabelId: "lbl_2" }])
-			.queueSelect([{ enabled: false }]);
-		await processInboundMessage(baseEnv(), payload);
-		expect(messageUpdates()).toHaveLength(0);
-		expect(mock.inserts).toContainEqual(
-			expect.objectContaining({ values: { messageId: "msg_id", labelId: "lbl_2" } }),
 		);
 	});
 });

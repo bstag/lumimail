@@ -58,7 +58,7 @@ describe("POST /api/filters", () => {
 
 	it("creates a filter, nulling optional fields when omitted", async () => {
 		m.getCurrentUser.mockResolvedValue({ id: "u1" });
-		const res = await POST(post({ name: "Newsletters" }));
+		const res = await POST(post({ name: "Newsletters", hasWords: "unsubscribe" }));
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({ success: true, data: { id: "filter_1" } });
 		expect(mock.inserts[0].values).toMatchObject({
@@ -68,12 +68,35 @@ describe("POST /api/filters", () => {
 			fromContains: null,
 			toContains: null,
 			subjectContains: null,
-			hasWords: null,
+			hasWords: "unsubscribe",
+			matchMode: "all",
+			actionFocus: null,
+			actionExpireDays: null,
 			actionLabelId: null,
 			actionStar: false,
 			actionMarkRead: false,
 			actionArchive: false,
 			actionMoveToTrash: false,
+		});
+	});
+
+	it("rejects a filter with no condition or too many alternatives (F101)", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		expect((await POST(post({ name: "Everything", fromContains: "  " }))).status).toBe(400);
+		const eleven = Array.from({ length: 11 }, (_, index) => `s${index}.test`).join(",");
+		expect((await POST(post({ name: "Many", fromContains: eleven }))).status).toBe(400);
+		expect((await POST(post({ name: "Expire", fromContains: "a", actionExpireDays: 0 }))).status).toBe(400);
+		expect(mock.inserts).toHaveLength(0);
+	});
+
+	it("stores any-of matching, the focus override, and expiry (F101)", async () => {
+		m.getCurrentUser.mockResolvedValue({ id: "u1" });
+		const res = await POST(post({
+			name: "Deals", fromContains: "amazon.com, ebay.com", matchMode: "any", actionFocus: "other", actionExpireDays: 14,
+		}));
+		expect(res.status).toBe(200);
+		expect(mock.inserts[0].values).toMatchObject({
+			fromContains: "amazon.com, ebay.com", matchMode: "any", actionFocus: "other", actionExpireDays: 14,
 		});
 	});
 

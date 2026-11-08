@@ -44,6 +44,7 @@ import {
 } from "./src/lib/email/external/sync-queue";
 import { reconcileExternalSyncJobs } from "./src/lib/email/external/sync-jobs";
 import { repairExternalMessageBodies } from "./src/lib/email/external/body-repair";
+import { expireMessages } from "./src/lib/email/message-expiry";
 import { processDueWebhooks } from "./src/lib/email/webhooks";
 import { reconcileCategorization } from "./src/lib/categorization/service";
 
@@ -246,6 +247,13 @@ export default {
 			if (repair.repaired > 0 || repair.abandoned > 0) console.info("External body repair", repair);
 		} catch {
 			console.warn("External body repair deferred");
+		}
+
+		// Trashes mail a filter marked to delete after N days (F101).
+		try {
+			await expireMessages(getDb(env));
+		} catch {
+			console.warn("Message expiry deferred");
 		}
 
 		try {

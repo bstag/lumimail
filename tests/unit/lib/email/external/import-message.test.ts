@@ -59,8 +59,7 @@ describe("persistExternalMessage", () => {
 		const env = { BUCKET: bucket } as unknown as CloudflareEnv;
 		mock.queueSelect([]);
 		expect((await prepareExternalMessage(env, account, mailbox, change, new Date(), [])).filterInput).toEqual({
-			userId: "usr_mailbox", messageId: expect.any(String), fromAddr: "sender@example.com",
-			toAddr: '"Support" <support@example.com>', subject: "Hello",
+			userId: "usr_mailbox", messageId: expect.any(String),
 		});
 		mock.queueSelect([]).queueSelect([]);
 		expect((await prepareExternalMessage(env, account, mailbox, { ...change, remoteFolderKey: "sent" }, new Date(), []))

@@ -163,14 +163,14 @@ describe("external sync page application", () => {
 	});
 
 	it("runs the owner's message filters on newly imported received mail (F98)", async () => {
-		const filterInput = { userId: "usr_1", messageId: "msg_f", fromAddr: "a@x.test", toAddr: "b@x.test", subject: "Hi" };
+		const filterInput = { userId: "usr_1", messageId: "msg_f" };
 		h.prepare.mockResolvedValueOnce({ statements: [], result: { status: "created", messageId: "msg_f" }, filterInput });
 		h.prepare.mockResolvedValueOnce({ statements: [], result: { status: "created", messageId: "msg_sent" } });
 
 		await applyExternalSyncPage(env, account, mailbox, [change, { ...change, remoteMessageId: "remote_2" }], []);
 
 		expect(h.applyFilters).toHaveBeenCalledTimes(1);
-		expect(h.applyFilters).toHaveBeenCalledWith(mock.db, "usr_1", "msg_f", "a@x.test", "b@x.test", "Hi");
+		expect(h.applyFilters).toHaveBeenCalledWith(mock.db, "usr_1", "msg_f", expect.any(Date));
 	});
 
 	it("skips a message the provider says is too large without downloading it, and still commits the cursor", async () => {

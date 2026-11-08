@@ -332,18 +332,29 @@ export const createContactSchema = z.object({
 	displayName: z.string().min(1).max(200).optional(),
 });
 
+// A condition field lists up to ten comma-separated alternatives (F101).
+const filterFieldSchema = z.string().max(500)
+	.refine((value) => value.split(",").filter((part) => part.trim()).length <= 10, "At most 10 alternatives")
+	.optional();
+
 export const createFilterSchema = z.object({
 	name: z.string().trim().min(1).max(100),
-	fromContains: z.string().optional(),
-	toContains: z.string().optional(),
-	subjectContains: z.string().optional(),
-	hasWords: z.string().optional(),
+	fromContains: filterFieldSchema,
+	toContains: filterFieldSchema,
+	subjectContains: filterFieldSchema,
+	hasWords: filterFieldSchema,
+	matchMode: z.enum(["all", "any"]).default("all"),
 	actionStar: z.boolean().default(false),
 	actionMarkRead: z.boolean().default(false),
 	actionArchive: z.boolean().default(false),
 	actionLabelId: z.string().optional(),
 	actionMoveToTrash: z.boolean().default(false),
-});
+	actionFocus: z.enum(["focused", "other"]).optional(),
+	actionExpireDays: z.number().int().min(1).max(365).optional(),
+}).refine(
+	(filter) => [filter.fromContains, filter.toContains, filter.subjectContains, filter.hasWords].some((value) => value?.trim()),
+	{ message: "Add at least one condition", path: ["fromContains"] },
+);
 
 const categoryTagSchema = z.string().trim().min(1).max(80);
 const questionBase = {

@@ -42,7 +42,8 @@ beforeEach(() => {
 			id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, from_contains TEXT, to_contains TEXT,
 			subject_contains TEXT, has_words TEXT, action_star INTEGER NOT NULL DEFAULT 0,
 			action_mark_read INTEGER NOT NULL DEFAULT 0, action_archive INTEGER NOT NULL DEFAULT 0, action_label_id TEXT,
-			action_move_to_trash INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL
+			action_move_to_trash INTEGER NOT NULL DEFAULT 0, match_mode TEXT NOT NULL DEFAULT 'all', action_focus TEXT,
+			action_expire_days INTEGER, enabled INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL
 		);
 	`);
 	sqlite.exec(`INSERT INTO mailboxes VALUES ('mbx_1', 'org1'), ('mbx_other', 'org1');

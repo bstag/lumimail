@@ -294,6 +294,10 @@ export const messages = sqliteTable(
 		unsubscribeOneClick: integer("unsubscribe_one_click", { mode: "boolean" }).notNull().default(false),
 		/** Hidden from the Inbox until this time, then sorted by it (F100). Kept after waking. */
 		snoozedUntil: integer("snoozed_until", { mode: "timestamp" }),
+		/** A filter's Show in Focused/Other choice, which overrides the computed split (F101). */
+		focusOverride: text("focus_override", { enum: ["focused", "other"] }),
+		/** A filter's Delete after N days: the scheduled worker trashes the message then (F101). */
+		expiresAt: integer("expires_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.notNull()
 			.$defaultFn(() => new Date()),
@@ -305,6 +309,7 @@ export const messages = sqliteTable(
 		// page scans and sorts.
 		index("messages_mailbox_created_idx").on(t.mailboxId, t.createdAt),
 		index("messages_snoozed_idx").on(t.snoozedUntil).where(sql`${t.snoozedUntil} is not null`),
+		index("messages_expires_idx").on(t.expiresAt).where(sql`${t.expiresAt} is not null`),
 		// Thread view fetches every message in a conversation ordered by date (F58).
 		// Without this the query scans the table and sorts into a temporary B-tree.
 		index("messages_thread_created_idx").on(t.threadId, t.createdAt),
@@ -873,6 +878,10 @@ export const messageFilters = sqliteTable("message_filters", {
 	actionArchive: integer("action_archive", { mode: "boolean" }).notNull().default(false),
 	actionLabelId: text("action_label_id").references(() => labels.id, { onDelete: "set null" }),
 	actionMoveToTrash: integer("action_move_to_trash", { mode: "boolean" }).notNull().default(false),
+	/** 'all' requires every condition, 'any' requires one (F101). */
+	matchMode: text("match_mode", { enum: ["all", "any"] }).notNull().default("all"),
+	actionFocus: text("action_focus", { enum: ["focused", "other"] }),
+	actionExpireDays: integer("action_expire_days"),
 	enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
 	createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 }, (t) => [index("message_filters_user_idx").on(t.userId)]);

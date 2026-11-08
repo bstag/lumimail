@@ -31,6 +31,8 @@ export const POST = withUser(async ({ request, env, user }) => {
 		subjectContains: parsed.data.subjectContains ?? null,
 		hasWords: parsed.data.hasWords ?? null,
 		actionLabelId: parsed.data.actionLabelId ?? null,
+		actionFocus: parsed.data.actionFocus ?? null,
+		actionExpireDays: parsed.data.actionExpireDays ?? null,
 	});
 
 	return apiSuccess({ id });

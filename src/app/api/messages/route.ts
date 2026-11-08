@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { eq, desc, asc, and, like, or, count, inArray, sql } from "drizzle-orm";
+import { desc, asc, and, count, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { labels, messages, messageLabels } from "@/db/schema";
+import { messages } from "@/db/schema";
 import { withUser } from "@/lib/api/handler";
 import { apiError, apiSuccess } from "@/lib/api/response";
 import { enrichMessagesWithContacts } from "@/lib/messages/enrich";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
-import { inboxFocusCondition, parseInboxFocus } from "@/lib/messages/focus";
+import { messageListConditions } from "@/lib/messages/list-conditions";
 
 const DEFAULT_MESSAGE_LIMIT = 50;
 const MAX_MESSAGE_LIMIT = 100;
@@ -16,17 +16,6 @@ const THREAD_COUNT_BATCH_SIZE = 80;
 
 export const GET = withUser(async ({ request, env, user }) => {
 	const url = new URL(request.url);
-	const direction = url.searchParams.get("direction");
-	const mailboxId = url.searchParams.get("mailboxId");
-	const status = url.searchParams.get("status");
-	const query = url.searchParams.get("q")?.trim();
-	const title = url.searchParams.get("title")?.trim();
-	const read = url.searchParams.get("read");
-	const starred = url.searchParams.get("starred");
-	const labelId = url.searchParams.get("labelId");
-	const snoozedView = url.searchParams.get("snoozed") === "true";
-	const focus = parseInboxFocus(url.searchParams.get("focus"));
-	if (focus === "invalid") return apiError("Invalid focus", 400);
 	const rawLimit = url.searchParams.get("limit");
 	const parsedLimit = rawLimit === null ? DEFAULT_MESSAGE_LIMIT : Number(rawLimit);
 	if (
@@ -51,74 +40,11 @@ export const GET = withUser(async ({ request, env, user }) => {
 	}
 
 	const db = getDb(env);
-	const conditions = [messageAccessCondition(db, user.id, user.organizationId, "read")];
-	if (direction === "inbound" || direction === "outbound") {
-		conditions.push(eq(messages.direction, direction));
-	}
-	if (mailboxId) {
-		conditions.push(eq(messages.mailboxId, mailboxId));
-	}
-	if (status) {
-		const allowedStatuses = new Set([
-			"received",
-			"sent",
-			"draft",
-			"queued",
-			"failed",
-			"trash",
-			"spam",
-			"archived",
-		]);
-		const requestedStatuses = [...new Set(status.split(",").filter(Boolean))];
-		if (
-			requestedStatuses.length === 0 ||
-			requestedStatuses.some((requestedStatus) => !allowedStatuses.has(requestedStatus))
-		) {
-			return NextResponse.json({ error: "Invalid message status" }, { status: 400 });
-		}
-		conditions.push(
-			requestedStatuses.length === 1
-				? eq(messages.status, requestedStatuses[0])
-				: inArray(messages.status, requestedStatuses),
-		);
-	}
-	if (read === "read") {
-		conditions.push(eq(messages.read, true));
-	}
-	if (read === "unread") {
-		conditions.push(eq(messages.read, false));
-	}
-	if (starred === "true") {
-		conditions.push(eq(messages.starred, true));
-	}
-	if (query) {
-		const pattern = `%${query}%`;
-		const queryCondition = or(
-			like(messages.fromAddr, pattern),
-			like(messages.toAddr, pattern),
-			like(messages.subject, pattern),
-			like(messages.snippet, pattern),
-		);
-		/* v8 ignore next -- or() over always-defined like()s is never undefined; guard is defensive */
-		if (queryCondition) conditions.push(queryCondition);
-	}
-	if (title) {
-		conditions.push(like(messages.subject, `%${title}%`));
-	}
-	if (labelId) {
-		const labelledMessageIds = db
-			.select({ messageId: messageLabels.messageId })
-			.from(messageLabels)
-			.innerJoin(labels, eq(labels.id, messageLabels.labelId))
-			.where(and(eq(messageLabels.labelId, labelId), eq(labels.userId, user.id)));
-		conditions.push(inArray(messages.id, labelledMessageIds));
-	}
-	if (focus) conditions.push(inboxFocusCondition(db, user.id, focus));
-	// Snoozed received mail is hidden until it wakes, except in the Snoozed view (F100).
 	const nowSeconds = Math.floor(Date.now() / 1000);
-	const snoozedNow = sql`(${messages.status} = 'received' and ${messages.snoozedUntil} > ${nowSeconds})`;
-	conditions.push(snoozedView ? snoozedNow : sql`(${messages.snoozedUntil} is null or not ${snoozedNow})`);
-	const where = and(...conditions);
+	const conditions = messageListConditions(db, user, url.searchParams, nowSeconds);
+	if (conditions.error === "status") return NextResponse.json({ error: "Invalid message status" }, { status: 400 });
+	if (conditions.error) return apiError(conditions.error === "focus" ? "Invalid focus" : "Invalid age", 400);
+	const { where, snoozedView } = conditions;
 	// A woken message sorts by its wake time, so it returns to the top of the Inbox.
 	const order = snoozedView
 		? asc(messages.snoozedUntil)
