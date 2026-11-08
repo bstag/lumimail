@@ -245,7 +245,10 @@
     "showImages": "画像を表示",
     "inboxView": "受信トレイの表示",
     "focusedInbox": "優先",
-    "otherInbox": "その他"
+    "otherInbox": "その他",
+    "otherDigestTitle": "「その他」の過去 24 時間",
+    "otherDigestSummary": "{senders, plural, other {# 件の送信者}}から {total, plural, other {# 件のメッセージ}}",
+    "markAllRead": "すべて既読にする"
   },
   "actions": {
     "archive": "アーカイブ",

@@ -245,7 +245,10 @@
     "showImages": "عرض الصور",
     "inboxView": "عرض البريد الوارد",
     "focusedInbox": "المهمة",
-    "otherInbox": "أخرى"
+    "otherInbox": "أخرى",
+    "otherDigestTitle": "آخر 24 ساعة في أخرى",
+    "otherDigestSummary": "{total, plural, zero {لا رسائل} one {رسالة واحدة} two {رسالتان} few {# رسائل} many {# رسالة} other {# رسالة}} من {senders, plural, zero {لا مرسلين} one {مرسل واحد} two {مرسلين اثنين} few {# مرسلين} many {# مرسلًا} other {# مرسل}}",
+    "markAllRead": "تعليم الكل كمقروء"
   },
   "actions": {
     "archive": "أرشفة",

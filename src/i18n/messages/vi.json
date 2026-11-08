@@ -245,7 +245,10 @@
     "showImages": "Hiển thị hình ảnh",
     "inboxView": "Chế độ hộp thư",
     "focusedInbox": "Ưu tiên",
-    "otherInbox": "Khác"
+    "otherInbox": "Khác",
+    "otherDigestTitle": "24 giờ qua trong Khác",
+    "otherDigestSummary": "{total, plural, other {# thư}} từ {senders, plural, other {# người gửi}}",
+    "markAllRead": "Đánh dấu tất cả đã đọc"
   },
   "actions": {
     "archive": "Lưu trữ",

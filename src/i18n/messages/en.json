@@ -245,7 +245,10 @@
     "showImages": "Show images",
     "inboxView": "Inbox view",
     "focusedInbox": "Focused",
-    "otherInbox": "Other"
+    "otherInbox": "Other",
+    "otherDigestTitle": "Last 24 hours in Other",
+    "otherDigestSummary": "{total, plural, one {# message} other {# messages}} from {senders, plural, one {# sender} other {# senders}}",
+    "markAllRead": "Mark all read"
   },
   "actions": {
     "archive": "Archive",

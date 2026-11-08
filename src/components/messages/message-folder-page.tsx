@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { INBOX_FOCUS_KEY, parseInboxFocus, type InboxFocus } from "./inbox-focus-utils";
+import { OtherDigest } from "./other-digest";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { ChevronLeft, ChevronRight, PanelBottom, PanelRight, Star } from "lucide-react";
@@ -143,6 +144,29 @@ function InboxFocusTabs({ value, onChange }: { value: InboxFocus; onChange: (val
 			className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${value === option ? "border-accent text-ink" : "border-transparent text-ink-muted hover:text-ink"}`}
 		>{t(option === "focused" ? "focusedInbox" : "otherInbox")}</button>)}
 	</div>;
+}
+
+type InboxFocusState = { focus: InboxFocus | undefined; change: (next: InboxFocus) => void };
+
+/** The Inbox's Focused / Other choice; undefined outside the plain Inbox (F97). */
+function useInboxFocus(config: { folder: string; labelId?: string }, onChange: () => void): InboxFocusState {
+	const stored = useSyncExternalStore(subscribeInboxFocus, readInboxFocus, () => "focused" as const);
+	const enabled = config.folder === "inbox" && !config.labelId;
+	return {
+		focus: enabled ? stored : undefined,
+		change: (next) => {
+			writeInboxFocus(next);
+			onChange();
+		},
+	};
+}
+
+function InboxFocusHeader({ inbox, showDigest, mailboxId }: { inbox: InboxFocusState; showDigest: boolean; mailboxId: string | null }) {
+	if (!inbox.focus) return null;
+	return <>
+		<InboxFocusTabs value={inbox.focus} onChange={inbox.change} />
+		{inbox.focus === "other" && showDigest && <OtherDigest mailboxId={mailboxId} />}
+	</>;
 }
 
 function FolderSelectionControls({ messageCount, allSelected, selectedCount, hasUnread, pending, onToggleAll, onAction, onClear }: {
@@ -332,13 +356,10 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 	const [selectedIds, setSelectedIds] = useState<string[]>([]);
 	const [pendingBulkAction, setPendingBulkAction] = useState(false);
 	const [activeLabelId, setActiveLabelId] = useState<string | null>(null);
-	const showFocusTabs = config.folder === "inbox" && !config.labelId;
-	const inboxFocus = useSyncExternalStore(subscribeInboxFocus, readInboxFocus, () => "focused" as const);
-	function changeInboxFocus(next: InboxFocus) {
-		writeInboxFocus(next);
+	const inbox = useInboxFocus(config, () => {
 		setOffset(0);
 		setSelectedIds([]);
-	}
+	});
 	const { data: labels = [] } = useQuery({ queryKey: labelKeys.all, queryFn: fetchLabels });
 	const { data: externalSources = [] } = useQuery({
 		queryKey: ["external-accounts", "message-sources"],
@@ -358,7 +379,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 		limit: pageSize,
 		offset,
 		labelId: effectiveLabelId ?? undefined,
-		focus: showFocusTabs ? inboxFocus : undefined,
+		focus: inbox.focus,
 	}, !mailboxesLoading);
 	const hasActiveFilters = !!query.trim();
 	const pageRange = getPageRange(offset, messages.length, total);
@@ -483,7 +504,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 
 	const list = (
 		<div className="flex h-full flex-col">
-			{showFocusTabs && <InboxFocusTabs value={inboxFocus} onChange={changeInboxFocus} />}
+			<InboxFocusHeader inbox={inbox} showDigest={offset === 0 && !query.trim()} mailboxId={scopedMailboxId ?? null} />
 			<FolderLabelHeader title={config.title} pinned={!!pinnedLabelId} labels={labels} activeId={activeLabelId} onChange={setActiveLabelId} />
 			<div className="flex h-14 items-center justify-between border-b border-border px-6">
 				<FolderSelectionControls messageCount={messages.length} allSelected={allVisibleSelected}

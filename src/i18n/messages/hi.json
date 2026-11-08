@@ -245,7 +245,10 @@
     "showImages": "छवियाँ दिखाएँ",
     "inboxView": "इनबॉक्स दृश्य",
     "focusedInbox": "प्रमुख",
-    "otherInbox": "अन्य"
+    "otherInbox": "अन्य",
+    "otherDigestTitle": "अन्य में पिछले 24 घंटे",
+    "otherDigestSummary": "{senders, plural, one {# प्रेषक} other {# प्रेषकों}} से {total, plural, one {# संदेश} other {# संदेश}}",
+    "markAllRead": "सभी को पढ़ा हुआ चिह्नित करें"
   },
   "actions": {
     "archive": "संग्रहीत करें",

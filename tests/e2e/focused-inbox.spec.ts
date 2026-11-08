@@ -41,3 +41,34 @@ test("switches between Focused and Other and remembers the choice", async ({ pag
 	await expect(page.getByRole("tab", { name: "Other" })).toHaveAttribute("aria-selected", "true");
 	await expect(page.getByText("Weekly deals")).toBeVisible();
 });
+
+test("summarizes the last day of Other mail and marks it all read (F99)", async ({ page }) => {
+	await mockAuthShell(page, {
+		mailboxes: [{ id: "mbx_1", address: "team@example.com", capability: "send_receive" }],
+		counts: flatCounts({ inbox: 3 }),
+	});
+	await page.route("**/api/messages?*", (route) =>
+		route.fulfill({ json: { success: true, data: { messages: [message("m_bulk", "Weekly deals")], total: 1, limit: 25, offset: 0 } } }));
+	await page.route("**/api/messages/digest*", (route) => route.fulfill({ json: { success: true, data: {
+		total: 3, senderCount: 2,
+		senders: [
+			{ sender: "deals@shop.test", fromAddr: "Shop <deals@shop.test>", count: 2, unread: 2, latestId: "m_bulk", latestSubject: "Weekly deals" },
+			{ sender: "news@paper.test", fromAddr: "Paper <news@paper.test>", count: 1, unread: 1, latestId: "m_news", latestSubject: "Morning brief" },
+		],
+		unreadIds: ["m_bulk", "m_bulk_2", "m_news"],
+	} } }));
+	let bulk: Record<string, unknown> | null = null;
+	await page.route("**/api/messages/bulk", async (route) => {
+		bulk = route.request().postDataJSON() as Record<string, unknown>;
+		return route.fulfill({ json: { success: true, data: { updated: 3 } } });
+	});
+
+	await page.goto("/inbox");
+	await page.getByRole("tab", { name: "Other" }).click();
+	const digest = page.getByRole("region", { name: "Last 24 hours in Other" });
+	await expect(digest).toContainText("3 messages from 2 senders");
+	await expect(digest.getByRole("link", { name: "Morning brief" })).toBeVisible();
+	await digest.getByRole("button", { name: "Mark all read" }).click();
+	await expect.poll(() => bulk).toEqual({ messageIds: ["m_bulk", "m_bulk_2", "m_news"], action: "read" });
+});
+

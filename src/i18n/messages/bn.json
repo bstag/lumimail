@@ -245,7 +245,10 @@
     "showImages": "ছবি দেখান",
     "inboxView": "ইনবক্স দৃশ্য",
     "focusedInbox": "প্রধান",
-    "otherInbox": "অন্যান্য"
+    "otherInbox": "অন্যান্য",
+    "otherDigestTitle": "অন্যান্যে গত ২৪ ঘণ্টা",
+    "otherDigestSummary": "{senders, plural, one {#জন প্রেরক} other {#জন প্রেরক}} থেকে {total, plural, one {#টি বার্তা} other {#টি বার্তা}}",
+    "markAllRead": "সব পঠিত হিসেবে চিহ্নিত করুন"
   },
   "actions": {
     "archive": "আর্কাইভ",

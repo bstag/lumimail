@@ -245,7 +245,10 @@
     "showImages": "显示图片",
     "inboxView": "收件箱视图",
     "focusedInbox": "重点",
-    "otherInbox": "其他"
+    "otherInbox": "其他",
+    "otherDigestTitle": "“其他”中的最近 24 小时",
+    "otherDigestSummary": "来自 {senders, plural, other {# 位发件人}}的 {total, plural, other {# 封邮件}}",
+    "markAllRead": "全部标为已读"
   },
   "actions": {
     "archive": "归档",

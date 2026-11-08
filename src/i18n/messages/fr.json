@@ -245,7 +245,10 @@
     "showImages": "Afficher les images",
     "inboxView": "Vue de la boîte",
     "focusedInbox": "Prioritaires",
-    "otherInbox": "Autres"
+    "otherInbox": "Autres",
+    "otherDigestTitle": "Dernières 24 heures dans Autres",
+    "otherDigestSummary": "{total, plural, one {# message} other {# messages}} de {senders, plural, one {# expéditeur} other {# expéditeurs}}",
+    "markAllRead": "Tout marquer comme lu"
   },
   "actions": {
     "archive": "Archiver",

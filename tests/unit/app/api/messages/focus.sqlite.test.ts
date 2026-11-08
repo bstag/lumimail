@@ -64,6 +64,13 @@ beforeEach(() => {
 		message.run(id, starred, index);
 		for (const t of tags) tag.run(id, t);
 	});
+	// Bulk-tagged mail from someone this user has written to stays Focused.
+	sqlite.prepare(`INSERT INTO messages (id, user_id, direction, from_addr, to_addr, status, attachment_status, read, starred, created_at)
+		VALUES ('promo-friend', 'u1', 'inbound', '"Ada" <ADA@Friend.test>', 'b@x.test', 'received', 'none', 0, 0, 50)`).run();
+	tag.run("promo-friend", "promo");
+	sqlite.prepare(`INSERT INTO messages (id, user_id, direction, from_addr, to_addr, status, attachment_status, read, starred, created_at)
+		VALUES ('sent-1', 'u1', 'outbound', 'b@x.test', 'Ada <ada@friend.test>', 'sent', 'none', 1, 0, 51),
+		('sent-list', 'u1', 'outbound', 'b@x.test', 'promo-list@x.test, a@x.test', 'sent', 'none', 1, 0, 52)`).run();
 });
 
 afterEach(() => sqlite.close());
@@ -79,13 +86,13 @@ describe("GET /api/messages focus filter (F97)", () => {
 	it("partitions received mail into Other (bulk only) and Focused (everything else)", async () => {
 		expect((await list("other")).ids).toEqual(["news", "promo"]);
 		expect((await list("focused")).ids).toEqual(
-			["foreign-promo", "promo-reply", "promo-starred", "receipt", "untagged"],
+			["foreign-promo", "promo-friend", "promo-reply", "promo-starred", "receipt", "untagged"],
 		);
-		expect((await list()).ids).toHaveLength(7);
+		expect((await list()).ids).toHaveLength(8);
 	});
 
 	it("rejects an unknown focus value", async () => {
 		expect((await list("bulk")).status).toBe(400);
-		expect((await list("")).ids).toHaveLength(7);
+		expect((await list("")).ids).toHaveLength(8);
 	});
 });

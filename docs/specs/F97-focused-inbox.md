@@ -49,3 +49,8 @@ Inbox lists all received mail in one stream; chips filter by one label at a time
 ## 10. Change Log
 
 ### 2026-11-07 — Initial implementation
+
+### 2026-11-07 — Correspondents stay Focused
+
+Received mail from an address the user has sent single-recipient mail to stays in Focused
+even when bulk-tagged (F99).

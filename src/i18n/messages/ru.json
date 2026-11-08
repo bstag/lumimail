@@ -245,7 +245,10 @@
     "showImages": "Показать изображения",
     "inboxView": "Вид входящих",
     "focusedInbox": "Важные",
-    "otherInbox": "Другие"
+    "otherInbox": "Другие",
+    "otherDigestTitle": "Последние 24 часа в «Других»",
+    "otherDigestSummary": "{total, plural, one {# письмо} few {# письма} many {# писем} other {# письма}} от {senders, plural, one {# отправителя} other {# отправителей}}",
+    "markAllRead": "Отметить все как прочитанные"
   },
   "actions": {
     "archive": "Архивировать",
