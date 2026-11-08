@@ -51,6 +51,10 @@ describe("external sync Worker wiring", () => {
 		expect(worker).toMatch(/reconcileExternalSyncJobs/);
 	});
 
+	it("schedules the external body repair behind its own failure guard", () => {
+		expect(worker).toMatch(/try \{\s*const repair = await repairExternalMessageBodies\(env\);/);
+	});
+
 	it.each([config, example])("declares isolated external sync and dead-letter queues", (source) => {
 		expect(source).toContain('"binding": "EXTERNAL_SYNC_QUEUE"');
 		expect(source).toContain('"binding": "EXTERNAL_SYNC_DLQ_QUEUE"');

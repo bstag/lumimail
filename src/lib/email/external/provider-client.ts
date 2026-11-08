@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ExternalImportMode } from "./types";
+import type { ExternalImportMode, ExternalProvider } from "./types";
 
 type ExternalFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -329,6 +329,18 @@ async function fetchGraphMime(
 		throw new ExternalProviderRequestError("message_too_large", false);
 	}
 	return bytes;
+}
+
+/** Downloads one already-imported message's raw MIME again, by its provider message ID. */
+export function fetchExternalRawMime(
+	provider: ExternalProvider,
+	accessToken: string,
+	remoteMessageId: string,
+	fetcher: ExternalFetch = fetch,
+): Promise<Uint8Array> {
+	return provider === "google"
+		? fetchGmailRawMime(accessToken, remoteMessageId, fetcher)
+		: fetchGraphMime(accessToken, remoteMessageId, fetcher);
 }
 
 export async function fetchMicrosoftSyncPage(

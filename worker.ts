@@ -43,6 +43,7 @@ import {
 	processExternalSyncQueue,
 } from "./src/lib/email/external/sync-queue";
 import { reconcileExternalSyncJobs } from "./src/lib/email/external/sync-jobs";
+import { repairExternalMessageBodies } from "./src/lib/email/external/body-repair";
 import { processDueWebhooks } from "./src/lib/email/webhooks";
 import { reconcileCategorization } from "./src/lib/categorization/service";
 
@@ -237,6 +238,14 @@ export default {
 			await reconcileExternalSyncJobs(env);
 		} catch {
 			console.warn("Push reconciliation failed");
+		}
+
+		// Restores HTML stored empty by the pre-fix sanitizer; a no-op once the backlog is gone (F34).
+		try {
+			const repair = await repairExternalMessageBodies(env);
+			if (repair.repaired > 0 || repair.abandoned > 0) console.info("External body repair", repair);
+		} catch {
+			console.warn("External body repair deferred");
 		}
 
 		try {

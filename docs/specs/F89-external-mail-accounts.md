@@ -1023,3 +1023,25 @@ Notes:
 
 - Implementation must begin with this spec and update it as provider prototypes resolve
   the remaining scope, quota, storage, and deployment questions.
+
+### 2026-11-07 — Restore HTML stored empty by the sanitizer bug
+
+Type: Bug Fix (data repair)
+
+Summary:
+- Before the F34 full-document fix, imported campaign mail was stored with
+  `html_body = ''`. Rows with no HTML part store NULL, so `''` identifies affected rows.
+- `repairExternalMessageBodies()` runs from the existing one-minute cron. For each active
+  or initial-sync account it re-downloads up to 25 affected messages by remote ID
+  (Gmail `format=raw` / Graph `$value`), re-parses them, and stores the sanitized HTML.
+  Existing text bodies are kept; an empty snippet is rebuilt.
+- Permanent provider failures (deleted remotely, too large, malformed) set NULL so the
+  row is never retried. Throttling, outages, and credential errors defer the account to
+  the next run. Migration `0045` adds a partial index over `html_body = ''` so the
+  per-minute check stays cheap after the backlog drains.
+- Native inbound mail affected by the same bug cannot be repaired: its raw copy is
+  deleted after parsing (F63).
+
+Tests:
+- `body-repair.sqlite.test.ts`: selection, restore, text/snippet preservation,
+  abandonment, throttling, credential deferral, batching. Migration parity passes.

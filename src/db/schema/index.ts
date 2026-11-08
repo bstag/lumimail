@@ -335,7 +335,9 @@ export const messageBodies = sqliteTable("message_bodies", {
 	textBody: text("text_body"),
 	htmlBody: text("html_body"),
 	rawR2Key: text("raw_r2_key"),
-});
+}, (t) => [
+	index("message_bodies_empty_html_idx").on(t.messageId).where(sql`${t.htmlBody} = ''`),
+]);
 
 export const outboundJobs = sqliteTable("outbound_jobs", {
 	id: text("id").primaryKey(),
