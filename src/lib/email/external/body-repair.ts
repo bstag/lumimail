@@ -9,6 +9,12 @@ type ExternalFetch = (input: string | URL | Request, init?: RequestInit) => Prom
 
 /** Messages re-downloaded per account per scheduled run; sequential, so memory stays one message. */
 export const BODY_REPAIR_BATCH = 25;
+/**
+ * Wall-clock budget per run. Re-parsing large newsletters is CPU-heavy and shares the
+ * scheduled run's CPU limit with every other step, so the repair stops starting new messages
+ * once this has passed; the rest wait for the next run.
+ */
+export const BODY_REPAIR_BUDGET_MS = 8_000;
 const REPAIRABLE_ACCOUNT_STATUSES = ["active", "initial_sync"] as const;
 
 export type BodyRepairResult = { repaired: number; abandoned: number; deferred: boolean };
@@ -21,10 +27,12 @@ export type BodyRepairResult = { repaired: number; abandoned: number; deferred: 
  */
 export async function repairExternalMessageBodies(
 	env: CloudflareEnv,
-	options: { batchSize?: number; now?: Date; fetcher?: ExternalFetch } = {},
+	options: { batchSize?: number; now?: Date; fetcher?: ExternalFetch; budgetMs?: number; clock?: () => number } = {},
 ): Promise<BodyRepairResult> {
 	const db = getDb(env);
 	const batchSize = options.batchSize ?? BODY_REPAIR_BATCH;
+	const clock = options.clock ?? Date.now;
+	const deadline = clock() + (options.budgetMs ?? BODY_REPAIR_BUDGET_MS);
 	const result: BodyRepairResult = { repaired: 0, abandoned: 0, deferred: false };
 
 	const accounts = await db.selectDistinct({
@@ -67,6 +75,10 @@ export async function repairExternalMessageBodies(
 		}
 
 		for (const candidate of candidates) {
+			if (clock() >= deadline) {
+				result.deferred = true;
+				return result;
+			}
 			let raw: Uint8Array;
 			try {
 				raw = await fetchExternalRawMime(

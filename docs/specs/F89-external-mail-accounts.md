@@ -1045,3 +1045,16 @@ Summary:
 Tests:
 - `body-repair.sqlite.test.ts`: selection, restore, text/snippet preservation,
   abandonment, throttling, credential deferral, batching. Migration parity passes.
+
+### 2026-11-08 — Time-box the body repair
+
+Type: Bug Fix
+
+Summary:
+- The scheduled run that hosts the repair was exceeding the Worker CPU limit, so later
+  steps never ran. Re-parsing large newsletters is CPU-heavy. The repair now stops starting
+  new messages once about 8 seconds have passed and reports `deferred`; remaining rows are
+  picked up by the next run. Each repaired row is still saved as it completes.
+
+Tests:
+- `body-repair.sqlite.test.ts`: stops once the time budget is spent and resumes next run.

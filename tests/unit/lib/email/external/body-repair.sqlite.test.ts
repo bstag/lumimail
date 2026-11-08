@@ -137,6 +137,26 @@ describe("repairExternalMessageBodies", () => {
 		expect(fetcher).not.toHaveBeenCalled();
 	});
 
+	it("stops starting new messages once its time budget is spent and resumes on the next run", async () => {
+		for (const id of ["1", "2", "3"]) insertMessage(`msg_${id}`, "exa_1", `g_${id}`, "", null);
+		// Each download takes 5 s on the fake clock.
+		let now = 0;
+		const clock = () => now;
+		const fetcher = vi.fn(async (input: string | URL | Request) => {
+			now += 5_000;
+			const id = String(input).match(/messages\/(g_\d)/)?.[1] ?? "";
+			return gmailResponse(id, htmlOnlyMime);
+		});
+
+		expect(await repairExternalMessageBodies(env, { fetcher, clock, budgetMs: 8_000 }))
+			.toEqual({ repaired: 2, abandoned: 0, deferred: true });
+		expect(row<{ n: number }>("SELECT count(*) n FROM message_bodies WHERE html_body = ''").n).toBe(1);
+
+		now = 0;
+		expect(await repairExternalMessageBodies(env, { fetcher, clock, budgetMs: 8_000 }))
+			.toEqual({ repaired: 1, abandoned: 0, deferred: false });
+	});
+
 	it("respects the batch size and skips accounts with nothing to repair", async () => {
 		for (const id of ["1", "2", "3"]) insertMessage(`msg_${id}`, "exa_1", `g_${id}`, "", null);
 		const fetcher = vi.fn(async (input: string | URL | Request) => {

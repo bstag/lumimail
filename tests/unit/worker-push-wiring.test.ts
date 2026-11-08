@@ -51,6 +51,15 @@ describe("external sync Worker wiring", () => {
 		expect(worker).toMatch(/reconcileExternalSyncJobs/);
 	});
 
+	it("expires filtered mail first, so a heavier step that runs out of CPU cannot skip it", () => {
+		const scheduled = worker.slice(worker.indexOf("async scheduled("));
+		const expiry = scheduled.indexOf("await expireMessages(getDb(env))");
+		expect(expiry).toBeGreaterThan(-1);
+		for (const later of ["processDueWebhooks(env)", "reconcileCategorization(env)", "repairExternalMessageBodies(env)"]) {
+			expect(scheduled.indexOf(later), later).toBeGreaterThan(expiry);
+		}
+	});
+
 	it("schedules the external body repair behind its own failure guard", () => {
 		expect(worker).toMatch(/try \{\s*const repair = await repairExternalMessageBodies\(env\);/);
 	});

@@ -215,6 +215,14 @@ export default {
 		controller: ScheduledController,
 		env: CloudflareEnv,
 	): Promise<void> {
+		// Trashes mail a filter marked to delete after N days (F101). One indexed UPDATE; it runs
+		// first so a heavier step below that exhausts the CPU limit cannot skip it.
+		try {
+			await expireMessages(getDb(env));
+		} catch {
+			console.warn("Message expiry deferred");
+		}
+
 		try {
 			await processDueWebhooks(env);
 		} catch {
@@ -247,13 +255,6 @@ export default {
 			if (repair.repaired > 0 || repair.abandoned > 0) console.info("External body repair", repair);
 		} catch {
 			console.warn("External body repair deferred");
-		}
-
-		// Trashes mail a filter marked to delete after N days (F101).
-		try {
-			await expireMessages(getDb(env));
-		} catch {
-			console.warn("Message expiry deferred");
 		}
 
 		try {

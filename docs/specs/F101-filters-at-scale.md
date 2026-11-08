@@ -74,3 +74,9 @@ filter in place (delete and recreate); running filters on outbound mail.
 - Expiry counts from arrival for existing mail, so applying "delete after 7 days" to old mail
   trashes it on the next scheduled run; the preview count is shown before applying.
 - A just-created filter previews its backlog match count automatically.
+
+### 2026-11-08 — Expiry runs first in the scheduled job
+
+- Production: after applying filters, no expired mail reached Trash. The one-minute
+  scheduled run was exceeding the Worker CPU limit before reaching expiry. Expiry is a single
+  indexed UPDATE, so it now runs first in `scheduled()`, ahead of any heavier step.
