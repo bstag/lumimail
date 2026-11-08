@@ -102,7 +102,8 @@ Source of truth for behavior. Each follows
             [`F94-public-legal-pages`](./specs/F94-public-legal-pages.md),
             [`F95-active-mail-categorization`](./specs/F95-active-mail-categorization.md),
             [`F96-remote-image-loading`](./specs/F96-remote-image-loading.md),
-            [`F97-focused-inbox`](./specs/F97-focused-inbox.md).
+            [`F97-focused-inbox`](./specs/F97-focused-inbox.md),
+            [`F98-sender-cleanup`](./specs/F98-sender-cleanup.md).
 
 ## Implementation notes (`implementation/`)
 

@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { externalMessageSkips, externalSyncCursors, externalSyncJobs } from "@/db/schema";
 import { cleanupAttachmentObjects } from "@/lib/email/attachment-storage";
 import { newId } from "@/lib/ids";
+import { applyMessageFilters } from "@/lib/email/message-filters";
 import {
 	prepareExternalMessage,
 	type ExternalImportAccount,
@@ -133,6 +134,10 @@ export async function applyExternalSyncPage(
 			);
 			if (prepared.statements.length > 0) {
 				await db.batch(prepared.statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+			}
+			if (prepared.filterInput) {
+				const input = prepared.filterInput;
+				await applyMessageFilters(db, input.userId, input.messageId, input.fromAddr, input.toAddr, input.subject);
 			}
 			results.push(prepared.result);
 		} catch (error) {

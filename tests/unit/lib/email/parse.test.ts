@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("postal-mime", () => ({ default: { parse: vi.fn() } }));
 
 import PostalMime from "postal-mime";
-import { buildSnippet, parseRawMime } from "@/lib/email/parse";
+import { buildSnippet, parseRawMime, unsubscribeColumns } from "@/lib/email/parse";
 
 const parseMock = PostalMime.parse as unknown as ReturnType<typeof vi.fn>;
 
@@ -67,6 +67,31 @@ describe("parseRawMime", () => {
 		expect((await parseRawMime(new ArrayBuffer(0))).html).toBe("<p>Body</p>");
 	});
 
+	it("captures List-Unsubscribe targets and RFC 8058 one-click support", async () => {
+		parseMock.mockResolvedValue({ headers: [
+			{ key: "list-unsubscribe", value: "<mailto:leave@lists.example?subject=unsub>, <https://example.com/u?id=1>" },
+			{ key: "list-unsubscribe-post", value: "List-Unsubscribe=One-Click" },
+		] });
+		expect(await parseRawMime(new ArrayBuffer(0))).toMatchObject({
+			unsubscribeUrl: "https://example.com/u?id=1",
+			unsubscribeMailto: "mailto:leave@lists.example?subject=unsub",
+			unsubscribeOneClick: true,
+		});
+
+		parseMock.mockResolvedValue({ headers: [
+			{ key: "list-unsubscribe", value: "<http://insecure.example/u>, <javascript:alert(1)>, <mailto:>, <not a url>" },
+			{ key: "list-unsubscribe-post", value: "List-Unsubscribe=One-Click" },
+		] });
+		expect(await parseRawMime(new ArrayBuffer(0))).toMatchObject({
+			unsubscribeUrl: null, unsubscribeMailto: null, unsubscribeOneClick: false,
+		});
+
+		parseMock.mockResolvedValue({});
+		expect(await parseRawMime(new ArrayBuffer(0))).toMatchObject({
+			unsubscribeUrl: null, unsubscribeMailto: null, unsubscribeOneClick: false,
+		});
+	});
+
 	it("falls back to null for missing fields", async () => {
 		parseMock.mockResolvedValue({});
 
@@ -79,6 +104,9 @@ describe("parseRawMime", () => {
 			messageId: null,
 			inReplyTo: null,
 			references: null,
+			unsubscribeUrl: null,
+			unsubscribeMailto: null,
+			unsubscribeOneClick: false,
 			fromAddr: null,
 			toAddr: null,
 			attachments: [],
@@ -114,5 +142,13 @@ describe("buildSnippet", () => {
 
 	it("derives readable text from html when text is absent", () => {
 		expect(buildSnippet(null, "<p>Hi there</p>")).toContain("Hi there");
+	});
+});
+
+describe("unsubscribeColumns", () => {
+	it("defaults absent targets to empty columns", () => {
+		expect(unsubscribeColumns({})).toEqual({ unsubscribeUrl: null, unsubscribeMailto: null, unsubscribeOneClick: false });
+		expect(unsubscribeColumns({ unsubscribeUrl: "https://x.test/u", unsubscribeMailto: "mailto:a@x.test", unsubscribeOneClick: true }))
+			.toEqual({ unsubscribeUrl: "https://x.test/u", unsubscribeMailto: "mailto:a@x.test", unsubscribeOneClick: true });
 	});
 });

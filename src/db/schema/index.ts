@@ -288,6 +288,10 @@ export const messages = sqliteTable(
 		threadId: text("thread_id"),
 		imapUid: integer("imap_uid"),
 		receivedAt: integer("received_at", { mode: "timestamp" }),
+		/** RFC 2369 List-Unsubscribe targets and RFC 8058 one-click support (F98). */
+		unsubscribeUrl: text("unsubscribe_url"),
+		unsubscribeMailto: text("unsubscribe_mailto"),
+		unsubscribeOneClick: integer("unsubscribe_one_click", { mode: "boolean" }).notNull().default(false),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.notNull()
 			.$defaultFn(() => new Date()),

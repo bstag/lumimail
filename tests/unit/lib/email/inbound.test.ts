@@ -6,7 +6,11 @@ const h = vi.hoisted(() => ({ db: null as unknown }));
 vi.mock("@/db", () => ({ getDb: () => h.db }));
 
 vi.mock("@/lib/email/routing", () => ({ resolveInboundTargets: vi.fn() }));
-vi.mock("@/lib/email/parse", () => ({ parseRawMime: vi.fn(), buildSnippet: vi.fn(() => "snippet") }));
+vi.mock("@/lib/email/parse", async (importOriginal) => ({
+	parseRawMime: vi.fn(),
+	buildSnippet: vi.fn(() => "snippet"),
+	unsubscribeColumns: (await importOriginal<typeof import("@/lib/email/parse")>()).unsubscribeColumns,
+}));
 vi.mock("@/lib/email/webhooks", () => ({ dispatchWebhooks: vi.fn() }));
 vi.mock("@/lib/contacts/service", () => ({ upsertContactFromAddress: vi.fn(), getMessageContactNames: vi.fn() }));
 // The vacation responder imports the producer statically from the split

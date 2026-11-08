@@ -155,6 +155,47 @@ afterEach(async () => {
 });
 
 describe("Mail insights interactive view", () => {
+	it("unsubscribes and archives a sender from its source row (F98)", async () => {
+		const open = vi.spyOn(globalThis, "open").mockImplementation(() => null);
+		await render();
+		const outcomes: unknown[] = [
+			{ method: "one_click", ok: true },
+			{ method: "one_click", ok: false },
+			{ method: "link", url: "https://brief.example/u" },
+			{ method: "mailto", url: "mailto:leave@brief.example" },
+			{ method: "none" },
+		];
+		const expected = [
+			"Unsubscribed",
+			"The sender did not confirm; try again later",
+			"Opened the sender's unsubscribe page",
+			"Opened an unsubscribe email",
+			"This sender offers no unsubscribe option",
+		];
+		for (const [index, outcome] of outcomes.entries()) {
+			h.post.mockResolvedValueOnce(outcome);
+			await click("Unsubscribe");
+			expect(container.textContent).toContain(expected[index]);
+		}
+		expect(h.post).toHaveBeenCalledWith("/api/insights/senders/unsubscribe", { sender: "digest@brief.example", mailboxId: null });
+		expect(open).toHaveBeenCalledWith("https://brief.example/u", "_blank", "noopener,noreferrer");
+
+		h.post.mockRejectedValueOnce(new Error("down"));
+		await click("Unsubscribe");
+		expect(container.textContent).toContain("Unsubscribe failed");
+
+		h.post.mockResolvedValueOnce({ archived: 12, filterId: "f1" });
+		await click("Archive all");
+		expect(h.post).toHaveBeenCalledWith("/api/insights/senders/archive", {
+			sender: "digest@brief.example", mailboxId: null, createFilter: true,
+		});
+		expect(container.textContent).toContain("Archived 12; future mail will be archived");
+		h.post.mockRejectedValueOnce(new Error("down"));
+		await click("Archive all");
+		expect(container.textContent).toContain("Archive failed");
+		open.mockRestore();
+	});
+
 	it("tests local rules without a provider key or AI disclosure consent", async () => {
 		const local = {
 			...settings,

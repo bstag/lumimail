@@ -138,6 +138,7 @@ export default function MailInsightsPage() {
 								setOffset(0);
 							}}
 							suggest={suggest}
+							mailboxId={scopedMailboxId}
 							previous={() => setOffset(Math.max(0, offset - 25))}
 							next={() => setOffset(offset + 25)}
 						/>
@@ -179,6 +180,50 @@ export default function MailInsightsPage() {
 	);
 }
 
+type UnsubscribeOutcome =
+	| { method: "one_click"; ok: boolean }
+	| { method: "link" | "mailto"; url: string }
+	| { method: "none" };
+
+/** Unsubscribe and archive-all actions for one sender (F98). */
+export function SenderCleanup({ sender, mailboxId }: { sender: string; mailboxId: string | null }) {
+	const queryClient = useQueryClient();
+	const [status, setStatus] = useState<string | null>(null);
+	const unsubscribe = useMutation({
+		mutationFn: () => apiJson.post<UnsubscribeOutcome>("/api/insights/senders/unsubscribe", { sender, mailboxId }),
+		onSuccess: (outcome) => {
+			if (outcome.method === "one_click") {
+				setStatus(outcome.ok ? "Unsubscribed" : "The sender did not confirm; try again later");
+			} else if (outcome.method === "none") {
+				setStatus("This sender offers no unsubscribe option");
+			} else {
+				globalThis.open(outcome.url, "_blank", "noopener,noreferrer");
+				setStatus(outcome.method === "link" ? "Opened the sender's unsubscribe page" : "Opened an unsubscribe email");
+			}
+		},
+		onError: () => setStatus("Unsubscribe failed"),
+	});
+	const archive = useMutation({
+		mutationFn: () => apiJson.post<{ archived: number; filterId: string | null }>(
+			"/api/insights/senders/archive", { sender, mailboxId, createFilter: true },
+		),
+		onSuccess: async (result) => {
+			setStatus(`Archived ${result.archived.toLocaleString()}; future mail will be archived`);
+			await invalidateMessageQueries(queryClient);
+		},
+		onError: () => setStatus("Archive failed"),
+	});
+	return <>
+		<Button variant="outline" size="sm" disabled={unsubscribe.isPending} onClick={() => unsubscribe.mutate()}>
+			Unsubscribe
+		</Button>
+		<Button variant="outline" size="sm" disabled={archive.isPending} onClick={() => archive.mutate()}>
+			Archive all
+		</Button>
+		{status && <span role="status" className="basis-full text-xs text-ink-muted">{status}</span>}
+	</>;
+}
+
 function Overview({
 	data,
 	sender,
@@ -186,7 +231,9 @@ function Overview({
 	suggest,
 	previous,
 	next,
+	mailboxId,
 }: {
+	mailboxId: string | null;
 	data: Insights;
 	sender: string | null;
 	setSender: (s: string | null) => void;
@@ -236,8 +283,9 @@ function Overview({
 								>
 									{source.sender}
 								</button>
-								<div className="flex items-center gap-3">
+								<div className="flex flex-wrap items-center gap-2">
 									<span className="tabular-nums">{source.total}</span>
+									<SenderCleanup sender={source.sender} mailboxId={mailboxId} />
 									<Button
 										variant="outline"
 										size="sm"

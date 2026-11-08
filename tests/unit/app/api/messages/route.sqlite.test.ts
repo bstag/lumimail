@@ -65,6 +65,9 @@ beforeEach(() => {
 			thread_id TEXT,
 			imap_uid INTEGER,
 			received_at INTEGER,
+			unsubscribe_url TEXT,
+			unsubscribe_mailto TEXT,
+			unsubscribe_one_click INTEGER NOT NULL DEFAULT 0,
 			created_at INTEGER NOT NULL
 		);
 	`);

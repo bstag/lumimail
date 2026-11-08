@@ -7,7 +7,7 @@ import {
 	pushNotificationEvents,
 } from "@/db/schema";
 import { newId } from "@/lib/ids";
-import { buildSnippet, parseRawMime, type ParsedEmail } from "@/lib/email/parse";
+import { buildSnippet, unsubscribeColumns, parseRawMime, type ParsedEmail } from "@/lib/email/parse";
 import { resolveInboundTargets, type ResolvedMailbox } from "@/lib/email/routing";
 import { dispatchWebhooks } from "@/lib/email/webhooks";
 import { upsertContactFromAddress } from "@/lib/contacts/service";
@@ -165,6 +165,7 @@ async function deliverToMailbox(
 		status: "received",
 		threadId: threading.threadId,
 		receivedAt: parsed.receivedAt ?? now,
+		...unsubscribeColumns(parsed),
 		attachmentStatus: prepared.status,
 		attachmentError: prepared.error,
 	});

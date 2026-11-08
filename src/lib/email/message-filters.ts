@@ -26,13 +26,20 @@ export async function applyMessageFilters(
 	const updates: Partial<typeof messages.$inferSelect> = {};
 	const labelIds: string[] = [];
 
+	// Case-insensitive, as in mainstream mail clients: addresses are case-insensitive in
+	// practice and senders vary their capitalization.
+	const from = fromAddr.toLowerCase();
+	const to = toAddr.toLowerCase();
+	const title = (subject ?? "").toLowerCase();
+	const contains = (value: string, needle: string | null) => !needle || value.includes(needle.toLowerCase());
+
 	for (const filter of filters) {
 		if (!filter.enabled) continue;
 
-		const matchesFrom = !filter.fromContains || fromAddr.includes(filter.fromContains);
-		const matchesTo = !filter.toContains || toAddr.includes(filter.toContains);
-		const matchesSubject = !filter.subjectContains || (subject ?? "").includes(filter.subjectContains);
-		const matchesWords = !filter.hasWords || (subject ?? "").includes(filter.hasWords) || fromAddr.includes(filter.hasWords);
+		const matchesFrom = contains(from, filter.fromContains);
+		const matchesTo = contains(to, filter.toContains);
+		const matchesSubject = contains(title, filter.subjectContains);
+		const matchesWords = !filter.hasWords || contains(title, filter.hasWords) || contains(from, filter.hasWords);
 
 		if (!matchesFrom || !matchesTo || !matchesSubject || !matchesWords) continue;
 

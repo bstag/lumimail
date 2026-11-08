@@ -15,6 +15,8 @@ const htmlOnlyMime = [
 	"From: Shop <shop@example.com>",
 	"To: me@example.com",
 	"Subject: Deal",
+	"List-Unsubscribe: <https://shop.example.com/u/1>",
+	"List-Unsubscribe-Post: List-Unsubscribe=One-Click",
 	"MIME-Version: 1.0",
 	"Content-Type: text/html; charset=utf-8",
 	"",
@@ -50,7 +52,7 @@ beforeEach(() => {
 			token_ciphertext text, token_iv text, token_key_id text, status text
 		);
 		CREATE TABLE external_messages (id text, account_id text, remote_message_id text, lumimail_message_id text);
-		CREATE TABLE messages (id text, snippet text);
+		CREATE TABLE messages (id text, snippet text, unsubscribe_url text, unsubscribe_mailto text, unsubscribe_one_click integer);
 		CREATE TABLE message_bodies (id text, message_id text, text_body text, html_body text);
 	`);
 	exec(`INSERT INTO external_accounts VALUES ('exa_1', 'org_1', 'mbx_1', 'usr_1', 'google', 'c', 'i', 'k', 'active')`);
@@ -88,6 +90,9 @@ describe("repairExternalMessageBodies", () => {
 		const body = row<{ html_body: string }>("SELECT html_body FROM message_bodies WHERE message_id = 'msg_broken'");
 		expect(body.html_body).toContain("<p>Order now</p>");
 		expect(row<{ snippet: string }>("SELECT snippet FROM messages WHERE id = 'msg_broken'").snippet).toBe("Order now");
+		expect(row<{ unsubscribe_url: string; unsubscribe_one_click: number }>(
+			"SELECT unsubscribe_url, unsubscribe_one_click FROM messages WHERE id = 'msg_broken'",
+		)).toEqual({ unsubscribe_url: "https://shop.example.com/u/1", unsubscribe_one_click: 1 });
 		expect(row<{ html_body: string }>("SELECT html_body FROM message_bodies WHERE message_id = 'msg_inactive'").html_body).toBe("");
 	});
 

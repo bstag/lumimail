@@ -64,6 +64,13 @@ describe("applyMessageFilters", () => {
 		]);
 	});
 
+	it("matches addresses and text case-insensitively, like mail clients do", async () => {
+		mock.queueSelect([{ enabled: true, fromContains: "sender@OTHER.com", actionArchive: true }]);
+		await applyMessageFilters(mock.db as AppDatabase, "u1", "msg_1", "Shop <Sender@Other.COM>", "a@example.com", "Hi");
+
+		expect(mock.updates.find((update) => update.table === messages)?.set).toEqual({ status: "archived" });
+	});
+
 	it("writes nothing when no filter matches", async () => {
 		mock.queueSelect([
 			{ enabled: false, actionStar: true },

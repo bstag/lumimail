@@ -11,7 +11,7 @@ import {
 import { formatEmailAddress, getEmailAddress } from "@/lib/email/address";
 import { attachmentKey, cleanupAttachmentObjects } from "@/lib/email/attachment-storage";
 import { prepareInboundAttachments } from "@/lib/email/inbound-attachments";
-import { buildSnippet, parseRawMime } from "@/lib/email/parse";
+import { buildSnippet, unsubscribeColumns, parseRawMime } from "@/lib/email/parse";
 import { resolveInboundThreading } from "@/lib/email/threading";
 import { newId } from "@/lib/ids";
 import type { ExternalRemoteChange } from "./provider-client";
@@ -55,6 +55,8 @@ export type ExternalImportResult =
 export type PreparedExternalMessage = {
 	statements: BatchItem<"sqlite">[];
 	result: ExternalImportResult;
+	/** Set for newly imported received mail: the owner's filters run once it is stored (F98). */
+	filterInput?: { userId: string; messageId: string; fromAddr: string; toAddr: string; subject: string | undefined };
 };
 
 export async function prepareExternalMessage(
@@ -208,6 +210,7 @@ export async function prepareExternalMessage(
 		status: sent ? "sent" : "received",
 		threadId: threading.threadId,
 		receivedAt: parsed.receivedAt ?? now,
+		...unsubscribeColumns(parsed),
 		attachmentStatus: prepared.status,
 		attachmentError: prepared.error,
 	});
@@ -275,6 +278,9 @@ export async function prepareExternalMessage(
 			...(originalInsert ? [originalInsert] : []),
 		],
 		result: { status: "created", messageId },
+		...(sent ? {} : {
+			filterInput: { userId: mailbox.userId, messageId, fromAddr, toAddr, subject: parsed.subject ?? undefined },
+		}),
 	};
 }
 

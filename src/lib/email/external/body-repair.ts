@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { externalAccounts, externalMessages, messageBodies, messages } from "@/db/schema";
-import { buildSnippet, parseRawMime } from "@/lib/email/parse";
+import { buildSnippet, parseRawMime, unsubscribeColumns } from "@/lib/email/parse";
 import { refreshExternalAccountCredential } from "./credentials";
 import { ExternalProviderRequestError, fetchExternalRawMime } from "./provider-client";
 
@@ -93,13 +93,11 @@ export async function repairExternalMessageBodies(
 				htmlBody: parsed.html?.trim() ? parsed.html : null,
 				textBody: candidate.textBody ?? parsed.text,
 			}).where(eq(messageBodies.id, candidate.bodyId));
-			if (candidate.snippet) {
-				await bodyUpdate;
-			} else {
-				await db.batch([bodyUpdate, db.update(messages).set({
-					snippet: buildSnippet(candidate.textBody ?? parsed.text, parsed.html),
-				}).where(eq(messages.id, candidate.messageId))]);
-			}
+			await db.batch([bodyUpdate, db.update(messages).set({
+				...(candidate.snippet ? {} : { snippet: buildSnippet(candidate.textBody ?? parsed.text, parsed.html) }),
+				// Imports from before F98 never captured List-Unsubscribe.
+				...unsubscribeColumns(parsed),
+			}).where(eq(messages.id, candidate.messageId))]);
 			result.repaired++;
 		}
 	}

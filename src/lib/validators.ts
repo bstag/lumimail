@@ -495,3 +495,13 @@ export const vacationResponderSchema = z.object({
 	replyToContacts: z.boolean().optional(),
 	replyToOrganization: z.boolean().optional(),
 });
+
+/** Sender cleanup from Mail insights (F98). */
+export const senderActionSchema = z.object({
+	sender: z.string().trim().min(3).max(320),
+	mailboxId: z.string().min(1).max(100).nullish().transform((value) => value ?? null),
+});
+
+export const senderArchiveSchema = senderActionSchema.extend({
+	createFilter: z.boolean().default(true),
+});

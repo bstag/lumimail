@@ -9,12 +9,16 @@ const h = vi.hoisted(() => ({
 	newId: vi.fn(),
 }));
 vi.mock("@/db", () => ({ getDb: () => h.db }));
-vi.mock("@/lib/email/parse", () => ({ parseRawMime: h.parse, buildSnippet: () => "snippet" }));
+vi.mock("@/lib/email/parse", async (importOriginal) => ({
+	parseRawMime: h.parse,
+	buildSnippet: () => "snippet",
+	unsubscribeColumns: (await importOriginal<typeof import("@/lib/email/parse")>()).unsubscribeColumns,
+}));
 vi.mock("@/lib/email/threading", () => ({ resolveInboundThreading: h.threading }));
 vi.mock("@/lib/email/inbound-attachments", () => ({ prepareInboundAttachments: h.prepare }));
 vi.mock("@/lib/ids", () => ({ newId: h.newId }));
 
-import { persistExternalMessage } from "@/lib/email/external/import-message";
+import { persistExternalMessage, prepareExternalMessage } from "@/lib/email/external/import-message";
 
 const account = {
 	id: "exa_1", organizationId: "org_1", mailboxId: "mbx_1", ownerUserId: "usr_1",
@@ -49,6 +53,18 @@ describe("persistExternalMessage", () => {
 		h.prepare.mockReturnValue({ attachments: [], status: "none", error: null });
 		let index = 0;
 		h.newId.mockImplementation((prefix?: string) => `${prefix ?? "id"}_${++index}`);
+	});
+
+	it("hands newly imported received mail to the owner's filters, but not sent mail (F98)", async () => {
+		const env = { BUCKET: bucket } as unknown as CloudflareEnv;
+		mock.queueSelect([]);
+		expect((await prepareExternalMessage(env, account, mailbox, change, new Date(), [])).filterInput).toEqual({
+			userId: "usr_mailbox", messageId: expect.any(String), fromAddr: "sender@example.com",
+			toAddr: '"Support" <support@example.com>', subject: "Hello",
+		});
+		mock.queueSelect([]).queueSelect([]);
+		expect((await prepareExternalMessage(env, account, mailbox, { ...change, remoteFolderKey: "sent" }, new Date(), []))
+			.filterInput).toBeUndefined();
 	});
 
 	it("atomically imports a normalized message, mapping, and retained exact original", async () => {
