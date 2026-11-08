@@ -35,7 +35,9 @@ export function MessageBody({
 			{body.htmlBody ? (
 				<SafeMessageHtml messageId={messageId} html={body.htmlBody} />
 			) : (
-				<pre className="whitespace-pre-wrap text-sm">{body.latestContent}</pre>
+				// A div, not <pre>: `.email-body pre` styles sender code blocks as a
+				// monospace panel, which made every plain-text message look like code.
+				<div className="whitespace-pre-wrap text-sm">{body.latestContent}</div>
 			)}
 			{body.quotedContent.map((quotedContent) => (
 				<blockquote
@@ -45,9 +47,9 @@ export function MessageBody({
 					<p className={`${dateLineSpacing} text-xs font-medium text-ink-faint`}>
 						{quotedContent.dateLine}
 					</p>
-					<pre className="whitespace-pre-wrap text-sm font-sans">
+					<div className="whitespace-pre-wrap text-sm">
 						{quotedContent.content}
-					</pre>
+					</div>
 				</blockquote>
 			))}
 		</>

@@ -147,13 +147,27 @@ function pushChildren(stack: TraversalEntry[], node: Node): void {
 	}
 }
 
-function sanitizeFragment(html: string): string {
+const documentMarkup = /^\s*(?:<!--[\s\S]*?-->\s*)*<(?:!doctype|html[\s>]|head[\s>])/i;
+
+/**
+ * Returns the node whose children are the readable content. Sender HTML is
+ * usually a whole document, and assigning one to `body.innerHTML` makes linkedom
+ * drop everything whenever whitespace follows the doctype (the common case), so
+ * documents are parsed as documents. The walk starts at the document element so
+ * content outside a `<body>` survives; `head` is in `dropSubtreeTags` and `body`
+ * is unwrapped like any other unlisted inert element.
+ */
+function contentRoot(html: string): Node {
+	if (documentMarkup.test(html)) return parseHTML(html).document.documentElement;
 	const { document } = parseHTML("<!doctype html><html><body></body></html>");
 	document.body.innerHTML = html;
+	return document.body;
+}
 
+function sanitizeFragment(html: string): string {
 	const output: string[] = [];
 	const stack: TraversalEntry[] = [];
-	pushChildren(stack, document.body);
+	pushChildren(stack, contentRoot(html));
 
 	while (stack.length > 0) {
 		const entry = stack.pop();

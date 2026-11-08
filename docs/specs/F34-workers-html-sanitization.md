@@ -222,3 +222,29 @@ Tests:
 - A new non-reply production HTML message retained bold formatting and a safe HTTP
   link in the final message view.
 - R-19 production acceptance is complete.
+
+### 2026-11-07 — Full-document HTML was stored empty; received-mail presentation
+
+Type: Bug Fix
+
+Summary:
+- `sanitizeHtml()` assigned whole sender documents to `body.innerHTML`. With any
+  whitespace between `<!doctype html>` and `<html>` (nearly every real campaign
+  email), linkedom produced an empty body and the sanitizer returned `""`. A live
+  sample of the 25 newest inbox messages found 22 stored with empty HTML and 5 with no
+  displayable body at all (HTML-only senders). Documents are now parsed as documents
+  and walked from the document element; fragments keep the previous path.
+- Received-mail tables no longer draw a border on every cell (layout tables rendered
+  as nested boxes); only header cells keep a rule. Links, lists, and quotes in
+  received HTML get readable defaults, long tokens wrap, and plain-text bodies render
+  as wrapped text instead of a monospace `<pre>` panel.
+
+Impact:
+- New mail keeps its sanitized HTML. Messages already stored with empty HTML are not
+  repaired by this change; they need a re-fetch from the source (tracked separately).
+
+Tests:
+- New regression cases (doctype + newline/CRLF/space, namespaced `<html>`, documents
+  without `<body>`) failed before the fix and pass after. A real HTML-only campaign
+  message reproduced the empty output locally and sanitizes to ~20 KB after the fix.
+- `MessageBody` test proves plain text no longer renders in `<pre>`.

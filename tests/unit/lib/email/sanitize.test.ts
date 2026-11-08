@@ -133,6 +133,28 @@ describe("sanitizeHtml", () => {
 		expect(result).not.toContain("sideways");
 	});
 
+	it("keeps the body of full documents regardless of whitespace after the doctype", () => {
+		// Real sender HTML puts a newline between the doctype and <html>. Assigning a
+		// whole document to body.innerHTML lost the body entirely (empty output).
+		const body = '<body class="body"><table><tr><td><p>Your order is on the way</p></td></tr></table></body></html>';
+		for (const prefix of [
+			"<!doctype html>\n<html>",
+			"<!DOCTYPE html>\r\n<html lang=\"en-US\" dir=\"ltr\" xmlns:v=\"urn:schemas-microsoft-com:vml\">",
+			"<!DOCTYPE html> <html><head><title>Deals</title><style>p{}</style></head>",
+			"<!doctype html><html><head><meta charset=\"utf-8\"></head>",
+			"\n<html>\n<head>\n<title>x</title>\n</head>\n",
+		]) {
+			const result = sanitizeHtml(prefix + body);
+			expect(result, prefix).toContain("<table><tr><td><p>Your order is on the way</p></td></tr></table>");
+			expect(result, prefix).not.toMatch(/Deals|<title|<style|charset/);
+		}
+	});
+
+	it("keeps body content when a document has no body element", () => {
+		expect(sanitizeHtml("<!DOCTYPE html>\n<html><head><title>T</title></head><p>Loose content</p></html>"))
+			.toContain("<p>Loose content</p>");
+	});
+
 	it("fails closed for malformed mixed content", () => {
 		const result = sanitizeHtml('<p>safe<a href="javascript:alert(1)"><b>link<script>bad()</script>tail');
 
