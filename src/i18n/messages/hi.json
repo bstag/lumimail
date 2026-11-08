@@ -242,7 +242,10 @@
     "draft": "ड्राफ्ट",
     "toRecipient": "{name} को",
     "remoteImagesHidden": "{count, plural, one {आपकी गोपनीयता की सुरक्षा के लिए # छवि छिपाई गई} other {आपकी गोपनीयता की सुरक्षा के लिए # छवियाँ छिपाई गईं}}",
-    "showImages": "छवियाँ दिखाएँ"
+    "showImages": "छवियाँ दिखाएँ",
+    "inboxView": "इनबॉक्स दृश्य",
+    "focusedInbox": "प्रमुख",
+    "otherInbox": "अन्य"
   },
   "actions": {
     "archive": "संग्रहीत करें",

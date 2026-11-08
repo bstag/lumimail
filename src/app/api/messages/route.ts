@@ -6,6 +6,7 @@ import { withUser } from "@/lib/api/handler";
 import { apiError, apiSuccess } from "@/lib/api/response";
 import { enrichMessagesWithContacts } from "@/lib/messages/enrich";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
+import { inboxFocusCondition, parseInboxFocus } from "@/lib/messages/focus";
 
 const DEFAULT_MESSAGE_LIMIT = 50;
 const MAX_MESSAGE_LIMIT = 100;
@@ -23,6 +24,8 @@ export const GET = withUser(async ({ request, env, user }) => {
 	const read = url.searchParams.get("read");
 	const starred = url.searchParams.get("starred");
 	const labelId = url.searchParams.get("labelId");
+	const focus = parseInboxFocus(url.searchParams.get("focus"));
+	if (focus === "invalid") return apiError("Invalid focus", 400);
 	const rawLimit = url.searchParams.get("limit");
 	const parsedLimit = rawLimit === null ? DEFAULT_MESSAGE_LIMIT : Number(rawLimit);
 	if (
@@ -109,6 +112,7 @@ export const GET = withUser(async ({ request, env, user }) => {
 			.where(and(eq(messageLabels.labelId, labelId), eq(labels.userId, user.id)));
 		conditions.push(inArray(messages.id, labelledMessageIds));
 	}
+	if (focus) conditions.push(inboxFocusCondition(db, user.id, focus));
 	const where = and(...conditions);
 
 	const [totalRow] = await db

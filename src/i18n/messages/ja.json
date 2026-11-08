@@ -242,7 +242,10 @@
     "draft": "下書き",
     "toRecipient": "{name} 宛",
     "remoteImagesHidden": "{count, plural, other {プライバシー保護のため # 件の画像を非表示にしています}}",
-    "showImages": "画像を表示"
+    "showImages": "画像を表示",
+    "inboxView": "受信トレイの表示",
+    "focusedInbox": "優先",
+    "otherInbox": "その他"
   },
   "actions": {
     "archive": "アーカイブ",

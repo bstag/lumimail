@@ -67,6 +67,7 @@ export function useMessages(
 ) {
 	const queryClient = useQueryClient();
 	const {
+		focus,
 		labelId,
 		limit: requestedLimit,
 		offset: requestedOffset,
@@ -85,10 +86,12 @@ export function useMessages(
 				limit: nullable(requestedLimit),
 				offset: nullable(requestedOffset),
 				labelId: nullable(labelId),
+				focus: nullable(focus),
 			}),
-		[folder, labelId, mailboxId, query, read, requestedLimit, requestedOffset, title],
+		[focus, folder, labelId, mailboxId, query, read, requestedLimit, requestedOffset, title],
 	);
 	const queryFilters = {
+		focus,
 		labelId,
 		limit: requestedLimit,
 		offset: requestedOffset,

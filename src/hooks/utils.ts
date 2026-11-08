@@ -93,6 +93,7 @@ export function getMessageQueryParams(
 	if (filters?.limit) params.set("limit", String(filters.limit));
 	if (filters?.offset) params.set("offset", String(filters.offset));
 	if (filters?.labelId) params.set("labelId", filters.labelId);
+	if (folder === "inbox" && filters?.focus) params.set("focus", filters.focus);
 
 	return params;
 }

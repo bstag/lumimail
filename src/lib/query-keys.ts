@@ -45,6 +45,7 @@ export type MessageListKeyOptions = {
 	limit: number | null;
 	offset: number | null;
 	labelId: string | null;
+	focus?: string | null;
 };
 
 /**

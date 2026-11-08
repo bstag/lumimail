@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { INBOX_FOCUS_KEY, parseInboxFocus, type InboxFocus } from "./inbox-focus-utils";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { ChevronLeft, ChevronRight, PanelBottom, PanelRight, Star } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
@@ -89,6 +90,59 @@ function FolderLabelHeader({ title, pinned, labels, activeId, onChange }: {
 			{labels.map((label) => <button key={label.id} type="button" onClick={() => onChange(activeId === label.id ? null : label.id)} className={`flex items-center gap-1.5 rounded-full px-3 py-0.5 text-xs font-medium transition-colors ${activeId === label.id ? "bg-surface-inverse text-ink-inverse" : "bg-surface-subtle text-ink-muted hover:bg-surface-subtle"}`}><span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: label.color }} />{label.name}</button>)}
 		</div>}
 	</>;
+}
+
+const INBOX_FOCUS_EVENT = "picket:inbox-focus-change";
+// This tab's latest choice, so switching works even where storage is unavailable.
+let sessionInboxFocus: InboxFocus | null = null;
+
+function readInboxFocus(): InboxFocus {
+	if (sessionInboxFocus) return sessionInboxFocus;
+	try {
+		return parseInboxFocus(globalThis.localStorage.getItem(INBOX_FOCUS_KEY));
+	} catch {
+		return "focused";
+	}
+}
+
+function writeInboxFocus(next: InboxFocus) {
+	sessionInboxFocus = next;
+	try {
+		globalThis.localStorage.setItem(INBOX_FOCUS_KEY, next);
+	} catch {
+		// Storage can be unavailable; the event below still updates this tab.
+	}
+	globalThis.dispatchEvent(new Event(INBOX_FOCUS_EVENT));
+}
+
+function subscribeInboxFocus(onChange: () => void) {
+	// Another tab's choice wins over this tab's remembered one.
+	const onStorage = (event: StorageEvent) => {
+		if (event.key !== INBOX_FOCUS_KEY) return;
+		sessionInboxFocus = null;
+		onChange();
+	};
+	globalThis.addEventListener(INBOX_FOCUS_EVENT, onChange);
+	globalThis.addEventListener("storage", onStorage);
+	return () => {
+		globalThis.removeEventListener(INBOX_FOCUS_EVENT, onChange);
+		globalThis.removeEventListener("storage", onStorage);
+	};
+}
+
+/** Focused / Other tabs over the Inbox (F97). */
+function InboxFocusTabs({ value, onChange }: { value: InboxFocus; onChange: (value: InboxFocus) => void }) {
+	const t = useTranslations("messages");
+	return <div role="tablist" aria-label={t("inboxView")} className="flex items-center gap-1 border-b border-border px-6">
+		{(["focused", "other"] as const).map((option) => <button
+			key={option}
+			type="button"
+			role="tab"
+			aria-selected={value === option}
+			onClick={() => onChange(option)}
+			className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${value === option ? "border-accent text-ink" : "border-transparent text-ink-muted hover:text-ink"}`}
+		>{t(option === "focused" ? "focusedInbox" : "otherInbox")}</button>)}
+	</div>;
 }
 
 function FolderSelectionControls({ messageCount, allSelected, selectedCount, hasUnread, pending, onToggleAll, onAction, onClear }: {
@@ -278,6 +332,13 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 	const [selectedIds, setSelectedIds] = useState<string[]>([]);
 	const [pendingBulkAction, setPendingBulkAction] = useState(false);
 	const [activeLabelId, setActiveLabelId] = useState<string | null>(null);
+	const showFocusTabs = config.folder === "inbox" && !config.labelId;
+	const inboxFocus = useSyncExternalStore(subscribeInboxFocus, readInboxFocus, () => "focused" as const);
+	function changeInboxFocus(next: InboxFocus) {
+		writeInboxFocus(next);
+		setOffset(0);
+		setSelectedIds([]);
+	}
 	const { data: labels = [] } = useQuery({ queryKey: labelKeys.all, queryFn: fetchLabels });
 	const { data: externalSources = [] } = useQuery({
 		queryKey: ["external-accounts", "message-sources"],
@@ -297,6 +358,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 		limit: pageSize,
 		offset,
 		labelId: effectiveLabelId ?? undefined,
+		focus: showFocusTabs ? inboxFocus : undefined,
 	}, !mailboxesLoading);
 	const hasActiveFilters = !!query.trim();
 	const pageRange = getPageRange(offset, messages.length, total);
@@ -421,6 +483,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 
 	const list = (
 		<div className="flex h-full flex-col">
+			{showFocusTabs && <InboxFocusTabs value={inboxFocus} onChange={changeInboxFocus} />}
 			<FolderLabelHeader title={config.title} pinned={!!pinnedLabelId} labels={labels} activeId={activeLabelId} onChange={setActiveLabelId} />
 			<div className="flex h-14 items-center justify-between border-b border-border px-6">
 				<FolderSelectionControls messageCount={messages.length} allSelected={allVisibleSelected}

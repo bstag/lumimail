@@ -51,6 +51,8 @@ export type MessageFilterOptions = {
 	limit?: number;
 	offset?: number;
 	labelId?: string;
+	/** Inbox only: Focused / Other split (F97). */
+	focus?: "focused" | "other";
 };
 
 export type MessageListResponse = {

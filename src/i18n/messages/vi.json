@@ -242,7 +242,10 @@
     "draft": "nháp",
     "toRecipient": "đến {name}",
     "remoteImagesHidden": "{count, plural, other {Đã ẩn # hình ảnh để bảo vệ quyền riêng tư của bạn}}",
-    "showImages": "Hiển thị hình ảnh"
+    "showImages": "Hiển thị hình ảnh",
+    "inboxView": "Chế độ hộp thư",
+    "focusedInbox": "Ưu tiên",
+    "otherInbox": "Khác"
   },
   "actions": {
     "archive": "Lưu trữ",

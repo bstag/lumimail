@@ -242,7 +242,10 @@
     "draft": "খসড়া",
     "toRecipient": "{name}-কে",
     "remoteImagesHidden": "{count, plural, one {আপনার গোপনীয়তা রক্ষায় #টি ছবি লুকানো হয়েছে} other {আপনার গোপনীয়তা রক্ষায় #টি ছবি লুকানো হয়েছে}}",
-    "showImages": "ছবি দেখান"
+    "showImages": "ছবি দেখান",
+    "inboxView": "ইনবক্স দৃশ্য",
+    "focusedInbox": "প্রধান",
+    "otherInbox": "অন্যান্য"
   },
   "actions": {
     "archive": "আর্কাইভ",

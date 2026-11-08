@@ -242,7 +242,10 @@
     "draft": "rascunho",
     "toRecipient": "para {name}",
     "remoteImagesHidden": "{count, plural, one {# imagem oculta para proteger sua privacidade} other {# imagens ocultas para proteger sua privacidade}}",
-    "showImages": "Mostrar imagens"
+    "showImages": "Mostrar imagens",
+    "inboxView": "Visualização da caixa",
+    "focusedInbox": "Prioritários",
+    "otherInbox": "Outros"
   },
   "actions": {
     "archive": "Arquivar",

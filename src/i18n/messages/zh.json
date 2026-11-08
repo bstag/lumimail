@@ -242,7 +242,10 @@
     "draft": "草稿",
     "toRecipient": "发给 {name}",
     "remoteImagesHidden": "{count, plural, other {为保护您的隐私，已隐藏 # 张图片}}",
-    "showImages": "显示图片"
+    "showImages": "显示图片",
+    "inboxView": "收件箱视图",
+    "focusedInbox": "重点",
+    "otherInbox": "其他"
   },
   "actions": {
     "archive": "归档",
