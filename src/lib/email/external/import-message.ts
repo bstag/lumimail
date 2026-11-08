@@ -207,6 +207,7 @@ export async function prepareExternalMessage(
 		snippet: buildSnippet(parsed.text, parsed.html),
 		status: sent ? "sent" : "received",
 		threadId: threading.threadId,
+		receivedAt: parsed.receivedAt ?? now,
 		attachmentStatus: prepared.status,
 		attachmentError: prepared.error,
 	});

@@ -4,6 +4,7 @@ import { sanitizeHtml } from "@/lib/email/sanitize";
 import { getLatestEmailContent, htmlToReadableText } from "@/lib/email/reply-content-utils";
 
 export type ParsedEmail = {
+	receivedAt?: Date | null;
 	subject: string | null;
 	text: string | null;
 	html: string | null;
@@ -36,7 +37,9 @@ function toArrayBuffer(
 
 export async function parseRawMime(raw: ArrayBuffer): Promise<ParsedEmail> {
 	const email = await PostalMime.parse(raw, { attachmentEncoding: "arraybuffer" });
+	const date = email.date ? new Date(email.date) : null;
 	return {
+		receivedAt: date && Number.isFinite(date.getTime()) ? date : null,
 		subject: email.subject ?? null,
 		text: email.text ?? null,
 		html: sanitizeHtml(email.html),

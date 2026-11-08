@@ -97,6 +97,14 @@ afterEach(() => {
 const payload = { from: "sender@other.com", to: "a@example.com", rawR2Key: "inbound/k.eml" };
 
 describe("processInboundMessage", () => {
+  it("retains the original valid received date separately from ingestion time", async () => {
+    const receivedAt = new Date("2026-01-03T12:00:00Z");
+    parseRawMime.mockResolvedValue({ ...parsed, receivedAt });
+    resolveInboundTargets.mockResolvedValue(storeDecisions);
+    mock.queueSelect([]).queueSelect([{ enabled: false }]);
+    await processInboundMessage(makeEnv(makeR2()), payload);
+    expect(mock.inserts[0].values).toMatchObject({ receivedAt });
+  });
 	it("warns and returns when there are no routing decisions", async () => {
 		resolveInboundTargets.mockResolvedValue([]);
 		const env = makeEnv(makeR2());

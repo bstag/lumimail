@@ -219,3 +219,13 @@ Tests:
 Notes:
 
 - Not legal advice; operator review required before reliance.
+
+### 2026-10-02 — Optional mail classification disclosure (F95)
+
+Type: Behavior Change
+
+The privacy policy now discloses optional Jev/TypeSafe classification, explicit
+consent, the bounded text/header payload, the local rule alternative, and the
+provider's privacy policy. It preserves the no-training and Google Limited Use
+commitments and does not promise zero provider retention. Covered by the new legal
+content regression test and the F95 verification run; not deployed in this task.

@@ -99,9 +99,12 @@ Source of truth for behavior. Each follows
            [`F91-picket-ui-rebrand`](./specs/F91-picket-ui-rebrand.md),
             [`F92-mantle-presentation-layer`](./specs/F92-mantle-presentation-layer.md),
             [`F93-external-sync-bounded-memory`](./specs/F93-external-sync-bounded-memory.md),
-            [`F94-public-legal-pages`](./specs/F94-public-legal-pages.md).
+            [`F94-public-legal-pages`](./specs/F94-public-legal-pages.md),
+            [`F95-active-mail-categorization`](./specs/F95-active-mail-categorization.md).
 
 ## Implementation notes (`implementation/`)
 
 Deeper notes on specific surfaces — see [`implementation/README.md`](./implementation/README.md):
 aliases, group aliases, attachments, filters/vacation/contacts, labels, reply/forward, starred messages.
+The [mail categorization guide](./implementation/mail-categorization.md) covers
+local rules, Jev setup, question tuning, corrections, and processing limits.

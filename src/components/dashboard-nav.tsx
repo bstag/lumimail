@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   Archive,
+  ChartNoAxesCombined,
   FileText,
   Filter,
   Inbox,
@@ -116,6 +117,7 @@ export function useMailNavLinks(): NavLink[] {
     { href: "/labels", label: t("labels"), icon: Tag },
     { href: "/contacts", label: t("contacts"), icon: Users },
     { href: "/filters", label: t("filters"), icon: Filter },
+    { href: "/insights", label: "Mail insights", icon: ChartNoAxesCombined },
     { break: true },
     { href: "/settings", label: t("settings"), icon: Settings },
   ];

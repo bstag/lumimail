@@ -44,6 +44,7 @@ import {
 } from "./src/lib/email/external/sync-queue";
 import { reconcileExternalSyncJobs } from "./src/lib/email/external/sync-jobs";
 import { processDueWebhooks } from "./src/lib/email/webhooks";
+import { reconcileCategorization } from "./src/lib/categorization/service";
 
 type McpWorkerEnv = McpEnv & { OAUTH_KV: KVNamespace; OAUTH_PROVIDER: OAuthHelpers };
 
@@ -218,6 +219,11 @@ export default {
 			console.warn("Webhook scheduling failed");
 		}
 		await runQueueHealthCheck(env);
+		try {
+			await reconcileCategorization(env);
+		} catch {
+			console.warn("Mail categorization reconciliation deferred");
+		}
 
 		// Expired counters are ignored by the rate-limit check itself; this purge
 		// only keeps the table from growing without bound (F74). It swallows its

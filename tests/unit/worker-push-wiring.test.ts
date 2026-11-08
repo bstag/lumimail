@@ -13,6 +13,13 @@ it("runs pending webhook jobs from the scheduler outside mail consumers", () => 
 	expect(worker.slice(worker.indexOf("async queue("), worker.indexOf("async scheduled("))).not.toContain("processDueWebhooks");
 });
 
+it("continues durable mail categorization through the existing minute scheduler", () => {
+	const scheduled = worker.slice(worker.indexOf("async scheduled("));
+	expect(scheduled).toContain("await reconcileCategorization(env)");
+	expect(scheduled).toContain("Mail categorization reconciliation deferred");
+	for (const source of [config, example]) expect(source).toContain("* * * * *");
+});
+
 describe("private push Worker wiring", () => {
 	it("routes isolated queue payloads and schedules reconciliation plus cleanup", () => {
 		expect(worker).toMatch(/isPushQueueMessage/);

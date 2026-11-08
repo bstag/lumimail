@@ -69,6 +69,14 @@ describe("persistExternalMessage", () => {
 		expect(mock.db.batch).toHaveBeenCalledTimes(1);
 	});
 
+	it("retains the original received date for historical imported mail", async () => {
+		const receivedAt = new Date("2026-01-03T12:00:00Z");
+		h.parse.mockResolvedValueOnce({ fromAddr: "sender@example.com", toAddr: "support@example.com", subject: "Hello", text: "Body", html: null, attachments: [], messageId: null, receivedAt });
+		mock.queueSelect([]);
+		await persistExternalMessage({ BUCKET: bucket } as unknown as CloudflareEnv, account, mailbox, change);
+		expect(mock.inserts[0].values).toMatchObject({ receivedAt });
+	});
+
 	it("parses exactly the received bytes without copying when the view spans its whole buffer", async () => {
 		mock.queueSelect([]);
 		const whole = new TextEncoder().encode("raw mime");

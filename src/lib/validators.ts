@@ -345,6 +345,145 @@ export const createFilterSchema = z.object({
 	actionMoveToTrash: z.boolean().default(false),
 });
 
+const categoryTagSchema = z.string().trim().min(1).max(80);
+const questionBase = {
+	key: z.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+	name: z.string().trim().min(1).max(100),
+	instructions: z.string().trim().min(1).max(2000),
+	enabled: z.boolean(),
+	threshold: z.number().min(0.5).max(1),
+};
+const categoryOptionSchema = z
+	.object({
+		value: z.string().trim().min(1).max(80),
+		description: z.string().trim().min(1).max(500),
+		tag: categoryTagSchema.nullable(),
+	})
+	.strict();
+const categoryQuestionSchema = z.discriminatedUnion("type", [
+	z
+		.object({
+			...questionBase,
+			type: z.literal("choice"),
+			options: z.array(categoryOptionSchema).min(2).max(20),
+		})
+		.strict(),
+	z
+		.object({
+			...questionBase,
+			type: z.literal("noul"),
+			tag: categoryTagSchema.nullable(),
+		})
+		.strict(),
+	z
+		.object({
+			...questionBase,
+			type: z.literal("score"),
+			levels: z.array(z.string().trim().min(1).max(500)).min(2).max(10),
+		})
+		.strict(),
+]);
+export const categoryRuleSchema = z
+	.object({
+		id: z.string().min(1).max(80),
+		name: z.string().trim().min(1).max(100),
+		enabled: z.boolean(),
+		senderMode: z.enum(["exact", "domain"]),
+		sender: z.string().trim().max(254),
+		subject: z.string().trim().max(200),
+		words: z.string().trim().max(200),
+		tag: categoryTagSchema,
+	})
+	.strict()
+	.refine(
+		(r) => Boolean(r.sender || r.subject || r.words),
+		"A rule needs a condition",
+	)
+	.refine(
+		(r) =>
+			!r.sender ||
+			(r.senderMode === "exact"
+				? /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(r.sender)
+				: /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i.test(r.sender)),
+		"Use an email address or exact domain",
+	);
+export const categorizationConfigSchema = z
+	.object({
+		model: z.string().regex(/^jev-(?:\d+\.\d+\.\d+|latest)$/),
+		questions: z.array(categoryQuestionSchema).max(8),
+		rules: z.array(categoryRuleSchema).max(20),
+	})
+	.strict()
+	.superRefine((config, ctx) => {
+		const unique = (values: string[]) => new Set(values).size === values.length;
+		if (
+			!unique(config.questions.map((q) => q.key)) ||
+			!unique(config.rules.map((r) => r.id))
+		)
+			ctx.addIssue({
+				code: "custom",
+				message: "Question keys and rule IDs must be unique",
+			});
+		config.questions.forEach((q, i) => {
+			if (q.type === "choice" && !unique(q.options.map((o) => o.value)))
+				ctx.addIssue({
+					code: "custom",
+					path: ["questions", i],
+					message: "Answer values must be unique",
+				});
+		});
+	});
+export const activateCategorizationSchema = z
+	.object({
+		config: categorizationConfigSchema,
+		expectedVersion: z.string().nullable(),
+		automatic: z.boolean(),
+		consent: z.boolean(),
+	})
+	.strict();
+export const previewCategorizationSchema = z
+	.object({
+		config: categorizationConfigSchema,
+		mailboxId: z.string().min(1).nullable(),
+		consent: z.literal(true),
+	})
+	.strict();
+export const categorizationJobSchema = z
+	.object({ mailboxId: z.string().min(1).nullable() })
+	.strict();
+export const categorizationCorrectionSchema = z
+	.object({
+		messageId: z.string().min(1),
+		tags: z.array(categoryTagSchema).max(30).nullable(),
+	})
+	.strict();
+export const categorizationRunSchema = z
+	.object({ retry: z.boolean() })
+	.strict();
+export const categorizationCancelSchema = z
+	.object({ cancel: z.literal(true) })
+	.strict();
+export const mailInsightsQuerySchema = z.object({
+	days: z.enum(["7", "30", "90"]).default("30").transform(Number),
+	offset: z
+		.string()
+		.regex(/^\d{1,6}$/)
+		.default("0")
+		.transform(Number),
+	mailboxId: z
+		.string()
+		.min(1)
+		.optional()
+		.transform((v) => v ?? null),
+	sender: z
+		.string()
+		.trim()
+		.min(1)
+		.max(254)
+		.optional()
+		.transform((v) => v ?? null),
+});
+
 export const vacationResponderSchema = z.object({
 	mailboxId: z.string().min(1),
 	enabled: z.boolean(),

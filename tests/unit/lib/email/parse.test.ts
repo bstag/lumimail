@@ -8,6 +8,12 @@ import { buildSnippet, parseRawMime } from "@/lib/email/parse";
 const parseMock = PostalMime.parse as unknown as ReturnType<typeof vi.fn>;
 
 describe("parseRawMime", () => {
+	it("retains a valid original Date and rejects malformed dates", async () => {
+		parseMock.mockResolvedValue({ date: "Fri, 02 Oct 2026 12:00:00 +0000" });
+		expect((await parseRawMime(new ArrayBuffer(0))).receivedAt).toEqual(new Date("2026-10-02T12:00:00Z"));
+		parseMock.mockResolvedValue({ date: "not a date" });
+		expect((await parseRawMime(new ArrayBuffer(0))).receivedAt).toBeNull();
+	});
 	it("maps a fully-populated message", async () => {
 		parseMock.mockResolvedValue({
 			subject: "Hi",
@@ -60,6 +66,7 @@ describe("parseRawMime", () => {
 
 		const result = await parseRawMime(new ArrayBuffer(0));
 		expect(result).toEqual({
+			receivedAt: null,
 			subject: null,
 			text: null,
 			html: null,

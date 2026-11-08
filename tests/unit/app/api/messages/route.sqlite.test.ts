@@ -64,6 +64,7 @@ beforeEach(() => {
 			starred INTEGER NOT NULL,
 			thread_id TEXT,
 			imap_uid INTEGER,
+			received_at INTEGER,
 			created_at INTEGER NOT NULL
 		);
 	`);

@@ -94,7 +94,7 @@ export const privacyPolicy: LegalDocument = {
 	title: "Privacy Policy",
 	summary:
 		"How Stagware collects, uses, stores, and shares information when you use Picket, including the Gmail data you choose to connect.",
-	effectiveDate: "2026-09-30",
+	effectiveDate: "2026-10-02",
 	sections: [
 		{
 			id: "summary",
@@ -170,6 +170,15 @@ export const privacyPolicy: LegalDocument = {
 			],
 		},
 		{
+			id: "optional-mail-classification",
+			title: "Optional AI mail classification",
+			paragraphs: [
+				"With your explicit consent, enabled Jev questions send selected mail to TypeSafe AI for classification. We send the sender, recipient, subject, and up to 8,000 characters of message text. This can include imported Gmail mail. We do not send attachments, HTML, or full threads. Local tagging rules run in Picket without sending mail to TypeSafe.",
+				"You can disable automatic classification and cancel pending classification jobs in Mail insights. Your labels and corrections remain in Picket. TypeSafe's published policy states that inputs are not used to train or fine-tune models; its retention and processing terms apply to submitted content. We do not promise zero retention by the provider.",
+			],
+			links: [{ label: "TypeSafe privacy policy", href: "https://typesafe.ai/legal/privacy-policy" }],
+		},
+		{
 			id: "how-we-use-information",
 			title: "How we use information",
 			items: [
@@ -187,6 +196,7 @@ export const privacyPolicy: LegalDocument = {
 			title: "Who we share information with",
 			items: [
 				"Hosting and infrastructure: Picket runs on Cloudflare, which stores and processes data for us as a service provider, including for Workers, D1, R2, Queues, and Email Routing.",
+				"Optional AI classification: TypeSafe processes the bounded email content described above only when you give consent for enabled Jev questions.",
 				"Outbound mail delivery: messages you send are handed to the configured mail provider (Cloudflare Email Sending, or another provider the operator configures) and to the recipients you address.",
 				"Integrations you configure: if you add a webhook, its address receives the sender, recipient, and subject of matching messages; message bodies and attachments are never sent to webhooks. If you enable push notifications, they contain no message content.",
 				"Legal and safety: we may disclose information where the law requires it or to protect the rights, safety, and security of users and the service.",

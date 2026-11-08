@@ -287,6 +287,7 @@ export const messages = sqliteTable(
 		starred: integer("starred", { mode: "boolean" }).notNull().default(false),
 		threadId: text("thread_id"),
 		imapUid: integer("imap_uid"),
+		receivedAt: integer("received_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.notNull()
 			.$defaultFn(() => new Date()),
@@ -930,7 +931,144 @@ export type McpConnection = typeof mcpConnections.$inferSelect;
 export type PushDevice = typeof pushDevices.$inferSelect;
 export type ExternalAccount = typeof externalAccounts.$inferSelect;
 
+export const categorizationVersions = sqliteTable(
+	"categorization_versions",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		organizationId: text("organization_id").references(() => organizations.id, {
+			onDelete: "cascade",
+		}),
+		config: text("config").notNull(),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+	},
+	(t) => [index("categorization_versions_user_idx").on(t.userId, t.createdAt)],
+);
+
+export const categorizationPreferences = sqliteTable(
+	"categorization_preferences",
+	{
+		userId: text("user_id")
+			.primaryKey()
+			.references(() => users.id, { onDelete: "cascade" }),
+		organizationId: text("organization_id").references(() => organizations.id, {
+			onDelete: "cascade",
+		}),
+		activeVersion: text("active_version")
+			.notNull()
+			.references(() => categorizationVersions.id, { onDelete: "cascade" }),
+		automatic: integer("automatic", { mode: "boolean" })
+			.notNull()
+			.default(false),
+		aiConsent: integer("ai_consent", { mode: "boolean" })
+			.notNull()
+			.default(false),
+		automaticSince: integer("automatic_since", { mode: "timestamp" }).notNull(),
+		checkedAt: integer("checked_at", { mode: "timestamp" }).notNull(),
+	},
+);
+
+export const categorizationResults = sqliteTable(
+	"categorization_results",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		organizationId: text("organization_id").references(() => organizations.id, {
+			onDelete: "cascade",
+		}),
+		messageId: text("message_id")
+			.notNull()
+			.references(() => messages.id, { onDelete: "cascade" }),
+		versionId: text("version_id")
+			.notNull()
+			.references(() => categorizationVersions.id, { onDelete: "cascade" }),
+		result: text("result").notNull(),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+	},
+	(t) => [
+		uniqueIndex("categorization_results_version_idx").on(
+			t.userId,
+			t.messageId,
+			t.versionId,
+		),
+	],
+);
+
+export const categorizationStates = sqliteTable(
+	"categorization_states",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		organizationId: text("organization_id").references(() => organizations.id, {
+			onDelete: "cascade",
+		}),
+		messageId: text("message_id")
+			.notNull()
+			.references(() => messages.id, { onDelete: "cascade" }),
+		versionId: text("version_id")
+			.notNull()
+			.references(() => categorizationVersions.id, { onDelete: "cascade" }),
+		tags: text("tags").notNull(),
+		appliedLabelIds: text("applied_label_ids").notNull(),
+		overrideTags: text("override_tags"),
+	},
+	(t) => [
+		uniqueIndex("categorization_states_message_idx").on(t.userId, t.messageId),
+	],
+);
+
+export const categorizationJobs = sqliteTable(
+	"categorization_jobs",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		organizationId: text("organization_id").references(() => organizations.id, {
+			onDelete: "cascade",
+		}),
+		versionId: text("version_id")
+			.notNull()
+			.references(() => categorizationVersions.id, { onDelete: "cascade" }),
+		mailboxId: text("mailbox_id").references(() => mailboxes.id, {
+			onDelete: "cascade",
+		}),
+		automatic: integer("automatic", { mode: "boolean" })
+			.notNull()
+			.default(false),
+		status: text("status").notNull().default("pending"),
+		since: integer("since", { mode: "timestamp" }).notNull(),
+		cutoff: integer("cutoff", { mode: "timestamp" }).notNull(),
+		cursorAt: integer("cursor_at", { mode: "timestamp" }).notNull(),
+		cursorId: text("cursor_id").notNull().default(""),
+		processed: integer("processed").notNull().default(0),
+		attempts: integer("attempts").notNull().default(0),
+		error: text("error"),
+		leaseToken: text("lease_token"),
+		leaseUntil: integer("lease_until", { mode: "timestamp" }).notNull(),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+	},
+	(t) => [
+		index("categorization_jobs_due_idx").on(t.status, t.leaseUntil),
+		index("categorization_jobs_user_idx").on(t.userId, t.createdAt),
+		uniqueIndex("categorization_jobs_active_user_idx")
+			.on(t.userId)
+			.where(sql`${t.status} in ('pending', 'running')`),
+	],
+);
+
 export const schema = {
+	categorizationVersions,
+	categorizationPreferences,
+	categorizationResults,
+	categorizationStates,
+	categorizationJobs,
 	organizations,
 	organizationMembers,
 	orgInvites,

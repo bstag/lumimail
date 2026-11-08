@@ -19,3 +19,8 @@ CF_EMAIL_WORKER_NAME=lumimail
 # Password recovery uses these values instead of trusting request headers.
 PUBLIC_APP_URL=https://mail.example.com
 PASSWORD_RESET_FROM=noreply@example.com
+
+# Optional Jev classification. Configure as a Worker secret in production:
+# npx wrangler secret put TYPESAFE_API_KEY
+# Email content is sent only after the user opts in or explicitly tests a sample.
+# TYPESAFE_API_KEY=your_typesafe_api_key

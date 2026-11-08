@@ -164,6 +164,7 @@ async function deliverToMailbox(
 		snippet,
 		status: "received",
 		threadId: threading.threadId,
+		receivedAt: parsed.receivedAt ?? now,
 		attachmentStatus: prepared.status,
 		attachmentError: prepared.error,
 	});

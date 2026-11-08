@@ -28,6 +28,14 @@ function fullText(document: LegalDocument): string {
 }
 
 describe("legal content", () => {
+	it("discloses optional Jev processing with consent and a local alternative", () => {
+		const text = fullText(privacyPolicy);
+		expect(text).toContain("TypeSafe");
+		expect(text).toContain("8,000");
+		expect(text).toContain("explicit consent");
+		expect(text).toContain("Local tagging rules");
+		expect(privacyPolicy.sections.flatMap(section => section.links ?? []).map(link => link.href)).toContain("https://typesafe.ai/legal/privacy-policy");
+	});
 	it("names the operator, the service, and a contact address", () => {
 		expect(LEGAL_OPERATOR).toEqual({
 			company: "Stagware",
