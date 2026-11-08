@@ -2,8 +2,19 @@ import { DatabaseSync } from "node:sqlite";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ db: null as unknown, refresh: vi.fn() }));
+const h = vi.hoisted(() => ({ db: null as unknown, refresh: vi.fn(), parseFails: false }));
 vi.mock("@/db", () => ({ getDb: () => h.db }));
+vi.mock("@/lib/email/parse", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/lib/email/parse")>();
+	return {
+		...actual,
+		// Stands in for a Worker killed at the CPU limit partway through one message's parse.
+		parseRawMime: (...args: Parameters<typeof actual.parseRawMime>) => {
+			if (h.parseFails) throw new Error("killed at the CPU limit");
+			return actual.parseRawMime(...args);
+		},
+	};
+});
 vi.mock("@/lib/email/external/credentials", () => ({ refreshExternalAccountCredential: h.refresh }));
 
 import { repairExternalMessageBodies } from "@/lib/email/external/body-repair";
@@ -45,6 +56,7 @@ function gmailResponse(id: string, mime: string) {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	h.parseFails = false;
 	sqlite = new DatabaseSync(":memory:");
 	sqlite.exec(`
 		CREATE TABLE external_accounts (
@@ -155,6 +167,27 @@ describe("repairExternalMessageBodies", () => {
 		now = 0;
 		expect(await repairExternalMessageBodies(env, { fetcher, clock, budgetMs: 8_000 }))
 			.toEqual({ repaired: 1, abandoned: 0, deferred: false });
+	});
+
+	it("claims a row before parsing, so a parse that kills the run is not retried forever", async () => {
+		insertMessage("msg_a", "exa_1", "g_a", "", "Plain text");
+		insertMessage("msg_b", "exa_1", "g_b", "", null);
+		const fetcher = vi.fn(async (input: string | URL | Request) => {
+			const id = String(input).match(/messages\/(g_\w)/)?.[1] ?? "";
+			return gmailResponse(id, htmlOnlyMime);
+		});
+
+		h.parseFails = true;
+		await expect(repairExternalMessageBodies(env, { fetcher, batchSize: 1 })).rejects.toThrow("CPU limit");
+		h.parseFails = false;
+		const claimed = row<{ message_id: string; html_body: string | null; text_body: string | null }>(
+			"SELECT message_id, html_body, text_body FROM message_bodies WHERE html_body IS NULL",
+		);
+		expect(claimed.html_body).toBeNull();
+
+		expect(await repairExternalMessageBodies(env, { fetcher })).toEqual({ repaired: 1, abandoned: 0, deferred: false });
+		expect(row<{ n: number }>("SELECT count(*) n FROM message_bodies WHERE html_body = ''").n).toBe(0);
+		expect(row<{ text_body: string | null }>("SELECT text_body FROM message_bodies WHERE message_id = 'msg_a'").text_body).toBe("Plain text");
 	});
 
 	it("respects the batch size and skips accounts with nothing to repair", async () => {

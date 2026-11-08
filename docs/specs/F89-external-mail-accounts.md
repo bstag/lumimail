@@ -1058,3 +1058,21 @@ Summary:
 
 Tests:
 - `body-repair.sqlite.test.ts`: stops once the time budget is spent and resumes next run.
+
+### 2026-11-08 — Skip a message whose parse exhausts the CPU limit
+
+Type: Bug Fix
+
+Summary:
+- Step logging showed every scheduled run killed inside the repair, with the backlog stuck at
+  5,433 rows: one message's parse used the whole 30 s CPU limit, and because the row was
+  still `''` the next run picked it again. The time budget cannot stop a single synchronous
+  parse.
+- The repair now claims each row (sets `html_body` to NULL) after downloading and before
+  parsing. A run killed mid-parse leaves that row NULL, so it keeps its text body and is not
+  retried; the backlog keeps moving.
+
+Tests:
+- `body-repair.sqlite.test.ts`: a parse that never finishes leaves the row claimed, and the
+  next run moves on to the remaining rows.
+

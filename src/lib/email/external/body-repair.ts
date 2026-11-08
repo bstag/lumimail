@@ -98,6 +98,10 @@ export async function repairExternalMessageBodies(
 				result.abandoned++;
 				continue;
 			}
+			// Claim the row first: a parse that exhausts the CPU limit kills the whole run, and
+			// a row still stored as '' would be picked again next run and block the backlog.
+			await db.update(messageBodies).set({ htmlBody: null })
+				.where(eq(messageBodies.id, candidate.bodyId));
 			const parsed = await parseRawMime(
 				raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer,
 			);
