@@ -215,6 +215,10 @@ export default {
 		controller: ScheduledController,
 		env: CloudflareEnv,
 	): Promise<void> {
+		// Temporary diagnostics: the run exceeds the CPU limit, and the last step logged before
+		// the Worker is killed names the step responsible. Remove once found.
+		const step = (name: string) => console.info("Scheduled step", name);
+
 		// Trashes mail a filter marked to delete after N days (F101). One indexed UPDATE; it runs
 		// first so a heavier step below that exhausts the CPU limit cannot skip it.
 		try {
@@ -223,24 +227,29 @@ export default {
 			console.warn("Message expiry deferred");
 		}
 
+		step("webhooks");
 		try {
 			await processDueWebhooks(env);
 		} catch {
 			console.warn("Webhook scheduling failed");
 		}
+		step("queue-health");
 		await runQueueHealthCheck(env);
+		step("categorization");
 		try {
 			await reconcileCategorization(env);
 		} catch {
 			console.warn("Mail categorization reconciliation deferred");
 		}
 
+		step("purges");
 		// Expired counters are ignored by the rate-limit check itself; this purge
 		// only keeps the table from growing without bound (F74). It swallows its
 		// own failures, so it cannot block the sweep below.
 		await purgeExpiredRateLimits(env);
 		await purgeMcpRefreshTokenUses(env);
 
+		step("push-and-sync");
 		try {
 			await reconcilePushNotifications(env);
 			await purgePushNotificationState(env);
@@ -249,6 +258,7 @@ export default {
 			console.warn("Push reconciliation failed");
 		}
 
+		step("body-repair");
 		// Restores HTML stored empty by the pre-fix sanitizer; a no-op once the backlog is gone (F34).
 		try {
 			const repair = await repairExternalMessageBodies(env);
@@ -257,6 +267,7 @@ export default {
 			console.warn("External body repair deferred");
 		}
 
+		step("oauth-purge");
 		try {
 			await createOAuthProvider(env as McpWorkerEnv).purgeExpiredData(env as McpWorkerEnv, {
 				batchSize: 100,
@@ -264,6 +275,8 @@ export default {
 		} catch {
 			console.warn("OAuth storage purge failed");
 		}
+
+		step("done");
 
 		// Ships disabled. The existing production backlog would otherwise be removed
 		// on the first run, before an operator has seen the report (F63).
