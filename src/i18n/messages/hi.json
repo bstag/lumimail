@@ -240,7 +240,9 @@
     "bulkUpdateFailed": "चयनित संदेशों को अपडेट करने में असमर्थ",
     "singleUpdateFailed": "संदेश अपडेट करने में असमर्थ",
     "draft": "ड्राफ्ट",
-    "toRecipient": "{name} को"
+    "toRecipient": "{name} को",
+    "remoteImagesHidden": "{count, plural, one {आपकी गोपनीयता की सुरक्षा के लिए # छवि छिपाई गई} other {आपकी गोपनीयता की सुरक्षा के लिए # छवियाँ छिपाई गईं}}",
+    "showImages": "छवियाँ दिखाएँ"
   },
   "actions": {
     "archive": "संग्रहीत करें",

@@ -61,6 +61,12 @@ describe("parseRawMime", () => {
 		);
 	});
 
+	it("drops sender-hidden preheaders from received HTML", async () => {
+		parseMock.mockResolvedValue({ html: '<div style="display:none">Preview</div><p>Body</p>' });
+
+		expect((await parseRawMime(new ArrayBuffer(0))).html).toBe("<p>Body</p>");
+	});
+
 	it("falls back to null for missing fields", async () => {
 		parseMock.mockResolvedValue({});
 

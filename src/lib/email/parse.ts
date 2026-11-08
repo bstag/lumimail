@@ -42,7 +42,7 @@ export async function parseRawMime(raw: ArrayBuffer): Promise<ParsedEmail> {
 		receivedAt: date && Number.isFinite(date.getTime()) ? date : null,
 		subject: email.subject ?? null,
 		text: email.text ?? null,
-		html: sanitizeHtml(email.html),
+		html: sanitizeHtml(email.html, { dropHidden: true, deferRemoteImages: true }),
 		messageId: email.messageId ?? null,
 		inReplyTo: email.inReplyTo ?? null,
 		references: email.references ?? null,

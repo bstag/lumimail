@@ -240,7 +240,9 @@
     "bulkUpdateFailed": "নির্বাচিত বার্তা আপডেট করতে অক্ষম",
     "singleUpdateFailed": "বার্তা আপডেট করতে অক্ষম",
     "draft": "খসড়া",
-    "toRecipient": "{name}-কে"
+    "toRecipient": "{name}-কে",
+    "remoteImagesHidden": "{count, plural, one {আপনার গোপনীয়তা রক্ষায় #টি ছবি লুকানো হয়েছে} other {আপনার গোপনীয়তা রক্ষায় #টি ছবি লুকানো হয়েছে}}",
+    "showImages": "ছবি দেখান"
   },
   "actions": {
     "archive": "আর্কাইভ",

@@ -100,7 +100,8 @@ Source of truth for behavior. Each follows
             [`F92-mantle-presentation-layer`](./specs/F92-mantle-presentation-layer.md),
             [`F93-external-sync-bounded-memory`](./specs/F93-external-sync-bounded-memory.md),
             [`F94-public-legal-pages`](./specs/F94-public-legal-pages.md),
-            [`F95-active-mail-categorization`](./specs/F95-active-mail-categorization.md).
+            [`F95-active-mail-categorization`](./specs/F95-active-mail-categorization.md),
+            [`F96-remote-image-loading`](./specs/F96-remote-image-loading.md).
 
 ## Implementation notes (`implementation/`)
 

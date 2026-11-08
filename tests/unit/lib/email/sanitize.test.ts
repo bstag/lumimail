@@ -150,6 +150,35 @@ describe("sanitizeHtml", () => {
 		}
 	});
 
+	it("drops sender-hidden preheader and Outlook-only content instead of revealing it", () => {
+		const result = sanitizeHtml(
+			'<div style="display:none;max-height:0">Preview text ͏ ͏</div>'
+			+ '<span style="DISPLAY: none !important">hidden</span>'
+			+ '<div style="mso-hide:all">outlook</div>'
+			+ '<p style="visibility:hidden">invisible</p>'
+			+ '<p style="display:block">Visible body</p>',
+			{ dropHidden: true },
+		);
+		expect(result).toBe("<p>Visible body</p>");
+		expect(sanitizeHtml('<p style="display:none">kept for outbound</p>')).toBe("<p>kept for outbound</p>");
+	});
+
+	it("defers remote images for inbound mail and drops tracking pixels", () => {
+		const html = '<img src="https://cdn.example.com/logo.png?a=1&b=2" alt="Logo" width="140" onerror="x()">'
+			+ '<img src="https://t.example.com/open.gif" width="1" height="1">'
+			+ '<img src="http://cdn.example.com/plain.jpg">'
+			+ '<img src="javascript:alert(1)">'
+			+ '<img src="data:image/png;base64,AAAA">'
+			+ '<img src="cid:chart_1" alt="Chart">';
+		expect(sanitizeHtml(html, { deferRemoteImages: true })).toBe(
+			'<img data-remote-src="https://cdn.example.com/logo.png?a=1&amp;b=2" alt="Logo" width="140">'
+			+ '<img data-remote-src="http://cdn.example.com/plain.jpg">'
+			+ '<img src="cid:chart_1" alt="Chart">',
+		);
+		// Without the inbound option (outbound/composer), remote images are still removed.
+		expect(sanitizeHtml(html)).toBe('<img src="cid:chart_1" alt="Chart">');
+	});
+
 	it("keeps body content when a document has no body element", () => {
 		expect(sanitizeHtml("<!DOCTYPE html>\n<html><head><title>T</title></head><p>Loose content</p></html>"))
 			.toContain("<p>Loose content</p>");

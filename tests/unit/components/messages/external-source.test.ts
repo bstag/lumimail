@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getExternalSourceLabel, getMessageParty } from "@/components/messages/utils";
+import { getExternalSourceBadge, getExternalSourceLabel, getMessageParty } from "@/components/messages/utils";
 
 const message = {
 	id: "msg_1", userId: "usr_1", mailboxId: "mbx_1", direction: "inbound" as const,
@@ -32,5 +32,17 @@ describe("message party presentation", () => {
 		expect(getMessageParty({ ...message, fromContactName: "Sender" }, "inbox")).toBe("Sender");
 		expect(getMessageParty({ ...message, fromAddr: "Person <person@example.com>" }, "inbox")).toBe("Person");
 		expect(getMessageParty({ ...message, fromAddr: "" }, "inbox")).toBe("Unknown sender");
+	});
+});
+
+describe("external source list badge", () => {
+	it("is a compact provider name with the full label for the tooltip", () => {
+		expect(getExternalSourceBadge(message, [
+			{ id: "exa_1", mailboxId: "mbx_1", provider: "google", externalAddress: "person@gmail.com" },
+		])).toEqual({ short: "Gmail", full: "Google · person@gmail.com" });
+		expect(getExternalSourceBadge({ ...message, direction: "outbound", fromAddr: "person@outlook.com", toAddr: "x@example.com" }, [
+			{ id: "exa_2", mailboxId: "mbx_1", provider: "microsoft", externalAddress: "person@outlook.com" },
+		])).toEqual({ short: "Outlook", full: "Microsoft · person@outlook.com" });
+		expect(getExternalSourceBadge(message, [])).toBeNull();
 	});
 });

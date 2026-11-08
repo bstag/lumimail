@@ -99,11 +99,26 @@ function safeDirection(value: string | null): string | null {
 	return null;
 }
 
+function remoteImageUrl(value: string | null): string | null {
+	const url = safeUrl(value);
+	return url && /^https?:/i.test(url) ? url : null;
+}
+
+/** A remote image kept inert for the reader to load on request (F96); 1–2 px trackers are dropped. */
+function deferrableImage(element: Element, options: SanitizeOptions): boolean {
+	if (!options.deferRemoteImages || !remoteImageUrl(element.getAttribute("src"))) return false;
+	const tiny = (name: string) => {
+		const value = Number(element.getAttribute(name));
+		return Number.isFinite(value) && value > 0 && value <= 2;
+	};
+	return !tiny("width") && !tiny("height");
+}
+
 function pushAttribute(attributes: string[], name: string, value: string | null): void {
 	if (value !== null) attributes.push(`${name}="${escapeAttribute(value)}"`);
 }
 
-function sanitizeAttributes(element: Element, tag: string): string {
+function sanitizeAttributes(element: Element, tag: string, options: SanitizeOptions): string {
 	const attributes: string[] = [];
 	pushAttribute(attributes, "dir", safeDirection(element.getAttribute("dir")?.toLowerCase() ?? null));
 	pushAttribute(attributes, "lang", safeLanguage(element.getAttribute("lang")));
@@ -130,7 +145,11 @@ function sanitizeAttributes(element: Element, tag: string): string {
 	}
 
 	if (tag === "img") {
-		pushAttribute(attributes, "src", safeCid(element.getAttribute("src")));
+		const cid = safeCid(element.getAttribute("src"));
+		pushAttribute(attributes, "src", cid);
+		if (!cid && options.deferRemoteImages) {
+			pushAttribute(attributes, "data-remote-src", remoteImageUrl(element.getAttribute("src")));
+		}
 		pushAttribute(attributes, "alt", element.getAttribute("alt"));
 		pushAttribute(attributes, "title", element.getAttribute("title"));
 		pushAttribute(attributes, "width", safeDimension(element.getAttribute("width")));
@@ -147,7 +166,9 @@ function pushChildren(stack: TraversalEntry[], node: Node): void {
 	}
 }
 
-const documentMarkup = /^\s*(?:<!--[\s\S]*?-->\s*)*<(?:!doctype|html[\s>]|head[\s>])/i;
+const senderHidden = /(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden|mso-hide\s*:\s*all)\b/i;
+
+const documentMarkup =/^\s*(?:<!--[\s\S]*?-->\s*)*<(?:!doctype|html[\s>]|head[\s>])/i;
 
 /**
  * Returns the node whose children are the readable content. Sender HTML is
@@ -164,7 +185,7 @@ function contentRoot(html: string): Node {
 	return document.body;
 }
 
-function sanitizeFragment(html: string): string {
+function sanitizeFragment(html: string, options: SanitizeOptions): string {
 	const output: string[] = [];
 	const stack: TraversalEntry[] = [];
 	pushChildren(stack, contentRoot(html));
@@ -190,14 +211,17 @@ function sanitizeFragment(html: string): string {
 		const element = node as Element;
 		const tag = element.localName.toLowerCase();
 		if (dropSubtreeTags.has(tag)) continue;
-		if (tag === "img" && !safeCid(element.getAttribute("src"))) continue;
+		// The sender's own hiding styles are stripped below, so hidden preheaders and
+		// Outlook-only blocks would otherwise become visible: drop them with their content.
+		if (options.dropHidden && senderHidden.test(element.getAttribute("style") ?? "")) continue;
+		if (tag === "img" && !safeCid(element.getAttribute("src")) && !deferrableImage(element, options)) continue;
 
 		if (!allowedTags.has(tag)) {
 			pushChildren(stack, node);
 			continue;
 		}
 
-		output.push(`<${tag}${sanitizeAttributes(element, tag)}>`);
+		output.push(`<${tag}${sanitizeAttributes(element, tag, options)}>`);
 		if (voidTags.has(tag)) continue;
 		stack.push({ kind: "close", tag });
 		pushChildren(stack, node);
@@ -206,10 +230,17 @@ function sanitizeFragment(html: string): string {
 	return output.join("");
 }
 
-export function sanitizeHtml(html: string | null | undefined): string | null {
+export type SanitizeOptions = {
+	/** Received mail: drop elements the sender hid (preheaders, Outlook-only blocks). */
+	dropHidden?: boolean;
+	/** Received mail: keep http(s) images as inert `data-remote-src` for opt-in loading (F96). */
+	deferRemoteImages?: boolean;
+};
+
+export function sanitizeHtml(html: string | null | undefined, options: SanitizeOptions = {}): string | null {
 	if (!html) return null;
 	try {
-		return sanitizeFragment(html);
+		return sanitizeFragment(html, options);
 	} catch {
 		return escapeText(html);
 	}

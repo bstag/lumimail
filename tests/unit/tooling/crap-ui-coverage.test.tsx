@@ -346,7 +346,7 @@ describe("CRAP UI coverage", () => {
 		const inbox = React.createElement(MessageListRow, {
 			...common, message: message as never,
 			config: { folder: "inbox", emptyText: "", hrefPrefix: "/inbox" },
-			mailboxLabel: "hello@example.com", externalSourceLabel: "Google",
+			mailboxLabel: "hello@example.com", externalSource: { short: "Gmail", full: "Google · person@gmail.com" },
 			compact: true, timestamp: "Now", active: true,
 		});
 		const draft = React.createElement(MessageListRow, {

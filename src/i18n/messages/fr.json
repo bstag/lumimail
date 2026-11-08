@@ -240,7 +240,9 @@
     "bulkUpdateFailed": "Impossible de mettre à jour les messages sélectionnés",
     "singleUpdateFailed": "Impossible de mettre à jour le message",
     "draft": "brouillon",
-    "toRecipient": "à {name}"
+    "toRecipient": "à {name}",
+    "remoteImagesHidden": "{count, plural, one {# image masquée pour protéger votre vie privée} other {# images masquées pour protéger votre vie privée}}",
+    "showImages": "Afficher les images"
   },
   "actions": {
     "archive": "Archiver",

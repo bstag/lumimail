@@ -240,7 +240,9 @@
     "bulkUpdateFailed": "Unable to update selected messages",
     "singleUpdateFailed": "Unable to update message",
     "draft": "draft",
-    "toRecipient": "to {name}"
+    "toRecipient": "to {name}",
+    "remoteImagesHidden": "{count, plural, one {# image hidden to protect your privacy} other {# images hidden to protect your privacy}}",
+    "showImages": "Show images"
   },
   "actions": {
     "archive": "Archive",

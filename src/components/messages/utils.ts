@@ -38,18 +38,41 @@ export type ExternalSourceAccount = {
 	externalAddress: string;
 };
 
+function findExternalSource(
+	message: Message,
+	accounts: readonly ExternalSourceAccount[],
+): ExternalSourceAccount | undefined {
+	const from = getEmailAddress(message.fromAddr).toLowerCase();
+	const to = getEmailAddress(message.toAddr).toLowerCase();
+	return accounts.find((candidate) => candidate.mailboxId === message.mailboxId && (
+		candidate.externalAddress.toLowerCase() === from || candidate.externalAddress.toLowerCase() === to
+	));
+}
+
 export function getExternalSourceLabel(
 	message: Message,
 	accounts: readonly ExternalSourceAccount[],
 ): string | null {
-	const from = getEmailAddress(message.fromAddr).toLowerCase();
-	const to = getEmailAddress(message.toAddr).toLowerCase();
-	const account = accounts.find((candidate) => candidate.mailboxId === message.mailboxId && (
-		candidate.externalAddress.toLowerCase() === from || candidate.externalAddress.toLowerCase() === to
-	));
+	const account = findExternalSource(message, accounts);
 	return account
 		? `${account.provider === "google" ? "Google" : "Microsoft"} · ${account.externalAddress}`
 		: null;
+}
+
+/**
+ * Compact source for list rows: the provider's mail product, with the full label kept for a
+ * tooltip. The full "Google · address" badge was wider than the subject on narrow layouts.
+ */
+export function getExternalSourceBadge(
+	message: Message,
+	accounts: readonly ExternalSourceAccount[],
+): { short: string; full: string } | null {
+	const account = findExternalSource(message, accounts);
+	if (!account) return null;
+	return {
+		short: account.provider === "google" ? "Gmail" : "Outlook",
+		full: `${account.provider === "google" ? "Google" : "Microsoft"} · ${account.externalAddress}`,
+	};
 }
 
 export function getPageRange(offset: number, count: number, total: number): PageRange {

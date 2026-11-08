@@ -240,7 +240,9 @@
     "bulkUpdateFailed": "No se pudieron actualizar los mensajes seleccionados",
     "singleUpdateFailed": "No se pudo actualizar el mensaje",
     "draft": "borrador",
-    "toRecipient": "para {name}"
+    "toRecipient": "para {name}",
+    "remoteImagesHidden": "{count, plural, one {# imagen oculta para proteger tu privacidad} other {# imágenes ocultas para proteger tu privacidad}}",
+    "showImages": "Mostrar imágenes"
   },
   "actions": {
     "archive": "Archivar",

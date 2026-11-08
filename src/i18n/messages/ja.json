@@ -240,7 +240,9 @@
     "bulkUpdateFailed": "選択したメッセージを更新できません",
     "singleUpdateFailed": "メッセージを更新できません",
     "draft": "下書き",
-    "toRecipient": "{name} 宛"
+    "toRecipient": "{name} 宛",
+    "remoteImagesHidden": "{count, plural, other {プライバシー保護のため # 件の画像を非表示にしています}}",
+    "showImages": "画像を表示"
   },
   "actions": {
     "archive": "アーカイブ",

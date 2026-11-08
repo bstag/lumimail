@@ -42,6 +42,7 @@ export const SAFE_EMAIL_HTML_ATTRIBUTES = [
 	"alt",
 	"cite",
 	"colspan",
+	"data-remote-src",
 	"dir",
 	"height",
 	"href",

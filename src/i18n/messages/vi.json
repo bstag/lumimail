@@ -240,7 +240,9 @@
     "bulkUpdateFailed": "Không thể cập nhật các tin nhắn đã chọn",
     "singleUpdateFailed": "Không thể cập nhật tin nhắn",
     "draft": "nháp",
-    "toRecipient": "đến {name}"
+    "toRecipient": "đến {name}",
+    "remoteImagesHidden": "{count, plural, other {Đã ẩn # hình ảnh để bảo vệ quyền riêng tư của bạn}}",
+    "showImages": "Hiển thị hình ảnh"
   },
   "actions": {
     "archive": "Lưu trữ",

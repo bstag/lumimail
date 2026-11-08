@@ -21,7 +21,7 @@ import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
 import { BulkMessageToolbar } from "./bulk-message-toolbar";
 import type { MessageListRowProps, MessageFolderConfig } from "./types";
 import {
-	getExternalSourceLabel,
+	getExternalSourceBadge,
 	getPageRange,
 	getMessageBadge,
 	getMessageParty,
@@ -56,9 +56,9 @@ async function fetchLabels(): Promise<Label[]> {
 	return json.data ?? [];
 }
 
-function MessageRowMeta({ message, config, mailboxLabel, externalSourceLabel, timestamp, unread }: Pick<MessageListRowProps, "message" | "config" | "mailboxLabel" | "externalSourceLabel" | "timestamp"> & { unread: boolean }) {
+function MessageRowMeta({ message, config, mailboxLabel, externalSource, timestamp, unread }: Pick<MessageListRowProps, "message" | "config" | "mailboxLabel" | "externalSource" | "timestamp"> & { unread: boolean }) {
 	return <div className="flex shrink-0 items-center gap-2">
-		{externalSourceLabel && <Badge variant="outline">{externalSourceLabel}</Badge>}
+		{externalSource && <Badge variant="outline" className="hidden md:inline-flex" title={externalSource.full}>{externalSource.short}</Badge>}
 		{mailboxLabel && <Badge variant="outline" title={mailboxLabel}>{mailboxLabel}</Badge>}
 		{config.showRowBadge !== false && <Badge variant={config.badgeVariant ?? "secondary"}>{getMessageBadge(message, config.folder)}</Badge>}
 		{timestamp && <time dateTime={message.createdAt} className={`shrink-0 text-xs tabular-nums ${unread ? "font-semibold text-ink" : "text-ink-muted"}`}>{timestamp}</time>}
@@ -129,7 +129,7 @@ export function MessageListRow({
 	timestamp,
 	href,
 	active = false,
-	externalSourceLabel,
+	externalSource,
 }: MessageListRowProps) {
 	const t = useTranslations("messages");
 	const { openDraftComposer } = useCompose();
@@ -212,7 +212,7 @@ export function MessageListRow({
 	 * two would be read twice by a screen reader and would make every strict
 	 * `getByText` locator in the suites ambiguous.
 	 */
-	const meta = <MessageRowMeta message={message} config={config} mailboxLabel={mailboxLabel} externalSourceLabel={externalSourceLabel} timestamp={timestamp} unread={unread} />;
+	const meta = <MessageRowMeta message={message} config={config} mailboxLabel={mailboxLabel} externalSource={externalSource} timestamp={timestamp} unread={unread} />;
 	const content = <MessageRowContent message={message} config={config} compact={compact} meta={meta} />;
 
 	if (config.folder === "drafts") {
@@ -443,7 +443,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 						onStarToggle={handleStarToggle}
 						canSend={selectedMailbox ? canMailboxSend(selectedMailbox) : false}
 						mailboxLabel={allMailboxes ? mailboxLabels.get(message.mailboxId ?? "") : undefined}
-						externalSourceLabel={getExternalSourceLabel(message, externalSources) ?? undefined}
+						externalSource={getExternalSourceBadge(message, externalSources) ?? undefined}
 						compact={compact}
 						timestamp={formatMessageListTime(message.createdAt, renderedAt)}
 						href={desktopMessageHref(message.id)}

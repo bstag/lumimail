@@ -240,7 +240,9 @@
     "bulkUpdateFailed": "تعذر تحديث الرسائل المحددة",
     "singleUpdateFailed": "تعذر تحديث الرسالة",
     "draft": "مسودة",
-    "toRecipient": "إلى {name}"
+    "toRecipient": "إلى {name}",
+    "remoteImagesHidden": "{count, plural, zero {لا توجد صور مخفية} one {صورة واحدة مخفية لحماية خصوصيتك} two {صورتان مخفيتان لحماية خصوصيتك} few {# صور مخفية لحماية خصوصيتك} many {# صورة مخفية لحماية خصوصيتك} other {# صورة مخفية لحماية خصوصيتك}}",
+    "showImages": "عرض الصور"
   },
   "actions": {
     "archive": "أرشفة",

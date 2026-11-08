@@ -240,7 +240,9 @@
     "bulkUpdateFailed": "无法更新所选邮件",
     "singleUpdateFailed": "无法更新邮件",
     "draft": "草稿",
-    "toRecipient": "发给 {name}"
+    "toRecipient": "发给 {name}",
+    "remoteImagesHidden": "{count, plural, other {为保护您的隐私，已隐藏 # 张图片}}",
+    "showImages": "显示图片"
   },
   "actions": {
     "archive": "归档",
