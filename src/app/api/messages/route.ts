@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq, desc, and, like, or, count, inArray } from "drizzle-orm";
+import { eq, desc, asc, and, like, or, count, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { labels, messages, messageLabels } from "@/db/schema";
 import { withUser } from "@/lib/api/handler";
@@ -24,6 +24,7 @@ export const GET = withUser(async ({ request, env, user }) => {
 	const read = url.searchParams.get("read");
 	const starred = url.searchParams.get("starred");
 	const labelId = url.searchParams.get("labelId");
+	const snoozedView = url.searchParams.get("snoozed") === "true";
 	const focus = parseInboxFocus(url.searchParams.get("focus"));
 	if (focus === "invalid") return apiError("Invalid focus", 400);
 	const rawLimit = url.searchParams.get("limit");
@@ -113,7 +114,15 @@ export const GET = withUser(async ({ request, env, user }) => {
 		conditions.push(inArray(messages.id, labelledMessageIds));
 	}
 	if (focus) conditions.push(inboxFocusCondition(db, user.id, focus));
+	// Snoozed received mail is hidden until it wakes, except in the Snoozed view (F100).
+	const nowSeconds = Math.floor(Date.now() / 1000);
+	const snoozedNow = sql`(${messages.status} = 'received' and ${messages.snoozedUntil} > ${nowSeconds})`;
+	conditions.push(snoozedView ? snoozedNow : sql`(${messages.snoozedUntil} is null or not ${snoozedNow})`);
 	const where = and(...conditions);
+	// A woken message sorts by its wake time, so it returns to the top of the Inbox.
+	const order = snoozedView
+		? asc(messages.snoozedUntil)
+		: desc(sql`case when ${messages.snoozedUntil} <= ${nowSeconds} then ${messages.snoozedUntil} else ${messages.createdAt} end`);
 
 	const [totalRow] = await db
 		.select({ total: count() })
@@ -123,7 +132,7 @@ export const GET = withUser(async ({ request, env, user }) => {
 		.select()
 		.from(messages)
 		.where(where)
-		.orderBy(desc(messages.createdAt))
+		.orderBy(order)
 		.limit(limit)
 		.offset(offset);
 	const threadIds = [...new Set(

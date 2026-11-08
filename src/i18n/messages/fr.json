@@ -142,7 +142,8 @@
     "archive": "Archives",
     "contacts": "Contacts",
     "members": "Membres",
-    "more": "Plus"
+    "more": "Plus",
+    "snoozed": "Reportés"
   },
   "search": {
     "placeholder": "Rechercher un email",
@@ -264,7 +265,12 @@
     "moreActions": "Plus d'actions",
     "reply": "Répondre",
     "updateFailed": "Impossible de mettre à jour le message",
-    "delete": "Supprimer"
+    "delete": "Supprimer",
+    "snooze": "Reporter",
+    "snoozeLaterToday": "Plus tard aujourd'hui",
+    "snoozeTomorrow": "Demain matin",
+    "snoozeNextWeek": "La semaine prochaine",
+    "unsnooze": "Annuler le report"
   },
   "admin": {
     "title": "Paramètres admin",

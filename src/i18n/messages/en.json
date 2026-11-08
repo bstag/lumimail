@@ -142,7 +142,8 @@
     "starred": "Starred",
     "archive": "Archive",
     "contacts": "Contacts",
-    "more": "More"
+    "more": "More",
+    "snoozed": "Snoozed"
   },
   "search": {
     "placeholder": "Search mail",
@@ -264,7 +265,12 @@
     "moreActions": "More actions",
     "reply": "Reply",
     "updateFailed": "Could not update message",
-    "delete": "Delete"
+    "delete": "Delete",
+    "snooze": "Snooze",
+    "snoozeLaterToday": "Later today",
+    "snoozeTomorrow": "Tomorrow morning",
+    "snoozeNextWeek": "Next week",
+    "unsnooze": "Unsnooze"
   },
   "admin": {
     "title": "Admin settings",

@@ -142,7 +142,8 @@
     "archive": "アーカイブ",
     "contacts": "Contacts",
     "members": "メンバー",
-    "more": "その他"
+    "more": "その他",
+    "snoozed": "スヌーズ中"
   },
   "search": {
     "placeholder": "メール検索",
@@ -264,7 +265,12 @@
     "moreActions": "その他の操作",
     "reply": "返信",
     "updateFailed": "メッセージを更新できませんでした",
-    "delete": "削除"
+    "delete": "削除",
+    "snooze": "スヌーズ",
+    "snoozeLaterToday": "今日の後で",
+    "snoozeTomorrow": "明日の朝",
+    "snoozeNextWeek": "来週",
+    "unsnooze": "スヌーズを解除"
   },
   "admin": {
     "title": "管理者設定",

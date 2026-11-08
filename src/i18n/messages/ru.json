@@ -142,7 +142,8 @@
     "archive": "Архив",
     "contacts": "Contacts",
     "members": "Участники",
-    "more": "Ещё"
+    "more": "Ещё",
+    "snoozed": "Отложенные"
   },
   "search": {
     "placeholder": "Поиск почты",
@@ -264,7 +265,12 @@
     "moreActions": "Ещё действия",
     "reply": "Ответить",
     "updateFailed": "Не удалось обновить сообщение",
-    "delete": "Удалить"
+    "delete": "Удалить",
+    "snooze": "Отложить",
+    "snoozeLaterToday": "Позже сегодня",
+    "snoozeTomorrow": "Завтра утром",
+    "snoozeNextWeek": "На следующей неделе",
+    "unsnooze": "Вернуть"
   },
   "admin": {
     "title": "Настройки админа",

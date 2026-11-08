@@ -142,7 +142,8 @@
     "archive": "Lưu trữ",
     "contacts": "Contacts",
     "members": "Thành viên",
-    "more": "Thêm"
+    "more": "Thêm",
+    "snoozed": "Đã tạm ẩn"
   },
   "search": {
     "placeholder": "Tìm kiếm thư",
@@ -264,7 +265,12 @@
     "moreActions": "Thêm hành động",
     "reply": "Trả lời",
     "updateFailed": "Không thể cập nhật tin nhắn",
-    "delete": "Xóa"
+    "delete": "Xóa",
+    "snooze": "Tạm ẩn",
+    "snoozeLaterToday": "Cuối ngày hôm nay",
+    "snoozeTomorrow": "Sáng mai",
+    "snoozeNextWeek": "Tuần sau",
+    "unsnooze": "Bỏ tạm ẩn"
   },
   "admin": {
     "title": "Cài đặt quản trị",

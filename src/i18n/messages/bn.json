@@ -142,7 +142,8 @@
     "archive": "আর্কাইভ",
     "contacts": "Contacts",
     "members": "সদস্যরা",
-    "more": "আরও"
+    "more": "আরও",
+    "snoozed": "স্নুজ করা"
   },
   "search": {
     "placeholder": "মেইল অনুসন্ধান",
@@ -264,7 +265,12 @@
     "moreActions": "আরও ক্রিয়া",
     "reply": "উত্তর",
     "updateFailed": "বার্তা আপডেট করা যায়নি",
-    "delete": "মুছুন"
+    "delete": "মুছুন",
+    "snooze": "স্নুজ করুন",
+    "snoozeLaterToday": "আজ পরে",
+    "snoozeTomorrow": "আগামীকাল সকালে",
+    "snoozeNextWeek": "পরের সপ্তাহে",
+    "unsnooze": "স্নুজ বাতিল করুন"
   },
   "admin": {
     "title": "অ্যাডমিন সেটিংস",

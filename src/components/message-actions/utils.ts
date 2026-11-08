@@ -29,6 +29,17 @@ export async function runSingleMessageAction(
 	void invalidateMessageQueries(queryClient);
 }
 
+/** Snoozes a received message until `until`, or wakes it with null (F100). */
+export async function snoozeMessage(queryClient: QueryClient, messageId: string, until: Date | null) {
+	const response = await authFetch(`/api/messages/${encodeURIComponent(messageId)}/snooze`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ until: until?.toISOString() ?? null }),
+	});
+	if (!response.ok) throw new Error("Unable to snooze message");
+	void invalidateMessageQueries(queryClient);
+}
+
 export function getMessageActionRedirect(action: BulkMessageAction, direction: "inbound" | "outbound") {
 	if (action === "trash") return "/trash";
 	if (action === "spam") return "/spam";

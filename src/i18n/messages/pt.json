@@ -142,7 +142,8 @@
     "archive": "Arquivo",
     "contacts": "Contacts",
     "members": "Membros",
-    "more": "Mais"
+    "more": "Mais",
+    "snoozed": "Adiados"
   },
   "search": {
     "placeholder": "Buscar email",
@@ -264,7 +265,12 @@
     "moreActions": "Mais ações",
     "reply": "Responder",
     "updateFailed": "Não foi possível atualizar a mensagem",
-    "delete": "Excluir"
+    "delete": "Excluir",
+    "snooze": "Adiar",
+    "snoozeLaterToday": "Mais tarde hoje",
+    "snoozeTomorrow": "Amanhã de manhã",
+    "snoozeNextWeek": "Próxima semana",
+    "unsnooze": "Cancelar adiamento"
   },
   "admin": {
     "title": "Configurações admin",

@@ -123,6 +123,11 @@ describe("getMessageQueryParams", () => {
 		expect(params.get("labelId")).toBe("lbl_1");
 	});
 
+	it("lists only sleeping received mail for the Snoozed folder (F100)", () => {
+		const params = getMessageQueryParams("snoozed", null, {});
+		expect(Object.fromEntries(params)).toEqual({ direction: "inbound", status: "received", snoozed: "true" });
+	});
+
 	it("sends the Focused / Other split for the inbox only (F97)", () => {
 		expect(getMessageQueryParams("inbox", null, { focus: "other" }).get("focus")).toBe("other");
 		expect(getMessageQueryParams("archived", null, { focus: "other" }).has("focus")).toBe(false);

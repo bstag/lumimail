@@ -192,6 +192,7 @@ export function MessageDetailView({
 					subject={message.subject}
 					mailboxId={message.mailboxId}
 					canSend={canSend}
+					snoozedUntil={message.snoozedUntil}
 					onActionSuccess={(action) => {
 						if (action === "read") setReadOverride(true);
 						if (action === "unread") setReadOverride(false);

@@ -142,7 +142,8 @@
     "archive": "归档",
     "contacts": "Contacts",
     "members": "成员",
-    "more": "更多"
+    "more": "更多",
+    "snoozed": "稍后提醒"
   },
   "search": {
     "placeholder": "搜索邮件",
@@ -264,7 +265,12 @@
     "moreActions": "更多操作",
     "reply": "回复",
     "updateFailed": "无法更新邮件",
-    "delete": "删除"
+    "delete": "删除",
+    "snooze": "稍后提醒",
+    "snoozeLaterToday": "今天稍后",
+    "snoozeTomorrow": "明天早上",
+    "snoozeNextWeek": "下周",
+    "unsnooze": "取消稍后提醒"
   },
   "admin": {
     "title": "管理设置",

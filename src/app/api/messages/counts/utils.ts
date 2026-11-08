@@ -5,7 +5,7 @@ export function getMessageFolder(row: MessageCountRow): CountableFolder {
 	if (row.status === "trash") return "trash";
 	if (row.status === "spam") return "spam";
 	if (row.status === "archived") return "archived";
-	if (row.direction === "inbound" && row.status === "received") return "inbox";
+	if (row.direction === "inbound" && row.status === "received") return row.sleeping ? null : "inbox";
 	if (row.direction === "outbound" && row.status === "sent") return "sent";
 	if (row.direction === "outbound" && row.status === "draft") return "drafts";
 	return null;

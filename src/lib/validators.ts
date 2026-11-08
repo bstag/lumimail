@@ -505,3 +505,8 @@ export const senderActionSchema = z.object({
 export const senderArchiveSchema = senderActionSchema.extend({
 	createFilter: z.boolean().default(true),
 });
+
+/** Snooze a received message until a future time, or clear it with null (F100). */
+export const snoozeMessageSchema = z.object({
+	until: z.string().datetime({ offset: true }).nullable(),
+});

@@ -10,6 +10,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
 import type { MessageActionsProps } from "./types";
 import { getMessageActionRedirect, runSingleMessageAction } from "./utils";
+import { SnoozeMenu } from "./snooze-menu";
 import { Select } from "@/components/ui/select";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { resolveReplyMailboxId } from "@/components/mailbox-scope-utils";
@@ -24,6 +25,7 @@ export function MessageActions({
 	subject,
 	mailboxId,
 	canSend = false,
+	snoozedUntil,
 	onActionSuccess,
 }: MessageActionsProps) {
 	const t = useTranslations("actions");
@@ -142,6 +144,9 @@ export function MessageActions({
 						{read ? <Mail className="h-5 w-5" /> : <MailOpen className="h-5 w-5" />}
 					</Button>
 				</Tooltip>
+				{direction === "inbound" && status === "received" && (
+					<SnoozeMenu messageId={messageId} snoozedUntil={snoozedUntil} disabled={disabled} onError={() => setError(t("updateFailed"))} />
+				)}
 				<Tooltip label={t("moveMessage")}>
 					<Select
 						size="sm" className="w-auto"

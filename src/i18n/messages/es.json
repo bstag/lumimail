@@ -142,7 +142,8 @@
     "archive": "Archivo",
     "contacts": "Contacts",
     "members": "Miembros",
-    "more": "Más"
+    "more": "Más",
+    "snoozed": "Pospuestos"
   },
   "search": {
     "placeholder": "Buscar correo",
@@ -264,7 +265,12 @@
     "moreActions": "Más acciones",
     "reply": "Responder",
     "updateFailed": "No se pudo actualizar el mensaje",
-    "delete": "Eliminar"
+    "delete": "Eliminar",
+    "snooze": "Posponer",
+    "snoozeLaterToday": "Más tarde hoy",
+    "snoozeTomorrow": "Mañana por la mañana",
+    "snoozeNextWeek": "La próxima semana",
+    "unsnooze": "Dejar de posponer"
   },
   "admin": {
     "title": "Configuración de administrador",

@@ -142,7 +142,8 @@
     "archive": "संग्रह",
     "contacts": "Contacts",
     "members": "सदस्य",
-    "more": "और"
+    "more": "और",
+    "snoozed": "स्नूज़ किए गए"
   },
   "search": {
     "placeholder": "मेल खोजें",
@@ -264,7 +265,12 @@
     "moreActions": "अधिक कार्रवाइयां",
     "reply": "जवाब दें",
     "updateFailed": "संदेश अपडेट नहीं कर सका",
-    "delete": "हटाएं"
+    "delete": "हटाएं",
+    "snooze": "स्नूज़ करें",
+    "snoozeLaterToday": "आज बाद में",
+    "snoozeTomorrow": "कल सुबह",
+    "snoozeNextWeek": "अगले सप्ताह",
+    "unsnooze": "स्नूज़ हटाएँ"
   },
   "admin": {
     "title": "एडमिन सेटिंग्स",

@@ -16,6 +16,8 @@ export type MessageFolder =
 	| "trash"
 	| "spam"
 	| "starred"
+	// Received mail whose snooze has not ended (F100).
+	| "snoozed"
 	// A label view (F75). Not a status: it constrains `labelId` alone, so it
 	// spans every status and both directions.
 	| "label";
@@ -37,6 +39,8 @@ export type Message = {
 	status: MessageStatus | string;
 	read: boolean;
 	starred: boolean;
+	/** ISO time; in the future while the message is snoozed (F100). */
+	snoozedUntil?: string | null;
 	threadId: string | null;
 	threadCount?: number;
 	createdAt: string;
@@ -80,7 +84,7 @@ export type MailboxCount = {
  * it out of the record is what stops every counts literal from having to invent
  * a meaningless `label: { total: 0 }`.
  */
-export type CountedFolder = Exclude<MessageFolder, "label">;
+export type CountedFolder = Exclude<MessageFolder, "label" | "snoozed">;
 
 export type MessageCounts = {
 	folders: Record<CountedFolder, FolderCount>;

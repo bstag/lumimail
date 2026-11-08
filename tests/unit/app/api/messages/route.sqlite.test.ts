@@ -68,6 +68,7 @@ beforeEach(() => {
 			unsubscribe_url TEXT,
 			unsubscribe_mailto TEXT,
 			unsubscribe_one_click INTEGER NOT NULL DEFAULT 0,
+			snoozed_until INTEGER,
 			created_at INTEGER NOT NULL
 		);
 	`);

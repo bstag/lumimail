@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { messages } from "@/db/schema";
 import { withUser } from "@/lib/api/handler";
@@ -22,6 +22,7 @@ export const GET = withUser(async ({ request, env, user }) => {
 			direction: messages.direction,
 			status: messages.status,
 			read: messages.read,
+			sleeping: sql<boolean>`coalesce(${messages.snoozedUntil} > ${Math.floor(Date.now() / 1000)}, 0)`.mapWith(Boolean),
 		})
 		.from(messages)
 		.where(and(...conditions));

@@ -41,49 +41,30 @@ export const LABEL_VISIBLE_STATUSES = [
 	"archived",
 ] as const;
 
+/**
+ * The fixed query each folder adds. Archive holds mail in both directions, so unlike Inbox and
+ * Sent it constrains status alone. A label spans folders, so it constrains `labelId` (set from
+ * the filters) rather than status, except that trashed and spam mail stays out: a label is a
+ * filing destination, and deleted mail that still carries it is not something the user filed.
+ */
+const FOLDER_PARAMS: Record<MessageFolder, Record<string, string>> = {
+	inbox: { direction: "inbound", status: "received" },
+	sent: { direction: "outbound", status: "queued,sent,failed" },
+	drafts: { direction: "outbound", status: "draft" },
+	trash: { status: "trash" },
+	spam: { status: "spam" },
+	archived: { status: "archived" },
+	label: { status: LABEL_VISIBLE_STATUSES.join(",") },
+	starred: { starred: "true" },
+	snoozed: { direction: "inbound", status: "received", snoozed: "true" },
+};
+
 export function getMessageQueryParams(
 	folder: MessageFolder,
 	mailboxId?: string | null,
 	filters?: MessageFilterOptions,
 ) {
-	const params = new URLSearchParams();
-
-	if (folder === "inbox") {
-		params.set("direction", "inbound");
-		params.set("status", "received");
-	}
-
-	if (folder === "sent") {
-		params.set("direction", "outbound");
-		params.set("status", "queued,sent,failed");
-	}
-
-	if (folder === "drafts") {
-		params.set("direction", "outbound");
-		params.set("status", "draft");
-	}
-
-	if (folder === "trash" || folder === "spam") {
-		params.set("status", folder);
-	}
-
-	// Archive holds mail in both directions, so unlike Inbox and Sent it
-	// constrains status alone.
-	if (folder === "archived") {
-		params.set("status", "archived");
-	}
-
-	// A label spans folders, so it constrains `labelId` (set from `filters`
-	// below) rather than status — except that trashed and spam mail stays out.
-	// A label is a filing destination; deleted mail that happens to still carry
-	// the label is not something the user filed there.
-	if (folder === "label") {
-		params.set("status", LABEL_VISIBLE_STATUSES.join(","));
-	}
-
-	if (folder === "starred") {
-		params.set("starred", "true");
-	}
+	const params = new URLSearchParams(FOLDER_PARAMS[folder]);
 
 	if (mailboxId) params.set("mailboxId", mailboxId);
 	const parsedFilters = filters?.query ? { ...filters, ...parseMessageSearchQuery(filters.query) } : filters;

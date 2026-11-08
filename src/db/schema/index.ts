@@ -292,6 +292,8 @@ export const messages = sqliteTable(
 		unsubscribeUrl: text("unsubscribe_url"),
 		unsubscribeMailto: text("unsubscribe_mailto"),
 		unsubscribeOneClick: integer("unsubscribe_one_click", { mode: "boolean" }).notNull().default(false),
+		/** Hidden from the Inbox until this time, then sorted by it (F100). Kept after waking. */
+		snoozedUntil: integer("snoozed_until", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.notNull()
 			.$defaultFn(() => new Date()),
@@ -302,6 +304,7 @@ export const messages = sqliteTable(
 		// Folder listing filters by mailbox and orders by date; without this the
 		// page scans and sorts.
 		index("messages_mailbox_created_idx").on(t.mailboxId, t.createdAt),
+		index("messages_snoozed_idx").on(t.snoozedUntil).where(sql`${t.snoozedUntil} is not null`),
 		// Thread view fetches every message in a conversation ordered by date (F58).
 		// Without this the query scans the table and sorts into a temporary B-tree.
 		index("messages_thread_created_idx").on(t.threadId, t.createdAt),

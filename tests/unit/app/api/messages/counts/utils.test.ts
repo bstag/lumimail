@@ -23,6 +23,9 @@ describe("getMessageFolder", () => {
 
 	it("classifies inbound received as inbox", () => {
 		expect(getMessageFolder(row({ direction: "inbound", status: "received" }))).toBe("inbox");
+		expect(getMessageFolder(row({ direction: "inbound", status: "received", sleeping: false }))).toBe("inbox");
+		// Snoozed mail is out of the Inbox until it wakes (F100).
+		expect(getMessageFolder(row({ direction: "inbound", status: "received", sleeping: true }))).toBeNull();
 	});
 
 	it("classifies outbound sent as sent", () => {

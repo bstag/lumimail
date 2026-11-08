@@ -17,6 +17,8 @@ export type MessageActionsProps = {
 	 */
 	mailboxId?: string | null;
 	canSend?: boolean;
+	/** ISO wake time while snoozed (F100). */
+	snoozedUntil?: string | null;
 	onActionSuccess?: (action: BulkMessageAction) => void;
 };
 

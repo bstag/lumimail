@@ -104,7 +104,8 @@ Source of truth for behavior. Each follows
             [`F96-remote-image-loading`](./specs/F96-remote-image-loading.md),
             [`F97-focused-inbox`](./specs/F97-focused-inbox.md),
             [`F98-sender-cleanup`](./specs/F98-sender-cleanup.md),
-            [`F99-other-digest`](./specs/F99-other-digest.md).
+            [`F99-other-digest`](./specs/F99-other-digest.md),
+            [`F100-snooze`](./specs/F100-snooze.md).
 
 ## Implementation notes (`implementation/`)
 
