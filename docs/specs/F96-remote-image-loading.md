@@ -21,6 +21,9 @@ were withheld and choose to load them without exposing their own address.
 - The image endpoint serves only URLs that appear in that message's stored HTML, only
   to a user who can read the message (cross-tenant denial), only raster image types,
   and at most 5 MiB. Anything else is 404/415/413/502.
+- Some image hosts label real images as a generic file (`application/octet-stream`,
+  `binary/octet-stream`, or no type). Those are served only when the first bytes are a
+  PNG, JPEG, GIF, or WebP signature, with the matching image type; anything else is 415.
 - Outbound sanitization is unchanged: remote images are never sent.
 
 ## 3. Scope Boundaries
@@ -67,3 +70,10 @@ that image only; the rest of the message is unaffected.
 ## 10. Change Log
 
 ### 2026-11-07 — Initial implementation
+
+### 2026-11-08 — Images labelled as generic files
+
+- Production check found a newsletter JPEG served as `application/octet-stream` and
+  refused with 415. The proxy now identifies generically labelled responses by their
+  signature bytes (PNG, JPEG, GIF, WebP) and serves them with the detected type. SVG,
+  HTML, and unrecognised bytes stay rejected.

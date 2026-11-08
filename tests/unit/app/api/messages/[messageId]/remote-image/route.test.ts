@@ -82,6 +82,34 @@ describe("GET /api/messages/[messageId]/remote-image", () => {
 		}
 	});
 
+	it("serves an image labelled as a generic file when its signature bytes are a known raster type", async () => {
+		const signatures: Array<[string, number[]]> = [
+			["image/png", [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]],
+			["image/jpeg", [0xff, 0xd8, 0xff, 0xe0, 0]],
+			["image/gif", [...new TextEncoder().encode("GIF89a"), 0]],
+			["image/gif", [...new TextEncoder().encode("GIF87a"), 0]],
+			["image/webp", [...new TextEncoder().encode("RIFF"), 1, 2, 3, 4, ...new TextEncoder().encode("WEBPVP8 ")]],
+		];
+		for (const [type, bytes] of signatures) {
+			for (const label of ["application/octet-stream", "binary/octet-stream; charset=binary", null]) {
+				mock.queueSelect([{ htmlBody: STORED }]);
+				fetchMock.mockResolvedValueOnce(new Response(new Uint8Array(bytes), label ? { headers: { "content-type": label } } : {}));
+				const res = await get();
+				expect(res.status, `${type} as ${label}`).toBe(200);
+				expect(res.headers.get("content-type")).toBe(type);
+				expect(new Uint8Array(await res.arrayBuffer())).toEqual(new Uint8Array(bytes));
+			}
+		}
+	});
+
+	it("rejects a generic file whose bytes are not a known raster image", async () => {
+		for (const body of ["<svg onload=alert(1)/>", "<html></html>", "RIFF1234WAVE", ""]) {
+			mock.queueSelect([{ htmlBody: STORED }]);
+			fetchMock.mockResolvedValueOnce(new Response(body, { headers: { "content-type": "application/octet-stream" } }));
+			expect((await get()).status, body).toBe(415);
+		}
+	});
+
 	it("rejects a response with no content type", async () => {
 		mock.queueSelect([{ htmlBody: STORED }]);
 		fetchMock.mockResolvedValueOnce(new Response(new Uint8Array([1])));
