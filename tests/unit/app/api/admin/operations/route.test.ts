@@ -17,6 +17,7 @@ const overview = { status: "healthy", observedAt: "2026-08-12T18:00:00.000Z" };
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	h.env.INSTANCE_OPERATOR_USER_ID = undefined;
 	h.guardOrgOwner.mockResolvedValue({
 		orgUser: { id: "owner_1", organizationId: "org_1", role: "owner" },
 		errorResponse: null,
@@ -36,6 +37,13 @@ describe("GET /api/admin/operations", () => {
 		const response = await GET(new Request("https://x.test/api/admin/operations"));
 		expect(response.status).toBe(200);
 		expect(await response.json()).toEqual({ success: true, data: overview });
-		expect(h.read).toHaveBeenCalledWith(h.env, "org_1");
+		expect(h.read).toHaveBeenCalledWith(h.env, "org_1", false);
+	});
+
+	it("enables platform retention for the configured operator", async () => {
+		h.env.INSTANCE_OPERATOR_USER_ID = "owner_1";
+		h.read.mockResolvedValue(overview);
+		expect((await GET(new Request("https://x.test/api/admin/operations"))).status).toBe(200);
+		expect(h.read).toHaveBeenCalledWith(h.env, "org_1", true);
 	});
 });

@@ -41,7 +41,7 @@ export type OperationsOverview = {
 		backlogBytes: number;
 		staleJobCount: number;
 	};
-	retention: {
+	retention?: {
 		status: OperationsStatus;
 		scanned: number;
 		orphanCount: number;
@@ -57,7 +57,7 @@ type OverviewInput = {
 	readiness: RuntimeReadiness | null;
 	evidence: OperationalEvidenceSummary | null;
 	queues: QueueHealthSnapshot[] | null;
-	retention: RetentionReport | null;
+	retention?: RetentionReport | null;
 };
 
 function freezeOverview(report: OperationsOverview): Readonly<OperationsOverview> {
@@ -97,7 +97,7 @@ function summarizeQueues(queues: QueueHealthSnapshot[] | null): OperationsOvervi
 	};
 }
 
-function summarizeRetention(retention: RetentionReport | null): OperationsOverview["retention"] {
+function summarizeRetention(retention: RetentionReport | null): NonNullable<OperationsOverview["retention"]> {
 	return {
 		status: retention === null ? "unavailable" : retention.orphans > 0 ? "attention" : "healthy",
 		scanned: retention?.scanned ?? 0,
@@ -114,11 +114,11 @@ function resolveOverviewStatus(
 	evidence: OperationalEvidenceSummary,
 ): OperationsStatus {
 	if (readiness.status === "unavailable" || queues.status === "unavailable" ||
-		retention.status === "unavailable" || evidence.status === "unavailable") {
+		retention?.status === "unavailable" || evidence.status === "unavailable") {
 		return "unavailable";
 	}
 	if (queues.status === "attention" || queues.status === "unknown" ||
-		retention.status === "attention" || evidence.status === "attention" ||
+		retention?.status === "attention" || evidence.status === "attention" ||
 		evidence.status === "unknown") {
 		return "attention";
 	}
@@ -140,7 +140,7 @@ export function buildOperationsOverview(input: OverviewInput): Readonly<Operatio
 	});
 	const evidence = input.evidence ?? { status: "unavailable" as const, records: [] };
 	const queues = summarizeQueues(input.queues);
-	const retention = summarizeRetention(input.retention);
+	const retention = input.retention === undefined ? undefined : summarizeRetention(input.retention);
 
 	return freezeOverview({
 		status: resolveOverviewStatus(readiness, queues, retention, evidence),
@@ -207,12 +207,13 @@ const defaults: OperationsDependencies = {
 export async function readOperationsOverview(
 	env: CloudflareEnv,
 	organizationId: string,
+	includeRetention: boolean,
 	now = new Date(),
 	dependencies: OperationsDependencies = defaults,
 ): Promise<Readonly<OperationsOverview>> {
 	const [queues, retention, readiness, evidence] = await Promise.allSettled([
 		dependencies.readQueues(env),
-		dependencies.readRetention(env),
+		includeRetention ? dependencies.readRetention(env) : undefined,
 		dependencies.readReadiness(env),
 		dependencies.readEvidence(env, organizationId),
 	]);

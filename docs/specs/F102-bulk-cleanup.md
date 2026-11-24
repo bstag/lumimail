@@ -41,6 +41,10 @@ needs to act on everything a view shows, and to clear out old mail by age in one
 
 ## 10. Change Log
 
+### 2026-11-24 — Bind confirmation to the previewed view
+
+Changing the previewed mailbox, tab, or filters clears the confirmation and discards any in-flight preview. The archive uses the previewed query. Archive failures leave retryable feedback. Preview counts messages whose state would change. Execution makes one update and reports affected rows, including zero. Both use the mailbox access and folder predicates. Component, browser, and SQLite regressions cover scope and counts.
+
 ### 2026-11-08 — Initial implementation
 
 - List filtering moved into `messageListConditions`, shared by `/api/messages`,

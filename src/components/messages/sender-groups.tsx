@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { Archive, ChevronDown, ChevronRight, ListFilter } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -40,17 +40,37 @@ export function GroupBySenderToggle({ value, onChange }: { value: boolean; onCha
 
 function SenderMessages({ view, sender }: { view: ViewQuery; sender: string }) {
 	const t = useTranslations("messages");
-	const rows = useQuery({ queryKey: ["messages", "sender", view, sender], queryFn: () => fetchSenderMessages(view, sender) });
-	if (!rows.data) return <p className="px-14 py-2 text-xs text-ink-muted">{t("loading")}</p>;
+	const common = useTranslations("common");
+	const rows = useInfiniteQuery({
+		queryKey: ["messages", "sender", view, sender],
+		initialPageParam: 0,
+		queryFn: ({ pageParam }) => fetchSenderMessages(view, sender, pageParam),
+		getNextPageParam: (page) => {
+			const offset = page.offset + page.messages.length;
+			return page.messages.length > 0 && offset < page.total ? offset : undefined;
+		},
+	});
+	const messages = rows.data?.pages.flatMap((page) => page.messages) ?? [];
+	const visible = new Map(messages.map((message) => [message.id, message]));
 	const now = new Date();
-	return <ul className="pb-2">
-		{rows.data.map((message) => <li key={message.id}>
+	return <>
+		<ul className="pb-2">
+		{[...visible.values()].map((message) => <li key={message.id}>
 			<Link href={`/inbox/${encodeURIComponent(message.id)}`} className="flex min-w-0 items-baseline gap-3 px-14 py-1 text-sm hover:bg-surface-subtle">
 				<span className={`min-w-0 flex-1 truncate ${message.read ? "text-ink-muted" : "font-semibold text-ink"}`}>{message.subject ?? t("noSubject")}</span>
 				<time dateTime={message.createdAt} className="shrink-0 text-xs tabular-nums text-ink-faint">{formatMessageListTime(message.createdAt, now)}</time>
 			</Link>
 		</li>)}
-	</ul>;
+		</ul>
+		{(rows.isPending || rows.isFetchingNextPage) && <p role="status" className="px-14 py-2 text-xs text-ink-muted">{t("loading")}</p>}
+		{rows.isError && !rows.isFetching && <div className="flex items-center gap-2 px-14 pb-2 text-xs text-ink-muted">
+			<span role="status">{t("senderMessagesFailed")}</span>
+			<Button size="sm" variant="ghost" onClick={() => void (rows.isFetchNextPageError ? rows.fetchNextPage() : rows.refetch())}>{common("retry")}</Button>
+		</div>}
+		{rows.hasNextPage && !rows.isError && !rows.isFetchingNextPage && <div className="px-14 pb-2">
+			<Button size="sm" variant="ghost" onClick={() => void rows.fetchNextPage()}>{t("moreSenderMessages")}</Button>
+		</div>}
+	</>;
 }
 
 function SenderRow({ group, view, now }: { group: SenderGroup; view: ViewQuery; now: Date }) {
@@ -58,13 +78,17 @@ function SenderRow({ group, view, now }: { group: SenderGroup; view: ViewQuery; 
 	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
 	const [busy, setBusy] = useState(false);
+	const [archiveFailed, setArchiveFailed] = useState(false);
 	const name = getDisplayNameForAddress(group.fromAddr, null);
 
 	async function archiveAll() {
 		setBusy(true);
+		setArchiveFailed(false);
 		try {
 			await runViewAction(queryClient, withSender(view, group.sender), "archive");
 		} catch {
+			setArchiveFailed(true);
+		} finally {
 			setBusy(false);
 		}
 	}
@@ -91,6 +115,7 @@ function SenderRow({ group, view, now }: { group: SenderGroup; view: ViewQuery; 
 				</Link>
 			</Tooltip>
 		</div>
+		{archiveFailed && <p role="status" className="px-14 pb-2 text-xs text-ink-muted">{t("cleanUpFailed")}</p>}
 		{open && <SenderMessages view={view} sender={group.sender} />}
 	</li>;
 }

@@ -347,9 +347,30 @@ export const messageBodies = sqliteTable("message_bodies", {
 	textBody: text("text_body"),
 	htmlBody: text("html_body"),
 	rawR2Key: text("raw_r2_key"),
+	repairAttempts: integer("repair_attempts").notNull().default(0),
+	repairLeaseUntil: integer("repair_lease_until", { mode: "timestamp" }),
 }, (t) => [
 	index("message_bodies_empty_html_idx").on(t.messageId).where(sql`${t.htmlBody} = ''`),
+	index("message_bodies_raw_r2_key_idx").on(t.rawR2Key).where(sql`${t.rawR2Key} is not null`),
 ]);
+
+export const inboundDeliveries = sqliteTable("inbound_deliveries", {
+	rawR2Key: text("raw_r2_key").notNull(),
+	mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+	messageId: text("message_id").references(() => messages.id, { onDelete: "set null" }),
+	pushEventId: text("push_event_id"),
+	stage: text("stage", { enum: ["filters", "webhooks", "complete"] }).notNull(),
+	createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+}, (t) => [
+	uniqueIndex("inbound_deliveries_raw_mailbox_idx").on(t.rawR2Key, t.mailboxId),
+	index("inbound_deliveries_message_idx").on(t.messageId),
+	index("inbound_deliveries_stage_created_idx").on(t.stage, t.createdAt),
+]);
+
+export const r2RetentionCursors = sqliteTable("r2_retention_cursors", {
+	prefix: text("prefix").primaryKey().notNull(),
+	cursor: text("cursor"),
+});
 
 export const outboundJobs = sqliteTable("outbound_jobs", {
 	id: text("id").primaryKey(),
@@ -863,7 +884,7 @@ export const attachments = sqliteTable("attachments", {
 	disposition: text("disposition", { enum: ["attachment", "inline"] }).notNull().default("attachment"),
 	contentId: text("content_id"),
 	createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-}, (t) => [index("attachments_message_idx").on(t.messageId)]);
+}, (t) => [index("attachments_message_idx").on(t.messageId), index("attachments_r2_key_idx").on(t.r2Key)]);
 
 export const messageFilters = sqliteTable("message_filters", {
 	id: text("id").primaryKey(),
@@ -1104,6 +1125,8 @@ export const schema = {
 	messages,
 	imapUidCounter,
 	messageBodies,
+	inboundDeliveries,
+	r2RetentionCursors,
 	outboundJobs,
 	queueHealthSnapshots,
 	routingRules,

@@ -131,7 +131,7 @@ function OperationsContent() {
 							</CardContent>
 						</Card>
 
-						<Card>
+						{data.retention && <Card>
 							<CardHeader className="flex-row items-center justify-between gap-3">
 								<div className="flex items-center gap-3"><Database className="h-5 w-5 text-accent" /><CardTitle>Storage retention</CardTitle></div>
 								<StatusBadge status={data.retention.status} />
@@ -144,7 +144,7 @@ function OperationsContent() {
 								</div>
 								<p className="text-xs text-ink-muted">Oldest orphan: {formatTimestamp(data.retention.oldestOrphanAt)}</p>
 							</CardContent>
-						</Card>
+						</Card>}
 					</div>
 
 					<Card id="release" className="scroll-mt-6">

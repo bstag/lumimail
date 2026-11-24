@@ -4,8 +4,9 @@ const m = vi.hoisted(() => ({
 	guardOrgOwner: vi.fn(),
 	reportR2Retention: vi.fn(),
 	deleteR2Orphans: vi.fn(),
+	env: {} as { INSTANCE_OPERATOR_USER_ID?: string },
 }));
-vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
+vi.mock("@/lib/cloudflare", () => ({ getEnv: () => m.env }));
 vi.mock("@/lib/auth/org-guard", () => ({ guardOrgOwner: m.guardOrgOwner }));
 vi.mock("@/lib/r2-retention", () => ({
 	reportR2Retention: m.reportR2Retention,
@@ -18,6 +19,7 @@ const report = { scanned: 10, orphans: 3, bytes: 900, oldestUploadedAt: null, sa
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	m.env.INSTANCE_OPERATOR_USER_ID = "u1";
 	m.guardOrgOwner.mockResolvedValue({ orgUser: { id: "u1" }, errorResponse: null });
 	m.reportR2Retention.mockResolvedValue(report);
 	m.deleteR2Orphans.mockResolvedValue({ deleted: 3, bytes: 900, remaining: 0 });
@@ -31,6 +33,14 @@ function post(body: unknown) {
 }
 
 describe("GET /api/admin/r2-retention", () => {
+	it.each(["another-user", undefined])("denies an organization owner without the operator setting %s", async (id) => {
+		m.env.INSTANCE_OPERATOR_USER_ID = id;
+		expect((await GET(new Request("https://x.test"))).status).toBe(403);
+		expect((await post({ confirm: "delete" })).status).toBe(403);
+		expect(m.reportR2Retention).not.toHaveBeenCalled();
+		expect(m.deleteR2Orphans).not.toHaveBeenCalled();
+	});
+
 	it("denies a non-owner", async () => {
 		m.guardOrgOwner.mockResolvedValue({
 			orgUser: null,

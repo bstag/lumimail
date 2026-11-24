@@ -65,7 +65,10 @@ beforeEach(() => {
 		);
 		CREATE TABLE external_messages (id text, account_id text, remote_message_id text, lumimail_message_id text);
 		CREATE TABLE messages (id text, snippet text, unsubscribe_url text, unsubscribe_mailto text, unsubscribe_one_click integer);
-		CREATE TABLE message_bodies (id text, message_id text, text_body text, html_body text);
+		CREATE TABLE message_bodies (
+			id text, message_id text, text_body text, html_body text,
+			repair_attempts integer NOT NULL DEFAULT 0, repair_lease_until integer
+		);
 	`);
 	exec(`INSERT INTO external_accounts VALUES ('exa_1', 'org_1', 'mbx_1', 'usr_1', 'google', 'c', 'i', 'k', 'active')`);
 	exec(`INSERT INTO external_accounts VALUES ('exa_off', 'org_1', 'mbx_1', 'usr_1', 'google', 'c', 'i', 'k', 'disconnected')`);
@@ -79,8 +82,13 @@ beforeEach(() => {
 		statement.setReturnArrays(true);
 		return { rows: statement.all(...(params as never[])) as unknown as unknown[][] };
 	}, async (queries) => queries.map((item) => {
-		sqlite.prepare(item.sql).run(...(item.params as never[]));
-		return { rows: [] };
+		const statement = sqlite.prepare(item.sql);
+		if (item.method === "run") {
+			statement.run(...(item.params as never[]));
+			return { rows: [] };
+		}
+		statement.setReturnArrays(true);
+		return { rows: statement.all(...(item.params as never[])) as unknown as unknown[][] };
 	}));
 });
 
@@ -169,7 +177,7 @@ describe("repairExternalMessageBodies", () => {
 			.toEqual({ repaired: 1, abandoned: 0, deferred: false });
 	});
 
-	it("claims a row before parsing, so a parse that kills the run is not retried forever", async () => {
+	it("retries an interrupted parse only once its claim expires", async () => {
 		insertMessage("msg_a", "exa_1", "g_a", "", "Plain text");
 		insertMessage("msg_b", "exa_1", "g_b", "", null);
 		const fetcher = vi.fn(async (input: string | URL | Request) => {
@@ -177,17 +185,40 @@ describe("repairExternalMessageBodies", () => {
 			return gmailResponse(id, htmlOnlyMime);
 		});
 
+		const first = new Date("2026-11-20T12:00:00Z");
 		h.parseFails = true;
-		await expect(repairExternalMessageBodies(env, { fetcher, batchSize: 1 })).rejects.toThrow("CPU limit");
+		await expect(repairExternalMessageBodies(env, { fetcher, batchSize: 1, now: first })).rejects.toThrow("CPU limit");
 		h.parseFails = false;
-		const claimed = row<{ message_id: string; html_body: string | null; text_body: string | null }>(
-			"SELECT message_id, html_body, text_body FROM message_bodies WHERE html_body IS NULL",
-		);
-		expect(claimed.html_body).toBeNull();
-
-		expect(await repairExternalMessageBodies(env, { fetcher })).toEqual({ repaired: 1, abandoned: 0, deferred: false });
+		expect(row<{ html_body: string }>("SELECT html_body FROM message_bodies WHERE message_id = 'msg_a'").html_body).toBe("");
+		expect((await repairExternalMessageBodies(env, { fetcher, now: first })).repaired).toBe(1);
+		expect((await repairExternalMessageBodies(env, { fetcher, now: new Date(first.getTime() + 10 * 60_000) })).repaired).toBe(1);
 		expect(row<{ n: number }>("SELECT count(*) n FROM message_bodies WHERE html_body = ''").n).toBe(0);
 		expect(row<{ text_body: string | null }>("SELECT text_body FROM message_bodies WHERE message_id = 'msg_a'").text_body).toBe("Plain text");
+	});
+
+	it("abandons after three interrupted parses and preserves the text body", async () => {
+		insertMessage("msg_a", "exa_1", "g_a", "", "Plain text");
+		const fetcher = vi.fn(async () => gmailResponse("g_a", htmlOnlyMime));
+		const now = (attempt: number) => new Date(Date.UTC(2026, 10, 20, 12, attempt * 10));
+		h.parseFails = true;
+		for (let attempt = 0; attempt < 3; attempt++) {
+			await expect(repairExternalMessageBodies(env, { fetcher, now: now(attempt) })).rejects.toThrow("CPU limit");
+		}
+		expect((await repairExternalMessageBodies(env, { fetcher, now: now(3) })).abandoned).toBe(1);
+		expect(fetcher).toHaveBeenCalledTimes(3);
+		expect(row("SELECT html_body, text_body FROM message_bodies")).toEqual({ html_body: null, text_body: "Plain text" });
+	});
+
+	it("skips the parse if another invocation wins the claim during download", async () => {
+		insertMessage("msg_a", "exa_1", "g_a", "", null);
+		h.parseFails = true;
+		const startedAt = new Date("2026-11-20T12:00:00Z");
+		const fetcher = async () => {
+			exec("UPDATE message_bodies SET repair_attempts = 1, repair_lease_until = ?", [1 + startedAt.getTime() / 1000]);
+			return gmailResponse("g_a", htmlOnlyMime);
+		};
+		expect((await repairExternalMessageBodies(env, { fetcher, now: startedAt })).repaired).toBe(0);
+		expect(row("SELECT repair_attempts, html_body FROM message_bodies")).toEqual({ repair_attempts: 1, html_body: "" });
 	});
 
 	it("respects the batch size and skips accounts with nothing to repair", async () => {

@@ -1,4 +1,4 @@
-import { and, count, inArray } from "drizzle-orm";
+import { and, count, inArray, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb } from "@/db";
@@ -44,12 +44,14 @@ export const POST = withUser(async ({ request, env, user }) => {
 	if (payload.query) {
 		const conditions = messageListConditions(db, user, new URLSearchParams(payload.query));
 		if (conditions.error) return apiError("Invalid query", 400);
-		const [row] = await db.select({ matched: count() }).from(messages).where(conditions.where);
-		/* v8 ignore next -- count(*) always yields one row; the fallback is defensive */
-		const matched = row?.matched ?? 0;
-		if (payload.preview) return apiSuccess({ matched });
-		if (matched > 0) await db.update(messages).set(values).where(conditions.where);
-		return apiSuccess({ ok: true, updated: matched });
+		const where = and(conditions.where, status ? ne(messages.status, status) : ne(messages.read, read === true));
+		if (payload.preview) {
+			const [row] = await db.select({ matched: count() }).from(messages).where(where);
+			/* v8 ignore next -- count(*) always yields a row */
+			return apiSuccess({ matched: row?.matched ?? 0 });
+		}
+		const result = await db.update(messages).set(values).where(where).run();
+		return apiSuccess({ ok: true, updated: result.meta.changes });
 	}
 
 	await db

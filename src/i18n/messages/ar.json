@@ -274,6 +274,8 @@
     "filterSender": "تصفية هذا المرسل",
     "filterSenderNamed": "تصفية رسائل {sender}",
     "sendersFailed": "تعذّر تحميل المرسلين.",
+    "senderMessagesFailed": "تعذّر تحميل الرسائل.",
+    "moreSenderMessages": "عرض المزيد من الرسائل",
     "moreSenders": "عرض مزيد من المرسلين"
   },
   "actions": {

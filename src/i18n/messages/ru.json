@@ -274,6 +274,8 @@
     "filterSender": "Фильтр по этому отправителю",
     "filterSenderNamed": "Фильтровать письма от {sender}",
     "sendersFailed": "Не удалось загрузить отправителей.",
+    "senderMessagesFailed": "Не удалось загрузить письма.",
+    "moreSenderMessages": "Показать ещё письма",
     "moreSenders": "Показать ещё отправителей"
   },
   "actions": {

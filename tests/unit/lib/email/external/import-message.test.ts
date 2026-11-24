@@ -15,7 +15,9 @@ vi.mock("@/lib/email/parse", async (importOriginal) => ({
 	unsubscribeColumns: (await importOriginal<typeof import("@/lib/email/parse")>()).unsubscribeColumns,
 }));
 vi.mock("@/lib/email/threading", () => ({ resolveInboundThreading: h.threading }));
-vi.mock("@/lib/email/inbound-attachments", () => ({ prepareInboundAttachments: h.prepare }));
+vi.mock("@/lib/email/inbound-attachments", async (original) => ({
+	...await original<object>(), prepareInboundAttachments: h.prepare,
+}));
 vi.mock("@/lib/ids", () => ({ newId: h.newId }));
 
 import { persistExternalMessage, prepareExternalMessage } from "@/lib/email/external/import-message";

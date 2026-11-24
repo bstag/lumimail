@@ -1,5 +1,13 @@
 # F57 — Inbound Attachment Ingestion
 
+## 2026-11-24 — Bound attachment writes and resume inbound delivery
+
+Native and external mail share attachment inserts of at most 11 rows. D1 binds nine columns per attachment, including Drizzle's generated timestamp. All metadata commits in the existing transaction. The 50-file and byte limits, R2 compensation, and omission behavior still apply.
+
+Migration `0049` records checkpoints keyed by the raw R2 key and destination mailbox and backfills deliveries that still have a raw reference. Retries resume filters or webhook scheduling for incomplete deliveries and skip completed deliveries. Inbound webhook rows created by the new Worker deduplicate by message and hook. Vacation replies are best effort after finalization. After all destinations finish, the Worker clears raw references and deletes the object. Completed checkpoints expire after 30 days. The inbound dead-letter queue retains exhausted jobs for operator inspection and replay.
+
+Test the D1 boundary, later-mailbox and post-commit failure recovery, and dead-letter configuration. Separate queue items remain separate mail even if they reuse the RFC Message-ID.
+
 > Status: `Shipped`
 > Owner area: inbound MIME parsing, inbound Queue consumer, R2 attachment
 > storage, D1 message/attachment metadata, message attachment UI and downloads
@@ -121,9 +129,8 @@ If an R2 write or the D1 batch fails, delete all attachment objects written for
 that mailbox delivery and rethrow. Cleanup failures are logged without object
 keys, filenames, addresses, content, or provider details.
 
-Multi-mailbox delivery repeats this process with independent message IDs and
-object keys. Existing whole-message Queue retry/idempotency behavior is unchanged
-and remains a separate reliability concern.
+Multi-mailbox delivery uses independent message IDs and object keys. A Queue retry
+reuses the checkpoint and message ID for each stored mailbox.
 
 ## 6. API Contract
 
@@ -188,8 +195,7 @@ unauthorized message IDs remain non-enumerating HTTP 404.
 - Inline parts, unknown types, archives, and executable filenames are stored for
   explicit download; they are not automatically executed or previewed.
 - A non-empty attachment set is never partially omitted due to policy.
-- A later mailbox failure can cause the existing Queue retry to redeliver an
-  earlier mailbox; F57 does not claim to solve general inbound idempotency.
+- A later mailbox failure leaves earlier completed deliveries available and keeps their IDs on retry.
 
 ## 10. Permissions & Security
 

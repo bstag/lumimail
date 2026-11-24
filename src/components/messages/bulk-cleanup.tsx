@@ -45,13 +45,17 @@ export function useSelectAllInView(view: ViewQuery, allVisibleSelected: boolean)
 	};
 }
 
-type Pending = { days: number; count: number } | null;
+type Pending = { days: number; count: number; query: ViewQuery };
 
 /** Archive Inbox mail older than 7, 30 or 90 days in the current view, after showing the count. */
 export function CleanUpMenu({ query }: { query: ViewQuery }) {
+	return <ScopedCleanUpMenu key={JSON.stringify(query)} query={query} />;
+}
+
+function ScopedCleanUpMenu({ query }: { query: ViewQuery }) {
 	const t = useTranslations("messages");
 	const queryClient = useQueryClient();
-	const [pending, setPending] = useState<Pending>(null);
+	const [pending, setPending] = useState<Pending | null>(null);
 	const [message, setMessage] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
 
@@ -68,10 +72,13 @@ export function CleanUpMenu({ query }: { query: ViewQuery }) {
 
 	const choose = (days: number) => attempt(async () => {
 		setMessage(null);
-		setPending({ days, count: await previewViewAction(olderThan(query, days), "archive") });
+		setPending(null);
+		const previewQuery = olderThan(query, days);
+		setPending({ days, query: previewQuery, count: await previewViewAction(previewQuery, "archive") });
 	});
-	const confirm = (days: number) => attempt(async () => {
-		const count = await runViewAction(queryClient, olderThan(query, days), "archive");
+	const confirm = (preview: Pending) => attempt(async () => {
+		setMessage(null);
+		const count = await runViewAction(queryClient, preview.query, "archive");
 		setPending(null);
 		setMessage(t("cleanUpDone", { count }));
 	});
@@ -84,8 +91,8 @@ export function CleanUpMenu({ query }: { query: ViewQuery }) {
 		</Select>
 		{pending && <span role="status" className="flex items-center gap-2 text-xs text-ink-muted">
 			{t("cleanUpConfirm", { count: pending.count, days: pending.days })}
-			{pending.count > 0 && <Button size="sm" disabled={busy} onClick={() => void confirm(pending.days)}>{t("archiveNow")}</Button>}
-			<Button size="sm" variant="ghost" onClick={() => setPending(null)}>{t("cancel")}</Button>
+			{pending.count > 0 && <Button size="sm" disabled={busy} onClick={() => void confirm(pending)}>{t("archiveNow")}</Button>}
+			<Button size="sm" variant="ghost" disabled={busy} onClick={() => setPending(null)}>{t("cancel")}</Button>
 		</span>}
 		{message && <span role="status" className="text-xs text-ink-muted">{message}</span>}
 	</div>;

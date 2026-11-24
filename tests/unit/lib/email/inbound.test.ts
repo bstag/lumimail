@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDbMock, type DbMock } from "../../helpers/db";
-import { messages, pushNotificationEvents } from "@/db/schema";
+import { attachments, messages, pushNotificationEvents } from "@/db/schema";
 
 const h = vi.hoisted(() => ({ db: null as unknown }));
 vi.mock("@/db", () => ({ getDb: () => h.db }));
@@ -12,6 +12,10 @@ vi.mock("@/lib/email/parse", async (importOriginal) => ({
 	unsubscribeColumns: (await importOriginal<typeof import("@/lib/email/parse")>()).unsubscribeColumns,
 }));
 vi.mock("@/lib/email/webhooks", () => ({ dispatchWebhooks: vi.fn() }));
+vi.mock("@/lib/email/inbound-delivery", () => ({
+	readInboundDelivery: vi.fn().mockResolvedValue(undefined),
+	advanceInboundDelivery: vi.fn().mockResolvedValue(true),
+}));
 vi.mock("@/lib/contacts/service", () => ({ upsertContactFromAddress: vi.fn(), getMessageContactNames: vi.fn() }));
 // The vacation responder imports the producer statically from the split
 // outbound module (T-32); mocking the submit module intercepts that import.
@@ -101,6 +105,21 @@ afterEach(() => {
 const payload = { from: "sender@other.com", to: "a@example.com", rawR2Key: "inbound/k.eml" };
 
 describe("processInboundMessage", () => {
+	it("splits attachment metadata into D1-sized statements in one delivery batch", async () => {
+		resolveInboundTargets.mockResolvedValue(storeDecisions);
+		parseRawMime.mockResolvedValue({
+			...parsed,
+			attachments: Array.from({ length: 50 }, (_, index) => ({
+				filename: `file-${index}`, contentType: "text/plain", content: new ArrayBuffer(1),
+				disposition: "attachment", contentId: null,
+			})),
+		});
+		await processInboundMessage(makeEnv(makeR2()), payload);
+		const inserts = mock.inserts.filter(({ values }) => Array.isArray(values));
+		expect(inserts.map(({ values }) => (values as unknown[]).length)).toEqual([11, 11, 11, 11, 6]);
+		expect(mock.db.batch).toHaveBeenCalledTimes(1);
+	});
+
   it("retains the original valid received date separately from ingestion time", async () => {
     const receivedAt = new Date("2026-01-03T12:00:00Z");
     parseRawMime.mockResolvedValue({ ...parsed, receivedAt });
@@ -203,7 +222,7 @@ describe("processInboundMessage", () => {
 			source: "inbound",
 		});
 
-		expect(mock.inserts).toHaveLength(3); // messages, messageBodies, push outbox
+		expect(mock.inserts).toHaveLength(4); // message, body, push event, and delivery checkpoint
 		expect(mock.inserts[0].values).toMatchObject({
 			id: "msg_id",
 			userId: "u1",
@@ -245,7 +264,7 @@ describe("processInboundMessage", () => {
 			from: "sender@other.com",
 			to: '"Agent A" <a@example.com>',
 			subject: "Hello",
-		});
+		}, "msg_id");
 		// vacation disabled -> no send
 		expect(sendEmail).not.toHaveBeenCalled();
 	});
@@ -357,12 +376,12 @@ describe("processInboundMessage", () => {
 			bytes.buffer,
 			{ httpMetadata: { contentType: "application/octet-stream" } },
 		);
-		expect(mock.inserts).toHaveLength(4);
+		expect(mock.inserts).toHaveLength(5);
 		expect(mock.inserts[0].values).toMatchObject({
 			attachmentStatus: "stored",
 			attachmentError: null,
 		});
-		expect(mock.inserts[2].values).toEqual([expect.objectContaining({
+		expect(mock.inserts.find(({ table }) => table === attachments)?.values).toEqual([expect.objectContaining({
 			id: "att_id",
 			messageId: "msg_id",
 			filename: "report.bin",
@@ -394,7 +413,7 @@ describe("processInboundMessage", () => {
 		await processInboundMessage(env, payload);
 
 		expect(env.BUCKET.put).not.toHaveBeenCalled();
-		expect(mock.inserts).toHaveLength(3);
+		expect(mock.inserts).toHaveLength(4);
 		expect(mock.inserts[0].values).toMatchObject({
 			attachmentStatus: "omitted",
 			attachmentError: INBOUND_ATTACHMENT_OMISSION_MESSAGE,

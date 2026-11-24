@@ -10,6 +10,10 @@ import {
 	parseMessageSearchQuery,
 } from "@/hooks/utils";
 
+it.each([":unread", ":read", "title:Invoice"])("omits free-text search for %s", (query) => {
+	expect(getMessageQueryParams("inbox", null, { query }).has("q")).toBe(false);
+});
+
 function jsonResponse(body: unknown) {
 	return { ok: true, status: 200, json: async () => body } as unknown as Response;
 }

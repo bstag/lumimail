@@ -58,7 +58,7 @@ describe("operations overview", () => {
 			evidence,
 			queues: [queues[0]], retention: { scanned: 3, orphans: 0, bytes: 0, oldestUploadedAt: null, sample: [] } });
 		expect(healthy.status).toBe("healthy");
-		expect(healthy.retention.status).toBe("healthy");
+		expect(healthy.retention?.status).toBe("healthy");
 
 		const degraded = buildOperationsOverview({ version: "0.1.0", schema: "0028", observedAt: checkedAt,
 			readiness,
@@ -66,7 +66,7 @@ describe("operations overview", () => {
 			queues: null, retention: null });
 		expect(degraded.status).toBe("unavailable");
 		expect(degraded.queues.status).toBe("unavailable");
-		expect(degraded.retention.status).toBe("unavailable");
+		expect(degraded.retention?.status).toBe("unavailable");
 
 		const unknown = buildOperationsOverview({ version: "0.1.0", schema: "0028", observedAt: checkedAt,
 			readiness,
@@ -95,7 +95,7 @@ describe("operations overview", () => {
 	});
 
 	it("keeps one subsystem available when the other read throws and discards errors", async () => {
-		const report = await readOperationsOverview({} as CloudflareEnv, "org_1", new Date("2026-08-12T18:02:00.000Z"), {
+		const report = await readOperationsOverview({} as CloudflareEnv, "org_1", true, new Date("2026-08-12T18:02:00.000Z"), {
 			readQueues: vi.fn().mockRejectedValue(new Error("private queue detail")),
 			readRetention: vi.fn().mockResolvedValue({ scanned: 1, orphans: 0, bytes: 0, oldestUploadedAt: null,
 				sample: ["private-key"] }),
@@ -104,10 +104,10 @@ describe("operations overview", () => {
 			version: "0.1.0", schema: "0028",
 		});
 		expect(report.queues.status).toBe("unavailable");
-		expect(report.retention.status).toBe("healthy");
+		expect(report.retention?.status).toBe("healthy");
 		expect(JSON.stringify(report)).not.toMatch(/private queue detail|private-key/);
 
-		const inverse = await readOperationsOverview({} as CloudflareEnv, "org_1", new Date("2026-08-12T18:02:00.000Z"), {
+		const inverse = await readOperationsOverview({} as CloudflareEnv, "org_1", true, new Date("2026-08-12T18:02:00.000Z"), {
 			readQueues: vi.fn().mockResolvedValue([queues[0]]),
 			readRetention: vi.fn().mockRejectedValue(new Error("private object key")),
 			readReadiness: vi.fn().mockResolvedValue(readiness),
@@ -115,10 +115,10 @@ describe("operations overview", () => {
 			version: "0.1.0", schema: "0028",
 		});
 		expect(inverse.queues.status).toBe("healthy");
-		expect(inverse.retention.status).toBe("unavailable");
+		expect(inverse.retention?.status).toBe("unavailable");
 		expect(JSON.stringify(inverse)).not.toContain("private object key");
 
-		const readinessFailure = await readOperationsOverview({} as CloudflareEnv, "org_1", new Date("2026-08-12T18:02:00.000Z"), {
+		const readinessFailure = await readOperationsOverview({} as CloudflareEnv, "org_1", true, new Date("2026-08-12T18:02:00.000Z"), {
 			readQueues: vi.fn().mockResolvedValue([queues[0]]),
 			readRetention: vi.fn().mockResolvedValue({ scanned: 1, orphans: 0, bytes: 0, oldestUploadedAt: null, sample: [] }),
 			readReadiness: vi.fn().mockRejectedValue(new Error("private binding identifier")),
@@ -131,7 +131,7 @@ describe("operations overview", () => {
 		});
 		expect(JSON.stringify(readinessFailure)).not.toContain("private binding identifier");
 
-		const evidenceFailure = await readOperationsOverview({} as CloudflareEnv, "org_1", new Date("2026-08-12T18:02:00.000Z"), {
+		const evidenceFailure = await readOperationsOverview({} as CloudflareEnv, "org_1", true, new Date("2026-08-12T18:02:00.000Z"), {
 			readQueues: vi.fn().mockResolvedValue([queues[0]]),
 			readRetention: vi.fn().mockResolvedValue({ scanned: 1, orphans: 0, bytes: 0, oldestUploadedAt: null, sample: [] }),
 			readReadiness: vi.fn().mockResolvedValue(readiness),
@@ -153,6 +153,20 @@ describe("operations overview", () => {
 		expect(report).toEqual(readiness);
 		expect(JSON.stringify(report)).not.toMatch(/private-account|private-secret|OUTBOUND|BUCKET/);
 		expect(Object.isFrozen(report)).toBe(true);
+	});
+
+	it("skips the bucket and excludes retention when the owner lacks instance authority", async () => {
+		const readRetention = vi.fn();
+		const report = await readOperationsOverview({} as CloudflareEnv, "org_1", false, new Date(checkedAt), {
+			readQueues: vi.fn().mockResolvedValue([queues[0]]),
+			readRetention,
+			readReadiness: vi.fn().mockResolvedValue(readiness),
+			readEvidence: vi.fn().mockResolvedValue(evidence),
+			version: "0.1.0", schema: "0049",
+		});
+		expect(readRetention).not.toHaveBeenCalled();
+		expect(report.status).toBe("healthy");
+		expect(JSON.stringify(report)).not.toContain('"retention"');
 	});
 
 	it("fails closed for missing categories, unsupported providers, and empty Resend secrets", () => {

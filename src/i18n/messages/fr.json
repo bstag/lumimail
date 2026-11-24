@@ -274,6 +274,8 @@
     "filterSender": "Filtrer cet expéditeur",
     "filterSenderNamed": "Filtrer les messages de {sender}",
     "sendersFailed": "Impossible de charger les expéditeurs.",
+    "senderMessagesFailed": "Impossible de charger les messages.",
+    "moreSenderMessages": "Afficher plus de messages",
     "moreSenders": "Afficher plus d'expéditeurs"
   },
   "actions": {

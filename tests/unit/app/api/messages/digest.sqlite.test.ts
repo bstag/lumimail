@@ -31,7 +31,8 @@ beforeEach(() => {
 		CREATE TABLE messages (
 			id TEXT PRIMARY KEY, user_id TEXT NOT NULL, organization_id TEXT, mailbox_id TEXT, direction TEXT NOT NULL,
 			from_addr TEXT NOT NULL, to_addr TEXT NOT NULL, subject TEXT, status TEXT NOT NULL, attachment_status TEXT NOT NULL,
-			read INTEGER NOT NULL, starred INTEGER NOT NULL, received_at INTEGER, focus_override TEXT, created_at INTEGER NOT NULL
+			read INTEGER NOT NULL, starred INTEGER NOT NULL, received_at INTEGER, focus_override TEXT,
+			snoozed_until INTEGER, created_at INTEGER NOT NULL
 		);
 		INSERT INTO mailboxes VALUES ('mbx_1', 'org1'), ('mbx_2', 'org1');
 		INSERT INTO mailbox_memberships VALUES ('mbx_1', 'u1', 'manager'), ('mbx_2', 'u1', 'manager');
@@ -60,6 +61,14 @@ async function digest(query = "") {
 }
 
 describe("GET /api/messages/digest (F99)", () => {
+	it("hides sleeping mail and includes mail after it wakes", async () => {
+		insert("sleeping", "deals@shop.test", { tag: "promo" });
+		insert("woken", "deals@shop.test", { tag: "promo" });
+		sqlite.prepare("UPDATE messages SET snoozed_until = ? WHERE id = 'sleeping'").run(now + 100);
+		sqlite.prepare("UPDATE messages SET snoozed_until = ? WHERE id = 'woken'").run(now - 100);
+		expect((await digest()).body.data).toMatchObject({ total: 1, unreadIds: ["woken"] });
+	});
+
 	it("groups the last 24 hours of Other mail by sender with unread IDs", async () => {
 		insert("d1", '"Deals" <deals@shop.test>', { tag: "promo", age: 300 });
 		insert("d2", "deals@shop.test", { tag: "promo", age: 100, read: 1 });

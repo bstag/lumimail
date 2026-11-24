@@ -1,5 +1,9 @@
 # F56 — Queue Health Monitoring
 
+## 2026-11-24 — Isolate scheduled task failures
+
+Each maintenance task has its own error boundary and warning. Expiry runs first, the retention sweep remains opt-in, and CPU-heavy body repair runs last. The scheduled-worker test verifies that queue-health and push failures allow external sync and later jobs to proceed.
+
 > Status: `Shipped`
 > Owner area: Worker scheduled handler, Cloudflare Queues, D1 operational
 > snapshots, `/queue-health`, `/api/admin/queue-health`

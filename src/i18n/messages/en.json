@@ -274,6 +274,8 @@
     "filterSender": "Filter this sender",
     "filterSenderNamed": "Filter messages from {sender}",
     "sendersFailed": "Couldn't load senders.",
+    "senderMessagesFailed": "Couldn't load messages.",
+    "moreSenderMessages": "Show more messages",
     "moreSenders": "Show more senders"
   },
   "actions": {

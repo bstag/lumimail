@@ -10,6 +10,7 @@ import {
 	reportR2Retention,
 	RETENTION_DAYS,
 	shouldRunSweep,
+	sweepR2Orphans,
 } from "@/lib/r2-retention";
 
 const now = new Date("2026-07-25T00:00:00Z");
@@ -81,6 +82,18 @@ describe("findR2Orphans", () => {
 		const result = await findR2Orphans(env, { now });
 
 		expect(result.orphans.map((o) => o.key)).toEqual(["attachments/u1/m1/a2"]);
+	});
+
+	it("uses bounded lookups even when many objects are old enough", async () => {
+		const many = Array.from({ length: 220 }, (_, index) => object(`attachments/u1/m1/${index}`, old));
+		singlePagePerPrefix([], many);
+		mock.queueSelect([{ r2Key: many[0].key }]).queueSelect([{ r2Key: many[110].key }]).queueSelect([]);
+
+		const result = await findR2Orphans(env, { now });
+
+		expect(mock.db.select).toHaveBeenCalledTimes(3);
+		expect(result.orphans).toHaveLength(218);
+		expect(result.orphans.map(({ key }) => key)).not.toContain(many[110].key);
 	});
 
 	it("pages through every cursor rather than stopping at the first list call", async () => {
@@ -213,6 +226,29 @@ describe("deleteR2Orphans", () => {
 		expect(result.deleted).toBe(0);
 		expect(result.remaining).toBe(1);
 	});
+});
+
+it("continues sweeping both prefixes at the persisted cursor and wraps at the end", async () => {
+	const first = object("inbound/1.eml", old);
+	const orphan = object("inbound/2.eml", old);
+	list.mockResolvedValueOnce({ objects: [first], truncated: true, cursor: "raw-next" })
+		.mockResolvedValueOnce({ objects: [], truncated: false })
+		.mockResolvedValueOnce({ objects: [orphan], truncated: false })
+		.mockResolvedValueOnce({ objects: [], truncated: false });
+	mock.queueSelect([]).queueSelect([{ rawR2Key: first.key }]).queueSelect([]);
+	expect(await sweepR2Orphans(env, now)).toMatchObject({ deleted: 0 });
+	expect(mock.inserts[0].values).toEqual({ prefix: "inbound/", cursor: "raw-next" });
+	mock.queueSelect([{ cursor: "raw-next" }]).queueSelect([]).queueSelect([]);
+	expect(await sweepR2Orphans(env, now)).toMatchObject({ deleted: 1 });
+	expect(list.mock.calls[2][0]).toMatchObject({ prefix: "inbound/", cursor: "raw-next" });
+	expect(mock.inserts[2].values).toEqual({ prefix: "inbound/", cursor: null });
+});
+
+it("starts both prefixes at the beginning after a complete scan", async () => {
+	singlePagePerPrefix([], []);
+	mock.queueSelect([{ cursor: null }]).queueSelect([{ cursor: null }]);
+	expect(await sweepR2Orphans(env)).toEqual({ deleted: 0, bytes: 0, remaining: 0 });
+	expect(list.mock.calls.map(([options]) => options.cursor)).toEqual([undefined, undefined]);
 });
 
 describe("retention age", () => {

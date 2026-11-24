@@ -9,7 +9,7 @@ async function mockOwner(page: Page) {
 	});
 }
 
-test("owner sees the sanitized read-only operations overview", async ({ page }) => {
+for (const isOperator of [true, false]) test(`owner sees the sanitized overview ${isOperator ? "with" : "without"} retention access`, async ({ page }) => {
 	await mockOwner(page);
 	await page.route("**/api/admin/operations", (route) => route.fulfill({ json: { success: true, data: {
 		status: "attention", observedAt: "2026-08-12T18:02:00.000Z",
@@ -24,7 +24,7 @@ test("owner sees the sanitized read-only operations overview", async ({ page }) 
 		] },
 		queues: { status: "attention", checkedAt: "2026-08-12T18:01:00.000Z", queueCount: 3,
 			attentionCount: 1, unavailableCount: 0, backlogCount: 4, backlogBytes: 2048, staleJobCount: 1 },
-		retention: { status: "healthy", scanned: 12, orphanCount: 0, orphanBytes: 0, oldestOrphanAt: null },
+		retention: isOperator ? { status: "healthy", scanned: 12, orphanCount: 0, orphanBytes: 0, oldestOrphanAt: null } : undefined,
 	} } }));
 
 	await page.goto("/operations");
@@ -38,7 +38,7 @@ test("owner sees the sanitized read-only operations overview", async ({ page }) 
 	await expect(page.getByText("9 of 9 configured", { exact: true })).toBeVisible();
 	await expect(page.getByRole("heading", { name: "Queues" })).toBeVisible();
 	await expect(page.getByText("4 messages", { exact: true })).toBeVisible();
-	await expect(page.getByRole("heading", { name: "Storage retention" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Storage retention" })).toHaveCount(isOperator ? 1 : 0);
 	await expect(page.getByRole("heading", { name: "Operational evidence" })).toBeVisible();
 	await expect(page.getByText("6 of 6 checks passed", { exact: true })).toBeVisible();
 	await expect(page.getByText("3 of 4 checks passed", { exact: true })).toBeVisible();

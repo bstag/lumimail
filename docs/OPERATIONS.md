@@ -62,6 +62,12 @@ failure above — fix the credential first, because the schedule read is never a
 The smoke gate requires every check in the current public contract to pass. It is not pinned to a
 historical count, so extending the contract does not silently leave the gate asserting a stale one.
 
+## Instance storage retention and inbound queue recovery
+
+Set `INSTANCE_OPERATOR_USER_ID` in the deployment's Worker variables to the immutable user ID of the organization owner who administers the shared bucket. The signed-in operator can verify their ID in `/api/auth/me`. Set it separately for each environment. If it is unset, the retention API and the Operations retention card are unavailable.
+
+Use the inbound consumer's `dead_letter_queue` from `wrangler.jsonc.example` in each environment's config. The inbound dead-letter queue has no automatic consumer. After correcting a delivery fault, inspect the item in Cloudflare and republish its original JSON payload to the inbound queue while the raw R2 object is still available. Keep the original raw key so committed mailboxes retain their delivery identity. Cloudflare's default retention for an unconsumed dead-letter queue is four days, and enabled R2 retention may delete unreferenced raw objects after seven days.
+
 ## Signed releases
 
 Releases are signed for this deployment only. There is no third-party consumer, so signing authority

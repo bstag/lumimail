@@ -274,6 +274,8 @@
     "filterSender": "এই প্রেরক ফিল্টার করুন",
     "filterSenderNamed": "{sender}-এর বার্তা ফিল্টার করুন",
     "sendersFailed": "প্রেরকদের লোড করা যায়নি।",
+    "senderMessagesFailed": "বার্তা লোড করা যায়নি।",
+    "moreSenderMessages": "আরও বার্তা দেখুন",
     "moreSenders": "আরও প্রেরক দেখান"
   },
   "actions": {

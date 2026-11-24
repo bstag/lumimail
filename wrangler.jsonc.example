@@ -35,6 +35,7 @@
 	//   wrangler secret put MICROSOFT_OAUTH_CLIENT_ID
 	//   wrangler secret put MICROSOFT_OAUTH_CLIENT_SECRET
 	"vars": {
+		// Set INSTANCE_OPERATOR_USER_ID to the instance operator's user ID to enable Storage retention.
 		"CF_ACCOUNT_ID": "cf-account-id",
 		// Name of the Worker that Email Routing rules target. Must match "name"
 		// above, or provisioned routing rules will point at a Worker that does
@@ -130,6 +131,7 @@
 				"queue": "lumimail-inbound",
 				"max_batch_size": 5,
 				"max_retries": 3,
+				"dead_letter_queue": "lumimail-inbound-dlq",
 			},
 			{
 				"queue": "lumimail-outbound",
@@ -225,7 +227,7 @@
 					{ "binding": "EXTERNAL_SYNC_DLQ_QUEUE", "queue": "lumimail-external-sync-dlq-staging" }
 				],
 				"consumers": [
-					{ "queue": "lumimail-inbound-staging", "max_batch_size": 5, "max_retries": 3 },
+					{ "queue": "lumimail-inbound-staging", "max_batch_size": 5, "max_retries": 3, "dead_letter_queue": "lumimail-inbound-dlq-staging" },
 					{
 						"queue": "lumimail-outbound-staging",
 						"max_batch_size": 5,
