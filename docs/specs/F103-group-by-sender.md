@@ -40,6 +40,10 @@ per sender, so a whole sender can be read, archived, or filtered at once.
 
 ## 10. Change Log
 
+### 2026-11-24 — Page within expanded senders
+
+Expanded groups load pages of ten within the same sender and Inbox filters. The button appears while more messages are available. A failed request keeps loaded messages visible and offers retry. Archive failures show feedback. Component tests cover the first and subsequent page failures, and the browser test opens a message beyond the first ten.
+
 ### 2026-11-08 — Initial implementation
 
 - Groups use SQLite's bare-column behaviour with `max(created_at)` for the newest message,

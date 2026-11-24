@@ -10,6 +10,7 @@ export async function dispatchWebhooks(
 	userId: string,
 	eventType: WebhookEventType,
 	payload: Record<string, unknown>,
+	dedupeKey?: string,
 ): Promise<void> {
 	const db = getDb(env);
 	const hooks = await db.select().from(webhooks).where(eq(webhooks.userId, userId));
@@ -26,9 +27,9 @@ export async function dispatchWebhooks(
 		}
 		if (!events.includes(eventType)) continue;
 
-		const deliveryId = newId();
+		const deliveryId = dedupeKey ? `${eventType}:${dedupeKey}:${hook.id}` : newId();
 		const body = JSON.stringify({ type: eventType, data: payload });
-		await db.insert(webhookDeliveries).values({
+		const insert = db.insert(webhookDeliveries).values({
 			id: deliveryId,
 			webhookId: hook.id,
 			eventType,
@@ -37,6 +38,7 @@ export async function dispatchWebhooks(
 			attempts: 0,
 			nextAttemptAt: new Date(),
 		});
+		await (dedupeKey ? insert.onConflictDoNothing({ target: webhookDeliveries.id }) : insert);
 	}
 }
 

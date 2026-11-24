@@ -135,6 +135,17 @@ describe("CleanUpMenu (F102)", () => {
 		await flush();
 		expect(container.textContent).toContain("cleanUpFailed");
 	});
+
+	it("discards an in-flight preview when the view changes", async () => {
+		let resolvePreview: (count: number) => void = () => {};
+		h.preview.mockReturnValueOnce(new Promise<number>((resolve) => { resolvePreview = resolve; }));
+		render(<CleanUpMenu query={view} />);
+		await choose("30");
+		render(<CleanUpMenu query={{ ...view, mailboxId: "another-mailbox" }} />);
+		await act(async () => resolvePreview(120));
+		expect(button("archiveNow")).toBeUndefined();
+		expect(h.run).not.toHaveBeenCalled();
+	});
 });
 
 describe("OtherBacklogPrompt (F102)", () => {
@@ -200,10 +211,10 @@ describe("Group by sender (F103)", () => {
 
 	it("lists senders, expands one, archives all, links to a filter, and pages", async () => {
 		h.groups.mockResolvedValue(groups);
-		h.senderMessages.mockResolvedValue([
+		h.senderMessages.mockResolvedValue({ messages: [
 			{ id: "m1", subject: "Sale", read: false, createdAt: "2026-11-08T10:00:00.000Z" },
 			{ id: "m0", subject: null, read: true, createdAt: "2026-11-01T10:00:00.000Z" },
-		]);
+		], total: 2, limit: 10, offset: 0 });
 		h.run.mockResolvedValue(12);
 		render(<SenderGroups view={view} />);
 		expect(container.textContent).toContain("loading");
@@ -248,6 +259,33 @@ describe("Group by sender (F103)", () => {
 		render(<SenderGroups view={{ ...view, q: "broken" }} />);
 		await flush();
 		expect(container.textContent).toContain("sendersFailed");
+	});
+
+	it("loads the next batch and lets the reader retry a failed fetch", async () => {
+		h.groups.mockResolvedValueOnce({ total: 1, senders: [groups.senders[0]] });
+		const messages = Array.from({ length: 12 }, (_, index) => ({
+			id: `msg_${index}`, subject: `Message ${index}`, read: false, createdAt: "2026-11-08T10:00:00.000Z",
+		}));
+		h.senderMessages.mockRejectedValueOnce(new Error("down"))
+			.mockResolvedValueOnce({ messages: messages.slice(0, 10), total: 12, limit: 10, offset: 0 })
+			.mockRejectedValueOnce(new Error("down"))
+			.mockResolvedValueOnce({ messages: messages.slice(10), total: 12, limit: 10, offset: 10 });
+		render(<SenderGroups view={view} />);
+		await flush();
+		act(() => (container.querySelector("button[aria-expanded]") as HTMLButtonElement).click());
+		await flush();
+		expect(container.textContent).toContain("senderMessagesFailed");
+		act(() => button("retry").click());
+		await flush();
+		expect(container.textContent).toContain("Message 9");
+		act(() => button("moreSenderMessages").click());
+		await flush();
+		expect(container.textContent).toContain("Message 9");
+		act(() => button("retry").click());
+		await flush();
+		expect(h.senderMessages).toHaveBeenLastCalledWith(view, "deals@shop.test", 10);
+		expect(container.textContent).toContain("Message 11");
+		expect(button("moreSenderMessages")).toBeUndefined();
 	});
 });
 

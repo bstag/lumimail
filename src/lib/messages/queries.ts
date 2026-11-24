@@ -23,7 +23,13 @@ export async function getMessageWithBody(
 		.limit(1);
 	if (!message) return null;
 	const [body] = await db
-		.select()
+		.select({
+			id: messageBodies.id,
+			messageId: messageBodies.messageId,
+			textBody: messageBodies.textBody,
+			htmlBody: messageBodies.htmlBody,
+			rawR2Key: messageBodies.rawR2Key,
+		})
 		.from(messageBodies)
 		.where(eq(messageBodies.messageId, messageId))
 		.limit(1);

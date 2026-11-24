@@ -1,6 +1,6 @@
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
-import { attachments, messageBodies } from "@/db/schema";
+import { attachments, messageBodies, r2RetentionCursors } from "@/db/schema";
 
 /**
  * Objects are only ever considered under prefixes Lumimail owns, so unrelated
@@ -16,6 +16,9 @@ const RETENTION_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
 const DEFAULT_MAX_OBJECTS = 1000;
 const LIST_PAGE_SIZE = 500;
 const SAMPLE_SIZE = 20;
+const LOOKUP_BATCH_SIZE = 100;
+const SWEEP_PAGE_SIZE = 50;
+const RETENTION_PREFIXES = [RAW_PREFIX, ATTACHMENT_PREFIX];
 
 /**
  * The sweep shares the one-minute queue-health cron, but retention is measured in
@@ -74,9 +77,17 @@ async function selectUnreferenced(
 	prefix: string,
 	candidates: R2ListedObject[],
 ): Promise<R2ListedObject[]> {
-	if (candidates.length === 0) return [];
+	const orphans: R2ListedObject[] = [];
+	for (let offset = 0; offset < candidates.length; offset += LOOKUP_BATCH_SIZE) {
+		const batch = candidates.slice(offset, offset + LOOKUP_BATCH_SIZE);
+		const keys = batch.map((candidate) => candidate.key);
+		const referenced = await referencedKeys(db, prefix, keys);
+		orphans.push(...batch.filter((candidate) => !referenced.has(candidate.key)));
+	}
+	return orphans;
+}
 
-	const keys = candidates.map((candidate) => candidate.key);
+async function referencedKeys(db: ReturnType<typeof getDb>, prefix: string, keys: string[]) {
 	const referenced = new Set<string>();
 
 	if (prefix === RAW_PREFIX) {
@@ -95,7 +106,7 @@ async function selectUnreferenced(
 		for (const row of rows) referenced.add(row.r2Key);
 	}
 
-	return candidates.filter((candidate) => !referenced.has(candidate.key));
+	return referenced;
 }
 
 /**
@@ -116,7 +127,7 @@ export async function findR2Orphans(
 	let scanned = 0;
 	const orphans: R2OrphanCandidate[] = [];
 
-	for (const prefix of [RAW_PREFIX, ATTACHMENT_PREFIX]) {
+	for (const prefix of RETENTION_PREFIXES) {
 		const budget = maxObjects - scanned;
 		if (budget <= 0) break;
 
@@ -155,12 +166,13 @@ export async function deleteR2Orphans(
 	options: SweepOptions & { limit?: number } = {},
 ): Promise<{ deleted: number; bytes: number; remaining: number }> {
 	const { orphans } = await findR2Orphans(env, options);
-	const limit = options.limit ?? orphans.length;
-	const targets = orphans.slice(0, limit);
+	return deleteCandidates(env, orphans, options.limit);
+}
 
+async function deleteCandidates(env: CloudflareEnv, candidates: R2OrphanCandidate[], limit = candidates.length) {
 	let deleted = 0;
 	let bytes = 0;
-	for (const target of targets) {
+	for (const target of candidates.slice(0, limit)) {
 		try {
 			await env.BUCKET.delete(target.key);
 			deleted += 1;
@@ -170,5 +182,26 @@ export async function deleteR2Orphans(
 		}
 	}
 
-	return { deleted, bytes, remaining: orphans.length - deleted };
+	return { deleted, bytes, remaining: candidates.length - deleted };
+}
+
+/** Advance each prefix separately so one busy prefix cannot consume the other's scan. */
+export async function sweepR2Orphans(env: CloudflareEnv, now = new Date()) {
+	const db = getDb(env);
+	const cutoff = now.getTime() - RETENTION_MS;
+	const totals = { deleted: 0, bytes: 0, remaining: 0 };
+	for (const prefix of RETENTION_PREFIXES) {
+		const checkpoint = await db.select({ cursor: r2RetentionCursors.cursor }).from(r2RetentionCursors)
+			.where(eq(r2RetentionCursors.prefix, prefix)).get();
+		const page = await env.BUCKET.list({ prefix, cursor: checkpoint?.cursor ?? undefined, limit: SWEEP_PAGE_SIZE });
+		const aged = page.objects.filter(({ uploaded }) => uploaded.getTime() <= cutoff);
+		const result = await deleteCandidates(env, await selectUnreferenced(db, prefix, aged));
+		const cursor = page.truncated ? page.cursor : null;
+		await db.insert(r2RetentionCursors).values({ prefix, cursor })
+			.onConflictDoUpdate({ target: r2RetentionCursors.prefix, set: { cursor } });
+		totals.deleted += result.deleted;
+		totals.bytes += result.bytes;
+		totals.remaining += result.remaining;
+	}
+	return totals;
 }

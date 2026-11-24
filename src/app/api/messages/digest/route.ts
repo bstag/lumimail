@@ -2,9 +2,9 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { messages } from "@/db/schema";
 import { withUser } from "@/lib/api/handler";
-import { apiSuccess } from "@/lib/api/response";
-import { messageAccessCondition } from "@/lib/auth/mailbox-access";
-import { addressOf, inboxFocusCondition } from "@/lib/messages/focus";
+import { apiError, apiSuccess } from "@/lib/api/response";
+import { addressOf } from "@/lib/messages/focus";
+import { messageListConditions } from "@/lib/messages/list-conditions";
 
 const WINDOW_SECONDS = 24 * 60 * 60;
 const MAX_SENDERS = 20;
@@ -17,14 +17,15 @@ const MAX_UNREAD_IDS = 500;
 export const GET = withUser(async ({ request, env, user }) => {
 	const mailboxId = new URL(request.url).searchParams.get("mailboxId");
 	const db = getDb(env);
-	const since = Math.floor(Date.now() / 1000) - WINDOW_SECONDS;
+	const now = Math.floor(Date.now() / 1000);
+	const params = new URLSearchParams({ direction: "inbound", status: "received", focus: "other" });
+	if (mailboxId) params.set("mailboxId", mailboxId);
+	const conditions = messageListConditions(db, user, params, now);
+	/* v8 ignore next -- the digest supplies known list parameters */
+	if (conditions.error) return apiError("Invalid digest query", 400);
 	const where = and(
-		messageAccessCondition(db, user.id, user.organizationId, "read"),
-		eq(messages.direction, "inbound"),
-		eq(messages.status, "received"),
-		mailboxId ? eq(messages.mailboxId, mailboxId) : undefined,
-		sql`coalesce(${messages.receivedAt}, ${messages.createdAt}) >= ${since}`,
-		inboxFocusCondition(db, user.id, "other"),
+		conditions.where,
+		sql`coalesce(${messages.receivedAt}, ${messages.createdAt}) >= ${now - WINDOW_SECONDS}`,
 	);
 	const sender = addressOf(messages.fromAddr);
 	// SQLite returns the bare columns from the row that holds max(created_at).

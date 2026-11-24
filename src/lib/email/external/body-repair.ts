@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, exists, inArray, isNull, lte, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { externalAccounts, externalMessages, messageBodies, messages } from "@/db/schema";
 import { buildSnippet, parseRawMime, unsubscribeColumns } from "@/lib/email/parse";
@@ -15,6 +15,8 @@ export const BODY_REPAIR_BATCH = 25;
  * once this has passed; the rest wait for the next run.
  */
 export const BODY_REPAIR_BUDGET_MS = 8_000;
+const BODY_REPAIR_MAX_ATTEMPTS = 3;
+const BODY_REPAIR_LEASE_MS = 5 * 60_000;
 const REPAIRABLE_ACCOUNT_STATUSES = ["active", "initial_sync"] as const;
 
 export type BodyRepairResult = { repaired: number; abandoned: number; deferred: boolean };
@@ -32,8 +34,13 @@ export async function repairExternalMessageBodies(
 	const db = getDb(env);
 	const batchSize = options.batchSize ?? BODY_REPAIR_BATCH;
 	const clock = options.clock ?? Date.now;
+	const startedAt = options.now ?? new Date();
 	const deadline = clock() + (options.budgetMs ?? BODY_REPAIR_BUDGET_MS);
 	const result: BodyRepairResult = { repaired: 0, abandoned: 0, deferred: false };
+	const available = and(
+		eq(messageBodies.htmlBody, ""),
+		or(isNull(messageBodies.repairLeaseUntil), lte(messageBodies.repairLeaseUntil, startedAt)),
+	);
 
 	const accounts = await db.selectDistinct({
 		id: externalAccounts.id,
@@ -49,7 +56,7 @@ export async function repairExternalMessageBodies(
 		.innerJoin(messageBodies, eq(messageBodies.messageId, externalMessages.lumimailMessageId))
 		.where(and(
 			inArray(externalAccounts.status, [...REPAIRABLE_ACCOUNT_STATUSES]),
-			eq(messageBodies.htmlBody, ""),
+			available,
 		));
 
 	for (const account of accounts) {
@@ -59,13 +66,15 @@ export async function repairExternalMessageBodies(
 			textBody: messageBodies.textBody,
 			remoteMessageId: externalMessages.remoteMessageId,
 			snippet: messages.snippet,
+			attempts: messageBodies.repairAttempts,
 		}).from(messageBodies)
 			.innerJoin(externalMessages, and(
 				eq(externalMessages.lumimailMessageId, messageBodies.messageId),
 				eq(externalMessages.accountId, account.id),
 			))
 			.innerJoin(messages, eq(messages.id, messageBodies.messageId))
-			.where(eq(messageBodies.htmlBody, ""))
+			.where(available)
+			.orderBy(messageBodies.repairAttempts, messageBodies.id)
 			.limit(batchSize);
 
 		const credential = await refreshExternalAccountCredential(env, account, options.now);
@@ -78,6 +87,17 @@ export async function repairExternalMessageBodies(
 			if (clock() >= deadline) {
 				result.deferred = true;
 				return result;
+			}
+			const pending = and(available, eq(messageBodies.id, candidate.bodyId),
+				eq(messageBodies.repairAttempts, candidate.attempts));
+			async function abandon() {
+				const rows = await db.update(messageBodies).set({ htmlBody: null, repairLeaseUntil: null })
+					.where(pending).returning({ id: messageBodies.id });
+				result.abandoned += rows.length;
+			}
+			if (candidate.attempts >= BODY_REPAIR_MAX_ATTEMPTS) {
+				await abandon();
+				continue;
 			}
 			let raw: Uint8Array;
 			try {
@@ -93,28 +113,33 @@ export async function repairExternalMessageBodies(
 					break;
 				}
 				// Deleted at the provider, too large, or malformed: stop retrying this row.
-				await db.update(messageBodies).set({ htmlBody: null })
-					.where(eq(messageBodies.id, candidate.bodyId));
-				result.abandoned++;
+				await abandon();
 				continue;
 			}
-			// Claim the row first: a parse that exhausts the CPU limit kills the whole run, and
-			// a row still stored as '' would be picked again next run and block the backlog.
-			await db.update(messageBodies).set({ htmlBody: null })
-				.where(eq(messageBodies.id, candidate.bodyId));
+			// Count the attempt before parsing so a killed invocation can be retried after the lease.
+			const attempts = candidate.attempts + 1;
+			const leaseUntil = new Date((options.now ?? new Date()).getTime() + BODY_REPAIR_LEASE_MS);
+			const [claim] = await db.update(messageBodies).set({ repairAttempts: attempts, repairLeaseUntil: leaseUntil })
+				.where(pending).returning({ id: messageBodies.id });
+			if (!claim) continue;
 			const parsed = await parseRawMime(
 				raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer,
 			);
+			const owned = and(eq(messageBodies.id, candidate.bodyId), eq(messageBodies.htmlBody, ""),
+				eq(messageBodies.repairAttempts, attempts));
 			const bodyUpdate = db.update(messageBodies).set({
 				htmlBody: parsed.html?.trim() ? parsed.html : null,
 				textBody: candidate.textBody ?? parsed.text,
-			}).where(eq(messageBodies.id, candidate.bodyId));
-			await db.batch([bodyUpdate, db.update(messages).set({
+				repairLeaseUntil: null,
+			}).where(owned).returning({ id: messageBodies.id });
+			const [, saved] = await db.batch([db.update(messages).set({
 				...(candidate.snippet ? {} : { snippet: buildSnippet(candidate.textBody ?? parsed.text, parsed.html) }),
 				// Imports from before F98 never captured List-Unsubscribe.
 				...unsubscribeColumns(parsed),
-			}).where(eq(messages.id, candidate.messageId))]);
-			result.repaired++;
+			}).where(and(eq(messages.id, candidate.messageId),
+				exists(db.select({ id: messageBodies.id }).from(messageBodies).where(owned)))),
+			bodyUpdate]);
+			result.repaired += saved.length;
 		}
 	}
 	return result;

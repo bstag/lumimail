@@ -274,6 +274,8 @@
     "filterSender": "过滤此发件人",
     "filterSenderNamed": "过滤来自 {sender} 的邮件",
     "sendersFailed": "无法加载发件人。",
+    "senderMessagesFailed": "无法加载邮件。",
+    "moreSenderMessages": "显示更多邮件",
     "moreSenders": "显示更多发件人"
   },
   "actions": {

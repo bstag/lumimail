@@ -1,5 +1,11 @@
 # F63 — R2 Retention and Orphan Cleanup
 
+## 2026-11-24 — Restrict access and checkpoint the scan
+
+Both retention endpoints and retention data in Operations require a signed-in organization owner whose user ID matches the deployment's `INSTANCE_OPERATOR_USER_ID` setting. A missing setting fails closed. Organization owners keep access to their organization evidence. The scheduled sweep uses deployment authority, the existing enable flag, and the seven-day protection.
+
+Candidate lookups use indexed batches of at most 100 keys. The hourly sweep scans up to 50 objects per prefix and keeps its R2 cursor in D1. At end of prefix, the next run starts from the beginning to catch failed deletes and new objects. The manual report and cleanup keep their independent bounded scan. Tests cover access, lookup size, and cursor progression.
+
 > Status: Shipped — deterministic cleanup locally proven; controlled production sweep proof aging
 > Owner area: `src/lib/email/inbound.ts`, `src/lib/r2-retention.ts`, `worker.ts` scheduled handler, `/api/admin/r2-retention`
 
@@ -47,7 +53,7 @@ does not parse; this was accepted explicitly rather than by omission.
 
 - Deleting the raw object after successful inbound processing and clearing `raw_r2_key`.
 - A sweep that deletes objects which are unreferenced in D1 *and* older than the retention age.
-- An owner-only report of what the sweep would delete, with counts and bytes, before anything is deleted.
+- An instance-operator report shows eligible objects, counts, and bytes before manual deletion.
 - A guarded delete requiring explicit confirmation.
 - Bounded, resumable operation so one run cannot exhaust Worker CPU or subrequest limits.
 
@@ -72,7 +78,7 @@ exists — becomes sweepable.
 
 ## 5. API Contract
 
-`/api/admin/r2-retention`, owner-only via `guardOrgOwner`, matching `/api/admin/queue-health`.
+`/api/admin/r2-retention`, for the configured instance operator.
 
 | Method | Body | Result |
 |--------|------|--------|
@@ -84,9 +90,7 @@ exists — becomes sweepable.
 
 ## 6. UI/UX
 
-No new page in this feature. The report is operational and reached through the API, in
-keeping with F56 where platform status is owner-only. A surfaced page can follow if the
-numbers prove worth watching.
+The instance operator sees the aggregate retention section in Operations and can use the detailed API for a dry run and explicit deletion.
 
 ## 7. Test Plan
 
@@ -94,8 +98,8 @@ numbers prove worth watching.
 |-------|------|-----------------|
 | Unit | `tests/unit/lib/r2-retention.test.ts` | Referenced objects are never selected; unreferenced-but-recent objects are never selected; pagination across cursors; bounded batch size; idempotent re-run. |
 | Unit | `tests/unit/lib/email/inbound.test.ts` | Raw object deleted and `raw_r2_key` cleared after successful storage; not deleted when storage fails. |
-| Unit | `tests/unit/app/api/admin/r2-retention/route.test.ts` | Owner-only, report deletes nothing, delete requires exact confirmation, non-owner denied. |
-| E2E | — | Not applicable; no user-visible surface. |
+| Unit | `tests/unit/app/api/admin/r2-retention-route.test.ts` | Operator authorization, dry run, and exact deletion confirmation. |
+| E2E | `tests/e2e/operations.spec.ts` | Retention section is visible only when provided by the API. |
 
 ### 7.1 Production deletion proof
 
@@ -139,7 +143,7 @@ the terminal state for objects that were written correctly and later became unre
 
 ## 11. Permissions & Security
 
-- Report and delete are owner-only, platform-wide, and expose no message content — counts, sizes, timestamps, and key names only.
+- Report and delete are restricted to the configured instance operator. The platform-wide report contains counts, sizes, timestamps, and key names.
 - Key names embed a user id and message id, so the sample is limited and the endpoint stays owner-only.
 - The scheduled sweep performs no authorization of its own and must therefore never be reachable from a request path.
 

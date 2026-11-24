@@ -274,6 +274,8 @@
     "filterSender": "Filtrar este remitente",
     "filterSenderNamed": "Filtrar mensajes de {sender}",
     "sendersFailed": "No se pudieron cargar los remitentes.",
+    "senderMessagesFailed": "No se pudieron cargar los mensajes.",
+    "moreSenderMessages": "Mostrar más mensajes",
     "moreSenders": "Mostrar más remitentes"
   },
   "actions": {

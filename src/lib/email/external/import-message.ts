@@ -2,15 +2,14 @@ import { and, eq, inArray, or } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { getDb } from "@/db";
 import {
-	attachments,
 	externalMessages,
 	externalOriginals,
 	messageBodies,
 	messages,
 } from "@/db/schema";
 import { formatEmailAddress, getEmailAddress } from "@/lib/email/address";
-import { attachmentKey, cleanupAttachmentObjects } from "@/lib/email/attachment-storage";
-import { prepareInboundAttachments } from "@/lib/email/inbound-attachments";
+import { cleanupAttachmentObjects } from "@/lib/email/attachment-storage";
+import { buildInboundAttachmentRows, inboundAttachmentInserts, prepareInboundAttachments } from "@/lib/email/inbound-attachments";
 import { buildSnippet, unsubscribeColumns, parseRawMime } from "@/lib/email/parse";
 import { resolveInboundThreading } from "@/lib/email/threading";
 import { newId } from "@/lib/ids";
@@ -152,20 +151,7 @@ export async function prepareExternalMessage(
 		? parsed.toAddr
 		: mailboxHeader;
 	const prepared = prepareInboundAttachments(parsed.attachments);
-	const attachmentRows = prepared.attachments.map((attachment) => {
-		const id = newId("att");
-		return {
-			id,
-			messageId,
-			filename: attachment.filename,
-			contentType: attachment.contentType,
-			size: attachment.size,
-			r2Key: attachmentKey(mailbox.userId, messageId, id),
-			content: attachment.content,
-			disposition: attachment.disposition,
-			contentId: attachment.contentId,
-		};
-	});
+	const attachmentRows = buildInboundAttachmentRows(mailbox.userId, messageId, prepared.attachments);
 	const threading = await resolveInboundThreading({
 		mailboxId: mailbox.id,
 		messageId: parsed.messageId,
@@ -221,18 +207,6 @@ export async function prepareExternalMessage(
 		htmlBody: parsed.html,
 		rawR2Key: null,
 	});
-	const attachmentInsert = attachmentRows.length
-		? db.insert(attachments).values(attachmentRows.map((attachment) => ({
-			id: attachment.id,
-			messageId: attachment.messageId,
-			filename: attachment.filename,
-			contentType: attachment.contentType,
-			size: attachment.size,
-			r2Key: attachment.r2Key,
-			disposition: attachment.disposition,
-			contentId: attachment.contentId,
-		})))
-		: null;
 	const mappingInsert = db.insert(externalMessages).values({
 		id: externalMessageId,
 		accountId: account.id,
@@ -263,17 +237,17 @@ export async function prepareExternalMessage(
 			retainedAt: now,
 		});
 	}
-	for (const attachment of attachmentRows) {
-		attemptedKeys.push(attachment.r2Key);
-		await env.BUCKET.put(attachment.r2Key, attachment.content, {
-			httpMetadata: { contentType: attachment.contentType },
+	for (const { row, content } of attachmentRows) {
+		attemptedKeys.push(row.r2Key);
+		await env.BUCKET.put(row.r2Key, content, {
+			httpMetadata: { contentType: row.contentType },
 		});
 	}
 	return {
 		statements: [
 			messageInsert,
 			bodyInsert,
-			...(attachmentInsert ? [attachmentInsert] : []),
+			...inboundAttachmentInserts(db, attachmentRows),
 			mappingInsert,
 			...(originalInsert ? [originalInsert] : []),
 		],

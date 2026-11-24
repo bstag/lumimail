@@ -274,6 +274,8 @@
     "filterSender": "この差出人をフィルタ",
     "filterSenderNamed": "{sender} のメッセージをフィルタ",
     "sendersFailed": "差出人を読み込めませんでした。",
+    "senderMessagesFailed": "メッセージを読み込めませんでした。",
+    "moreSenderMessages": "さらにメッセージを表示",
     "moreSenders": "差出人をさらに表示"
   },
   "actions": {

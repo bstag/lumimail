@@ -1,5 +1,9 @@
 # F82 — Read-only Operations Center
 
+## 2026-11-24 — Gate storage retention at the instance boundary
+
+The Operations API reads and returns storage retention only for the configured instance operator (F63). Other organization owners still see their evidence and the other status sections. The page omits the retention card for those users.
+
 > Status: In Progress — content-free evidence-history slice deployed and boundary-verified
 > Owner area: `src/lib/operations.ts`, `src/app/api/admin/operations/`, `src/app/(settings)/(org)/operations/`
 

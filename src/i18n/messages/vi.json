@@ -274,6 +274,8 @@
     "filterSender": "Lọc người gửi này",
     "filterSenderNamed": "Lọc thư từ {sender}",
     "sendersFailed": "Không thể tải người gửi.",
+    "senderMessagesFailed": "Không thể tải thư.",
+    "moreSenderMessages": "Hiện thêm thư",
     "moreSenders": "Hiện thêm người gửi"
   },
   "actions": {

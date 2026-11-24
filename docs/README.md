@@ -34,7 +34,8 @@ Source of truth for behavior. Each follows
   [`F08-webhooks`](./specs/F08-webhooks.md),
   [`F09-settings`](./specs/F09-settings.md),
   [`F12-multi-user-workspace`](./specs/F12-multi-user-workspace.md),
-  [`F13-imap-smtp-bridge`](./specs/F13-imap-smtp-bridge.md).
+  [`F13-imap-smtp-bridge`](./specs/F13-imap-smtp-bridge.md),
+  [`F19-message-search`](./specs/F19-message-search.md).
 - Provider and deployment contracts:
   [`F33-outbound-mail-providers`](./specs/F33-outbound-mail-providers.md),
   [`F34-workers-html-sanitization`](./specs/F34-workers-html-sanitization.md),

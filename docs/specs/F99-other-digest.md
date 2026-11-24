@@ -1,5 +1,9 @@
 # F99 — Other digest and correspondent triage
 
+## 2026-11-24 — Use the Other Inbox visibility rules
+
+The digest uses the Other Inbox predicate with the same mailbox authorization and adds its 24-hour received-or-created window. Sleeping mail is excluded and woken mail is eligible again. The existing response also omits sleeping mail from its mark-read IDs. SQLite tests cover both states.
+
 > Status: In Progress
 > Owner area: `src/app/api/messages/digest/route.ts`, `src/components/messages/other-digest.tsx`, `src/lib/messages/focus.ts`
 

@@ -1,7 +1,7 @@
 import { and, eq, inArray, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
-	attachments,
+	inboundDeliveries,
 	messageBodies,
 	messages,
 	pushNotificationEvents,
@@ -14,12 +14,10 @@ import { upsertContactFromAddress } from "@/lib/contacts/service";
 import { formatEmailAddress, getEmailAddress } from "@/lib/email/address";
 import { applyMessageFilters } from "@/lib/email/message-filters";
 import { maybeVacationRespond } from "@/lib/email/vacation-responder";
-import { prepareInboundAttachments } from "@/lib/email/inbound-attachments";
-import {
-	attachmentKey,
-	cleanupAttachmentObjects,
-} from "@/lib/email/attachment-storage";
+import { buildInboundAttachmentRows, inboundAttachmentInserts, prepareInboundAttachments } from "@/lib/email/inbound-attachments";
+import { cleanupAttachmentObjects } from "@/lib/email/attachment-storage";
 import { resolveInboundThreading } from "@/lib/email/threading";
+import { advanceInboundDelivery, readInboundDelivery } from "./inbound-delivery";
 
 export type InboundQueueMessage = {
 	from: string;
@@ -89,35 +87,73 @@ async function deliverToMailbox(
 	fromAddr: string,
 	mailbox: ResolvedMailbox,
 ): Promise<void> {
-	const messageId = newId("msg");
-	const now = new Date();
-	const snippet = buildSnippet(parsed.text, parsed.html);
-	const prepared = prepareInboundAttachments(parsed.attachments);
+	const key = { rawR2Key: payload.rawR2Key, mailboxId: mailbox.mailboxId };
+	const existing = await readInboundDelivery(db, key);
 	const mailboxAddress = `${mailbox.localPart}@${mailbox.hostname}`;
 	const mailboxHeader = formatEmailAddress(mailboxAddress, mailbox.displayName ?? mailbox.localPart);
 	const toAddr = parsed.toAddr && getEmailAddress(parsed.toAddr).toLowerCase() !== mailboxAddress.toLowerCase()
 		? parsed.toAddr
 		: mailboxHeader;
+	const delivery = existing ?? await storeMailboxDelivery(env, db, payload, parsed, fromAddr, toAddr, mailbox);
+	if (delivery.stage === "complete") return;
+	if (!delivery.messageId) {
+		await advanceInboundDelivery(db, key, delivery.stage, "complete");
+		return;
+	}
+	const { messageId, createdAt, pushEventId } = delivery;
+
+	if (delivery.stage === "filters") {
+		await applyMessageFilters(db, mailbox.userId, messageId, createdAt);
+		await advanceInboundDelivery(db, key, "filters", "webhooks");
+	}
+	if (pushEventId) {
+		try {
+			await env.PUSH_QUEUE.send({ kind: "push-expand", version: 1, eventId: pushEventId });
+		} catch {
+			// Reconciliation can wake the durable event after a failed queue send.
+			console.warn("Push event enqueue deferred", { eventId: pushEventId });
+		}
+	}
+	await dispatchWebhooks(env, mailbox.userId, "message.inbound", {
+		messageId,
+		from: fromAddr,
+		to: toAddr,
+		subject: parsed.subject,
+	}, messageId);
+
+	if (await advanceInboundDelivery(db, key, "webhooks", "complete")) {
+		await maybeVacationRespond(env, {
+			userId: mailbox.userId,
+			fromAddr,
+			toAddr,
+			subject: parsed.subject ?? undefined,
+			headers: payload.headers ?? {},
+			organizationId: mailbox.organizationId,
+			mailboxId: mailbox.mailboxId,
+		}).catch(() => console.warn("Inbound vacation reply failed"));
+	}
+}
+
+async function storeMailboxDelivery(
+	env: CloudflareEnv,
+	db: ReturnType<typeof getDb>,
+	payload: InboundQueueMessage,
+	parsed: ParsedEmail,
+	fromAddr: string,
+	toAddr: string,
+	mailbox: ResolvedMailbox,
+) {
+	const messageId = newId("msg");
+	const now = new Date();
+	const snippet = buildSnippet(parsed.text, parsed.html);
+	const prepared = prepareInboundAttachments(parsed.attachments);
 	await upsertContactFromAddress(env, {
 		userId: mailbox.userId,
 		address: fromAddr,
 		source: "inbound",
 	});
 
-	const attachmentRows = prepared.attachments.map((attachment) => {
-		const id = newId("att");
-		return {
-			id,
-			messageId,
-			filename: attachment.filename,
-			contentType: attachment.contentType,
-			size: attachment.size,
-			r2Key: attachmentKey(mailbox.userId, messageId, id),
-			content: attachment.content,
-			disposition: attachment.disposition,
-			contentId: attachment.contentId,
-		};
-	});
+	const attachmentRows = buildInboundAttachmentRows(mailbox.userId, messageId, prepared.attachments);
 	const threading = await resolveInboundThreading({
 		mailboxId: mailbox.mailboxId,
 		messageId: parsed.messageId,
@@ -165,6 +201,7 @@ async function deliverToMailbox(
 		status: "received",
 		threadId: threading.threadId,
 		receivedAt: parsed.receivedAt ?? now,
+		createdAt: now,
 		...unsubscribeColumns(parsed),
 		attachmentStatus: prepared.status,
 		attachmentError: prepared.error,
@@ -177,20 +214,6 @@ async function deliverToMailbox(
 		htmlBody: parsed.html,
 		rawR2Key: payload.rawR2Key,
 	});
-	const attachmentInsert = attachmentRows.length
-		? db.insert(attachments).values(
-			attachmentRows.map((row) => ({
-				id: row.id,
-				messageId: row.messageId,
-				filename: row.filename,
-				contentType: row.contentType,
-				size: row.size,
-				r2Key: row.r2Key,
-				disposition: row.disposition,
-				contentId: row.contentId,
-			})),
-		)
-		: null;
 	const pushEventId = mailbox.organizationId ? newId("pue") : null;
 	const pushEventInsert = pushEventId && mailbox.organizationId
 		? db.insert(pushNotificationEvents).values({
@@ -204,54 +227,36 @@ async function deliverToMailbox(
 			createdAt: now,
 		})
 		: null;
+	const delivery = {
+		rawR2Key: payload.rawR2Key,
+		mailboxId: mailbox.mailboxId,
+		messageId,
+		stage: "filters" as const,
+		createdAt: now,
+		pushEventId,
+	};
 
 	const attemptedKeys: string[] = [];
 	try {
-		for (const attachment of attachmentRows) {
-			attemptedKeys.push(attachment.r2Key);
-			await env.BUCKET.put(attachment.r2Key, attachment.content, {
-				httpMetadata: { contentType: attachment.contentType },
+		for (const { row, content } of attachmentRows) {
+			attemptedKeys.push(row.r2Key);
+			await env.BUCKET.put(row.r2Key, content, {
+				httpMetadata: { contentType: row.contentType },
 			});
 		}
 		await db.batch([
 			messageInsert,
 			bodyInsert,
-			...(attachmentInsert ? [attachmentInsert] : []),
+			...inboundAttachmentInserts(db, attachmentRows),
 			...(pushEventInsert ? [pushEventInsert] : []),
+			db.insert(inboundDeliveries).values(delivery),
 		]);
 	} catch (error) {
 		await cleanupAttachmentObjects(env, attemptedKeys);
 		throw error;
 	}
 
-	await applyMessageFilters(db, mailbox.userId, messageId);
-
-	if (pushEventId) {
-		try {
-			await env.PUSH_QUEUE.send({ kind: "push-expand", version: 1, eventId: pushEventId });
-		} catch {
-			// The D1 event is the durable source of truth. Scheduled reconciliation
-			// will wake it later; never rethrow into inbound mail processing.
-			console.warn("Push event enqueue deferred", { eventId: pushEventId });
-		}
-	}
-
-	await dispatchWebhooks(env, mailbox.userId, "message.inbound", {
-		messageId,
-		from: fromAddr,
-		to: toAddr,
-		subject: parsed.subject,
-	});
-
-	await maybeVacationRespond(env, {
-		userId: mailbox.userId,
-		fromAddr,
-		toAddr,
-		subject: parsed.subject ?? undefined,
-		headers: payload.headers ?? {},
-		organizationId: mailbox.organizationId,
-		mailboxId: mailbox.mailboxId,
-	});
+	return delivery;
 }
 
 export async function storeRawToR2(

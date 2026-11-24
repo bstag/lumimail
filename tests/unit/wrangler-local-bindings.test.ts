@@ -63,10 +63,14 @@ function expectBindingContract(env: WranglerEnv) {
 	const deadLetterQueues = consumers
 		.map((consumer) => consumer.dead_letter_queue)
 		.filter((queue): queue is string => queue !== undefined);
-	// Outbound, push, and external-sync consumers route failures to isolated DLQs, and each DLQ
-	// is itself consumed by its recovery path.
-	expect(deadLetterQueues).toHaveLength(3);
-	for (const queue of deadLetterQueues) expect(consumedQueues).toContain(queue);
+	expect(deadLetterQueues).toHaveLength(4);
+	const inbound = consumers.find((consumer) => consumer.queue === producers.find((producer) => producer.binding === "INBOUND_QUEUE")?.queue);
+	expect(inbound?.dead_letter_queue).toMatch(/^lumimail-inbound-dlq/);
+	expect(consumedQueues).not.toContain(inbound?.dead_letter_queue);
+	// Inbound stays available for inspection. The other DLQs have recovery consumers.
+	for (const queue of deadLetterQueues.filter((queue) => queue !== inbound?.dead_letter_queue)) {
+		expect(consumedQueues).toContain(queue);
+	}
 }
 
 describe("Wrangler local binding contract", () => {

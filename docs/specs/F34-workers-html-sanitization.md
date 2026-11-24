@@ -1,5 +1,9 @@
 # F34 — Workers-compatible HTML sanitization
 
+## 2026-11-24 — Recover interrupted external body repairs
+
+A five-minute D1 lease preserves the empty-HTML marker during parsing. Repairs resume after expiry and abandon a repeatedly interrupted row after three attempts, preserving its text. Permanent provider failures abandon immediately. Throttling and revoked credentials defer. Claims compare the current row state and the write checks the claim version. SQLite tests cover recovery, a competing claim, and the retry cap.
+
 > Status: Shipped — R-19 verified locally and in production
 > Owner area: `src/lib/email/sanitize.ts`, `src/lib/email/parse.ts`, `src/app/(dashboard)/inbox/[messageId]/page.tsx`
 

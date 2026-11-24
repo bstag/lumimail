@@ -274,6 +274,8 @@
     "filterSender": "इस प्रेषक को फ़िल्टर करें",
     "filterSenderNamed": "{sender} के संदेश फ़िल्टर करें",
     "sendersFailed": "प्रेषक लोड नहीं हो सके।",
+    "senderMessagesFailed": "संदेश लोड नहीं हो सके।",
+    "moreSenderMessages": "और संदेश दिखाएँ",
     "moreSenders": "और प्रेषक दिखाएँ"
   },
   "actions": {

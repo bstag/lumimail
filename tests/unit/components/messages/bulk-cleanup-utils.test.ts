@@ -95,8 +95,10 @@ describe("group by sender (F103)", () => {
 		h.get.mockResolvedValueOnce({ total: 1, senders: [] }).mockResolvedValueOnce({ messages: [{ id: "m1" }] });
 		await fetchSenderGroups({ status: "received" }, 50);
 		expect(h.get).toHaveBeenLastCalledWith("/api/messages/senders?status=received&limit=50");
-		await expect(fetchSenderMessages({ status: "received" }, "a@x.test")).resolves.toEqual([{ id: "m1" }]);
+		await expect(fetchSenderMessages({ status: "received" }, "a@x.test", 0)).resolves.toEqual({ messages: [{ id: "m1" }] });
 		expect(h.get).toHaveBeenLastCalledWith("/api/messages?status=received&sender=a%40x.test&limit=10");
+		await fetchSenderMessages({ status: "received" }, "a@x.test", 10);
+		expect(h.get).toHaveBeenLastCalledWith("/api/messages?status=received&sender=a%40x.test&limit=10&offset=10");
 		expect(withSender({ q: "x" }, "b@y.test")).toEqual({ q: "x", sender: "b@y.test" });
 	});
 });

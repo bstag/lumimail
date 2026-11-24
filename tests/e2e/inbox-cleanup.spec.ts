@@ -97,21 +97,25 @@ test("selects every message in the view and archives old mail by age (F102)", as
 test("groups the Inbox by sender and archives one sender (F103)", async ({ page }) => {
 	await shell(page);
 	await page.route("**/api/messages?*", (route) => {
-		const sender = new URL(route.request().url()).searchParams.get("sender");
-		const rows = sender ? [message("m1", "Big sale"), message("m2", "Last chance")] : [message("m1", "Big sale")];
-		return route.fulfill({ json: { success: true, data: { messages: rows, total: rows.length, limit: 25, offset: 0 } } });
+		const params = new URL(route.request().url()).searchParams;
+		const offset = Number(params.get("offset") ?? 0);
+		const limit = Number(params.get("limit") ?? 25);
+		const all = params.has("sender")
+			? [message("m1", "Big sale"), ...Array.from({ length: 9 }, (_, index) => message(`seen${index}`, `Deal ${index}`)), message("m2", "Last chance")]
+			: [message("m1", "Big sale")];
+		return route.fulfill({ json: { success: true, data: { messages: all.slice(offset, offset + limit), total: all.length, limit, offset } } });
 	});
 	await page.route("**/api/messages/senders?*", (route) => route.fulfill({ json: { success: true, data: {
 		total: 2,
 		senders: [
-			{ sender: "deals@shop.test", fromAddr: "Shop <deals@shop.test>", count: 2, unread: 2, latestId: "m1", latestSubject: "Big sale", latestAt: "2026-11-07T12:00:00.000Z" },
+			{ sender: "deals@shop.test", fromAddr: "Shop <deals@shop.test>", count: 11, unread: 11, latestId: "m1", latestSubject: "Big sale", latestAt: "2026-11-07T12:00:00.000Z" },
 			{ sender: "news@paper.test", fromAddr: "Paper <news@paper.test>", count: 1, unread: 0, latestId: "m3", latestSubject: "Morning brief", latestAt: "2026-11-06T12:00:00.000Z" },
 		],
 	} } }));
 	let bulk: Record<string, unknown> | null = null;
 	await page.route("**/api/messages/bulk", async (route) => {
 		bulk = route.request().postDataJSON() as Record<string, unknown>;
-		return route.fulfill({ json: { success: true, data: { ok: true, updated: 2 } } });
+		return route.fulfill({ json: { success: true, data: { ok: true, updated: 11 } } });
 	});
 
 	await page.goto("/inbox");
@@ -120,7 +124,9 @@ test("groups the Inbox by sender and archives one sender (F103)", async ({ page 
 	await expect(groups.getByText("Morning brief")).toBeVisible();
 
 	await groups.getByRole("button", { name: "Show messages from Shop" }).click();
+	await groups.getByRole("button", { name: "Show more messages" }).click();
 	await expect(groups.getByRole("link", { name: /Last chance/ })).toBeVisible();
+	await expect(groups.getByRole("button", { name: "Show more messages" })).toHaveCount(0);
 
 	await groups.getByRole("button", { name: "Archive all from Shop" }).click();
 	await expect.poll(() => bulk).toEqual({
@@ -130,4 +136,35 @@ test("groups the Inbox by sender and archives one sender (F103)", async ({ page 
 
 	await page.reload();
 	await expect(page.getByLabel("Group by sender")).toBeChecked();
+});
+
+test("clears a cleanup preview when switching Inbox tabs", async ({ page }) => {
+	await shell(page);
+	await page.route("**/api/messages?*", (route) =>
+		route.fulfill({ json: { success: true, data: { messages: [message("m1", "Weekly deals")], total: 1, limit: 25, offset: 0 } } }));
+	await page.route("**/api/messages/digest**", (route) =>
+		route.fulfill({ json: { success: true, data: { total: 0, senderCount: 0, senders: [], unreadIds: [] } } }));
+	await page.route("**/api/messages/bulk", (route) => {
+		const { query } = route.request().postDataJSON();
+		return route.fulfill({ json: { success: true, data: { matched: query.focus === "focused" ? 41 : 12 } } });
+	});
+	await page.goto("/inbox");
+	await expect(page.getByText("Weekly deals")).toBeVisible();
+	await page.getByLabel("Clean up").selectOption("30");
+	await expect(page.getByText("Archive 41 messages older than 30 days?")).toBeVisible();
+	await page.getByRole("tab", { name: "Other", exact: true }).click();
+	await expect(page.getByText("Archive 41 messages older than 30 days?")).toHaveCount(0);
+	await page.getByLabel("Clean up").selectOption("30");
+	await expect(page.getByText("Archive 12 messages older than 30 days?")).toBeVisible();
+});
+
+test("searches for unread mail without a free-text term", async ({ page }) => {
+	await shell(page);
+	await page.route("**/api/messages?*", (route) =>
+		route.fulfill({ json: { success: true, data: { messages: [], total: 0, limit: 25, offset: 0 } } }));
+	await page.goto("/inbox");
+	const requested = page.waitForRequest((request) =>
+		new URL(request.url()).searchParams.get("read") === "unread");
+	await page.getByPlaceholder("Search mail", { exact: false }).fill(":unread");
+	expect(new URL((await requested).url()).searchParams.has("q")).toBe(false);
 });

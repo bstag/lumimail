@@ -17,10 +17,7 @@ import {
 	isPushDeadLetterQueue,
 	isPushQueueMessage,
 } from "./worker-utils";
-import { runQueueHealthCheck } from "./src/lib/queue-health";
-import { purgeExpiredRateLimits } from "./src/lib/rate-limit";
 import { RETRY_DELAY_SECONDS } from "./src/lib/constants";
-import { deleteR2Orphans, shouldRunSweep } from "./src/lib/r2-retention";
 import { getDb } from "./src/db";
 import { resolveInboundTargets } from "./src/lib/email/routing";
 import {
@@ -35,18 +32,13 @@ import {
 } from "./src/lib/mcp/security";
 import { enforceMcpClientRegistrationPolicy } from "./src/lib/mcp/registration-policy";
 import { handleMcpAuthorizationRequest } from "./worker-mcp-authorization";
-import { handleMcpOAuthTokenRequest, purgeMcpRefreshTokenUses } from "./worker-mcp-refresh";
-import { processPushQueueMessage, reconcilePushNotifications } from "./src/lib/push/queue";
-import { purgePushNotificationState } from "./src/lib/push/retention";
+import { handleMcpOAuthTokenRequest } from "./worker-mcp-refresh";
+import { processPushQueueMessage } from "./src/lib/push/queue";
 import {
 	isExternalSyncQueueMessage,
 	processExternalSyncQueue,
 } from "./src/lib/email/external/sync-queue";
-import { reconcileExternalSyncJobs } from "./src/lib/email/external/sync-jobs";
-import { repairExternalMessageBodies } from "./src/lib/email/external/body-repair";
-import { expireMessages } from "./src/lib/email/message-expiry";
-import { processDueWebhooks } from "./src/lib/email/webhooks";
-import { reconcileCategorization } from "./src/lib/categorization/service";
+import { runScheduledMaintenance } from "./worker-scheduled";
 
 type McpWorkerEnv = McpEnv & { OAUTH_KV: KVNamespace; OAUTH_PROVIDER: OAuthHelpers };
 
@@ -215,63 +207,10 @@ export default {
 		controller: ScheduledController,
 		env: CloudflareEnv,
 	): Promise<void> {
-		// Trashes mail a filter marked to delete after N days (F101). One indexed UPDATE; it runs
-		// first so a heavier step below that exhausts the CPU limit cannot skip it.
-		try {
-			await expireMessages(getDb(env));
-		} catch {
-			console.warn("Message expiry deferred");
-		}
-
-		try {
-			await processDueWebhooks(env);
-		} catch {
-			console.warn("Webhook scheduling failed");
-		}
-		await runQueueHealthCheck(env);
-		try {
-			await reconcileCategorization(env);
-		} catch {
-			console.warn("Mail categorization reconciliation deferred");
-		}
-
-		// Expired counters are ignored by the rate-limit check itself; this purge
-		// only keeps the table from growing without bound (F74). It swallows its
-		// own failures, so it cannot block the sweep below.
-		await purgeExpiredRateLimits(env);
-		await purgeMcpRefreshTokenUses(env);
-
-		try {
-			await reconcilePushNotifications(env);
-			await purgePushNotificationState(env);
-			await reconcileExternalSyncJobs(env);
-		} catch {
-			console.warn("Push reconciliation failed");
-		}
-
-		// Restores HTML stored empty by the pre-fix sanitizer; a no-op once the backlog is gone (F34).
-		try {
-			const repair = await repairExternalMessageBodies(env);
-			if (repair.repaired > 0 || repair.abandoned > 0) console.info("External body repair", repair);
-		} catch {
-			console.warn("External body repair deferred");
-		}
-
-		try {
-			await createOAuthProvider(env as McpWorkerEnv).purgeExpiredData(env as McpWorkerEnv, {
+		const mcpEnv = env as McpWorkerEnv;
+		await runScheduledMaintenance(controller.scheduledTime, env, () =>
+			createOAuthProvider(mcpEnv).purgeExpiredData(mcpEnv, {
 				batchSize: 100,
-			});
-		} catch {
-			console.warn("OAuth storage purge failed");
-		}
-
-		// Ships disabled. The existing production backlog would otherwise be removed
-		// on the first run, before an operator has seen the report (F63).
-		if (env.R2_SWEEP_ENABLED === "true" && shouldRunSweep(controller.scheduledTime)) {
-			const result = await deleteR2Orphans(env, { limit: 100 });
-			if (result.deleted > 0 || result.remaining > 0) {
-				console.info("R2 retention sweep", result);
-			}
-		}
+			}));
 	},
 } satisfies ExportedHandler<CloudflareEnv>;

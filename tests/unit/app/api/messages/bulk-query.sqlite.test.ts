@@ -64,6 +64,14 @@ describe("POST /api/messages/bulk with a view query (F102)", () => {
 		expect(applied.body.data).toEqual({ ok: true, updated: 0 });
 	});
 
+	it("only counts rows whose state needs updating", async () => {
+		sqlite.exec("UPDATE messages SET read = 1 WHERE id = 'old-promo'");
+		const query = { ...inbox, focus: "other" };
+		expect((await bulk({ action: "read", preview: true, query })).body.data).toEqual({ matched: 1 });
+		expect((await bulk({ action: "read", query })).body.data).toEqual({ ok: true, updated: 1 });
+		expect((await bulk({ action: "read", query })).body.data).toEqual({ ok: true, updated: 0 });
+	});
+
 	it("rejects invalid view queries and empty requests", async () => {
 		expect((await bulk({ action: "archive", query: { olderThanDays: "0" } })).status).toBe(400);
 		expect((await bulk({ action: "archive", query: { olderThanDays: "" } })).status).toBe(400);

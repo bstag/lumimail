@@ -1,5 +1,5 @@
 import { apiJson } from "@/lib/api/client-response";
-import type { Message } from "@/hooks/types";
+import type { MessageListResponse } from "@/hooks/types";
 import type { ViewQuery } from "./bulk-cleanup-utils";
 
 export const GROUP_BY_SENDER_KEY = "picket:inbox-group-by-sender";
@@ -65,8 +65,9 @@ export async function fetchSenderGroups(view: ViewQuery, limit: number) {
 	return apiJson.get<{ total: number; senders: SenderGroup[] }>(`/api/messages/senders?${params}`);
 }
 
-/** The newest messages from one sender in the view, for an expanded group. */
-export async function fetchSenderMessages(view: ViewQuery, sender: string): Promise<Message[]> {
+/** One page of an expanded sender group, in Inbox order. */
+export async function fetchSenderMessages(view: ViewQuery, sender: string, offset: number): Promise<Required<MessageListResponse>> {
 	const params = new URLSearchParams({ ...withSender(view, sender), limit: String(SENDER_PREVIEW) });
-	return (await apiJson.get<{ messages: Message[] }>(`/api/messages?${params}`)).messages;
+	if (offset > 0) params.set("offset", String(offset));
+	return apiJson.get<Required<MessageListResponse>>(`/api/messages?${params}`);
 }
