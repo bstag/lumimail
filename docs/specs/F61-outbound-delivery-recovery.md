@@ -3,6 +3,8 @@
 > Status: In Progress
 > Owner area: `src/lib/email/send.ts`, `src/app/api/messages/[messageId]/retry/`, Sent message UI
 
+[F104](./F104-audit-hardening.md) defines the current recovery contract. Both failed and uncertain jobs can be recovered. D1 retains a confirmed recovery when immediate queue notification is unavailable.
+
 ## 1. Problem & User Job
 
 F54 made outbound delivery durable: sends are queued, claimed at most once, retried on

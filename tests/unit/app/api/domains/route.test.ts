@@ -16,7 +16,7 @@ const m = vi.hoisted(() => {
 		DomainAlreadyRegisteredError,
 	};
 });
-vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
+vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({ INSTANCE_OPERATOR_USER_ID: "u1" }) }));
 vi.mock("@/lib/auth/org-guard", () => ({ guardOrgAdmin: m.guardOrgAdmin }));
 vi.mock("@/lib/domains/service", () => ({
 	listUserDomains: m.listUserDomains,
@@ -90,6 +90,12 @@ describe("GET /api/domains", () => {
 });
 
 describe("POST /api/domains", () => {
+	it("denies an organization admin who is not the instance operator", async () => {
+		m.guardOrgAdmin.mockResolvedValue({ orgUser: { id: "u2", organizationId: "o1" } });
+		const res = await POST(postReq({ hostname: "example.com" }));
+		expect(res.status).toBe(403);
+		expect(m.addDomainForUser).not.toHaveBeenCalled();
+	});
 	it("returns 401 when unauthenticated", async () => {
 		m.guardOrgAdmin.mockResolvedValue({ errorResponse: unauth });
 		const res = await POST(postReq({ hostname: "example.com" }));
@@ -109,7 +115,7 @@ describe("POST /api/domains", () => {
 		const res = await POST(postReq({ hostname: "example.com", enableRouting: true, enableSending: false }));
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({ success: true, data: { id: "d1" } });
-		expect(m.addDomainForUser).toHaveBeenCalledWith({}, "u1", "o1", "example.com", {
+		expect(m.addDomainForUser).toHaveBeenCalledWith({ INSTANCE_OPERATOR_USER_ID: "u1" }, "u1", "o1", "example.com", {
 			enableRouting: true,
 			enableSending: false,
 		});

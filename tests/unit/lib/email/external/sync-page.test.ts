@@ -163,14 +163,33 @@ describe("external sync page application", () => {
 	});
 
 	it("runs the owner's message filters on newly imported received mail (F98)", async () => {
-		const filterInput = { userId: "usr_1", messageId: "msg_f" };
+		const filterInput = { userId: "usr_1", messageId: "msg_f", at: new Date() };
 		h.prepare.mockResolvedValueOnce({ statements: [], result: { status: "created", messageId: "msg_f" }, filterInput });
 		h.prepare.mockResolvedValueOnce({ statements: [], result: { status: "created", messageId: "msg_sent" } });
 
-		await applyExternalSyncPage(env, account, mailbox, [change, { ...change, remoteMessageId: "remote_2" }], []);
+		await applyExternalSyncPage(env, account, mailbox, [change, { ...change, remoteMessageId: "remote_2" }], [], new Date(), { jobId: "job_1" });
 
 		expect(h.applyFilters).toHaveBeenCalledTimes(1);
 		expect(h.applyFilters).toHaveBeenCalledWith(mock.db, "usr_1", "msg_f", expect.any(Date));
+		expect(mock.updates.map(({ set }) => set)).toContainEqual({ suspectMessageId: null });
+	});
+
+	it("keeps committed R2 files and the cursor unchanged when filtering fails", async () => {
+		const failure = new Error("filters unavailable");
+		h.applyFilters.mockRejectedValueOnce(failure);
+		h.prepare.mockImplementationOnce(async (_env, _account, _mailbox, _change, _now, keys: string[]) => {
+			keys.push("r2/committed.eml");
+			return {
+				statements: [mock.db.update({}).set({ message: true })],
+				result: { status: "created", messageId: "msg_f" },
+				filterInput: { userId: "usr_1", messageId: "msg_f", at: new Date() },
+			};
+		});
+		await expect(applyExternalSyncPage(env, account, mailbox, [change], [
+			{ key: "gmail", type: "gmail_history", value: { historyId: "9" } },
+		])).rejects.toThrow(failure);
+		expect(mock.db.batch).toHaveBeenCalledTimes(1);
+		expect(h.cleanup).not.toHaveBeenCalled();
 	});
 
 	it("skips a message the provider says is too large without downloading it, and still commits the cursor", async () => {

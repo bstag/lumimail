@@ -164,11 +164,14 @@ export function buildLocalDoctorReport({
 		"Mail, push, and dead-letter producer/consumer bindings are complete",
 		Array.isArray(producers) ? producers.length : 0,
 	));
+	const cronTriggers = Array.isArray(config?.triggers?.crons) ? config.triggers.crons : [];
 	checks.push(check(
 		"bindings.cron",
-		JSON.stringify(config?.triggers?.crons) === JSON.stringify(["* * * * *"]),
-		"The required scheduled trigger is configured",
-		Array.isArray(config?.triggers?.crons) ? config.triggers.crons.length : 0,
+		exactNames(cronTriggers.map((cron) => ({ cron })), "cron",
+			config?.vars?.ISOLATED_MAINTENANCE_CRONS === "true"
+				? ["* * * * *", "0-59 * * * *", "*/2 * * * *"] : ["* * * * *"]),
+		"The required scheduled triggers are configured",
+		cronTriggers.length,
 	));
 	checks.push(check(
 		"bindings.email",

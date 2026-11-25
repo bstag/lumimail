@@ -3,6 +3,8 @@
 > Status: `Shipped`
 > Owner area: `src/lib/email/send.ts`, `worker.ts`, outbound queue configuration, sent-message UI
 
+[F104](./F104-audit-hardening.md) defines the current queue reconciliation and uncertain-delivery behavior.
+
 ## 1. Problem and user job
 
 Lumimail creates an `outbound_jobs` row with status `queued`, but `sendEmail()` then

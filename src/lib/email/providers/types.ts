@@ -15,6 +15,7 @@
 
 /** A normalized, provider-agnostic outbound message. */
 export type OutboundMessage = {
+	idempotencyKey?: string;
 	from: string;
 	to: string;
 	subject: string;
@@ -44,15 +45,17 @@ export type OutboundSendResult = {
 
 export class OutboundProviderError extends Error {
 	readonly retryable: boolean;
+	readonly outcomeUnknown: boolean;
 	readonly code?: string;
 
 	constructor(
 		message: string,
-		options: { retryable: boolean; code?: string; cause?: unknown },
+		options: { retryable: boolean; outcomeUnknown?: boolean; code?: string; cause?: unknown },
 	) {
 		super(message, options.cause === undefined ? undefined : { cause: options.cause });
 		this.name = "OutboundProviderError";
 		this.retryable = options.retryable;
+		this.outcomeUnknown = options.outcomeUnknown ?? false;
 		this.code = options.code;
 	}
 }

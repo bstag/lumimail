@@ -116,6 +116,12 @@ describe("GET /api/messages/[messageId]/remote-image", () => {
 		expect((await get()).status).toBe(415);
 	});
 
+	it("rejects an empty generic response with no body stream", async () => {
+		mock.queueSelect([{ htmlBody: STORED }]);
+		fetchMock.mockResolvedValueOnce(new Response(null, { headers: { "content-type": "application/octet-stream" } }));
+		expect((await get()).status).toBe(415);
+	});
+
 	it("rejects images over the size cap by declared or actual length", async () => {
 		mock.queueSelect([{ htmlBody: STORED }]);
 		fetchMock.mockResolvedValueOnce(new Response("x", {
@@ -130,6 +136,18 @@ describe("GET /api/messages/[messageId]/remote-image", () => {
 		expect((await get()).status).toBe(413);
 	});
 
+	it("keeps a 413 even if canceling an oversized upstream stream fails", async () => {
+		mock.queueSelect([{ htmlBody: STORED }]);
+		const cancel = vi.fn().mockRejectedValue(new Error("upstream already closed"));
+		const stream = new ReadableStream({
+			start(controller) { controller.enqueue(new Uint8Array(MAX_REMOTE_IMAGE_BYTES + 1)); },
+			cancel,
+		});
+		fetchMock.mockResolvedValueOnce(new Response(stream, { headers: { "content-type": "image/png" } }));
+		expect((await get()).status).toBe(413);
+		expect(cancel).toHaveBeenCalledOnce();
+	});
+
 	it("reports an upstream failure as a bad gateway", async () => {
 		mock.queueSelect([{ htmlBody: STORED }]);
 		fetchMock.mockResolvedValueOnce(new Response("nope", { status: 500 }));
@@ -137,6 +155,11 @@ describe("GET /api/messages/[messageId]/remote-image", () => {
 
 		mock.queueSelect([{ htmlBody: STORED }]);
 		fetchMock.mockRejectedValueOnce(new Error("timeout"));
+		expect((await get()).status).toBe(502);
+
+		mock.queueSelect([{ htmlBody: STORED }]);
+		const interrupted = new ReadableStream({ start(controller) { controller.error(new Error("interrupted")); } });
+		fetchMock.mockResolvedValueOnce(new Response(interrupted, { headers: { "content-type": "image/png" } }));
 		expect((await get()).status).toBe(502);
 	});
 });

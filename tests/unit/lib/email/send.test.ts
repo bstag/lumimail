@@ -50,7 +50,9 @@ let mock: DbMock;
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	dispatch.mockResolvedValue(undefined);
 	mock = createDbMock();
+	mock.db.batch.mockImplementation(async (statements: PromiseLike<unknown>[]) => Promise.all(statements));
 	h.db = mock.db;
 	providerSend.mockReset();
 	queueSend.mockReset();
@@ -432,7 +434,7 @@ describe("sendEmail producer", () => {
 		expect(providerSend).toHaveBeenCalledWith(expect.objectContaining({
 			headers: { "In-Reply-To": inboundRfcId, References: inboundRfcId },
 		}));
-		expect(mock.updates.at(-1)?.set).toMatchObject({
+		expect(mock.updates.at(-2)?.set).toMatchObject({
 			status: "sent",
 			providerMessageId: "<trace-outbound@example.com>",
 		});
@@ -440,7 +442,7 @@ describe("sendEmail producer", () => {
 			messageId: accepted.messageId,
 			providerMessageId: "<trace-outbound@example.com>",
 			to: "sender@example.com",
-		});
+		}, persistedJob.id);
 	});
 
 	it("rejects a reply source outside the selected accessible mailbox", async () => {
@@ -527,22 +529,17 @@ describe("sendEmail producer", () => {
 		expect(mock.inserts[0].values).toMatchObject({ fromAddr: "<a@example.com>" });
 	});
 
-	it("marks the persisted rows failed when enqueueing fails", async () => {
+	it("accepts the durable job when the immediate queue notification fails", async () => {
 		queueAuthorization();
 		queueSend.mockRejectedValue(new Error("queue unavailable"));
 
 		await expect(
 			sendEmail(env, { userId: "u1", from: "a@example.com", to: "b@x.com", subject: "Hi" }),
-		).rejects.toThrow("queue unavailable");
+		).resolves.toEqual({ messageId: "msg_id", status: "queued" });
 
 		expect(providerSend).not.toHaveBeenCalled();
-		expect(mock.updates).toHaveLength(2);
-		expect(mock.updates[0].set).toMatchObject({ status: "failed", error: "Queue unavailable" });
-		expect(mock.updates[1].set).toEqual({ status: "failed" });
-		expect(dispatch).toHaveBeenCalledWith(env, "u1", "message.failed", {
-			messageId: "msg_id",
-			error: "Queue unavailable",
-		});
+		expect(mock.updates).toHaveLength(0);
+		expect(dispatch).not.toHaveBeenCalled();
 	});
 
 	it("does not enqueue when the persistence batch fails", async () => {
@@ -826,19 +823,20 @@ describe("processOutboundQueue consumer", () => {
 
 		expect(result).toEqual({ action: "ack" });
 		expect(providerSend).toHaveBeenCalledWith({
+			idempotencyKey: "job_1",
 			from: "a@example.com",
 			to: "b@x.com",
 			subject: "Hi",
 			text: "Body",
 		});
 		expect(mock.updates).toHaveLength(3);
-		expect(mock.updates[1].set).toMatchObject({ status: "sent" });
-		expect(mock.updates[2].set).toEqual({ status: "sent", providerMessageId: "provider_1" });
+		expect(mock.updates[2].set).toMatchObject({ status: "sent" });
+		expect(mock.updates[1].set).toEqual({ status: "sent", providerMessageId: "provider_1" });
 		expect(dispatch).toHaveBeenCalledWith(env, "u1", "message.outbound", {
 			messageId: "msg_1",
 			providerMessageId: "provider_1",
 			to: "b@x.com",
-		});
+		}, "job_1");
 	});
 
 	it("routes an external snapshot through its provider account", async () => {
@@ -856,7 +854,7 @@ describe("processOutboundQueue consumer", () => {
 			from: "person@gmail.com", to: "b@x.com", subject: "External",
 		}));
 		expect(providerSend).not.toHaveBeenCalled();
-		expect(mock.updates[2].set).toMatchObject({ status: "sent", providerMessageId: "gmail_remote" });
+		expect(mock.updates[1].set).toMatchObject({ status: "sent", providerMessageId: "gmail_remote" });
 	});
 
 	it("sends persisted RFC reply headers from the immutable snapshot", async () => {
@@ -883,7 +881,7 @@ describe("processOutboundQueue consumer", () => {
 				References: "<root@example.com> <parent@example.com>",
 			},
 		}));
-		expect(mock.updates[2].set).toEqual({
+		expect(mock.updates[1].set).toEqual({
 			status: "sent",
 			providerMessageId: "<sent@example.com>",
 			rfcMessageId: "<sent@example.com>",
@@ -905,7 +903,7 @@ describe("processOutboundQueue consumer", () => {
 
 		expect(providerSend).not.toHaveBeenCalled();
 		expect(mock.updates).toHaveLength(3);
-		expect(mock.updates[1].set).toMatchObject({
+		expect(mock.updates[2].set).toMatchObject({
 			status: "failed",
 			error: "Stored outbound payload is invalid",
 		});
@@ -1103,21 +1101,44 @@ describe("processOutboundQueue consumer", () => {
 		expect(dispatch).not.toHaveBeenCalled();
 	});
 
-	it("fails closed after an ambiguous crash with the same delivery token", async () => {
-		mock
-			.queueSelect([])
-			.queueSelect([storedJob])
-			.queueSelect([{ id: "job_1", userId: "u1", messageId: "msg_1" }]);
+	it("leaves an in-flight claim alone on redelivery even with the same delivery token", async () => {
+		mock.queueSelect([]);
 
 		await expect(
 			processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1"),
 		).resolves.toEqual({ action: "ack" });
 		expect(providerSend).not.toHaveBeenCalled();
-		expect(mock.updates.at(-1)?.set).toEqual({ status: "failed" });
-		expect(dispatch).toHaveBeenCalledWith(env, "u1", "message.failed", {
-			messageId: "msg_1",
-			error: expect.stringContaining("unknown"),
-		});
+		expect(mock.updates).toHaveLength(1);
+		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it("preserves a provider-accepted job for outcome recovery if D1 fails", async () => {
+		mock.queueSelect([storedJob]);
+		const error = new Error("D1 unavailable after provider acceptance");
+		mock.db.batch.mockRejectedValueOnce(error);
+		providerSend.mockResolvedValueOnce({ providerMessageId: "provider_1" });
+		await expect(processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1"))
+			.rejects.toThrow(error);
+		expect(providerSend).toHaveBeenCalledTimes(1);
+		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it("records an ambiguous provider error without retrying or sending a definitive failure event", async () => {
+		mock.queueSelect([storedJob]);
+		providerSend.mockRejectedValueOnce(new OutboundProviderError("Timed out", { retryable: true, outcomeUnknown: true }));
+		await expect(processOutboundQueue(env, { kind: "outbound", jobId: "job_1", generation: 2 }, "delivery_1"))
+			.resolves.toEqual({ action: "ack" });
+		expect(mock.updates.at(-1)?.set).toMatchObject({ status: "uncertain" });
+		expect(dispatch).not.toHaveBeenCalled();
+	});
+
+	it("keeps the sent outcome if scheduling a webhook fails", async () => {
+		mock.queueSelect([storedJob]);
+		providerSend.mockResolvedValueOnce({ providerMessageId: "provider_1" });
+		dispatch.mockRejectedValueOnce(new Error("Webhook storage failed"));
+		await expect(processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1"))
+			.resolves.toEqual({ action: "ack" });
+		expect(mock.updates.at(-1)?.set).toMatchObject({ status: "sent" });
 	});
 
 	it("acknowledges a missing job without sending", async () => {
@@ -1167,7 +1188,7 @@ describe("processOutboundQueue consumer", () => {
 		await expect(
 			processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1"),
 		).resolves.toEqual({ action: "ack" });
-		expect(mock.updates.at(-1)?.set).toEqual({ status: "failed" });
+		expect(mock.updates.at(-2)?.set).toEqual({ status: "failed" });
 		expect(dispatch).toHaveBeenCalledWith(env, "u1", "message.failed", {
 			messageId: "msg_1",
 			error: "E_SENDER_NOT_VERIFIED: Sender rejected",
@@ -1248,7 +1269,7 @@ describe("processOutboundQueue consumer", () => {
 		);
 
 		await processOutboundQueue(env, { kind: "outbound", jobId: "job_1" }, "delivery_1");
-		const stored = (mock.updates[1].set as { error: string }).error;
+		const stored = (mock.updates.at(-1)?.set as { error: string }).error;
 		expect(stored).toBe("x".repeat(500));
 	});
 
@@ -1270,7 +1291,7 @@ describe("processOutboundDeadLetter", () => {
 	it("marks an exhausted queued job failed", async () => {
 		mock.queueSelect([{ id: "job_1", userId: "u1", messageId: "msg_1" }]);
 		await processOutboundDeadLetter(env, { kind: "outbound", jobId: "job_1" });
-		expect(mock.updates.at(-1)?.set).toEqual({ status: "failed" });
+		expect(mock.updates.at(-2)?.set).toEqual({ status: "failed" });
 		expect(dispatch).toHaveBeenCalledWith(env, "u1", "message.failed", {
 			messageId: "msg_1",
 			error: "Outbound delivery retries exhausted",

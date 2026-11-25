@@ -153,6 +153,8 @@
     "pageTitle": "Compose",
     "pageDesc": "Write a new email. Drafts save automatically.",
     "newMessage": "New Message",
+    "draftSaving": "Saving draft…",
+    "draftSaveFailed": "Draft could not be saved",
     "draftSaved": "Draft saved",
     "loadingDraft": "Loading draft",
     "from": "From",
@@ -220,6 +222,8 @@
   "messages": {
     "loading": "Loading...",
     "noSubject": "(no subject)",
+    "loadFailed": "Could not load messages",
+    "deliveryUncertain": "Delivery uncertain",
     "retryDelivery": "Retry delivery",
     "retryDeliveryConfirm": "Retry delivery to {recipient}? If the earlier attempt reached the mail provider before failing, this can deliver the message twice.",
     "noRecipient": "No recipient",

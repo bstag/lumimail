@@ -109,7 +109,8 @@ Source of truth for behavior. Each follows
             [`F100-snooze`](./specs/F100-snooze.md),
             [`F101-filters-at-scale`](./specs/F101-filters-at-scale.md),
             [`F102-bulk-cleanup`](./specs/F102-bulk-cleanup.md),
-            [`F103-group-by-sender`](./specs/F103-group-by-sender.md).
+            [`F103-group-by-sender`](./specs/F103-group-by-sender.md),
+            [`F104-audit-hardening`](./specs/F104-audit-hardening.md).
 
 ## Implementation notes (`implementation/`)
 

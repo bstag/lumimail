@@ -1,7 +1,10 @@
-import { and, eq, exists, inArray, isNull, lte, or } from "drizzle-orm";
-import { getDb } from "@/db";
-import { externalAccounts, externalMessages, messageBodies, messages } from "@/db/schema";
-import { buildSnippet, parseRawMime, unsubscribeColumns } from "@/lib/email/parse";
+import { and, eq, exists, inArray, isNull, lte, or, sql, type SQL } from "drizzle-orm";
+import { getDb, type AppDatabase } from "@/db";
+import { attachments, externalAccounts, externalMessages, messageBodies, messages } from "@/db/schema";
+import { buildSnippet, parseRawMime, unsubscribeColumns, type ParsedEmail } from "@/lib/email/parse";
+import { prepareMessageBody } from "@/lib/email/message-body-storage";
+import { buildInboundAttachmentRows } from "@/lib/email/inbound-attachments";
+import { cleanupAttachmentObjects } from "@/lib/email/attachment-storage";
 import { refreshExternalAccountCredential } from "./credentials";
 import { ExternalProviderRequestError, fetchExternalRawMime } from "./provider-client";
 
@@ -63,6 +66,7 @@ export async function repairExternalMessageBodies(
 		const candidates = await db.select({
 			bodyId: messageBodies.id,
 			messageId: messageBodies.messageId,
+			userId: messages.userId,
 			textBody: messageBodies.textBody,
 			remoteMessageId: externalMessages.remoteMessageId,
 			snippet: messages.snippet,
@@ -127,20 +131,51 @@ export async function repairExternalMessageBodies(
 			);
 			const owned = and(eq(messageBodies.id, candidate.bodyId), eq(messageBodies.htmlBody, ""),
 				eq(messageBodies.repairAttempts, attempts));
-			const bodyUpdate = db.update(messageBodies).set({
-				htmlBody: parsed.html?.trim() ? parsed.html : null,
-				textBody: candidate.textBody ?? parsed.text,
-				repairLeaseUntil: null,
-			}).where(owned).returning({ id: messageBodies.id });
-			const [, saved] = await db.batch([db.update(messages).set({
-				...(candidate.snippet ? {} : { snippet: buildSnippet(candidate.textBody ?? parsed.text, parsed.html) }),
-				// Imports from before F98 never captured List-Unsubscribe.
-				...unsubscribeColumns(parsed),
-			}).where(and(eq(messages.id, candidate.messageId),
-				exists(db.select({ id: messageBodies.id }).from(messageBodies).where(owned)))),
-			bodyUpdate]);
-			result.repaired += saved.length;
+			result.repaired += await saveRepairedBody(env, db, candidate, parsed, owned);
 		}
 	}
 	return result;
+}
+
+async function saveRepairedBody(
+	env: CloudflareEnv,
+	db: AppDatabase,
+	candidate: { messageId: string; userId: string; textBody: string | null; snippet: string | null },
+	parsed: ParsedEmail,
+	owned: SQL | undefined,
+): Promise<number> {
+	const prepared = prepareMessageBody(candidate.textBody ?? parsed.text, parsed.html?.trim() ? parsed.html : null);
+	const downloads = buildInboundAttachmentRows(candidate.userId, candidate.messageId, prepared.overflow);
+	const attemptedKeys: string[] = [];
+	const bodyUpdate = db.update(messageBodies).set({
+		htmlBody: prepared.htmlBody,
+		textBody: prepared.textBody,
+		repairLeaseUntil: null,
+	}).where(owned).returning({ id: messageBodies.id });
+	try {
+		for (const { row, content } of downloads) {
+			attemptedKeys.push(row.r2Key);
+			await env.BUCKET.put(row.r2Key, content, { httpMetadata: { contentType: row.contentType } });
+		}
+		const inserts = downloads.map(({ row }) => db.insert(attachments).select(db.select({
+			id: sql<string>`${row.id}`.as("id"), messageId: sql<string>`${row.messageId}`.as("message_id"),
+			filename: sql<string>`${row.filename}`.as("filename"), contentType: sql<string>`${row.contentType}`.as("content_type"),
+			size: sql<number>`${row.size}`.as("size"), r2Key: sql<string>`${row.r2Key}`.as("r2_key"),
+			disposition: sql<"attachment">`'attachment'`.as("disposition"), contentId: sql<string | null>`null`.as("content_id"),
+			createdAt: sql<Date>`unixepoch()`.as("created_at"),
+		}).from(messageBodies).where(owned)));
+		const messageUpdate = db.update(messages).set({
+			...(candidate.snippet ? {} : { snippet: buildSnippet(candidate.textBody ?? parsed.text, parsed.html) }),
+			...(downloads.length ? { attachmentStatus: sql`case when ${messages.attachmentStatus} = 'none' then 'stored' else ${messages.attachmentStatus} end` } : {}),
+			...unsubscribeColumns(parsed),
+		}).where(and(eq(messages.id, candidate.messageId),
+			exists(db.select({ id: messageBodies.id }).from(messageBodies).where(owned))));
+		const batch = await db.batch([messageUpdate, ...inserts, bodyUpdate]);
+		const saved = batch.at(-1) as Array<{ id: string }>;
+		if (saved.length === 0) await cleanupAttachmentObjects(env, attemptedKeys);
+		return saved.length;
+	} catch (error) {
+		await cleanupAttachmentObjects(env, attemptedKeys);
+		throw error;
+	}
 }

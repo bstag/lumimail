@@ -7,6 +7,7 @@ export type MessageCountRow = Pick<
 > & {
 	/** Received mail whose snooze has not yet ended; it is not in the Inbox (F100). */
 	sleeping?: boolean;
+	count?: number;
 };
 
 export type FolderAccumulator = MessageCounts["folders"];

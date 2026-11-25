@@ -153,6 +153,8 @@
     "pageTitle": "Soạn thư",
     "pageDesc": "Viết email mới. Thư nháp được lưu tự động.",
     "newMessage": "Tin nhắn mới",
+    "draftSaving": "Đang lưu bản nháp…",
+    "draftSaveFailed": "Không lưu được bản nháp",
     "draftSaved": "Đã lưu nháp",
     "loadingDraft": "Đang tải nháp",
     "from": "Từ",
@@ -220,6 +222,8 @@
   "messages": {
     "loading": "Đang tải...",
     "noSubject": "(không có chủ đề)",
+    "loadFailed": "Không tải được thư",
+    "deliveryUncertain": "Chưa xác nhận gửi thư",
     "retryDelivery": "Thử gửi lại",
     "retryDeliveryConfirm": "Thử gửi lại tới {recipient}? Nếu lần thử trước đã đến nhà cung cấp email trước khi gặp lỗi, tin nhắn có thể được gửi hai lần.",
     "noRecipient": "Không có người nhận",

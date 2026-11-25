@@ -65,6 +65,11 @@ describe("createEmptyFolderCounts", () => {
 });
 
 describe("buildMessageCounts", () => {
+	it("adds the SQL group's multiplicity instead of counting it as one message", () => {
+		const counts = buildMessageCounts([row({ count: 81 }), row({ count: 17, sleeping: true })]);
+		expect(counts.folders.inbox).toEqual({ total: 81, unread: 81 });
+		expect(counts.mailboxes[0]).toEqual({ mailboxId: "mb_1", total: 98, unread: 98, inbox: 81 });
+	});
 	it("aggregates folder and mailbox counts including unread and inbox", () => {
 		const result = buildMessageCounts([
 			row({ mailboxId: "mb_1", direction: "inbound", status: "received", read: false }),

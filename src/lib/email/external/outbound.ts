@@ -127,6 +127,12 @@ export async function sendExternalProviderMessage(
 		});
 	}
 	const raw = buildMime(message);
-	return getExternalProviderAdapter(external.provider)
-		.sendMessage(credential.accessToken, raw, fetcher);
+	try {
+		return await getExternalProviderAdapter(external.provider).sendMessage(credential.accessToken, raw, fetcher);
+	} catch (error) {
+		if (error instanceof OutboundProviderError) throw error;
+		throw new OutboundProviderError("External provider delivery could not be confirmed", {
+			retryable: false, outcomeUnknown: true, cause: error,
+		});
+	}
 }

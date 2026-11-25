@@ -38,6 +38,7 @@ export const LABEL_VISIBLE_STATUSES = [
 	"draft",
 	"queued",
 	"failed",
+	"uncertain",
 	"archived",
 ] as const;
 
@@ -49,7 +50,7 @@ export const LABEL_VISIBLE_STATUSES = [
  */
 const FOLDER_PARAMS: Record<MessageFolder, Record<string, string>> = {
 	inbox: { direction: "inbound", status: "received" },
-	sent: { direction: "outbound", status: "queued,sent,failed" },
+	sent: { direction: "outbound", status: "queued,sent,failed,uncertain" },
 	drafts: { direction: "outbound", status: "draft" },
 	trash: { status: "trash" },
 	spam: { status: "spam" },
@@ -75,6 +76,7 @@ export function getMessageQueryParams(
 	if (parsedFilters?.read && parsedFilters.read !== "all") params.set("read", parsedFilters.read);
 	if (filters?.limit) params.set("limit", String(filters.limit));
 	if (filters?.offset) params.set("offset", String(filters.offset));
+	if (filters?.after) params.set("after", filters.after);
 	if (filters?.labelId) params.set("labelId", filters.labelId);
 	if (folder === "inbox" && filters?.focus) params.set("focus", filters.focus);
 

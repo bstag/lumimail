@@ -64,7 +64,10 @@ beforeEach(() => {
 			token_ciphertext text, token_iv text, token_key_id text, status text
 		);
 		CREATE TABLE external_messages (id text, account_id text, remote_message_id text, lumimail_message_id text);
-		CREATE TABLE messages (id text, snippet text, unsubscribe_url text, unsubscribe_mailto text, unsubscribe_one_click integer);
+		CREATE TABLE messages (id text, snippet text, unsubscribe_url text, unsubscribe_mailto text, unsubscribe_one_click integer,
+			user_id text DEFAULT 'usr_1', attachment_status text DEFAULT 'none');
+		CREATE TABLE attachments (id text, message_id text, filename text, content_type text, size integer,
+			r2_key text, disposition text, content_id text, created_at integer);
 		CREATE TABLE message_bodies (
 			id text, message_id text, text_body text, html_body text,
 			repair_attempts integer NOT NULL DEFAULT 0, repair_lease_until integer
@@ -93,6 +96,44 @@ beforeEach(() => {
 });
 
 describe("repairExternalMessageBodies", () => {
+	it("keeps the full repaired body as a download when it exceeds a D1 row", async () => {
+		insertMessage("msg_large", "exa_1", "g_large", "", "郵".repeat(550_000));
+		const put = vi.fn();
+		const bucketEnv = { BUCKET: { put } } as unknown as CloudflareEnv;
+		const result = await repairExternalMessageBodies(bucketEnv, { fetcher: async () => gmailResponse("g_large", htmlOnlyMime) });
+		expect(result.repaired).toBe(1);
+		expect(put).toHaveBeenCalledTimes(2);
+		expect(sqlite.prepare("SELECT filename FROM attachments ORDER BY filename").all()).toEqual([
+			{ filename: "message-body.html" }, { filename: "message-body.txt" },
+		]);
+		expect(row<{ html_body: null }>("SELECT html_body FROM message_bodies WHERE message_id = 'msg_large'").html_body).toBeNull();
+	});
+
+	it("removes only this attempt's downloads if it loses its claim before publishing", async () => {
+		insertMessage("msg_large", "exa_1", "g_large", "", "郵".repeat(550_000));
+		const put = vi.fn((key: string) => {
+			expect(key).toMatch(/^attachments\/usr_1\/msg_large\//);
+			exec("UPDATE message_bodies SET repair_attempts = 2 WHERE message_id = 'msg_large'");
+		});
+		const remove = vi.fn();
+		const bucketEnv = { BUCKET: { put, delete: remove } } as unknown as CloudflareEnv;
+		const result = await repairExternalMessageBodies(bucketEnv, { fetcher: async () => gmailResponse("g_large", htmlOnlyMime) });
+		expect(result.repaired).toBe(0);
+		expect(sqlite.prepare("SELECT filename FROM attachments").all()).toEqual([]);
+		expect(remove).toHaveBeenCalledWith(put.mock.calls.map(([key]) => key));
+	});
+
+	it("cleans up a failed download write without replacing the existing preview", async () => {
+		insertMessage("msg_large", "exa_1", "g_large", "", "郵".repeat(550_000));
+		const failure = new Error("R2 unavailable");
+		const put = vi.fn<(key: string) => Promise<void>>().mockRejectedValue(failure);
+		const remove = vi.fn();
+		const bucketEnv = { BUCKET: { put, delete: remove } } as unknown as CloudflareEnv;
+		await expect(repairExternalMessageBodies(bucketEnv, { fetcher: async () => gmailResponse("g_large", htmlOnlyMime) }))
+			.rejects.toThrow(failure);
+		expect(remove).toHaveBeenCalledWith(put.mock.calls[0][0]);
+		expect(row<{ html_body: string }>("SELECT html_body FROM message_bodies WHERE message_id = 'msg_large'").html_body).toBe("");
+	});
 	it("re-downloads only rows stored with empty HTML and restores HTML and snippet", async () => {
 		insertMessage("msg_broken", "exa_1", "g_broken", "", null);
 		insertMessage("msg_plain", "exa_1", "g_plain", null, "plain only", "plain only");

@@ -9,13 +9,13 @@ const PUSH_EVENT_ID = /^pue_[A-Za-z0-9_-]{21}$/;
 const PUSH_DELIVERY_ID = /^pudl_[A-Za-z0-9_-]{21}$/;
 
 export function isInboundQueueMessage(payload: unknown): payload is InboundQueueMessage {
-	return (
-		typeof payload === "object" &&
-		payload !== null &&
-		"rawR2Key" in payload &&
-		"from" in payload &&
-		"to" in payload
-	);
+	if (!payload || typeof payload !== "object") return false;
+	const { rawR2Key, from, to, headers } = payload as Record<string, unknown>;
+	return typeof from === "string" && from.length <= 512
+		&& typeof to === "string" && to.length > 0 && to.length <= 512
+		&& typeof rawR2Key === "string" && /^inbound\/[A-Za-z0-9_-]{1,100}\.eml$/.test(rawR2Key)
+		&& (headers === undefined || (headers !== null && typeof headers === "object" && !Array.isArray(headers)
+			&& Object.values(headers).every((value) => typeof value === "string")));
 }
 
 export function isOutboundQueueMessage(payload: unknown): payload is OutboundQueueMessage {
@@ -26,12 +26,10 @@ export function isOutboundQueueMessage(payload: unknown): payload is OutboundQue
 		payload.kind === "outbound" &&
 		"jobId" in payload &&
 		typeof payload.jobId === "string" &&
-		payload.jobId.length > 0
+		payload.jobId.length > 0 && payload.jobId.length <= 120 &&
+		(!("generation" in payload) || (typeof payload.generation === "number"
+			&& Number.isSafeInteger(payload.generation) && payload.generation >= 0))
 	);
-}
-
-export function isOutboundDeadLetterQueue(queueName: string): boolean {
-	return queueName.includes("outbound-dlq");
 }
 
 export function isPushQueueMessage(payload: unknown): payload is PushQueueMessage {
@@ -51,6 +49,20 @@ export function isPushQueueMessage(payload: unknown): payload is PushQueueMessag
 	return false;
 }
 
-export function isPushDeadLetterQueue(queueName: string): boolean {
-	return queueName.includes("push-dlq");
+const QUEUE_ROLES = ["inbound", "outbound", "outbound-dlq", "push", "push-dlq", "external-sync", "external-sync-dlq"] as const;
+
+export function queueRole(name: string, env: { QUEUE_NAME_PREFIX?: string; QUEUE_NAME_SUFFIX?: string }) {
+	const prefix = env.QUEUE_NAME_PREFIX ?? "lumimail";
+	const suffixes = env.QUEUE_NAME_SUFFIX === undefined ? ["", "-prod", "-staging"] : [`-${env.QUEUE_NAME_SUFFIX}`];
+	return QUEUE_ROLES.find((role) => suffixes.some((suffix) => name === `${prefix}-${role}${suffix}`));
+}
+
+export function inboundQueueHeaders(headers: Headers): Record<string, string> {
+	const compact: Record<string, string> = {};
+	for (const name of ["auto-submitted", "precedence", "x-auto-response-suppress"]) {
+		const value = headers.get(name);
+		if (value) compact[name] = value.slice(0, 256);
+	}
+	if ([...headers.keys()].some((name) => name.startsWith("list-"))) compact["list-id"] = "present";
+	return compact;
 }

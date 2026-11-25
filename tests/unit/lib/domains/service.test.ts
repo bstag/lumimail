@@ -21,6 +21,7 @@ vi.mock("@/lib/domains/cloudflare-cleanup", () => ({
 
 vi.mock("@/lib/domains/provision", () => ({
 	provisionDomainOnCloudflare: vi.fn(),
+	requireDomainZone: vi.fn(),
 }));
 
 import {
@@ -41,7 +42,7 @@ import {
 	getSendingSubdomainDns,
 } from "@/lib/cloudflare-api";
 import { deleteEmailRoutingRulesForDomain } from "@/lib/domains/cloudflare-cleanup";
-import { provisionDomainOnCloudflare } from "@/lib/domains/provision";
+import { provisionDomainOnCloudflare, requireDomainZone } from "@/lib/domains/provision";
 
 const env = {} as CloudflareEnv;
 let mock: DbMock;
@@ -65,6 +66,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	mock = createDbMock();
 	h.db = mock.db;
+	vi.mocked(requireDomainZone).mockResolvedValue({ id: "z1", name: "example.com" } as never);
 });
 
 describe("listUserDomains", () => {
@@ -92,14 +94,30 @@ describe("addDomainForUser", () => {
 		const failure = addDomainForUser(env, "u1", "org1", "mail.example.com");
 		await expect(failure).rejects.toBeInstanceOf(DomainAlreadyRegisteredError);
 		await expect(failure).rejects.toThrow("Domain is already registered");
+		expect(provisionMock).not.toHaveBeenCalled();
+	});
+
+	it("does not provision when another request wins the reservation", async () => {
+		mock.queueSelect([]).queueSelect([]);
+		await expect(addDomainForUser(env, "u1", "org1", "mail.example.com"))
+			.rejects.toBeInstanceOf(DomainAlreadyRegisteredError);
+		expect(provisionMock).not.toHaveBeenCalled();
+	});
+
+	it("reports a missing reservation if it is removed during provisioning", async () => {
+		provisionMock.mockResolvedValue(baseProvisioned);
+		mock.queueSelect([{ id: "dom_1", organizationId: "org1" }]).queueSelect([]);
+		await expect(addDomainForUser(env, "u1", "org1", "mail.example.com"))
+			.rejects.toThrow("Domain reservation was removed");
 	});
 
 	it("inserts a new domain (active status) when none exists and reads it back with DNS", async () => {
 		provisionMock.mockResolvedValue(baseProvisioned);
 		defaultDnsMocks();
-		// existing lookup -> none; read-back -> the row
+		// Existing lookup, reservation, and final update.
 		mock
 			.queueSelect([])
+			.queueSelect([{ id: "dom_new" }])
 			.queueSelect([
 				{
 					id: "dom_new",
@@ -113,13 +131,15 @@ describe("addDomainForUser", () => {
 		const result = await addDomainForUser(env, "u1", "org1", "Mail.Example.com");
 
 		expect(mock.inserts).toHaveLength(1);
-		expect(mock.updates).toHaveLength(0);
+		expect(mock.updates).toHaveLength(1);
 		expect(mock.inserts[0].values).toMatchObject({
 			id: "dom_new",
 			userId: "u1",
 			organizationId: "org1",
 			hostname: "mail.example.com",
 			zoneId: "z1",
+		});
+		expect(mock.updates[0].set).toMatchObject({
 			status: "active",
 			routingStatus: "ready",
 			sendingSubdomainTag: "tag1",
@@ -159,7 +179,6 @@ describe("addDomainForUser", () => {
 		expect(mock.updates).toHaveLength(1);
 		expect(mock.inserts).toHaveLength(0);
 		expect(mock.updates[0].set).toMatchObject({
-			id: "dom_existing",
 			status: "pending",
 			routingStatus: null,
 			sendingSubdomainTag: null,
@@ -181,11 +200,12 @@ describe("addDomainForUser", () => {
 		defaultDnsMocks();
 		mock
 			.queueSelect([])
+			.queueSelect([{ id: "dom_new" }])
 			.queueSelect([{ id: "dom_new", hostname: "mail.example.com", zoneId: "z1", sendingSubdomainTag: "tag1" }]);
 
 		await addDomainForUser(env, "u1", "org1", "mail.example.com");
 
-		expect(mock.inserts[0].values).toMatchObject({ status: "active" });
+		expect(mock.updates[0].set).toMatchObject({ status: "active" });
 	});
 });
 
@@ -316,7 +336,7 @@ describe("removeDomainForUser", () => {
 		await removeDomainForUser(env, "org1", "dom_1");
 
 		expect(cleanupMock).toHaveBeenCalledWith(env, "z1", "mail.example.com");
-		expect(disableRoutingMock).toHaveBeenCalledWith(env, "z1");
+		expect(disableRoutingMock).not.toHaveBeenCalled();
 		expect(mock.deletes).toHaveLength(1);
 	});
 
@@ -332,21 +352,13 @@ describe("removeDomainForUser", () => {
 		expect(mock.deletes).toHaveLength(1);
 	});
 
-	it("swallows routing cleanup errors and still deletes the row", async () => {
-		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-		cleanupMock.mockRejectedValue(new Error("cleanup boom"));
-		disableRoutingMock.mockRejectedValue(new Error("disable boom"));
+	it("preserves the domain when provider rule cleanup must be retried", async () => {
+		cleanupMock.mockRejectedValueOnce(new Error("cleanup boom"));
+		mock.queueSelect([{ id: "dom_1", zoneId: "z1", hostname: "mail.example.com" }]);
 
-		mock.queueSelect([
-			{ id: "dom_1", zoneId: "z1", hostname: "mail.example.com", routingEnabled: true, sendingSubdomainTag: "tag1" },
-		]);
-
-		await removeDomainForUser(env, "org1", "dom_1");
-
-		expect(warn).toHaveBeenCalledWith("deleteEmailRoutingRulesForDomain", expect.any(Error));
-		expect(warn).toHaveBeenCalledWith("disableEmailRouting", expect.any(Error));
-		expect(mock.deletes).toHaveLength(1);
-		warn.mockRestore();
+		await expect(removeDomainForUser(env, "org1", "dom_1")).rejects.toThrow("cleanup boom");
+		expect(disableRoutingMock).not.toHaveBeenCalled();
+		expect(mock.deletes).toHaveLength(0);
 	});
 });
 

@@ -98,7 +98,7 @@ describe("parseMessageSearchQuery", () => {
 describe("getMessageQueryParams", () => {
 	it.each([
 		["inbox", "direction=inbound&status=received"],
-		["sent", "direction=outbound&status=queued%2Csent%2Cfailed"],
+		["sent", "direction=outbound&status=queued%2Csent%2Cfailed%2Cuncertain"],
 		["drafts", "direction=outbound&status=draft"],
 		["trash", "status=trash"],
 		["spam", "status=spam"],

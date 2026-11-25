@@ -434,6 +434,44 @@ test.describe("canonical API client contracts", () => {
 		await expect(page.getByText("Message queued for sending")).toBeVisible();
 	});
 
+	test("serializes draft creation and editing, and shows a save failure until retry", async ({ page }) => {
+		await mockAuthenticatedShell(page);
+		let creates = 0;
+		let updates = 0;
+		let releaseCreate!: () => void;
+		const createResponse = new Promise<void>((resolve) => { releaseCreate = resolve; });
+		const saved = { success: true, data: { draft: { id: "draft_serial" } } };
+		await page.route("**/api/drafts", async (route) => {
+			creates++;
+			await createResponse;
+			return route.fulfill({ json: saved });
+		});
+		await page.route("**/api/drafts/draft_serial", (route) => {
+			expect(route.request().postDataJSON()).toMatchObject({ subject: "Second edit" });
+			if (++updates === 1) return route.fulfill({ status: 503, json: { error: "Unavailable" } });
+			return route.fulfill({ json: saved });
+		});
+
+		await page.goto("/compose");
+		const subject = page.getByLabel("Subject");
+		await page.clock.install();
+		await subject.fill("First edit");
+		await page.clock.runFor(1_000);
+		await expect.poll(() => creates).toBe(1);
+		await subject.fill("Second edit");
+		try {
+			await page.clock.runFor(1_000);
+			expect(creates).toBe(1);
+		} finally {
+			releaseCreate();
+		}
+		await expect(page.getByText("Draft could not be saved")).toBeVisible();
+		await page.getByRole("button", { name: "Retry", exact: true }).click();
+		await expect(page.getByText("Draft saved", { exact: true })).toBeVisible();
+		expect(creates).toBe(1);
+		expect(updates).toBe(2);
+	});
+
 	test("shows and refreshes queued and failed outbound delivery states", async ({ page }) => {
 		await mockAuthenticatedShell(page);
 		await page.route("**/api/labels", (route) =>
@@ -442,7 +480,7 @@ test.describe("canonical API client contracts", () => {
 		let messageRequestCount = 0;
 		await page.route("**/api/messages?**", (route) => {
 			const requestUrl = new URL(route.request().url());
-			expect(requestUrl.searchParams.get("status")).toBe("queued,sent,failed");
+			expect(requestUrl.searchParams.get("status")).toBe("queued,sent,failed,uncertain");
 			messageRequestCount += 1;
 			const deliveryStatus = messageRequestCount === 1 ? "queued" : "sent";
 			return route.fulfill({

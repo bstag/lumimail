@@ -6,6 +6,9 @@ interface CloudflareEnv {
 	OUTBOUND_QUEUE: Queue<import("./src/lib/email/send").OutboundQueueMessage>;
 	EXTERNAL_SYNC_QUEUE: Queue<import("./src/lib/email/external/types").ExternalSyncQueueMessage>;
 	EXTERNAL_SYNC_DLQ_QUEUE: Queue;
+	QUEUE_NAME_PREFIX?: string;
+	QUEUE_NAME_SUFFIX?: string;
+	ISOLATED_MAINTENANCE_CRONS?: string;
 	ASSETS: Fetcher;
 	IMAGES: ImagesBinding;
 	WORKER_SELF_REFERENCE: Fetcher;
@@ -38,6 +41,8 @@ interface CloudflareEnv {
 	R2_SWEEP_ENABLED?: string;
 	/** User ID of the organization owner authorized to administer instance storage. */
 	INSTANCE_OPERATOR_USER_ID?: string;
+	/** Operator-approved hostnames, keyed by organization ID. */
+	DOMAIN_PROVISIONING_ALLOWLIST?: string;
 	/**
 	 * Set to "true" to enable the dev-only `/api/seed` demo-data route (T-43).
 	 * Fails closed when unset; production builds additionally refuse via the

@@ -6,7 +6,7 @@ vi.mock("@/lib/cloudflare-api", () => ({
 	findZoneByHostname: vi.fn(),
 }));
 
-import { provisionDomainOnCloudflare } from "@/lib/domains/provision";
+import { canProvisionDomain, provisionDomainOnCloudflare } from "@/lib/domains/provision";
 import { ensureSendingDomain, enableEmailRouting, findZoneByHostname } from "@/lib/cloudflare-api";
 
 const env = {} as CloudflareEnv;
@@ -20,7 +20,19 @@ beforeEach(() => {
 	vi.clearAllMocks();
 });
 
+it("binds operator-approved hostnames to exactly one organization", () => {
+	const configured = { DOMAIN_PROVISIONING_ALLOWLIST: '{"org_a":["mail.example.com"]}' } as CloudflareEnv;
+	expect(canProvisionDomain(configured, "u1", "org_a", "Mail.Example.Com")).toBe(true);
+	expect(canProvisionDomain(configured, "u1", "org_a", "another.example.com")).toBe(false);
+	expect(canProvisionDomain(configured, "u1", "org_b", "mail.example.com")).toBe(false);
+	expect(canProvisionDomain({ ...configured, DOMAIN_PROVISIONING_ALLOWLIST: "broken" }, "u1", "org_a", "mail.example.com")).toBe(false);
+});
+
 describe("provisionDomainOnCloudflare", () => {
+	it("uses the zone resolved for the reservation without looking it up again", async () => {
+		await provisionDomainOnCloudflare(env, "example.com", { enableRouting: false, enableSending: false }, apexZone);
+		expect(findZone).not.toHaveBeenCalled();
+	});
 	it("throws when no zone is found", async () => {
 		findZone.mockResolvedValue(null);
 		await expect(provisionDomainOnCloudflare(env, "example.com")).rejects.toThrow(

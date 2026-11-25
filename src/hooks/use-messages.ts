@@ -67,6 +67,7 @@ export function useMessages(
 ) {
 	const queryClient = useQueryClient();
 	const {
+		after,
 		focus,
 		labelId,
 		limit: requestedLimit,
@@ -85,12 +86,14 @@ export function useMessages(
 				title: nullable(title),
 				limit: nullable(requestedLimit),
 				offset: nullable(requestedOffset),
+				after,
 				labelId: nullable(labelId),
 				focus: nullable(focus),
 			}),
-		[focus, folder, labelId, mailboxId, query, read, requestedLimit, requestedOffset, title],
+		[after, focus, folder, labelId, mailboxId, query, read, requestedLimit, requestedOffset, title],
 	);
 	const queryFilters = {
+		after,
 		focus,
 		labelId,
 		limit: requestedLimit,
@@ -115,7 +118,6 @@ export function useMessages(
 		// the old force-refresh listeners.
 		staleTime: 0,
 		refetchOnWindowFocus: true,
-		// The old fetch path made a single attempt and rendered the empty state.
 		retry: false,
 		refetchInterval,
 		// Keep the previous page rendered while a new page/filter loads, as the
@@ -124,6 +126,7 @@ export function useMessages(
 	});
 
 	const data = listQuery.data;
+	const { total, limit, offset, nextCursor } = data ?? {};
 	const messages = useMemo(() => messagesFromResponse(data), [data]);
 	const unreadCount = unreadMessageCount(messages);
 
@@ -148,8 +151,11 @@ export function useMessages(
 		setMessages,
 		unreadCount,
 		isLoading: queryIsLoading(listQuery.isPending, listQuery.isPlaceholderData),
-		total: paginationValue(data?.total, undefined, 0),
-		limit: paginationValue(data?.limit, requestedLimit, 25),
-		offset: paginationValue(data?.offset, requestedOffset, 0),
+		isError: listQuery.isError,
+		refetch: listQuery.refetch,
+		nextCursor,
+		total: paginationValue(total, undefined, 0),
+		limit: paginationValue(limit, requestedLimit, 25),
+		offset: paginationValue(offset, requestedOffset, 0),
 	};
 }

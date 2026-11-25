@@ -105,6 +105,15 @@ afterEach(() => {
 const payload = { from: "sender@other.com", to: "a@example.com", rawR2Key: "inbound/k.eml" };
 
 describe("processInboundMessage", () => {
+	it("keeps an oversized body as a downloadable attachment", async () => {
+		resolveInboundTargets.mockResolvedValue(storeDecisions);
+		parseRawMime.mockResolvedValueOnce({ ...parsed, text: "郵".repeat(550_000), html: null, attachments: [] });
+		await processInboundMessage(makeEnv(makeR2()), payload);
+		expect(mock.inserts[0].values).toMatchObject({ attachmentStatus: "stored" });
+		expect(mock.inserts[1].values).toMatchObject({ htmlBody: null, textBody: expect.stringContaining("Full message body") });
+		expect(mock.inserts.find(({ values }) => Array.isArray(values))?.values)
+			.toEqual([expect.objectContaining({ filename: "message-body.txt" })]);
+	});
 	it("splits attachment metadata into D1-sized statements in one delivery batch", async () => {
 		resolveInboundTargets.mockResolvedValue(storeDecisions);
 		parseRawMime.mockResolvedValue({

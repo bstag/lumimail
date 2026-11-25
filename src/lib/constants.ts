@@ -44,6 +44,7 @@ export const MESSAGE_STATUSES: [string, ...string[]] = [
 	"queued",
 	"sent",
 	"failed",
+	"uncertain",
 	"draft",
 	"trash",
 	"spam",

@@ -13,6 +13,7 @@ import { buildInboundAttachmentRows, inboundAttachmentInserts, prepareInboundAtt
 import { buildSnippet, unsubscribeColumns, parseRawMime } from "@/lib/email/parse";
 import { resolveInboundThreading } from "@/lib/email/threading";
 import { newId } from "@/lib/ids";
+import { prepareMessageBody } from "@/lib/email/message-body-storage";
 import type { ExternalRemoteChange } from "./provider-client";
 
 export type ExternalImportAccount = {
@@ -54,8 +55,7 @@ export type ExternalImportResult =
 export type PreparedExternalMessage = {
 	statements: BatchItem<"sqlite">[];
 	result: ExternalImportResult;
-	/** Set for newly imported received mail: the owner's filters run once it is stored (F98). */
-	filterInput?: { userId: string; messageId: string };
+	filterInput?: { userId: string; messageId: string; at: Date };
 };
 
 export async function prepareExternalMessage(
@@ -70,6 +70,7 @@ export async function prepareExternalMessage(
 	const [existing] = await db.select({
 		id: externalMessages.id,
 		lumimailMessageId: externalMessages.lumimailMessageId,
+		filtersPendingAt: externalMessages.filtersPendingAt,
 	}).from(externalMessages).where(and(
 		eq(externalMessages.accountId, account.id),
 		eq(externalMessages.remoteMessageId, change.remoteMessageId),
@@ -88,6 +89,9 @@ export async function prepareExternalMessage(
 				status: change.removed ? "removed" : "existing",
 				messageId: existing.lumimailMessageId,
 			},
+			...(existing.filtersPendingAt && !change.removed ? {
+				filterInput: { userId: mailbox.userId, messageId: existing.lumimailMessageId, at: existing.filtersPendingAt },
+			} : {}),
 		};
 	}
 	if (change.removed) return { statements: [], result: { status: "ignored" } };
@@ -151,7 +155,8 @@ export async function prepareExternalMessage(
 		? parsed.toAddr
 		: mailboxHeader;
 	const prepared = prepareInboundAttachments(parsed.attachments);
-	const attachmentRows = buildInboundAttachmentRows(mailbox.userId, messageId, prepared.attachments);
+	const { textBody, htmlBody, overflow } = prepareMessageBody(parsed.text, parsed.html);
+	const attachmentRows = buildInboundAttachmentRows(mailbox.userId, messageId, [...prepared.attachments, ...overflow]);
 	const threading = await resolveInboundThreading({
 		mailboxId: mailbox.id,
 		messageId: parsed.messageId,
@@ -197,14 +202,14 @@ export async function prepareExternalMessage(
 		threadId: threading.threadId,
 		receivedAt: parsed.receivedAt ?? now,
 		...unsubscribeColumns(parsed),
-		attachmentStatus: prepared.status,
+		attachmentStatus: prepared.status === "none" && overflow.length > 0 ? "stored" : prepared.status,
 		attachmentError: prepared.error,
 	});
 	const bodyInsert = db.insert(messageBodies).values({
 		id: newId(),
 		messageId,
-		textBody: parsed.text,
-		htmlBody: parsed.html,
+		textBody,
+		htmlBody,
 		rawR2Key: null,
 	});
 	const mappingInsert = db.insert(externalMessages).values({
@@ -217,6 +222,7 @@ export async function prepareExternalMessage(
 		remoteRevision: change.remoteRevision,
 		firstSeenAt: now,
 		lastSeenAt: now,
+		filtersPendingAt: sent ? null : now,
 	});
 
 	let originalInsert: ReturnType<ReturnType<typeof db.insert>["values"]> | null = null;
@@ -253,7 +259,7 @@ export async function prepareExternalMessage(
 		],
 		result: { status: "created", messageId },
 		...(sent ? {} : {
-			filterInput: { userId: mailbox.userId, messageId },
+			filterInput: { userId: mailbox.userId, messageId, at: now },
 		}),
 	};
 }

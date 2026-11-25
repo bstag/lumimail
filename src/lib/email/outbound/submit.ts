@@ -10,7 +10,6 @@ import {
 } from "@/db/schema";
 import { newId } from "@/lib/ids";
 import { buildSnippet } from "@/lib/email/parse";
-import { dispatchWebhooks } from "@/lib/email/webhooks";
 import { upsertContactFromAddress } from "@/lib/contacts/service";
 import { formatEmailAddress, getEmailAddress, getMailboxAddress } from "@/lib/email/address";
 import {
@@ -127,25 +126,6 @@ function resolveFromAddress(from: string, authorization: SenderAuthorization): s
 	);
 }
 
-/**
- * Marks a persisted job (and its message) failed after the delivery queue
- * rejected the enqueue. Shared by the producer (`sendEmail`) and the operator
- * recovery path (`recoverOutboundJob`), whose compensation is identical.
- */
-export async function failJobQueueUnavailable(
-	db: AppDatabase,
-	jobId: string,
-	messageId: string,
-): Promise<void> {
-	await db.batch([
-		db
-			.update(outboundJobs)
-			.set({ status: "failed", error: "Queue unavailable", updatedAt: new Date() })
-			.where(eq(outboundJobs.id, jobId)),
-		db.update(messages).set({ status: "failed" }).where(eq(messages.id, messageId)),
-	]);
-}
-
 export const OUTBOUND_SEND_MAX_REQUESTS = 50;
 export const OUTBOUND_SEND_WINDOW_MS = 3_600_000;
 
@@ -202,7 +182,7 @@ async function readExistingIdempotency(
 		))
 		.limit(1);
 	if (!existing) return null;
-	const status = existing.status === "sent" || existing.status === "failed" ? existing.status : "queued";
+	const status = existing.status === "sent" || existing.status === "failed" || existing.status === "uncertain" ? existing.status : "queued";
 	return resolveExistingIdempotency({ ...existing, status }, input.idempotency.requestHash);
 }
 
@@ -254,7 +234,7 @@ function buildDeliverySnapshot(
 export async function sendEmail(
 	env: CloudflareEnv,
 	input: SendEmailInput,
-): Promise<{ messageId: string; status: "queued" | "sent" | "failed"; replayed?: true }> {
+): Promise<{ messageId: string; status: "queued" | "sent" | "failed" | "uncertain"; replayed?: true }> {
 	const db = getDb(env);
 	const authorization = await resolveSendAuthorization(env, input);
 	const replay = await readExistingIdempotency(db, input);
@@ -381,13 +361,8 @@ export async function sendEmail(
 
 	try {
 		await env.OUTBOUND_QUEUE.send({ kind: "outbound", jobId });
-		return { messageId, status: "queued" };
-	} catch (error) {
-		await failJobQueueUnavailable(db, jobId, messageId);
-		await dispatchWebhooks(env, input.userId, "message.failed", {
-			messageId,
-			error: "Queue unavailable",
-		});
-		throw error;
+	} catch {
+		console.warn("Outbound queue notification deferred", { jobId });
 	}
+	return { messageId, status: "queued" };
 }

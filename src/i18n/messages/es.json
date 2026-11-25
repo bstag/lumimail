@@ -153,6 +153,8 @@
     "pageTitle": "Redactar",
     "pageDesc": "Escribe un nuevo correo. Los borradores se guardan automáticamente.",
     "newMessage": "Nuevo mensaje",
+    "draftSaving": "Guardando borrador…",
+    "draftSaveFailed": "No se pudo guardar el borrador",
     "draftSaved": "Borrador guardado",
     "loadingDraft": "Cargando borrador",
     "from": "De",
@@ -220,6 +222,8 @@
   "messages": {
     "loading": "Cargando...",
     "noSubject": "(sin asunto)",
+    "loadFailed": "No se pudieron cargar los mensajes",
+    "deliveryUncertain": "Entrega sin confirmar",
     "retryDelivery": "Reintentar envío",
     "retryDeliveryConfirm": "¿Reintentar el envío a {recipient}? Si el intento anterior llegó al proveedor de correo antes de fallar, el mensaje podría entregarse dos veces.",
     "noRecipient": "Sin destinatario",

@@ -1,4 +1,5 @@
 import { withOrgAdmin } from "@/lib/api/handler";
+import { canProvisionDomain } from "@/lib/domains/provision";
 import { addDomainSchema } from "@/lib/validators";
 import {
 	addDomainForUser,
@@ -38,6 +39,9 @@ export const GET = withOrgAdmin(async ({ request, env, user }) => {
 export const POST = withOrgAdmin(async ({ request, env, user }) => {
 	const parsed = addDomainSchema.safeParse(await request.json());
 	if (!parsed.success) return apiError("Validation failed", 400, parsed.error.flatten());
+	if (!canProvisionDomain(env, user.id, user.organizationId, parsed.data.hostname)) {
+		return apiError("Domain provisioning requires approval from the instance operator", 403);
+	}
 
 	try {
 		const result = await addDomainForUser(env, user.id, user.organizationId, parsed.data.hostname, {

@@ -10,7 +10,7 @@ import { apiError, apiSuccess } from "@/lib/api/response";
 const querySchema = z.object({
 	mailboxId: z.string().min(1).optional(),
 	direction: z.enum(["inbound", "outbound"]).optional(),
-	status: z.enum(["received", "queued", "sent", "failed", "draft", "spam", "trash", "archived"]).optional(),
+	status: z.enum(["received", "queued", "sent", "failed", "uncertain", "draft", "spam", "trash", "archived"]).optional(),
 	starred: z.enum(["true", "false"]).transform((value) => value === "true").optional(),
 	limit: z.coerce.number().int().min(1).transform((value) => Math.min(value, 100)).default(50),
 	offset: z.coerce.number().int().min(0).default(0),

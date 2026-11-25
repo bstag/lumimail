@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { submitMessage } from "./utils";
 import { buildForwardQuote, plainTextToHtml } from "./compose-form-utils";
 import { useComposeAttachments, type AttachedFile } from "./use-compose-attachments";
-import { useComposeDraft } from "./use-compose-draft";
+import { useComposeDraft, type DraftSaveState } from "./use-compose-draft";
 import { AttachmentChips } from "./attachment-chips";
 import { ComposeEditor } from "./compose-editor";
 import { ComposeEditorToolbar } from "./compose-editor-toolbar";
@@ -57,14 +57,17 @@ function ComposeToast({ toast }: { toast: Toast }) {
 	return <div className={cn("fixed right-6 top-6 z-50 rounded-lg px-4 py-3 text-sm font-medium shadow-lg", toast.type === "success" ? "bg-success text-white" : "bg-danger text-white")}>{toast.message}</div>;
 }
 
-function ComposeHeader({ mode, loadingDraft, draftId, onClose }: { mode: "page" | "popup"; loadingDraft: boolean; draftId: string | null | undefined; onClose?: () => void }) {
+const draftStatusLabels = { idle: "newMessage", saving: "draftSaving", saved: "draftSaved", failed: "draftSaveFailed" } as const;
+
+function ComposeHeader({ mode, loadingDraft, saveState, onClose, onRetry }: { mode: "page" | "popup"; loadingDraft: boolean; saveState: DraftSaveState; onClose?: () => void; onRetry: () => void }) {
 	const t = useTranslations("compose");
-	const title = loadingDraft ? t("loadingDraft") : draftId ? t("draftSaved") : t("newMessage");
-	return <div className="flex h-9 items-center justify-between border-b border-border bg-surface-subtle px-4 text-sm font-medium text-ink"><span>{title}</span>{mode === "popup" && <div className="flex items-center gap-3 text-ink-muted"><Minimize2 className="h-4 w-4" /><button type="button" onClick={onClose}><X className="h-4 w-4" /></button></div>}</div>;
+	const common = useTranslations("common");
+	const title = loadingDraft ? t("loadingDraft") : t(draftStatusLabels[saveState]);
+	return <div className="flex h-9 items-center justify-between border-b border-border bg-surface-subtle px-4 text-sm font-medium text-ink"><div className="flex items-center gap-2"><span role="status">{title}</span>{saveState === "failed" && <Button size="sm" variant="ghost" onClick={onRetry} type="button">{common("retry")}</Button>}</div>{mode === "popup" && <div className="flex items-center gap-3 text-ink-muted"><Minimize2 className="h-4 w-4" /><button type="button" onClick={onClose} aria-label={common("close")}><X className="h-4 w-4" /></button></div>}</div>;
 }
 
-function ComposeFooter({ draftId, sending, loadingDraft, fromAddr, fileInputRef, imageInputRef, onFileChange, onImageChange }: {
-	draftId: string | null | undefined; sending: boolean; loadingDraft: boolean; fromAddr: string;
+function ComposeFooter({ sending, loadingDraft, fromAddr, fileInputRef, imageInputRef, onFileChange, onImageChange }: {
+	sending: boolean; loadingDraft: boolean; fromAddr: string;
 	fileInputRef: React.RefObject<HTMLInputElement | null>; imageInputRef: React.RefObject<HTMLInputElement | null>;
 	onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void; onImageChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
@@ -73,7 +76,7 @@ function ComposeFooter({ draftId, sending, loadingDraft, fromAddr, fileInputRef,
 		<input ref={fileInputRef} type="file" multiple className="sr-only" onChange={onFileChange} aria-label="Attach files" />
 		<input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" onChange={onImageChange} aria-label="Insert inline image" />
 		<button type="button" onClick={() => fileInputRef.current?.click()} disabled={sending || loadingDraft} className="rounded-full p-2 text-ink-muted hover:bg-surface-subtle hover:text-ink-muted disabled:opacity-40" title="Attach files"><Paperclip className="h-4 w-4" /></button>
-		<span className="flex-1" /><p className="text-xs text-ink-muted">{draftId ? t("savedToDrafts") : t("autosaveDraft")}</p>
+		<span className="flex-1" />
 		<Button type="submit" disabled={sending || loadingDraft || !fromAddr} className="rounded-full px-5"><Send className="h-4 w-4" />{sending ? t("sending") : t("send")}</Button>
 	</div>;
 }
@@ -171,6 +174,7 @@ function ComposeFormContent({
 
 	const draftIdentity = draftSender(selectedExternalSender, fromAddr, selectedMailboxId);
 	const draft = useComposeDraft({
+		paused: loading,
 		draftIdToLoad,
 		fromAddr: draftIdentity.fromAddr,
 		mailboxId: draftIdentity.mailboxId,
@@ -272,20 +276,20 @@ function ComposeFormContent({
 				html,
 				mailboxId: selectedMailboxId, externalSender: selectedExternalSender, replyToMessageId,
 			}), parts.attachments, parts.inlineAttachments);
-			setLoading(false);
 		} catch (error) {
 			setLoading(false);
 			setToast({ type: "error", message: error instanceof Error ? error.message : t("sendFailed") });
 			return;
 		}
 
-		draft.discardAfterSend();
+		await draft.discardAfterSend();
 		setTo("");
 		setSubject("");
 		setText("");
 		setHtml("");
 		setReplyToMessageId(null);
 		clearAttachments();
+		setLoading(false);
 		setToast({ type: "success", message: t("sendSuccess") });
 		void invalidateMessageQueries(queryClient);
 	}
@@ -298,7 +302,9 @@ function ComposeFormContent({
 		<>
 			<ComposeToast toast={toast} />
 			<form onSubmit={onSubmit} className={frameClass}>
-				<ComposeHeader mode={mode} loadingDraft={loadingDraft} draftId={draft.draftId} onClose={onClose} />
+				<ComposeHeader mode={mode} loadingDraft={loadingDraft} saveState={draft.saveState}
+					onRetry={() => void draft.saveNow()}
+					onClose={() => { if (!loading) void draft.saveNow().then((saved) => { if (saved) onClose?.(); }); }} />
 				<ComposeSenderSelect mode={mode} selected={selectedExternalSender} nativeAddress={nativeFromAddr} senders={externalSenders} onChange={setExternalAccountId} />
 				<div className="border-b border-border px-4 py-1">
 					<Label htmlFor={`${mode}-to`} className="sr-only">{t("to")}</Label>
@@ -349,7 +355,7 @@ function ComposeFormContent({
 					attachments={attachedFiles}
 					onRemove={removeAttachment}
 				/>
-				<ComposeFooter draftId={draft.draftId} sending={isSending} loadingDraft={loadingDraft} fromAddr={fromAddr}
+				<ComposeFooter sending={isSending} loadingDraft={loadingDraft} fromAddr={fromAddr}
 					fileInputRef={fileInputRef} imageInputRef={imageInputRef} onFileChange={handleFileInputChange} onImageChange={handleInlineImageChange} />
 			</form>
 		</>

@@ -153,6 +153,8 @@
     "pageTitle": "写邮件",
     "pageDesc": "撰写新邮件。草稿会自动保存。",
     "newMessage": "新邮件",
+    "draftSaving": "正在保存草稿…",
+    "draftSaveFailed": "无法保存草稿",
     "draftSaved": "草稿已保存",
     "loadingDraft": "加载草稿中",
     "from": "发件人",
@@ -220,6 +222,8 @@
   "messages": {
     "loading": "加载中...",
     "noSubject": "（无主题）",
+    "loadFailed": "无法加载邮件",
+    "deliveryUncertain": "投递状态未确认",
     "retryDelivery": "重试投递",
     "retryDeliveryConfirm": "重试向 {recipient} 投递？如果先前的尝试在失败前已到达邮件服务商，邮件可能会被投递两次。",
     "noRecipient": "无收件人",

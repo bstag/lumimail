@@ -1,7 +1,8 @@
 import { and, eq, gt, isNull } from "drizzle-orm";
 import type { z } from "zod";
 import { getDb } from "@/db";
-import { mailboxes, users, orgInvites, organizationMembers } from "@/db/schema";
+import { users, orgInvites, organizationMembers } from "@/db/schema";
+import { createMailbox } from "@/lib/create-mailbox";
 import { hashInvitationToken } from "@/lib/auth/invitation";
 import { hashPassword } from "@/lib/auth/password";
 import { newId } from "@/lib/ids";
@@ -135,8 +136,7 @@ export async function registerFirstRunUser(
 			enableSending: true,
 		});
 		await ensureEmailRoutingRuleToWorker(env, domain.zoneId, email);
-		await db.insert(mailboxes).values({
-			id: newId("mbx"),
+		await createMailbox(db, {
 			userId,
 			organizationId: orgId,
 			domainId: domain.id,

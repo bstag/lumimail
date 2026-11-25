@@ -79,6 +79,21 @@ test("shows the archive empty state when nothing is filed", async ({ page }) => 
 	await expect(page.getByText("No archived emails")).toBeVisible();
 });
 
+test("keeps a failed folder distinct from an empty folder and retries it", async ({ page }) => {
+	await mockShell(page);
+	let attempts = 0;
+	await page.route("**/api/messages?*", (route) => {
+		if (++attempts === 1) return route.fulfill({ status: 503, json: { error: { message: "Unavailable" } } });
+		return route.fulfill({ json: { success: true, data: { messages: archivedMessages, total: 2 } } });
+	});
+
+	await page.goto("/archive");
+	await expect(page.getByRole("alert").filter({ hasText: "Could not load messages" })).toBeVisible();
+	await expect(page.getByText("No archived emails")).toHaveCount(0);
+	await page.getByRole("button", { name: "Retry", exact: true }).click();
+	await expect(page.getByText("Filed inbound thread")).toBeVisible();
+});
+
 test("moves an archived message back to the inbox", async ({ page }) => {
 	await mockShell(page);
 	await page.route("**/api/messages?*", (route) =>

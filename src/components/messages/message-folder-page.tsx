@@ -53,6 +53,29 @@ const SPLIT_ORIENTATION_KEY = "lumimail:conversation-split-orientation";
 
 const pageSize = 25;
 
+function FolderLoadError({ retry }: { retry: () => void }) {
+	const t = useTranslations("messages");
+	const common = useTranslations("common");
+	return <div role="alert" className="flex items-center gap-3 px-6 py-4 text-sm text-danger">
+		{t("loadFailed")}
+		<Button variant="outline" size="sm" onClick={retry}>{common("retry")}</Button>
+	</div>;
+}
+
+function FolderListStatus({ loading, error, empty, emptyText, retry }: {
+	loading: boolean;
+	error: boolean;
+	empty: boolean;
+	emptyText: string;
+	retry: () => void;
+}) {
+	const t = useTranslations("messages");
+	if (loading) return <p className="px-6 py-4 text-sm text-ink-muted">{t("loading")}</p>;
+	if (error) return <FolderLoadError retry={retry} />;
+	if (!empty) return null;
+	return <p className="px-6 py-4 text-sm text-ink-muted">{emptyText}</p>;
+}
+
 type Label = { id: string; name: string; color: string };
 
 async function fetchLabels(): Promise<Label[]> {
@@ -62,10 +85,11 @@ async function fetchLabels(): Promise<Label[]> {
 }
 
 function MessageRowMeta({ message, config, mailboxLabel, externalSource, timestamp, unread }: Pick<MessageListRowProps, "message" | "config" | "mailboxLabel" | "externalSource" | "timestamp"> & { unread: boolean }) {
+	const t = useTranslations("messages");
 	return <div className="flex shrink-0 items-center gap-2">
 		{externalSource && <Badge variant="outline" className="hidden md:inline-flex" title={externalSource.full}>{externalSource.short}</Badge>}
 		{mailboxLabel && <Badge variant="outline" title={mailboxLabel}>{mailboxLabel}</Badge>}
-		{config.showRowBadge !== false && <Badge variant={config.badgeVariant ?? "secondary"}>{getMessageBadge(message, config.folder)}</Badge>}
+		{config.showRowBadge !== false && <Badge variant={config.badgeVariant ?? "secondary"}>{message.status === "uncertain" ? t("deliveryUncertain") : getMessageBadge(message, config.folder)}</Badge>}
 		{timestamp && <time dateTime={message.createdAt} className={`shrink-0 text-xs tabular-nums ${unread ? "font-semibold text-ink" : "text-ink-muted"}`}>{timestamp}</time>}
 	</div>;
 }
@@ -366,10 +390,12 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 	} = useSelectedMailbox();
 	const { query } = useMailSearch();
 	const [offset, setOffset] = useState(0);
+	const [cursors, setCursors] = useState(() => new Map<number, string>());
 	const [selectedIds, setSelectedIds] = useState<string[]>([]);
 	const [pendingBulkAction, setPendingBulkAction] = useState(false);
 	const [activeLabelId, setActiveLabelId] = useState<string | null>(null);
 	const inbox = useInboxFocus(config, () => {
+		setCursors(new Map());
 		setOffset(0);
 		setSelectedIds([]);
 	});
@@ -387,10 +413,11 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 	// nothing left to narrow once the whole list is one label.
 	const pinnedLabelId = config.labelId ?? null;
 	const effectiveLabelId = pinnedLabelId ?? activeLabelId;
-	const { messages, isLoading, total, limit, setMessages } = useMessages(config.folder, scopedMailboxId, {
+	const { messages, isLoading, isError, refetch, nextCursor, total, limit, setMessages } = useMessages(config.folder, scopedMailboxId, {
 		query,
 		limit: pageSize,
 		offset,
+		after: cursors.get(offset),
 		labelId: effectiveLabelId ?? undefined,
 		focus: inbox.focus,
 	}, !mailboxesLoading);
@@ -440,6 +467,7 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 	const { view, allVisibleSelected, selection } = viewActions;
 
 	useEffect(() => {
+		setCursors(new Map());
 		setOffset(0);
 		setSelectedIds([]);
 	}, [query, scopedMailboxId, config.folder, effectiveLabelId]);
@@ -528,7 +556,10 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 				<FolderPaginationControls hidden={selectedIds.length > 0} splitDesktop={splitDesktop}
 					selectedMessageId={selectedMessageId} orientation={splitOrientation} range={pageRange}
 					offset={offset} limit={limit} messageCount={messages.length} total={total} loading={isLoading}
-					onToggleOrientation={toggleSplitOrientation} onOffsetChange={setOffset} />
+					onToggleOrientation={toggleSplitOrientation} onOffsetChange={(next) => {
+						if (next > offset && nextCursor) setCursors((previous) => new Map(previous).set(next, nextCursor));
+						setOffset(next);
+					}} />
 			</div>
 
 			<SelectAllInViewBar allVisibleSelected={allVisibleSelected} pageCount={messages.length} total={total}
@@ -551,12 +582,8 @@ export function MessageFolderPage({ config }: { config: MessageFolderConfig }) {
 						active={message.id === selectedMessageId}
 					/>
 				))}
-				{isLoading && <p className="px-6 py-4 text-sm text-ink-muted">{t("loading")}</p>}
-				{!isLoading && messages.length === 0 && (
-					<p className="px-6 py-4 text-sm text-ink-muted">
-						{hasActiveFilters ? t("noMessagesFilter") : config.emptyText}
-					</p>
-				)}
+				<FolderListStatus loading={isLoading} error={isError} empty={messages.length === 0}
+					emptyText={hasActiveFilters ? t("noMessagesFilter") : config.emptyText} retry={() => void refetch()} />
 			</div>
 		</>
 	);
