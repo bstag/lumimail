@@ -26,10 +26,10 @@ const baseMessage = {
 } satisfies Message;
 
 describe("outbound delivery state UI", () => {
-	it("requests queued, sent, and failed rows for the Sent folder", () => {
+	it("requests all outbound delivery states for the Sent folder", () => {
 		const params = getMessageQueryParams("sent", "mb_1");
 		expect(params.get("direction")).toBe("outbound");
-		expect(params.get("status")).toBe("queued,sent,failed");
+		expect(params.get("status")).toBe("queued,sent,failed,uncertain");
 	});
 
 	it.each(["queued", "sent", "failed"] as const)("shows %s as the Sent-row badge", (status) => {

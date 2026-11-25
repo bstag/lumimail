@@ -83,6 +83,34 @@ async function list(focus?: string) {
 }
 
 describe("GET /api/messages focus filter (F97)", () => {
+	it("pages across equal timestamps without repeating or losing IDs", async () => {
+		sqlite.exec("UPDATE messages SET created_at = 100 WHERE direction = 'inbound'");
+		async function page(after?: string) {
+			const params = new URLSearchParams({ direction: "inbound", limit: "2" });
+			if (after) { params.set("after", after); params.set("offset", "2"); }
+			const res = await GET(new Request(`https://x.test/api/messages?${params}`));
+			const body = await res.json() as { data: { messages: Array<{ id: string }>; nextCursor: string; total: number } };
+			return body.data;
+		}
+		const first = await page();
+		const second = await page(first.nextCursor);
+		expect(first.messages.map(({ id }) => id)).toEqual(["untagged", "receipt"]);
+		expect(second.messages.map(({ id }) => id)).toEqual(["promo-starred", "promo-reply"]);
+		expect(second.total).toBe(8);
+	});
+
+	it("rejects malformed pagination cursors", async () => {
+		const response = await GET(new Request("https://x.test/api/messages?after=bad"));
+		expect(response.status).toBe(400);
+	});
+
+	it("uses ascending wake time and ID for the Snoozed cursor", async () => {
+		const wakeTime = Math.floor(Date.now() / 1000) + 60 * 60;
+		sqlite.prepare("UPDATE messages SET snoozed_until = ? WHERE id IN ('promo', 'receipt')").run(wakeTime);
+		const response = await GET(new Request(`https://x.test/api/messages?snoozed=true&limit=1&after=${wakeTime}:promo`));
+		const body = await response.json() as { data: { messages: Array<{ id: string }> } };
+		expect(body.data.messages.map(({ id }) => id)).toEqual(["receipt"]);
+	});
 	it("partitions received mail into Other (bulk only) and Focused (everything else)", async () => {
 		expect((await list("other")).ids).toEqual(["news", "promo"]);
 		expect((await list("focused")).ids).toEqual(

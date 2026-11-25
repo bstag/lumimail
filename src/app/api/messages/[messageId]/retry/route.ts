@@ -28,9 +28,5 @@ export const POST = withUser<{ messageId: string }>(async ({ env, user, params }
 	if (result.status === "not_failed") {
 		return apiError("Message is not in a failed state", 409);
 	}
-	if (result.status === "queue_unavailable") {
-		return apiError("Queue unavailable", 503);
-	}
-
 	return apiSuccess({ messageId, status: "queued" }, 202);
 });

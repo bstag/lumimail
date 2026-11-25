@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { SQL } from "drizzle-orm";
 import { getTableConfig, type SQLiteTable } from "drizzle-orm/sqlite-core";
 
 export interface ColumnContract {
@@ -10,7 +11,7 @@ export interface ColumnContract {
 
 export interface IndexContract {
 	name: string;
-	columns: string[];
+	columns: Array<string | null>;
 	unique: boolean;
 }
 
@@ -52,7 +53,7 @@ interface SqliteIndexRow {
 
 interface SqliteIndexColumnRow {
 	seqno: number;
-	name: string;
+	name: string | null;
 }
 
 interface SqliteForeignKeyRow {
@@ -77,11 +78,14 @@ function normalizeAction(action: string | undefined): string {
 	return (action ?? "no action").toLowerCase();
 }
 
-function indexColumnName(column: unknown, indexName: string): string {
+function indexColumnName(column: unknown, indexName: string): string | null {
+	// SQLite reports a null name for an expression. Query-plan tests assert
+	// that the production expression can use the index.
+	if (column instanceof SQL) return null;
 	if (typeof column === "object" && column !== null && "name" in column) {
 		return String(column.name);
 	}
-	throw new Error(`Schema contract cannot inspect expression index ${indexName}`);
+	throw new Error(`Schema contract cannot inspect index ${indexName}`);
 }
 
 export function buildDrizzleSchemaContract(

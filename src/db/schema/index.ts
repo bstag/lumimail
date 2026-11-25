@@ -308,6 +308,9 @@ export const messages = sqliteTable(
 		// Folder listing filters by mailbox and orders by date; without this the
 		// page scans and sorts.
 		index("messages_mailbox_created_idx").on(t.mailboxId, t.createdAt),
+		index("messages_mailbox_list_order_idx").on(t.mailboxId,
+			sql`(case when ${t.status} = 'received' then coalesce(${t.snoozedUntil}, ${t.createdAt}) else ${t.createdAt} end)`,
+			t.id),
 		index("messages_snoozed_idx").on(t.snoozedUntil).where(sql`${t.snoozedUntil} is not null`),
 		index("messages_expires_idx").on(t.expiresAt).where(sql`${t.expiresAt} is not null`),
 		// Thread view fetches every message in a conversation ordered by date (F58).
@@ -379,7 +382,7 @@ export const outboundJobs = sqliteTable("outbound_jobs", {
 		.references(() => users.id, { onDelete: "cascade" }),
 	organizationId: text("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
 	messageId: text("message_id").references(() => messages.id, { onDelete: "set null" }),
-	status: text("status", { enum: ["queued", "processing", "sent", "failed"] }).notNull().default("queued"),
+	status: text("status", { enum: ["queued", "processing", "sent", "failed", "uncertain"] }).notNull().default("queued"),
 	payload: text("payload").notNull(),
 	error: text("error"),
 	attempts: integer("attempts").notNull().default(0),
@@ -638,6 +641,7 @@ export const externalMessages = sqliteTable(
 		remoteRevision: text("remote_revision"),
 		firstSeenAt: integer("first_seen_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 		lastSeenAt: integer("last_seen_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		filtersPendingAt: integer("filters_pending_at", { mode: "timestamp" }),
 		removedAt: integer("removed_at", { mode: "timestamp" }),
 	},
 	(t) => [

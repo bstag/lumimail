@@ -12,10 +12,10 @@ import {
 } from "./src/lib/email/outbound/consumer";
 import {
 	isInboundQueueMessage,
-	isOutboundDeadLetterQueue,
 	isOutboundQueueMessage,
-	isPushDeadLetterQueue,
 	isPushQueueMessage,
+	inboundQueueHeaders,
+	queueRole,
 } from "./worker-utils";
 import { RETRY_DELAY_SECONDS } from "./src/lib/constants";
 import { getDb } from "./src/db";
@@ -82,6 +82,32 @@ function createOAuthProvider(env: McpWorkerEnv) {
 	});
 }
 
+const ACK = { action: "ack" } as const;
+
+async function consumeQueueMessage(role: NonNullable<ReturnType<typeof queueRole>>, msg: Message, env: CloudflareEnv) {
+	const body = msg.body;
+	switch (role) {
+		case "inbound":
+			if (!isInboundQueueMessage(body)) return null;
+			await processInboundMessage(env, body);
+			return ACK;
+		case "outbound":
+			return isOutboundQueueMessage(body) ? processOutboundQueue(env, body, msg.id) : null;
+		case "outbound-dlq":
+			if (!isOutboundQueueMessage(body)) return null;
+			await processOutboundDeadLetter(env, body);
+			return ACK;
+		case "push":
+			return isPushQueueMessage(body) ? processPushQueueMessage(env, body) : null;
+		case "external-sync":
+			return isExternalSyncQueueMessage(body) ? processExternalSyncQueue(env, body) : null;
+		case "push-dlq":
+			return isPushQueueMessage(body) ? ACK : null;
+		case "external-sync-dlq":
+			return isExternalSyncQueueMessage(body) ? ACK : null;
+	}
+}
+
 export default {
 	fetch(request: Request, env: CloudflareEnv, ctx: ExecutionContext) {
 		const mcpEnv = env as McpWorkerEnv;
@@ -99,7 +125,7 @@ export default {
 		return provider.fetch(request, mcpEnv, ctx);
 	},
 
-	async email(message: ForwardableEmailMessage, env: CloudflareEnv, ctx: ExecutionContext) {
+	async email(message: ForwardableEmailMessage, env: CloudflareEnv) {
 		// Forwarding must happen here: `message.forward()` exists only on the live
 		// inbound message, and by the time the queue consumer resolves routing the
 		// forwarding capability is gone.
@@ -132,7 +158,7 @@ export default {
 				from: message.from,
 				to: message.to,
 				rawR2Key,
-				headers: Object.fromEntries(message.headers),
+				headers: inboundQueueHeaders(message.headers),
 			};
 			await env.INBOUND_QUEUE.send(payload);
 		} catch (err) {
@@ -142,61 +168,19 @@ export default {
 	},
 
 	async queue(batch: MessageBatch, env: CloudflareEnv): Promise<void> {
+		const role = queueRole(batch.queue, env);
+		if (!role) throw new Error(`Unrecognized queue: ${batch.queue}`);
 		for (const msg of batch.messages) {
 			try {
-				if (isInboundQueueMessage(msg.body)) {
-					await processInboundMessage(env, msg.body);
-					msg.ack();
-				} else if (isOutboundQueueMessage(msg.body)) {
-					if (isOutboundDeadLetterQueue(batch.queue)) {
-						await processOutboundDeadLetter(env, msg.body);
-						msg.ack();
-						continue;
-					}
-					const result = await processOutboundQueue(env, msg.body, msg.id);
-					if (result.action === "retry") {
-						msg.retry({ delaySeconds: result.delaySeconds });
-					} else {
-						msg.ack();
-					}
-				} else if (isPushQueueMessage(msg.body)) {
-					if (isPushDeadLetterQueue(batch.queue)) {
-						// D1 remains authoritative. The scheduled reconciler will wake any
-						// still-pending row without replaying a malformed DLQ payload.
-						msg.ack();
-						continue;
-					}
-					const result = await processPushQueueMessage(env, msg.body);
-					if (result.action === "retry") {
-						msg.retry({ delaySeconds: result.delaySeconds });
-					} else {
-						msg.ack();
-					}
-				} else if (isExternalSyncQueueMessage(msg.body)) {
-					if (batch.queue.includes("external-sync-dlq")) {
-						// The durable D1 job remains authoritative and scheduled
-						// reconciliation can wake it after operator/provider recovery.
-						msg.ack();
-						continue;
-					}
-					const result = await processExternalSyncQueue(env, msg.body);
-					if (result.action === "retry") {
-						msg.retry({ delaySeconds: result.delaySeconds });
-					} else {
-						msg.ack();
-					}
-				} else {
-					console.error("Queue payload rejected", {
-						queue: batch.queue,
-						messageId: msg.id,
-					});
-					msg.ack();
-				}
+				const result = await consumeQueueMessage(role, msg, env);
+				if (!result) console.error("Queue payload rejected", { queue: batch.queue, messageId: msg.id });
+				if (result?.action === "retry") msg.retry({ delaySeconds: result.delaySeconds });
+				else msg.ack();
 			} catch (err) {
 				console.error("Queue processing failed", {
 					queue: batch.queue,
 					messageId: msg.id,
-					error: err instanceof Error ? err.message : "Unknown error",
+					errorType: err instanceof Error ? err.name : typeof err,
 				});
 				msg.retry({ delaySeconds: RETRY_DELAY_SECONDS });
 			}
@@ -211,6 +195,6 @@ export default {
 		await runScheduledMaintenance(controller.scheduledTime, env, () =>
 			createOAuthProvider(mcpEnv).purgeExpiredData(mcpEnv, {
 				batchSize: 100,
-			}));
+			}), controller.cron || undefined);
 	},
 } satisfies ExportedHandler<CloudflareEnv>;

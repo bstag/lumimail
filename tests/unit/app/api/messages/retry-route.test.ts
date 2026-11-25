@@ -87,14 +87,6 @@ describe("POST /api/messages/[messageId]/retry", () => {
 		expect(res.status).toBe(409);
 	});
 
-	it("returns 503 when the queue rejects the recovered job", async () => {
-		mock.queueSelect([{ id: "msg_1" }]);
-		m.recoverOutboundJob.mockResolvedValue({ status: "queue_unavailable" });
-
-		const res = await retry();
-
-		expect(res.status).toBe(503);
-	});
 
 	it("enqueues only once when the same message is retried twice", async () => {
 		mock.queueSelect([{ id: "msg_1" }]);

@@ -11,12 +11,22 @@ import { purgePushNotificationState } from "./src/lib/push/retention";
 import { runQueueHealthCheck } from "./src/lib/queue-health";
 import { shouldRunSweep, sweepR2Orphans } from "./src/lib/r2-retention";
 import { purgeExpiredRateLimits } from "./src/lib/rate-limit";
+import { reconcileOutboundJobs } from "./src/lib/email/outbound/consumer";
 
-async function runTask(warning: string, run: () => Promise<unknown>): Promise<void> {
+const CORE_CRON = "* * * * *";
+const WEBHOOK_CRON = "0-59 * * * *";
+const BODY_REPAIR_CRON = "*/2 * * * *";
+
+async function runTask(task: string, run: () => Promise<unknown>): Promise<void> {
+	const started = Date.now();
 	try {
 		await run();
-	} catch {
-		console.warn(warning);
+		console.info("Scheduled task", { task, outcome: "complete", elapsedMs: Date.now() - started });
+	} catch (error) {
+		console.warn("Scheduled task", {
+			task, outcome: "failed", elapsedMs: Date.now() - started,
+			errorType: error instanceof Error ? error.name : typeof error,
+		});
 	}
 }
 
@@ -24,10 +34,17 @@ export async function runScheduledMaintenance(
 	scheduledTime: number,
 	env: CloudflareEnv,
 	purgeOAuth: () => Promise<unknown>,
+	cron = CORE_CRON,
 ): Promise<void> {
+	const isolated = env.ISOLATED_MAINTENANCE_CRONS === "true";
+	if (cron === WEBHOOK_CRON) return runTask("Webhook delivery", () => processDueWebhooks(env));
+	if (cron === BODY_REPAIR_CRON) return runBodyRepair(env);
+	if (cron !== CORE_CRON) throw new Error(`Unrecognized maintenance schedule: ${cron}`);
+
 	// Expiry is a single indexed update and runs before higher-CPU work.
 	await runTask("Message expiry deferred", () => expireMessages(getDb(env)));
-	await runTask("Webhook scheduling failed", () => processDueWebhooks(env));
+	if (!isolated) await runTask("Webhook scheduling failed", () => processDueWebhooks(env));
+	await runTask("Outbound reconciliation", () => reconcileOutboundJobs(env, new Date(scheduledTime)));
 	await runTask("Queue health check failed", () => runQueueHealthCheck(env));
 	await runTask("Mail categorization reconciliation deferred", () => reconcileCategorization(env));
 	await runTask("Rate limit cleanup failed", () => purgeExpiredRateLimits(env));
@@ -48,8 +65,11 @@ export async function runScheduledMaintenance(
 		});
 	}
 
-	// This may parse large, previously imported MIME messages. Keep it last.
-	await runTask("External body repair deferred", async () => {
+	if (!isolated) await runBodyRepair(env);
+}
+
+function runBodyRepair(env: CloudflareEnv) {
+	return runTask("External body repair deferred", async () => {
 		const repair = await repairExternalMessageBodies(env);
 		if (repair.repaired > 0 || repair.abandoned > 0) console.info("External body repair", repair);
 	});

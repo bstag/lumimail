@@ -97,6 +97,7 @@ function providerSendFailure(status: number): OutboundProviderError {
 	return new OutboundProviderError(`External provider send failed (${status})`, {
 		code: `EXTERNAL_HTTP_${status}`,
 		retryable: status === 429 || status >= 500,
+		outcomeUnknown: status >= 500,
 	});
 }
 
@@ -116,13 +117,13 @@ async function sendGoogleMessage(
 		body = await response.json();
 	} catch {
 		throw new OutboundProviderError("External provider response was invalid", {
-			code: "EXTERNAL_INVALID_RESPONSE", retryable: false,
+			code: "EXTERNAL_INVALID_RESPONSE", retryable: false, outcomeUnknown: true,
 		});
 	}
 	const id = body && typeof body === "object" && typeof (body as { id?: unknown }).id === "string"
 		? (body as { id: string }).id : null;
 	if (!id) throw new OutboundProviderError("External provider response was invalid", {
-		code: "EXTERNAL_INVALID_RESPONSE", retryable: false,
+		code: "EXTERNAL_INVALID_RESPONSE", retryable: false, outcomeUnknown: true,
 	});
 	return { providerMessageId: id };
 }

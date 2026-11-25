@@ -68,6 +68,7 @@ export function createCloudflareProvider(env: CloudflareEnv): OutboundProvider {
 				const details = cloudflareErrorDetails(error);
 				throw new OutboundProviderError(details.message, {
 					code: details.code,
+					outcomeUnknown: !details.code,
 					retryable: details.code ? RETRYABLE_CODES.has(details.code) : false,
 					cause: error,
 				});

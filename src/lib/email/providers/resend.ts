@@ -44,6 +44,7 @@ export function createResendProvider(env: CloudflareEnv): OutboundProvider {
 					headers: {
 						Authorization: `Bearer ${apiKey}`,
 						"Content-Type": "application/json",
+						...(message.idempotencyKey ? { "Idempotency-Key": message.idempotencyKey } : {}),
 					},
 					body: JSON.stringify({
 						from: message.from,
@@ -70,6 +71,7 @@ export function createResendProvider(env: CloudflareEnv): OutboundProvider {
 				throw new OutboundProviderError("Resend network request failed", {
 					code: "NETWORK_ERROR",
 					retryable: true,
+					outcomeUnknown: true,
 					cause: error,
 				});
 			}
@@ -78,7 +80,7 @@ export function createResendProvider(env: CloudflareEnv): OutboundProvider {
 				const retryable = response.status === 429 || response.status >= 500;
 				throw new OutboundProviderError(`Resend send failed (${response.status})`, {
 					code: `HTTP_${response.status}`,
-					retryable,
+					retryable, outcomeUnknown: response.status >= 500,
 				});
 			}
 
@@ -86,7 +88,7 @@ export function createResendProvider(env: CloudflareEnv): OutboundProvider {
 			if (!data.id) {
 				throw new OutboundProviderError(
 					"Resend send failed: response did not include a message id",
-					{ code: "INVALID_RESPONSE", retryable: false },
+					{ code: "INVALID_RESPONSE", retryable: false, outcomeUnknown: true },
 				);
 			}
 			return { providerMessageId: data.id };

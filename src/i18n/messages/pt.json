@@ -153,6 +153,8 @@
     "pageTitle": "Escrever",
     "pageDesc": "Escreva um novo email. Os rascunhos salvam automaticamente.",
     "newMessage": "Nova mensagem",
+    "draftSaving": "A guardar o rascunho…",
+    "draftSaveFailed": "Não foi possível guardar o rascunho",
     "draftSaved": "Rascunho salvo",
     "loadingDraft": "Carregando rascunho",
     "from": "De",
@@ -220,6 +222,8 @@
   "messages": {
     "loading": "Carregando...",
     "noSubject": "(sem assunto)",
+    "loadFailed": "Não foi possível carregar as mensagens",
+    "deliveryUncertain": "Entrega não confirmada",
     "retryDelivery": "Tentar envio novamente",
     "retryDeliveryConfirm": "Tentar enviar novamente para {recipient}? Se a tentativa anterior chegou ao provedor de email antes de falhar, a mensagem pode ser entregue duas vezes.",
     "noRecipient": "Sem destinatário",

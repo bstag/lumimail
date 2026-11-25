@@ -1,16 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
 	isInboundQueueMessage,
-	isOutboundDeadLetterQueue,
 	isOutboundQueueMessage,
-	isPushDeadLetterQueue,
 	isPushQueueMessage,
+	queueRole,
 } from "../../worker-utils";
 
 describe("queue payload guards", () => {
 	it("recognizes inbound payloads", () => {
-		expect(isInboundQueueMessage({ from: "a@x", to: "b@x", rawR2Key: "raw/1" })).toBe(true);
+		expect(isInboundQueueMessage({ from: "a@x", to: "b@x", rawR2Key: "inbound/1.eml" })).toBe(true);
+		expect(isInboundQueueMessage({ from: "a@x", to: "b@x", rawR2Key: "attachments/read" })).toBe(false);
+		expect(isInboundQueueMessage({ from: 1, to: "b@x", rawR2Key: "inbound/1.eml" })).toBe(false);
 		expect(isInboundQueueMessage({ kind: "outbound", jobId: "job_1" })).toBe(false);
+	});
+
+	it("selects the contract by exact queue identity", () => {
+		expect(queueRole("lumimail-external-sync-dlq-staging", {})).toBe("external-sync-dlq");
+		expect(queueRole("archive-lumimail-outbound-prod", {})).toBeUndefined();
+		expect(queueRole("mail-outbound-dlq-test", { QUEUE_NAME_PREFIX: "mail", QUEUE_NAME_SUFFIX: "test" })).toBe("outbound-dlq");
 	});
 
 	it("recognizes only job-id outbound payloads", () => {
@@ -21,9 +28,9 @@ describe("queue payload guards", () => {
 	});
 
 	it("recognizes the dedicated outbound dead-letter queue", () => {
-		expect(isOutboundDeadLetterQueue("lumimail-outbound-dlq-prod")).toBe(true);
-		expect(isOutboundDeadLetterQueue("lumimail-outbound-prod")).toBe(false);
-		expect(isOutboundDeadLetterQueue("lumimail-inbound-prod")).toBe(false);
+		expect(queueRole("lumimail-outbound-dlq-prod", {})).toBe("outbound-dlq");
+		expect(queueRole("lumimail-outbound-prod", {})).toBe("outbound");
+		expect(queueRole("lumimail-inbound-prod", {})).toBe("inbound");
 	});
 
 	it("recognizes only versioned opaque push queue payloads", () => {
@@ -34,8 +41,7 @@ describe("queue payload guards", () => {
 	});
 
 	it("recognizes only the isolated push dead-letter queue", () => {
-		expect(isPushDeadLetterQueue("lumimail-push-dlq-prod")).toBe(true);
-		expect(isPushDeadLetterQueue("lumimail-push-prod")).toBe(false);
-		expect(isPushDeadLetterQueue("lumimail-outbound-dlq-prod")).toBe(false);
+		expect(queueRole("lumimail-push-dlq-prod", {})).toBe("push-dlq");
+		expect(queueRole("lumimail-push-prod", {})).toBe("push");
 	});
 });

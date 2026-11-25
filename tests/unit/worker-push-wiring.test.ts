@@ -54,7 +54,7 @@ describe("external sync Worker wiring", () => {
 	it("expires filtered mail first, so a heavier step that runs out of CPU cannot skip it", () => {
 		const expiry = scheduled.indexOf("expireMessages(getDb(env))");
 		expect(expiry).toBeGreaterThan(-1);
-		for (const later of ["processDueWebhooks(env)", "reconcileCategorization(env)", "repairExternalMessageBodies(env)"]) {
+		for (const later of ["reconcileCategorization(env)", "repairExternalMessageBodies(env)"]) {
 			expect(scheduled.indexOf(later), later).toBeGreaterThan(expiry);
 		}
 	});

@@ -28,10 +28,11 @@ export function buildMessageCounts(rows: MessageCountRow[]): MessageCounts {
 	const mailboxMap = new Map<string, { mailboxId: string; total: number; unread: number; inbox: number }>();
 
 	for (const row of rows) {
+		const count = row.count ?? 1;
 		const folder = getMessageFolder(row);
 		if (folder) {
-			folders[folder].total += 1;
-			if (!row.read) folders[folder].unread += 1;
+			folders[folder].total += count;
+			if (!row.read) folders[folder].unread += count;
 		}
 
 		if (!row.mailboxId) continue;
@@ -42,9 +43,9 @@ export function buildMessageCounts(rows: MessageCountRow[]): MessageCounts {
 			unread: 0,
 			inbox: 0,
 		};
-		mailboxCount.total += 1;
-		if (!row.read) mailboxCount.unread += 1;
-		if (folder === "inbox") mailboxCount.inbox += 1;
+		mailboxCount.total += count;
+		if (!row.read) mailboxCount.unread += count;
+		if (folder === "inbox") mailboxCount.inbox += count;
 		mailboxMap.set(row.mailboxId, mailboxCount);
 	}
 

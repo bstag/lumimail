@@ -38,6 +38,7 @@ export type OutboundDeliverySnapshot = {
 export type OutboundQueueMessage = {
 	kind: "outbound";
 	jobId: string;
+	generation?: number;
 };
 
 export function parseDeliverySnapshot(payload: string): OutboundDeliverySnapshot | null {

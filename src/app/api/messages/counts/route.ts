@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { messages } from "@/db/schema";
 import { withUser } from "@/lib/api/handler";
@@ -16,16 +16,19 @@ export const GET = withUser(async ({ request, env, user }) => {
 		conditions.push(eq(messages.mailboxId, mailboxId));
 	}
 
+	const sleeping = sql<boolean>`coalesce(${messages.snoozedUntil} > ${Math.floor(Date.now() / 1000)}, 0)`.mapWith(Boolean);
 	const rows = await db
 		.select({
 			mailboxId: messages.mailboxId,
 			direction: messages.direction,
 			status: messages.status,
 			read: messages.read,
-			sleeping: sql<boolean>`coalesce(${messages.snoozedUntil} > ${Math.floor(Date.now() / 1000)}, 0)`.mapWith(Boolean),
+			sleeping,
+			count: count(),
 		})
 		.from(messages)
-		.where(and(...conditions));
+		.where(and(...conditions))
+		.groupBy(messages.mailboxId, messages.direction, messages.status, messages.read, sleeping);
 
 	return apiSuccess({ counts: buildMessageCounts(rows) });
 });

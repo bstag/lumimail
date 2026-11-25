@@ -151,6 +151,10 @@ describe("registerFirstRunUser", () => {
 			domainId: "dom_1",
 			localPart: "ada",
 		});
+		expect(mock.inserts[1].values).toMatchObject({
+			mailboxId: "mbx_1", userId: "usr_1", role: "manager",
+		});
+		expect(mock.db.batch.mock.calls[0][0]).toHaveLength(2);
 	});
 
 	it("deletes the user when domain provisioning fails", async () => {

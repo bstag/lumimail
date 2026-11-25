@@ -1,26 +1,10 @@
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { execFileSync } from "node:child_process";
-import { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync } from "node:sqlite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
+import { messageListSortTime } from "@/lib/messages/list-conditions";
+import { createMigratedDb } from "../helpers/sqlite";
 
-const projectRoot = resolve(process.cwd());
-const wranglerCli = resolve(projectRoot, "node_modules/wrangler/bin/wrangler.js");
-
-let persistenceDirectory: string;
 let database: DatabaseSync;
-
-function findSqliteDatabase(directory: string): string {
-	for (const entry of readdirSync(directory, { recursive: true, withFileTypes: true })) {
-		// Current Wrangler releases add cache and Durable Object metadata databases beside
-		// the D1 payload. Only the hashed, non-metadata file contains application rows.
-		if (entry.isFile() && entry.name.endsWith(".sqlite") && entry.name !== "metadata.sqlite") {
-			return resolve(entry.parentPath, entry.name);
-		}
-	}
-	throw new Error(`Wrangler did not create a local SQLite database under ${directory}`);
-}
 
 /** The plan text SQLite produces for a query, one line per step. */
 function plan(sql: string): string {
@@ -31,19 +15,10 @@ function plan(sql: string): string {
 }
 
 beforeAll(() => {
-	persistenceDirectory = mkdtempSync(join(tmpdir(), "lumimail-query-plans-"));
-	execFileSync(
-		process.execPath,
-		[wranglerCli, "d1", "migrations", "apply", "DB", "--local", "--persist-to", persistenceDirectory],
-		{ cwd: projectRoot, env: { ...process.env, WRANGLER_LOG: "none" }, stdio: "pipe" },
-	);
-	database = new DatabaseSync(findSqliteDatabase(persistenceDirectory), { readOnly: true });
-}, 120_000);
-
-afterAll(() => {
-	database?.close();
-	if (persistenceDirectory) rmSync(persistenceDirectory, { recursive: true, force: true });
+	database = createMigratedDb().sqlite;
 });
+
+afterAll(() => database?.close());
 
 /**
  * Plans are asserted rather than timings: an index name in a plan is a stable
@@ -113,6 +88,18 @@ describe("hot query plans", () => {
 		// The composite index supplies the ordering, so no temporary B-tree is built.
 		expect(detail).toContain("messages_mailbox_created_idx");
 		expect(detail).not.toContain("USE TEMP B-TREE FOR ORDER BY");
+	});
+
+	it("uses the index for the production wake-time order and ID tie breaker", () => {
+		const sort = new SQLiteSyncDialect().sqlToQuery(messageListSortTime).sql;
+		const detail = plan(`SELECT * FROM messages WHERE mailbox_id = 'mb' AND status = 'received'
+			ORDER BY ${sort} DESC, id DESC LIMIT 25`);
+		expect(detail).toContain("messages_mailbox_list_order_idx");
+		expect(detail).not.toContain("USE TEMP B-TREE FOR ORDER BY");
+		const later = plan(`SELECT * FROM messages WHERE mailbox_id = 'mb' AND status = 'received'
+			AND ${sort} <= 500 AND (${sort}, id) < (500, 'msg_cursor') ORDER BY ${sort} DESC, id DESC LIMIT 25`);
+		expect(later).toContain("messages_mailbox_list_order_idx (mailbox_id=? AND <expr><?)");
+		expect(later).not.toContain("USE TEMP B-TREE FOR ORDER BY");
 	});
 
 	it("resolves mailbox membership by index in both directions", () => {

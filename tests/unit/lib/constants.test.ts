@@ -51,6 +51,7 @@ describe("schema consumption", () => {
 			"queued",
 			"sent",
 			"failed",
+			"uncertain",
 			"draft",
 			"trash",
 			"spam",

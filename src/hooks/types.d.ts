@@ -4,6 +4,7 @@ export type MessageStatus =
 	| "draft"
 	| "queued"
 	| "failed"
+	| "uncertain"
 	| "trash"
 	| "spam"
 	| "archived";
@@ -54,6 +55,7 @@ export type MessageFilterOptions = {
 	title?: string;
 	limit?: number;
 	offset?: number;
+	after?: string;
 	labelId?: string;
 	/** Inbox only: Focused / Other split (F97). */
 	focus?: "focused" | "other";
@@ -64,6 +66,7 @@ export type MessageListResponse = {
 	total?: number;
 	limit?: number;
 	offset?: number;
+	nextCursor?: string | null;
 };
 
 export type FolderCount = {

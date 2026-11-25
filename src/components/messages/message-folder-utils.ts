@@ -32,5 +32,5 @@ export function canRecoverMessage(
 	status: string,
 	canSend: boolean,
 ): boolean {
-	return folder === "sent" && status === "failed" && canSend;
+	return folder === "sent" && (status === "failed" || status === "uncertain") && canSend;
 }

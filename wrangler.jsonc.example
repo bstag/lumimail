@@ -35,7 +35,13 @@
 	//   wrangler secret put MICROSOFT_OAUTH_CLIENT_ID
 	//   wrangler secret put MICROSOFT_OAUTH_CLIENT_SECRET
 	"vars": {
+		// Keep these cron triggers with the opt-in flag when updating an existing instance.
+		"ISOLATED_MAINTENANCE_CRONS": "true",
+		// Custom queue names can follow <prefix>-<role>-<suffix>.
+		// "QUEUE_NAME_PREFIX": "lumimail",
+		// "QUEUE_NAME_SUFFIX": "prod",
 		// Set INSTANCE_OPERATOR_USER_ID to the instance operator's user ID to enable Storage retention.
+		// "DOMAIN_PROVISIONING_ALLOWLIST": "{\"org_example\":[\"mail.example.com\"]}",
 		"CF_ACCOUNT_ID": "cf-account-id",
 		// Name of the Worker that Email Routing rules target. Must match "name"
 		// above, or provisioned routing rules will point at a Worker that does
@@ -62,10 +68,13 @@
 	},
 	"observability": {
 		"enabled": true,
+		"traces": { "enabled": true },
 	},
 	"triggers": {
 		"crons": [
 			"* * * * *",
+			"0-59 * * * *",
+			"*/2 * * * *",
 		],
 	},
 	"upload_source_maps": true,
@@ -184,6 +193,7 @@
 			// Never inherit or reassign the production custom domain.
 			"routes": [],
 			"vars": {
+				"ISOLATED_MAINTENANCE_CRONS": "true",
 				"CF_ACCOUNT_ID": "caddde404ba5d0324c315dc5cf143696",
 				"CF_EMAIL_WORKER_NAME": "lumimail-staging",
 				"MAIL_PROVIDER": "cloudflare",
@@ -194,7 +204,7 @@
 				// a destructive sweep before its report has been read.
 			},
 			"observability": { "enabled": true },
-			"triggers": { "crons": ["* * * * *"] },
+			"triggers": { "crons": ["* * * * *", "0-59 * * * *", "*/2 * * * *"] },
 			"send_email": [{ "name": "EMAIL" }],
 			"services": [
 				{ "binding": "WORKER_SELF_REFERENCE", "service": "lumimail-staging" }

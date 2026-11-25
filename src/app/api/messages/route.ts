@@ -6,7 +6,7 @@ import { withUser } from "@/lib/api/handler";
 import { apiError, apiSuccess } from "@/lib/api/response";
 import { enrichMessagesWithContacts } from "@/lib/messages/enrich";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
-import { messageListConditions } from "@/lib/messages/list-conditions";
+import { messageListConditions, messageListSortTime, parseMessageListCursor } from "@/lib/messages/list-conditions";
 
 const DEFAULT_MESSAGE_LIMIT = 50;
 const MAX_MESSAGE_LIMIT = 100;
@@ -30,6 +30,8 @@ export const GET = withUser(async ({ request, env, user }) => {
 
 	const rawOffset = url.searchParams.get("offset");
 	const offset = rawOffset === null ? 0 : Number(rawOffset);
+	const cursor = parseMessageListCursor(url.searchParams.get("after"));
+	if (cursor === false) return apiError("Invalid message cursor", 400);
 	if (
 		rawOffset?.trim() === "" ||
 		!Number.isFinite(offset) ||
@@ -46,9 +48,13 @@ export const GET = withUser(async ({ request, env, user }) => {
 	if (conditions.error) return apiError(conditions.error === "focus" ? "Invalid focus" : "Invalid age", 400);
 	const { where, snoozedView } = conditions;
 	// A woken message sorts by its wake time, so it returns to the top of the Inbox.
-	const order = snoozedView
-		? asc(messages.snoozedUntil)
-		: desc(sql`case when ${messages.snoozedUntil} <= ${nowSeconds} then ${messages.snoozedUntil} else ${messages.createdAt} end`);
+	const sortTime = snoozedView ? sql<number>`${messages.snoozedUntil}` : messageListSortTime;
+	const order = snoozedView ? asc : desc;
+	// The scalar bound lets SQLite seek into the expression index. The tuple
+	// then resolves ties within that timestamp.
+	const pageWhere = cursor ? and(where, snoozedView
+		? sql`${sortTime} >= ${cursor.time} and (${sortTime}, ${messages.id}) > (${cursor.time}, ${cursor.id})`
+		: sql`${sortTime} <= ${cursor.time} and (${sortTime}, ${messages.id}) < (${cursor.time}, ${cursor.id})`) : where;
 
 	const [totalRow] = await db
 		.select({ total: count() })
@@ -57,10 +63,10 @@ export const GET = withUser(async ({ request, env, user }) => {
 	const rows = await db
 		.select()
 		.from(messages)
-		.where(where)
-		.orderBy(order)
+		.where(pageWhere)
+		.orderBy(order(sortTime), order(messages.id))
 		.limit(limit)
-		.offset(offset);
+		.offset(cursor ? 0 : offset);
 	const threadIds = [...new Set(
 		rows.flatMap((message) => message.threadId ? [message.threadId] : []),
 	)];
@@ -85,5 +91,9 @@ export const GET = withUser(async ({ request, env, user }) => {
 		threadCount: message.threadId ? Math.max(1, threadCounts.get(message.threadId) ?? 1) : 1,
 	}));
 
-	return apiSuccess({ messages: messagesWithThreadCounts, total: totalRow?.total ?? 0, limit, offset });
+	const last = rows.at(-1);
+	const lastTime = last && (last.status === "received" ? last.snoozedUntil ?? last.createdAt : last.createdAt);
+	const nextCursor = rows.length === limit && last?.id && lastTime instanceof Date
+		? `${Math.floor(lastTime.getTime() / 1000)}:${last.id}` : null;
+	return apiSuccess({ messages: messagesWithThreadCounts, total: totalRow?.total ?? 0, limit, offset, ...(nextCursor ? { nextCursor } : {}) });
 });

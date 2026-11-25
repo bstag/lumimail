@@ -30,6 +30,33 @@ function sniffRasterType(bytes: Uint8Array): string | null {
 	return null;
 }
 
+async function readImage(body: Response["body"]): Promise<Uint8Array<ArrayBuffer> | null> {
+	const chunks: Uint8Array[] = [];
+	let length = 0;
+	const reader = body?.getReader();
+	try {
+		while (reader) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			length += value.byteLength;
+			if (length > MAX_REMOTE_IMAGE_BYTES) {
+				void reader.cancel().catch(() => undefined);
+				return null;
+			}
+			chunks.push(value);
+		}
+	} finally {
+		reader?.releaseLock();
+	}
+	const bytes = new Uint8Array(length);
+	let offset = 0;
+	for (const chunk of chunks) {
+		bytes.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return bytes;
+}
+
 /** The exact attribute text the inbound sanitizer writes for a deferred image (F96). */
 function storedAttribute(url: string): string {
 	const escaped = url.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
@@ -75,9 +102,14 @@ export const GET = withUser<{ messageId: string }>(async ({ request, env, user, 
 	if (Number(upstream.headers.get("content-length")) > MAX_REMOTE_IMAGE_BYTES) {
 		return apiError("Image too large", 413);
 	}
-	const bytes = await upstream.arrayBuffer();
-	if (bytes.byteLength > MAX_REMOTE_IMAGE_BYTES) return apiError("Image too large", 413);
-	const contentType = generic ? sniffRasterType(new Uint8Array(bytes)) : declaredType;
+	let bytes: Uint8Array<ArrayBuffer> | null;
+	try {
+		bytes = await readImage(upstream.body);
+	} catch {
+		return apiError("Image unavailable", 502);
+	}
+	if (!bytes) return apiError("Image too large", 413);
+	const contentType = generic ? sniffRasterType(bytes) : declaredType;
 	if (!contentType) return apiError("Unsupported image type", 415);
 
 	return new Response(bytes, {

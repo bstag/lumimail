@@ -166,4 +166,11 @@ describe("external provider outbound", () => {
 			"usr_1", "exa_1", message, async () => new Response(null, { status: 202 })))
 			.rejects.toMatchObject({ code: "EXTERNAL_INVALID_MESSAGE" });
 	});
+
+	it("classifies a broken provider connection during send as uncertain", async () => {
+		mock.queueSelect([account]);
+		await expect(sendExternalProviderMessage({ EXTERNAL_TOKEN_KEYS: "keys" } as CloudflareEnv,
+			"usr_1", "exa_1", message, async () => { throw new Error("connection broke"); }))
+			.rejects.toMatchObject({ outcomeUnknown: true });
+	});
 });

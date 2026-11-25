@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { getDb } from "@/db";
-import { externalMessageSkips, externalSyncCursors, externalSyncJobs } from "@/db/schema";
+import { externalMessages, externalMessageSkips, externalSyncCursors, externalSyncJobs } from "@/db/schema";
 import { cleanupAttachmentObjects } from "@/lib/email/attachment-storage";
 import { newId } from "@/lib/ids";
 import { applyMessageFilters } from "@/lib/email/message-filters";
@@ -121,6 +121,7 @@ export async function applyExternalSyncPage(
 			await db.update(externalSyncJobs).set({ suspectMessageId: change.remoteMessageId })
 				.where(eq(externalSyncJobs.id, options.jobId));
 		}
+		let prepared: Awaited<ReturnType<typeof prepareExternalMessage>>;
 		try {
 			const loadRawMime = change.loadRawMime;
 			let materializedChange = change;
@@ -129,17 +130,12 @@ export async function applyExternalSyncPage(
 				delete metadata.loadRawMime;
 				materializedChange = { ...metadata, rawMime: await loadRawMime() };
 			}
-			const prepared = await prepareExternalMessage(
+			prepared = await prepareExternalMessage(
 				env, account, mailbox, materializedChange, now, attemptedKeys,
 			);
 			if (prepared.statements.length > 0) {
 				await db.batch(prepared.statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
 			}
-			if (prepared.filterInput) {
-				const input = prepared.filterInput;
-				await applyMessageFilters(db, input.userId, input.messageId, now);
-			}
-			results.push(prepared.result);
 		} catch (error) {
 			await cleanupAttachmentObjects(env, attemptedKeys);
 			if (error instanceof ExternalProviderRequestError && error.code === "message_too_large") {
@@ -148,6 +144,19 @@ export async function applyExternalSyncPage(
 			}
 			throw error;
 		}
+		if (prepared.filterInput) {
+			const input = prepared.filterInput;
+			if (options) {
+				await db.update(externalSyncJobs).set({ suspectMessageId: null })
+					.where(eq(externalSyncJobs.id, options.jobId));
+			}
+			await applyMessageFilters(db, input.userId, input.messageId, input.at);
+			await db.update(externalMessages).set({ filtersPendingAt: null }).where(and(
+				eq(externalMessages.accountId, account.id),
+				eq(externalMessages.remoteMessageId, change.remoteMessageId),
+			));
+		}
+		results.push(prepared.result);
 	}
 	const cursorStatements: BatchItem<"sqlite">[] = [];
 	for (const cursor of cursors) {

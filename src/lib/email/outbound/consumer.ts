@@ -1,10 +1,10 @@
-import { eq, and, inArray, sql } from "drizzle-orm";
-import { getDb } from "@/db";
+import { eq, and, exists, inArray, lte, sql, type SQL } from "drizzle-orm";
+import { getDb, type AppDatabase } from "@/db";
 import { messages, outboundJobs } from "@/db/schema";
 import { dispatchWebhooks } from "@/lib/email/webhooks";
 import { selectOutboundProvider } from "@/lib/email/providers";
 import { AUTO_REPLY_HEADERS } from "@/lib/email/auto-reply";
-import { OutboundProviderError } from "@/lib/email/providers/types";
+import { OutboundProviderError, type OutboundSendResult } from "@/lib/email/providers/types";
 import { type ValidatedOutboundAttachment } from "@/lib/email/outbound-attachments";
 import { attachmentKey } from "@/lib/email/attachment-storage";
 import {
@@ -63,32 +63,65 @@ async function markOutboundFailed(
 	env: CloudflareEnv,
 	jobId: string,
 	error: string,
+	guard?: SQL,
 ): Promise<boolean> {
 	const db = getDb(env);
-	const [job] = await db
-		.update(outboundJobs)
-		.set({
+	const claim = and(eq(outboundJobs.id, jobId), inArray(outboundJobs.status, ["queued", "processing"]), guard);
+	const [, jobs] = await db.batch([
+		db.update(messages).set({ status: "failed" }).where(exists(
+			db.select({ id: outboundJobs.id }).from(outboundJobs)
+				.where(and(claim, eq(outboundJobs.messageId, messages.id))),
+		)),
+		db.update(outboundJobs).set({
 			status: "failed",
 			error: error.slice(0, MAX_STORED_ERROR_LENGTH),
 			deliveryToken: null,
 			updatedAt: new Date(),
-		})
-		.where(and(eq(outboundJobs.id, jobId), inArray(outboundJobs.status, ["queued", "processing"])))
-		.returning({
+		}).where(claim).returning({
 			id: outboundJobs.id,
 			userId: outboundJobs.userId,
 			messageId: outboundJobs.messageId,
-		});
+		}),
+	]);
+	const [job] = jobs;
 	if (!job) return false;
 
 	if (job.messageId) {
-		await db.update(messages).set({ status: "failed" }).where(eq(messages.id, job.messageId));
 		await dispatchWebhooks(env, job.userId, "message.failed", {
 			messageId: job.messageId,
 			error,
 		});
 	}
 	return true;
+}
+
+const UNCERTAIN_DELIVERY = "Outbound delivery outcome is unknown; verify delivery before retrying";
+
+async function markOutboundUncertain(db: AppDatabase, jobId: string, guard: SQL) {
+	const claim = and(eq(outboundJobs.id, jobId), eq(outboundJobs.status, "processing"), guard);
+	await db.batch([
+		db.update(messages).set({ status: "uncertain" }).where(exists(
+			db.select({ id: outboundJobs.id }).from(outboundJobs)
+				.where(and(claim, eq(outboundJobs.messageId, messages.id))),
+		)),
+		db.update(outboundJobs).set({
+			status: "uncertain", error: UNCERTAIN_DELIVERY, deliveryToken: null, updatedAt: new Date(),
+		}).where(claim),
+	]);
+}
+
+export async function reconcileOutboundJobs(env: CloudflareEnv, now = new Date()) {
+	const db = getDb(env);
+	const queuedBefore = new Date(now.getTime() - 2 * 60_000);
+	const expiredBefore = new Date(now.getTime() - 20 * 60_000);
+	const due = await db.select({ id: outboundJobs.id, generation: outboundJobs.recoveryCount }).from(outboundJobs)
+		.where(and(eq(outboundJobs.status, "queued"), lte(outboundJobs.updatedAt, queuedBefore)))
+		.orderBy(outboundJobs.updatedAt).limit(25);
+	const expired = await db.select({ id: outboundJobs.id }).from(outboundJobs)
+		.where(and(eq(outboundJobs.status, "processing"), lte(outboundJobs.updatedAt, expiredBefore)))
+		.orderBy(outboundJobs.updatedAt).limit(10);
+	for (const job of expired) await markOutboundUncertain(db, job.id, lte(outboundJobs.updatedAt, expiredBefore));
+	if (due.length) await env.OUTBOUND_QUEUE.sendBatch(due.map(({ id, generation }) => ({ body: { kind: "outbound", jobId: id, generation } })));
 }
 
 export async function processOutboundQueue(
@@ -108,7 +141,7 @@ export async function processOutboundQueue(
 			updatedAt: now,
 			error: null,
 		})
-		.where(and(eq(outboundJobs.id, payload.jobId), eq(outboundJobs.status, "queued")))
+		.where(and(eq(outboundJobs.id, payload.jobId), eq(outboundJobs.status, "queued"), eq(outboundJobs.recoveryCount, payload.generation ?? 0)))
 		.returning({
 			id: outboundJobs.id,
 			userId: outboundJobs.userId,
@@ -118,27 +151,9 @@ export async function processOutboundQueue(
 			deliveryToken: outboundJobs.deliveryToken,
 		});
 
-	if (!job) {
-		const [existing] = await db
-			.select({
-				status: outboundJobs.status,
-				deliveryToken: outboundJobs.deliveryToken,
-			})
-			.from(outboundJobs)
-			.where(eq(outboundJobs.id, payload.jobId))
-			.limit(1);
-		if (
-			existing?.status === "processing" &&
-			existing.deliveryToken === deliveryToken
-		) {
-			await markOutboundFailed(
-				env,
-				payload.jobId,
-				"Outbound delivery outcome is unknown; automatic retry was stopped to prevent a duplicate",
-			);
-		}
-		return { action: "ack" };
-	}
+	// A duplicate can arrive while the original invocation still owns the claim.
+	// Only the reconciler can expire a claim left behind by a dead invocation.
+	if (!job) return { action: "ack" };
 
 	if (!job.messageId) {
 		await markOutboundFailed(env, job.id, "Outbound message no longer exists");
@@ -180,8 +195,7 @@ export async function processOutboundQueue(
 		return { action: "ack" };
 	}
 
-	try {
-		const outboundMessage = {
+	const outboundMessage = {
 			from: snapshot.from,
 			to: snapshot.to,
 			subject: snapshot.subject,
@@ -196,44 +210,19 @@ export async function processOutboundQueue(
 				}
 				: {}),
 			...(loadedAttachments.length ? { attachments: loadedAttachments } : {}),
-		};
-		const response = snapshot.externalAccountId
+	};
+	let response: OutboundSendResult;
+	try {
+		response = snapshot.externalAccountId
 			? await sendExternalProviderMessage(
 				env, job.userId, snapshot.externalAccountId, outboundMessage,
 			)
-			: await selectOutboundProvider(env).send(outboundMessage);
-		await db.batch([
-			db
-				.update(outboundJobs)
-				.set({
-					status: "sent",
-					error: null,
-					deliveryToken: null,
-					updatedAt: new Date(),
-				})
-				.where(and(
-					eq(outboundJobs.id, job.id),
-					eq(outboundJobs.status, "processing"),
-					eq(outboundJobs.deliveryToken, deliveryToken),
-				)),
-			db
-				.update(messages)
-				.set({
-					status: "sent",
-					providerMessageId: response.providerMessageId,
-					...(normalizeRfcMessageId(response.providerMessageId)
-						? { rfcMessageId: response.providerMessageId }
-						: {}),
-				})
-				.where(eq(messages.id, job.messageId)),
-		]);
-		await dispatchWebhooks(env, job.userId, "message.outbound", {
-			messageId: job.messageId,
-			providerMessageId: response.providerMessageId,
-			to: snapshot.to,
-		});
-		return { action: "ack" };
+			: await selectOutboundProvider(env).send({ ...outboundMessage, idempotencyKey: job.id });
 	} catch (error) {
+		if (error instanceof OutboundProviderError && error.outcomeUnknown) {
+			await markOutboundUncertain(db, job.id, eq(outboundJobs.deliveryToken, deliveryToken));
+			return { action: "ack" };
+		}
 		const failureMessage = providerFailureMessage(error);
 		if (error instanceof OutboundProviderError && error.retryable) {
 			await db
@@ -255,11 +244,25 @@ export async function processOutboundQueue(
 		await markOutboundFailed(env, job.id, failureMessage);
 		return { action: "ack" };
 	}
+	const claim = and(eq(outboundJobs.id, job.id), eq(outboundJobs.status, "processing"), eq(outboundJobs.deliveryToken, deliveryToken));
+	await db.batch([
+		db.update(messages).set({
+			status: "sent", providerMessageId: response.providerMessageId,
+			...(normalizeRfcMessageId(response.providerMessageId) ? { rfcMessageId: response.providerMessageId } : {}),
+		}).where(and(eq(messages.id, job.messageId), exists(db.select({ id: outboundJobs.id }).from(outboundJobs).where(claim)))),
+		db.update(outboundJobs).set({ status: "sent", error: null, deliveryToken: null, updatedAt: new Date() }).where(claim),
+	]);
+	await dispatchWebhooks(env, job.userId, "message.outbound", {
+		messageId: job.messageId, providerMessageId: response.providerMessageId, to: snapshot.to,
+	}, job.id).catch(() => console.warn("Outbound webhook scheduling failed", { jobId: job.id }));
+	return { action: "ack" };
 }
 
 export async function processOutboundDeadLetter(
 	env: CloudflareEnv,
 	payload: OutboundQueueMessage,
 ): Promise<void> {
-	await markOutboundFailed(env, payload.jobId, "Outbound delivery retries exhausted");
+	await markOutboundFailed(env, payload.jobId, "Outbound delivery retries exhausted", and(
+		eq(outboundJobs.status, "queued"), eq(outboundJobs.recoveryCount, payload.generation ?? 0),
+	));
 }

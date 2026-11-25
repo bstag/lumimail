@@ -18,6 +18,7 @@ import { buildInboundAttachmentRows, inboundAttachmentInserts, prepareInboundAtt
 import { cleanupAttachmentObjects } from "@/lib/email/attachment-storage";
 import { resolveInboundThreading } from "@/lib/email/threading";
 import { advanceInboundDelivery, readInboundDelivery } from "./inbound-delivery";
+import { prepareMessageBody } from "./message-body-storage";
 
 export type InboundQueueMessage = {
 	from: string;
@@ -147,13 +148,14 @@ async function storeMailboxDelivery(
 	const now = new Date();
 	const snippet = buildSnippet(parsed.text, parsed.html);
 	const prepared = prepareInboundAttachments(parsed.attachments);
+	const { textBody, htmlBody, overflow } = prepareMessageBody(parsed.text, parsed.html);
 	await upsertContactFromAddress(env, {
 		userId: mailbox.userId,
 		address: fromAddr,
 		source: "inbound",
 	});
 
-	const attachmentRows = buildInboundAttachmentRows(mailbox.userId, messageId, prepared.attachments);
+	const attachmentRows = buildInboundAttachmentRows(mailbox.userId, messageId, [...prepared.attachments, ...overflow]);
 	const threading = await resolveInboundThreading({
 		mailboxId: mailbox.mailboxId,
 		messageId: parsed.messageId,
@@ -203,15 +205,15 @@ async function storeMailboxDelivery(
 		receivedAt: parsed.receivedAt ?? now,
 		createdAt: now,
 		...unsubscribeColumns(parsed),
-		attachmentStatus: prepared.status,
+		attachmentStatus: prepared.status === "none" && overflow.length > 0 ? "stored" : prepared.status,
 		attachmentError: prepared.error,
 	});
 
 	const bodyInsert = db.insert(messageBodies).values({
 		id: newId(),
 		messageId,
-		textBody: parsed.text,
-		htmlBody: parsed.html,
+		textBody,
+		htmlBody,
 		rawR2Key: payload.rawR2Key,
 	});
 	const pushEventId = mailbox.organizationId ? newId("pue") : null;

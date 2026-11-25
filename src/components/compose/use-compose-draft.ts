@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { authFetch } from "@/lib/auth/client";
 import { parseApiResponse } from "@/lib/api/client-response";
@@ -8,6 +8,8 @@ import type { ComposeDraft } from "./types";
 import { withoutInlineImages } from "./compose-form-utils";
 
 const AUTOSAVE_DELAY_MS = 900;
+
+export type DraftSaveState = "idle" | "saving" | "saved" | "failed";
 
 /**
  * Owns the compose form's draft lifecycle: loading an existing draft on mount
@@ -19,6 +21,7 @@ export function useComposeDraft({
 	draftIdToLoad,
 	fromAddr,
 	mailboxId,
+	paused,
 	fields,
 	onDraftLoaded,
 	onLoadError,
@@ -26,6 +29,7 @@ export function useComposeDraft({
 	draftIdToLoad?: string | null;
 	fromAddr: string;
 	mailboxId: string | undefined;
+	paused: boolean;
 	fields: {
 		to: string;
 		subject: string;
@@ -38,9 +42,14 @@ export function useComposeDraft({
 }) {
 	const queryClient = useQueryClient();
 	const [draftId, setDraftId] = useState<string | null>(null);
-	const [loadingDraft, setLoadingDraft] = useState(false);
+	const [loadingDraft, setLoadingDraft] = useState(Boolean(draftIdToLoad));
+	const [saveState, setSaveState] = useState<DraftSaveState>("idle");
 	const [loadedDraftMailboxId, setLoadedDraftMailboxId] = useState<string | null>(null);
 	const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const persistedId = useRef<string | null>(null);
+	const savedPayload = useRef<string | null>(null);
+	const revision = useRef(0);
+	const saves = useRef(Promise.resolve(true));
 	const { to, subject, text, html, replyToMessageId } = fields;
 
 	useEffect(() => {
@@ -51,6 +60,7 @@ export function useComposeDraft({
 		fetchDraft(draftIdToLoad)
 			.then((draft) => {
 				if (cancelled) return;
+				persistedId.current = draft.id;
 				setDraftId(draft.id);
 				setLoadedDraftMailboxId(draft.mailboxId);
 				onDraftLoaded(draft);
@@ -71,48 +81,71 @@ export function useComposeDraft({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [draftIdToLoad]);
 
-	useEffect(() => {
-		const hasContent = to.trim() || subject.trim() || text.trim();
-		if (!fromAddr || !hasContent || loadingDraft) return;
-		if (saveTimer.current) clearTimeout(saveTimer.current);
+	const payload = useMemo(() => {
+		if (!fromAddr || loadingDraft || paused || !(draftId || to.trim() || subject.trim() || text.trim() || html.trim())) return null;
+		return JSON.stringify({ mailboxId, from: fromAddr, to, subject, text, html: withoutInlineImages(html),
+			...(replyToMessageId ? { replyToMessageId } : {}) });
+	}, [draftId, fromAddr, html, loadingDraft, mailboxId, paused, replyToMessageId, subject, text, to]);
 
-		saveTimer.current = setTimeout(async () => {
-			const payload = {
-				mailboxId,
-				from: fromAddr,
-				to,
-				subject,
-				text,
-				html: withoutInlineImages(html),
-				...(replyToMessageId ? { replyToMessageId } : {}),
-			};
-			const res = await authFetch(draftId ? `/api/drafts/${draftId}` : "/api/drafts", {
-				method: draftId ? "PATCH" : "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(payload),
-			});
-			const data = await parseApiResponse<{ draft?: { id: string } }>(res)
-				.catch(() => null);
-			if (data?.draft?.id) {
-				setDraftId(data.draft.id);
-				void invalidateMessageQueries(queryClient);
+	const enqueueSave = useCallback((body: string, version: number) => {
+		const save = saves.current.then(async () => {
+			if (version !== revision.current) return false;
+			try {
+				if (savedPayload.current !== body) {
+					const id = persistedId.current;
+					const response = await authFetch(id ? `/api/drafts/${id}` : "/api/drafts", {
+						method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body,
+					});
+					const { draft } = await parseApiResponse<{ draft: { id: string } }>(response);
+					persistedId.current = draft.id;
+					savedPayload.current = body;
+					setDraftId(draft.id);
+					void invalidateMessageQueries(queryClient);
+				}
+				const current = version === revision.current;
+				if (current) setSaveState("saved");
+				return current;
+			} catch {
+				if (version === revision.current) setSaveState("failed");
+				return false;
 			}
-		}, AUTOSAVE_DELAY_MS);
+		});
+		saves.current = save;
+		return save;
+	}, [queryClient]);
 
+	useEffect(() => {
+		if (!payload) return;
+		const version = ++revision.current;
+		setSaveState("saving");
+		saveTimer.current = setTimeout(() => {
+			void enqueueSave(payload, version);
+		}, AUTOSAVE_DELAY_MS);
 		return () => {
 			if (saveTimer.current) clearTimeout(saveTimer.current);
 		};
-	}, [draftId, fromAddr, html, loadingDraft, mailboxId, queryClient, replyToMessageId, subject, text, to]);
+	}, [enqueueSave, payload]);
 
-	/** Deletes the sent draft (fire-and-forget) and resets local draft state. */
-	function discardAfterSend() {
-		if (draftId) {
-			void authFetch(`/api/drafts/${draftId}`, { method: "DELETE" }).then((response) => {
-				if (response.ok) void invalidateMessageQueries(queryClient);
-			});
-		}
-		setDraftId(null);
+	async function saveNow() {
+		if (!payload) return true;
+		if (saveTimer.current) clearTimeout(saveTimer.current);
+		setSaveState("saving");
+		return enqueueSave(payload, ++revision.current);
 	}
 
-	return { draftId, loadingDraft, loadedDraftMailboxId, discardAfterSend };
+	async function discardAfterSend() {
+		if (saveTimer.current) clearTimeout(saveTimer.current);
+		revision.current++;
+		await saves.current;
+		const id = persistedId.current;
+		persistedId.current = null;
+		savedPayload.current = null;
+		setDraftId(null);
+		setSaveState("idle");
+		if (!id) return;
+		await authFetch(`/api/drafts/${id}`, { method: "DELETE" }).catch(() => undefined);
+		void invalidateMessageQueries(queryClient);
+	}
+
+	return { draftId, loadingDraft, loadedDraftMailboxId, saveState, saveNow, discardAfterSend };
 }

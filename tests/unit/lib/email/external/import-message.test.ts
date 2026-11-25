@@ -57,12 +57,32 @@ describe("persistExternalMessage", () => {
 		h.newId.mockImplementation((prefix?: string) => `${prefix ?? "id"}_${++index}`);
 	});
 
+	it("stores oversized imported body bytes without changing original retention", async () => {
+		const env = { BUCKET: bucket } as unknown as CloudflareEnv;
+		mock.queueSelect([]);
+		h.prepare.mockReturnValueOnce({ status: "none", error: null, attachments: [] });
+		h.parse.mockResolvedValueOnce({
+			fromAddr: "sender@example.com", text: "郵".repeat(550_000), html: null, attachments: [],
+		});
+		await persistExternalMessage(env, { ...account, retainOriginal: false }, mailbox, change);
+		expect(bucket.put).toHaveBeenCalledOnce();
+		expect(bucket.put.mock.calls[0][0]).toMatch(/^attachments\//);
+		expect(mock.inserts.map(({ values }) => values)).toContainEqual(expect.objectContaining({ attachmentStatus: "stored" }));
+	});
+
 	it("hands newly imported received mail to the owner's filters, but not sent mail (F98)", async () => {
 		const env = { BUCKET: bucket } as unknown as CloudflareEnv;
 		mock.queueSelect([]);
 		expect((await prepareExternalMessage(env, account, mailbox, change, new Date(), [])).filterInput).toEqual({
-			userId: "usr_mailbox", messageId: expect.any(String),
+			userId: "usr_mailbox", messageId: expect.any(String), at: expect.any(Date),
 		});
+		const filtersPendingAt = new Date("2026-11-24T12:00:00Z");
+		mock.queueSelect([{ id: "ext_1", lumimailMessageId: "msg_retry", filtersPendingAt }]);
+		expect((await prepareExternalMessage(env, account, mailbox, change)).filterInput).toEqual({
+			userId: "usr_mailbox", messageId: "msg_retry", at: filtersPendingAt,
+		});
+		mock.queueSelect([{ id: "ext_1", lumimailMessageId: "msg_retry", filtersPendingAt }]);
+		expect((await prepareExternalMessage(env, account, mailbox, { ...change, removed: true })).filterInput).toBeUndefined();
 		mock.queueSelect([]).queueSelect([]);
 		expect((await prepareExternalMessage(env, account, mailbox, { ...change, remoteFolderKey: "sent" }, new Date(), []))
 			.filterInput).toBeUndefined();

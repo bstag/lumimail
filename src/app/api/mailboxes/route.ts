@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { domains, mailboxMemberships, mailboxes } from "@/db/schema";
 import { withOrgAdmin, withUser } from "@/lib/api/handler";
-import { newId } from "@/lib/ids";
+import { createMailbox } from "@/lib/create-mailbox";
 import { mailboxSchema } from "@/lib/validators";
 import { ensureEmailRoutingRuleToWorker } from "@/lib/cloudflare-api";
 import { apiSuccess, apiError } from "@/lib/api/response";
@@ -67,23 +67,13 @@ export const POST = withOrgAdmin(async ({ request, env, user: orgUser }) => {
 		return apiError("Failed to create Cloudflare routing rule", 502);
 	}
 
-	const id = newId("mbx");
-	await db.batch([
-		db.insert(mailboxes).values({
-			id,
-			userId: orgUser.id,
-			organizationId: orgUser.organizationId,
-			domainId: parsed.data.domainId,
-			localPart,
-			displayName: parsed.data.displayName,
-		}),
-		db.insert(mailboxMemberships).values({
-			id: newId("mbm"),
-			mailboxId: id,
-			userId: orgUser.id,
-			role: "manager",
-		}),
-	]);
+	const id = await createMailbox(db, {
+		userId: orgUser.id,
+		organizationId: orgUser.organizationId,
+		domainId: domain.id,
+		localPart,
+		displayName: parsed.data.displayName,
+	});
 
 	return apiSuccess({ id, address });
 });

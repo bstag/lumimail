@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
 	getPrimaryDomain: vi.fn(),
 	hasAnyUser: vi.fn(),
-	provisionDomainOnCloudflare: vi.fn(),
+	requireDomainZone: vi.fn(),
 }));
 vi.mock("@/lib/cloudflare", () => ({ getEnv: () => ({}) }));
 vi.mock("@/lib/user", () => ({
@@ -11,7 +11,7 @@ vi.mock("@/lib/user", () => ({
 	hasAnyUser: m.hasAnyUser,
 }));
 vi.mock("@/lib/domains/provision", () => ({
-	provisionDomainOnCloudflare: m.provisionDomainOnCloudflare,
+	requireDomainZone: m.requireDomainZone,
 }));
 
 import { POST } from "@/app/api/setup/domain/route";
@@ -20,7 +20,7 @@ beforeEach(() => {
 	m.getPrimaryDomain.mockReset();
 	m.hasAnyUser.mockReset();
 	m.hasAnyUser.mockResolvedValue(false);
-	m.provisionDomainOnCloudflare.mockReset();
+	m.requireDomainZone.mockReset();
 });
 
 function req(body?: unknown) {
@@ -46,7 +46,7 @@ describe("POST /api/setup/domain", () => {
 		const res = await POST(req({ hostname: "example.com" }));
 		expect(res.status).toBe(403);
 		expect((await res.json()) as any).toMatchObject({ error: { message: "Setup is complete" } });
-		expect(m.provisionDomainOnCloudflare).not.toHaveBeenCalled();
+		expect(m.requireDomainZone).not.toHaveBeenCalled();
 	});
 
 	it("returns 400 for an invalid hostname", async () => {
@@ -56,31 +56,23 @@ describe("POST /api/setup/domain", () => {
 		expect((await res.json()) as any).toMatchObject({ error: { message: "Validation failed" } });
 	});
 
-	it("provisions the domain on success", async () => {
+	it("checks the zone without provisioning or exposing provider metadata", async () => {
 		m.getPrimaryDomain.mockResolvedValue(null);
-		m.provisionDomainOnCloudflare.mockResolvedValue({
-			hostname: "example.com",
-			zone: { id: "z1" },
-			routingEnabled: true,
-			sendingEnabled: true,
-		});
+		m.requireDomainZone.mockResolvedValue({ id: "z1", name: "example.com" });
 		const res = await POST(req({ hostname: "example.com" }));
 		expect(res.status).toBe(200);
 		expect((await res.json()) as any).toEqual({
 			success: true,
 			data: {
-				domain: { hostname: "example.com", zoneId: "z1", routingEnabled: true, sendingEnabled: true },
+				domain: { hostname: "example.com" },
 			},
 		});
-		expect(m.provisionDomainOnCloudflare).toHaveBeenCalledWith({}, "example.com", {
-			enableRouting: true,
-			enableSending: true,
-		});
+		expect(m.requireDomainZone).toHaveBeenCalledWith({}, "example.com");
 	});
 
-	it("returns 502 when provisioning throws", async () => {
+	it("returns 502 when zone lookup fails", async () => {
 		m.getPrimaryDomain.mockResolvedValue(null);
-		m.provisionDomainOnCloudflare.mockRejectedValue(new Error("cf down"));
+		m.requireDomainZone.mockRejectedValue(new Error("cf down"));
 		const res = await POST(req({ hostname: "example.com" }));
 		expect(res.status).toBe(502);
 		expect((await res.json()) as any).toMatchObject({ error: { message: "Domain setup failed" } });

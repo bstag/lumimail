@@ -99,6 +99,7 @@ gates later in this document must also pass.
 | F101 | Filters at scale | In Progress | [F101](specs/F101-filters-at-scale.md) | `/filters`, `/api/filters*`, ingest, cron | Comma alternatives, all/any matching, body search, Show in Focused/Other, delete after N days, apply to existing mail with a preview count, filter from a message. Unit, SQLite, and e2e tests pass; deployment unverified. |
 | F102 | Bulk cleanup | In Progress | [F102](specs/F102-bulk-cleanup.md) | `/api/messages/bulk`, Inbox | Select all in view, archive by age with a preview tied to its view, and Other backlog prompt. Tested locally. |
 | F103 | Group by sender | In Progress | [F103](specs/F103-group-by-sender.md) | Inbox, `/api/messages/senders` | Optional one-row-per-sender Inbox view with paged expansion, retry, archive all, and filter. Tested locally. |
+| F104 | Mail storage, delivery, and interface hardening | In Progress | [F104](specs/F104-audit-hardening.md) | Domain provisioning, bootstrap, Workers, inbox and compose | Tenant-scoped provisioning, durable delivery, bounded mail bodies, indexed pagination, and explicit UI errors. |
 
 Implementation notes for shipped features live in `docs/implementation/`, but those
 notes are not substitutes for feature specifications and executable tests.

@@ -16,7 +16,7 @@ export type McpSendRequest = {
 type ExistingIdempotency = {
 	requestHash: string;
 	messageId: string;
-	status: "queued" | "sent" | "failed";
+	status: "queued" | "sent" | "failed" | "uncertain";
 };
 
 export class IdempotencyConflictError extends Error {

@@ -85,6 +85,13 @@ describe("createResendProvider", () => {
 		expect(fetchMock.mock.calls[0][0]).toBe("https://proxy.internal/resend/emails");
 	});
 
+	it("passes a stable delivery idempotency key to Resend", async () => {
+		fetchMock.mockResolvedValue(jsonResponse({ id: "re-123" }));
+		await createResendProvider({ RESEND_API_KEY: "re_secret" } as CloudflareEnv)
+			.send({ ...message, idempotencyKey: "job_1" });
+		expect(fetchMock.mock.calls[0][1].headers["Idempotency-Key"]).toBe("job_1");
+	});
+
 	it("classifies a 4xx response as permanent without storing the response body", async () => {
 		fetchMock.mockResolvedValue(jsonResponse("domain not verified", { ok: false, status: 422 }));
 		const provider = createResendProvider({ RESEND_API_KEY: "re_secret" } as CloudflareEnv);

@@ -4,8 +4,17 @@ import { labels, messageLabels, messages } from "@/db/schema";
 import { messageAccessCondition } from "@/lib/auth/mailbox-access";
 import { addressOf, inboxFocusCondition, parseInboxFocus } from "@/lib/messages/focus";
 
-const ALLOWED_STATUSES = new Set(["received", "sent", "draft", "queued", "failed", "trash", "spam", "archived"]);
+const ALLOWED_STATUSES = new Set(["received", "sent", "draft", "queued", "failed", "uncertain", "trash", "spam", "archived"]);
 const MAX_AGE_DAYS = 3650;
+
+// Keep the non-Snoozed expression in sync with the mailbox list index.
+export const messageListSortTime = sql<number>`case when ${messages.status} = 'received' then coalesce(${messages.snoozedUntil}, ${messages.createdAt}) else ${messages.createdAt} end`;
+
+export function parseMessageListCursor(value: string | null) {
+	if (value === null) return null;
+	const match = /^(\d{1,12}):([A-Za-z0-9_-]{1,120})$/.exec(value);
+	return match ? { time: Number(match[1]), id: match[2] } : false;
+}
 
 export type ListConditionError = "status" | "focus" | "age";
 export type ListConditions = { where: SQL; snoozedView: boolean; error?: never } | { error: ListConditionError };
