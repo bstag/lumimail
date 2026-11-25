@@ -342,7 +342,7 @@ describe("runRemoteDoctor", () => {
 		});
 		const report = runRemoteDoctor(remoteInputs({ runWrangler }));
 
-		expect(report.checks.find((check) => check.id === "remote.r2")?.status).toBe(status);
+		expect(report.checks).toContainEqual(expect.objectContaining({ id: "remote.r2", status }));
 	});
 
 	it("adds content-free read-only provider and smoke checks", () => {
