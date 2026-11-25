@@ -104,7 +104,7 @@ content-free readiness result.
 | Provider/API failure | named remote check unavailable | non-zero | sanitized provider class |
 | Missing secret | required secret name is absent | non-zero | name/presence only |
 | Smoke mismatch | public smoke did not pass every check | non-zero | status/count only |
-| Live Cron not proven | one fixed class: unproven active version, configuration without exactly one schedule, no usable session or token, provider rejection, unreadable inventory, or schedule mismatch | non-zero | fixed class and count only |
+| Live Cron not proven | one fixed class: unproven active version, configuration that does not match the maintenance mode, no usable session or token, provider rejection, unreadable inventory, or schedule mismatch | non-zero | fixed class and count only |
 | Optional capability absent | named optional check warns | zero if no failures | safe summary |
 
 ## 10. Edge Cases

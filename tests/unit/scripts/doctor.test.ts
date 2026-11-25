@@ -334,6 +334,17 @@ function remoteInputs(overrides: Record<string, unknown> = {}) {
 }
 
 describe("runRemoteDoctor", () => {
+	it.each([["13,387", "pass"], ["13,38", "fail"]])("checks the R2 bucket with object count %s", (objectCount, status) => {
+		const runWrangler = remoteRunner({
+			"r2 bucket info lumimail-raw-prod --config wrangler.jsonc --json": JSON.stringify({
+				name: "lumimail-raw-prod", object_count: objectCount,
+			}),
+		});
+		const report = runRemoteDoctor(remoteInputs({ runWrangler }));
+
+		expect(report.checks.find((check) => check.id === "remote.r2")?.status).toBe(status);
+	});
+
 	it("adds content-free read-only provider and smoke checks", () => {
 		const runWrangler = remoteRunner();
 		const report = runRemoteDoctor(remoteInputs({ runWrangler }));
@@ -375,6 +386,24 @@ describe("runRemoteDoctor", () => {
 		expect(report.checks).toEqual(expect.arrayContaining([
 			expect.objectContaining({ id: "remote.cron", status: "pass", observed: 1 }),
 		]));
+	});
+
+	it.each([
+		[["*/2 * * * *", "* * * * *", "0-59 * * * *"], "pass", 3],
+		[["*/2 * * * *", "* * * * *"], "fail", 0],
+	] as const)("verifies isolated maintenance against %j", (crons, status, observed) => {
+		const base = config();
+		const isolated = {
+			...base,
+			vars: { ...base.vars, ISOLATED_MAINTENANCE_CRONS: "true" },
+			triggers: { crons: ["* * * * *", "0-59 * * * *", "*/2 * * * *"] },
+		};
+		const report = runRemoteDoctor(remoteInputs({
+			config: isolated,
+			readSchedules: vi.fn(() => liveSchedules([...crons])),
+		}));
+
+		expect(report.checks).toContainEqual(expect.objectContaining({ id: "remote.cron", status, observed }));
 	});
 
 	it.each([
@@ -435,7 +464,7 @@ describe("runRemoteDoctor", () => {
 		expect(readSchedules).not.toHaveBeenCalled();
 	});
 
-	it("names a configuration schedule count that cannot be matched", () => {
+	it("rejects a schedule set outside the configured maintenance mode", () => {
 		const twoSchedules = config();
 		twoSchedules.triggers = { crons: ["* * * * *", "0 * * * *"] };
 		const report = runRemoteDoctor(remoteInputs({ config: twoSchedules }));
@@ -444,7 +473,7 @@ describe("runRemoteDoctor", () => {
 			expect.objectContaining({
 				id: "remote.cron",
 				status: "fail",
-				summary: "Live Cron schedule is not proven: configuration does not define exactly one schedule",
+				summary: "Live Cron schedule is not proven: configuration does not match the maintenance mode",
 			}),
 		]));
 	});

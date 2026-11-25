@@ -28,6 +28,8 @@
 - Oversized received and repaired mail stores a plain-text preview in D1 and places the complete parsed text and sanitized HTML in downloadable R2 attachments. SQL body filters search the preview. External raw MIME retention follows the account preference.
 - Inbox order uses wake time for received mail that has unsnoozed. Other statuses use creation time. A message ID breaks timestamp ties. The browser uses an `after` cursor on next-page navigation. The HTTP API also accepts offset pagination, and the total remains exact across the authorized view.
 - Merge the three cron expressions and `ISOLATED_MAINTENANCE_CRONS` from `wrangler.jsonc.example` into existing configuration together. An installation with its original minute trigger can continue running maintenance in one invocation. Custom queues can configure `QUEUE_NAME_PREFIX` and `QUEUE_NAME_SUFFIX`.
+- The remote doctor must verify the complete live schedule inventory for either supported configuration. Schedule order does not matter. Missing, extra, or mismatched expressions fail verification.
+- Accept Wrangler's comma-grouped and ungrouped R2 object counts when checking the configured bucket. Malformed counts still fail verification.
 
 ## Edge cases and verification
 
@@ -35,7 +37,9 @@
 - Cover registration with no mailbox grant, migration on legacy rows, filter failure after commit, replay, and queue publication interruption.
 - Cover oversized streamed data, provider uncertainty, equivalent mailbox counts, stable pagination across tied timestamps, and UI retry and save failure behavior.
 - Run `npm run verify` and `npm run e2e`. Record production-only checks separately.
+- Exercise the remote doctor with an isolated schedule inventory returned in a different order, an incomplete inventory, and an invalid configured trigger set.
 
 ## Bug and change log
 
 - 2026-11-24. Applied the hardening changes above. `npm run verify` passed with 3,010 tests, 100% enforced coverage, the complexity check, and 21 IMAP bridge tests. All 134 Chromium tests passed. The migrated SQLite query plans use the inbox sort index for both the initial page and a later cursor. Live Cloudflare mail and scheduler verification remain pending deployment.
+- 2026-11-25. Applied both D1 migrations and enabled isolated maintenance in production. The remote doctor now verifies the schedule set against the configured mode and accepts Wrangler's formatted R2 object counts. All 26 readiness checks and all eight public smoke checks passed against production. No end-to-end production mail was sent during verification.

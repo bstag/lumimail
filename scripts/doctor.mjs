@@ -91,6 +91,11 @@ function exactNames(entries, property, expected) {
 	return JSON.stringify(observed) === JSON.stringify([...expected].sort());
 }
 
+function requiredCrons(config) {
+	return config?.vars?.ISOLATED_MAINTENANCE_CRONS === "true"
+		? ["* * * * *", "0-59 * * * *", "*/2 * * * *"] : ["* * * * *"];
+}
+
 function safeOrigin(config) {
 	let origin;
 	try {
@@ -167,9 +172,7 @@ export function buildLocalDoctorReport({
 	const cronTriggers = Array.isArray(config?.triggers?.crons) ? config.triggers.crons : [];
 	checks.push(check(
 		"bindings.cron",
-		exactNames(cronTriggers.map((cron) => ({ cron })), "cron",
-			config?.vars?.ISOLATED_MAINTENANCE_CRONS === "true"
-				? ["* * * * *", "0-59 * * * *", "*/2 * * * *"] : ["* * * * *"]),
+		exactNames(cronTriggers.map((cron) => ({ cron })), "cron", requiredCrons(config)),
 		"The required scheduled triggers are configured",
 		cronTriggers.length,
 	));
@@ -273,7 +276,7 @@ function bindingMatches(bindings, expected) {
 // schedule mismatch, but provider text must never become an egress path.
 const CRON_FAILURE_REASONS = {
 	dependency: "the active Worker version could not be proven",
-	config: "configuration does not define exactly one schedule",
+	config: "configuration does not match the maintenance mode",
 	credential: "no usable Wrangler session or API token for the schedule read",
 	provider: "provider rejected the schedule read",
 	unreadable: "schedule inventory was unreadable",
@@ -346,7 +349,8 @@ export function runRemoteDoctor({ localReport, config, origin, runWrangler, runS
 	let cronReason = null;
 	if (!versionProven || !scheduledHandlerObserved) {
 		cronReason = "dependency";
-	} else if (!Array.isArray(expectedCrons) || expectedCrons.length !== 1) {
+	} else if (!Array.isArray(expectedCrons) ||
+		!exactNames(expectedCrons.map((cron) => ({ cron })), "cron", requiredCrons(config))) {
 		cronReason = "config";
 	} else {
 		try {
@@ -359,9 +363,9 @@ export function runRemoteDoctor({ localReport, config, origin, runWrangler, runS
 		"remote.cron",
 		cronReason === null,
 		cronReason === null
-			? "The live Cron schedule matches configuration and the active version handles it"
+			? "The live Cron schedules match configuration and the active version handles them"
 			: `Live Cron schedule is not proven: ${CRON_FAILURE_REASONS[cronReason]}`,
-		cronReason === null ? 1 : 0,
+		cronReason === null ? expectedCrons.length : 0,
 	));
 
 	addRemoteCheck(checks, "remote.d1", "The configured production D1 database exists", () => {
@@ -378,7 +382,10 @@ export function runRemoteDoctor({ localReport, config, origin, runWrangler, runS
 	addRemoteCheck(checks, "remote.r2", "The configured production R2 bucket exists", () => {
 		const expected = config.r2_buckets[0];
 		const info = safeJson(runWrangler(["r2", "bucket", "info", expected.bucket_name, "--config", "wrangler.jsonc", "--json"]));
-		return info?.name === expected.bucket_name && Number.isInteger(Number(info?.object_count));
+		const count = info?.object_count;
+		return info?.name === expected.bucket_name &&
+			(typeof count === "number" || typeof count === "string") &&
+			/^(?:\d+|\d{1,3}(?:,\d{3})+)$/.test(String(count));
 	}, (passed) => passed ? 1 : 0);
 
 	addRemoteCheck(checks, "remote.queues", "All configured Queues are unique and the inventory is complete", () => {

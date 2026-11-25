@@ -55,7 +55,7 @@ the whole run needs read access to Account Settings, Workers Scripts, D1, Worker
 Queues, and zone-level Email Routing.
 
 When `remote.cron` fails it names one fixed reason: an unproven active Worker version, a
-configuration that does not define exactly one schedule, no usable session or token, a provider
+configuration that does not match the selected maintenance mode, no usable session or token, a provider
 rejection, an unreadable inventory, or a real schedule mismatch. An unproven version means the group
 failure above — fix the credential first, because the schedule read is never attempted in that state.
 
